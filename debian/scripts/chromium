@@ -1,0 +1,105 @@
+#!/bin/sh
+
+# Chromium launcher
+
+# Authors:
+#  Fabien Tassin <fta@sofaraway.org>
+# License: GPLv2 or later
+
+APPNAME=chromium
+LIBDIR=/usr/lib/chromium
+GDB=/usr/bin/gdb
+BUILD_DIST="@BUILD_DIST@"
+CHROMIUM_FLAGS="$CHROMIUM_FLAGS --disable-setuid-sandbox --disk-cache-dir=/dev/null --disk-cache-size=1 --media-cache-size=1"
+
+usage () {
+  echo "$APPNAME [-h|--help] [-g|--debug] [--temp-profile] [options] [URL]"
+  echo
+  echo "        -g or --debug           Start within $GDB"
+  echo "        -h or --help            This help screen"
+  echo "        --temp-profile          Start with a new and temporary profile"
+  echo
+  echo " Other supported options are:"
+  MANWIDTH=80 man chromium | sed -e '1,/OPTIONS/d; /ENVIRONMENT/,$d'
+  echo " See 'man chromium' for more details"
+}
+
+nosse2="\
+The hardware on this system lacks support for the sse2 instruction set.
+The upstream chromium project no longer supports this configuration.
+For more information, please read and possibly provide input to their
+bug tracking system at http://crbug.com/348761."
+
+# Check whether this system supports sse2
+if test -z "$(grep sse2 /proc/cpuinfo)"; then
+  xmessage "$nosse2"
+  exit 1
+fi
+
+# Source additional settings
+for file in /etc/chromium.d/*; do
+  test $file = /etc/chromium.d/README || expr $file : .*\.dpkg > /dev/null || . $file
+done
+
+# Set CHROME_VERSION_EXTRA visible in the About dialog and in about:version
+DIST="Debian `cat /etc/debian_version`"
+if [ "$DIST" = "$BUILD_DIST" ] ; then
+  export CHROME_VERSION_EXTRA="$DIST"
+else
+  export CHROME_VERSION_EXTRA="Built on $BUILD_DIST, running on $DIST"
+fi
+
+want_debug=0
+want_temp_profile=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h | --help | -help )
+      usage
+      exit 0 ;;
+    -g | --debug )
+      want_debug=1
+      shift ;;
+    --temp-profile )
+      want_temp_profile=1
+      shift ;;
+    -- ) # Stop option prcessing
+      shift
+      break ;;
+    * )
+      break ;;
+  esac
+done
+
+if [ $want_temp_profile -eq 1 ] ; then
+  TEMP_PROFILE=`mktemp -d`
+  CHROMIUM_FLAGS="$CHROMIUM_FLAGS --user-data-dir=$TEMP_PROFILE"
+fi
+
+if [ $want_debug -eq 1 ] ; then
+  if [ ! -x $GDB ] ; then
+    echo "Sorry, can't find usable $GDB. Please install it."
+    exit 1
+  fi
+  tmpfile=`mktemp /tmp/chromiumargs.XXXXXX` || { echo "Cannot create temporary file" >&2; exit 1; }
+  trap " [ -f \"$tmpfile\" ] && /bin/rm -f -- \"$tmpfile\"" 0 1 2 3 13 15
+  echo "set args $CHROMIUM_FLAGS ${1+"$@"}" > $tmpfile
+  echo "# Env:"
+  echo "#     LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+  echo "#                PATH=$PATH"
+  echo "#            GTK_PATH=$GTK_PATH"
+  echo "#      CHROMIUM_FLAGS=$CHROMIUM_FLAGS"
+  echo "$GDB $LIBDIR/$APPNAME -x $tmpfile"
+  $GDB "$LIBDIR/$APPNAME" -x $tmpfile
+  if [ $want_temp_profile -eq 1 ] ; then
+    rm -rf $TEMP_PROFILE
+  fi
+  exit $?
+else
+  if [ $want_temp_profile -eq 0 ] ; then
+    exec $LIBDIR/$APPNAME $CHROMIUM_FLAGS "$@"
+  else
+    # we can't exec here as we need to clean-up the temporary profile
+    $LIBDIR/$APPNAME $CHROMIUM_FLAGS "$@"
+    rm -rf $TEMP_PROFILE
+  fi
+fi
