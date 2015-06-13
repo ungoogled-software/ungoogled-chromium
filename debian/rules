@@ -1,0 +1,172 @@
+#!/usr/bin/make -f
+
+# enable verbose build messages
+export DH_VERBOSE=1
+
+# enable all build hardening flags
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+
+# linker flags to avoid memory allocation issues on i386
+# NOTE: Doesn't work with gold linker
+#export LDFLAGS+=-Wl,--no-keep-memory -Wl,--reduce-memory-overheads -Wl,--hash-size=7919
+
+# more verbose linker output
+export LDFLAGS+=-Wl,--trace -Wl,--stats
+
+# treat all warnings as errors
+defines=werror=
+
+defines+=default_apps_list=[] \
+		default_apps_list_linux_dest=[] \
+
+# use clang instead of gcc
+defines+=clang=1
+defines+=clang_use_chrome_plugins=
+
+# disabled features
+defines+=use_ozone=0 \
+		use_gconf=0 \
+		use_allocator=none \
+		linux_breakpad=0 \
+		linux_use_libgps=0 \
+		linux_use_bundled_gold=0 \
+		linux_use_bundled_binutils=0 \
+		remoting=0 \
+		disable_nacl=1 \
+		enable_remoting_host=0 \
+		use_gnome_keyring=0 \
+		linux_link_gsettings=0 \
+		linux_link_gnome_keyring=0 \
+		enable_automation=0 \
+		enable_google_now=0 \
+		safe_browsing=0 \
+		enable_hangout_services_extension=0 \
+		use_official_google_api_keys=0 \
+		enable_rlz=0 \
+		enable_prod_wallet_service=0 \
+
+# enabled features
+defines+=enable_webrtc=1 \
+		use_gio=1 \
+		use_pulseaudio=1 \
+		linux_link_libpci=1 \
+		linux_link_libspeechd=1 \
+		remove_webcore_debug_symbols=1
+
+# system libraries to use
+defines+=use_system_re2=1 \
+		use_system_yasm=1 \
+		use_system_opus=1 \
+		use_system_zlib=1 \
+		use_system_speex=1 \
+		use_system_expat=1 \
+		use_system_snappy=1 \
+		use_system_libpng=1 \
+		use_system_libxml=1 \
+		use_system_libjpeg=1 \
+		use_system_libwebp=1 \
+		use_system_libxslt=1 \
+		use_system_libsrtp=1 \
+		use_system_jsoncpp=1 \
+		use_system_libevent=1 \
+		use_system_harfbuzz=1 \
+		use_system_xdg_utils=1 \
+
+# enable proprietary codecs
+defines+=proprietary_codecs=1 \
+		ffmpeg_branding=ChromeOS \
+
+# use embedded protobuf for now (bug #764911)
+defines+=use_system_protobuf=0 \
+
+# icu
+defines+=use_system_icu=0 \
+		 #icu_use_data_file_flag=0 \
+		 #want_separate_host_toolset=0 \
+
+# embedded libraries (0 is the default, so just making some notes about the issues)
+#  use_system_libusb=0 requires modified source that exposes libusb_interrupt_handle_event api
+#  use_system_libvpx=0 requires modified source that exposes different api
+#  use_system_sqlite=0 build fails
+#  use_system_ffmpeg=0 build fails
+#  can't use system nss since net/third_party/nss is heavily patched
+#  can't use system ots (open text *summarizer*) since that's not google's ots (open text *sanitizer*)
+
+# make gyp a little more informative
+options+=--check \
+		--debug=includes \
+
+# avoid the need for a special src directory (--depth=. seems to require --no-parallel)
+options+=--depth=. \
+		--no-parallel \
+
+# handle parallel build options
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+njobs=-j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+# paths to files needed by flot
+flotpaths=/usr/share/javascript/jquery/*min.js \
+		/usr/share/javascript/jquery-flot/*min.js \
+
+# files to exclude from the upstream tarball
+excluded=native_client/NOTICE \
+	third_party/libsrtp/srtp/doc/rfc3711.txt \
+
+%:
+	dh $@ --parallel
+
+override_dh_auto_configure:
+	for file in $(flotpaths); do ln -sf $$file third_party/flot; done
+	GYP_DEFINES="$(defines)" ./build/gyp_chromium $(options)
+
+override_dh_auto_build:
+	ninja $(njobs) -C out/Release chrome chromedriver
+	mv out/Release/chrome out/Release/chromium || true
+	mv out/Release/chrome.1 out/Release/chromium.1 || true
+	mv out/Release/locales/en-US.pak out/Release/resources || true
+
+override_dh_auto_install:
+	dh_auto_install
+	echo "Any files placed in this directory will be sourced prior to executing chromium." \
+		> debian/chromium/etc/chromium.d/README
+	# update launcher script with build information
+	sed 's|@BUILD_DIST@|$(shell cat /etc/debian_version)|' \
+		< debian/scripts/chromium > debian/chromium/usr/bin/chromium
+	# move icons into /usr/share
+	for file in $(shell find chrome/app/theme/chromium -name product_logo_[0-9]* -a ! -name *mono*); do \
+		ext=$$(echo $$file | cut -d\. -f2); \
+		siz=$$(echo $$file | cut -d_ -f3 | sed s/\.$$ext//); \
+		dst=debian/chromium/usr/share/icons/hicolor/$$siz\x$$siz/apps; \
+		mkdir -p $$dst; \
+		cp $$file $$dst/chromium.$$ext; \
+		done
+
+override_dh_fixperms:
+	dh_fixperms
+
+override_dh_strip:
+	dh_strip --dbg-package=chromium-dbg
+
+override_dh_auto_clean:
+	rm -rf out Makefile third_party/flot/*
+	find . -name \*.mk -execdir rm -rf {} \;
+	find . -name \*.pyc -execdir rm -rf {} \;
+	#find . -name config.sub -execdir rm -rf {} \;
+	#find . -name config.guess -execdir rm -rf {} \;
+
+###################### upstream source downloading ############################
+
+url=https://gsdview.appspot.com/chromium-browser-official
+version=$(shell dpkg-parsechangelog --show-field=version | sed s/-.*//)
+tarball=chromium-$(version).tar.xz
+
+get-orig-source:
+	cd .. && wget -c $(url)/$(tarball)
+	mk-origtargz $(shell for f in $(excluded); do echo --exclude-file $$f; done) ../$(tarball)
+
+download-source:
+	wget -c $(url)/$(tarball)
+	tar -xf $(tarball) --strip-components=1
+	rm $(tarball)
+	find . -not \( -path ./debian -prune \) -name "*.h" -o -name "*.hh" -o -name "*.hpp" -o -name "*.hxx" -o -name "*.cc" -o -name "*.cpp" -o -name "*.cxx" -o -name "*.c" -o -name "*.h" -o -name "*.json" -o -name "*.js" -o -name "*.html" -o -name "*.htm" -o -name "*.py" -o -name "*.grd" -o -name "*.sql" -o -name "*.idl" -o -name "*.grd" | xargs -L1 -I{} sed -i -r -e 's/google([A-Za-z\-]*)\.com/9oo91e\1\.qjz9zk/g' -e 's/gstatic([A-Za-z\-]*)\.com/95tat1c\1\.qjz9zk/g' -e 's/chrome([A-Za-z\-]*)\.com/ch40me\1\.qjz9zk/g' -e 's/chromium([A-Za-z\-]*)\.org/ch40m1um\1\.qjz9zk/g' -e 's/mozilla([A-Za-z\-]*)\.org/m0z111a\1\.qjz9zk/g' -e 's/facebook([A-Za-z\-]*)\.com/f8c3b00k\1\.qjz9zk/g' -e 's/appspot([A-Za-z\-]*)\.com/8pp2p8t\1\.qjz9zk/g' {}

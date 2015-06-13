@@ -1,0 +1,361 @@
+description: Disables searching in the omnibox, hides search options, and disables automatic adding of search engines
+
+--- a/components/omnibox/autocomplete_input.cc
++++ b/components/omnibox/autocomplete_input.cc
+@@ -167,7 +167,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+   *canonicalized_url =
+       url_fixer::FixupURL(base::UTF16ToUTF8(text), desired_tld);
+   if (!canonicalized_url->is_valid())
+-    return metrics::OmniboxInputType::QUERY;
++    return metrics::OmniboxInputType::URL;
+ 
+   if (LowerCaseEqualsASCII(parsed_scheme_utf8, url::kFileScheme)) {
+     // A user might or might not type a scheme when entering a file URL.  In
+@@ -188,7 +188,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+     metrics::OmniboxInputType::Type type =
+         scheme_classifier.GetInputTypeForScheme(parsed_scheme_utf8);
+     if (type != metrics::OmniboxInputType::INVALID)
+-      return type;
++      return metrics::OmniboxInputType::URL;
+ 
+     // We don't know about this scheme.  It might be that the user typed a
+     // URL of the form "username:password@foo.com".
+@@ -238,7 +238,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+     // the option of treating it as a URL if we're wrong.
+     // Note that SegmentURL() is smart so we aren't tricked by "c:\foo" or
+     // "www.example.com:81" in this case.
+-    return metrics::OmniboxInputType::UNKNOWN;
++    return metrics::OmniboxInputType::URL;
+   }
+ 
+   // Either the user didn't type a scheme, in which case we need to distinguish
+@@ -250,7 +250,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+   // valid, non-standard URL; for standard URLs, an empty host would have
+   // resulted in an invalid |canonicalized_url| above.)
+   if (!canonicalized_url->has_host())
+-    return metrics::OmniboxInputType::QUERY;
++    return metrics::OmniboxInputType::URL;
+ 
+   // Determine the host family.  We get this information by (re-)canonicalizing
+   // the already-canonicalized host rather than using the user's original input,
+@@ -297,7 +297,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+     // without concrete evidence that doing so is necessary.
+     return (parts->scheme.is_nonempty() ||
+         (has_known_tld && (original_host.find(' ') == base::string16::npos))) ?
+-        metrics::OmniboxInputType::UNKNOWN : metrics::OmniboxInputType::QUERY;
++        metrics::OmniboxInputType::URL : metrics::OmniboxInputType::URL;
+   }
+ 
+   // For hostnames that look like IP addresses, distinguish between IPv6
+@@ -311,7 +311,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+     // IP with a non-zero first octet; IPs with first octet zero are "source
+     // IPs" and are never navigable as destination addresses.
+     if (host_info.address[0] == 0)
+-      return metrics::OmniboxInputType::QUERY;
++      return metrics::OmniboxInputType::URL;
+ 
+     // This is theoretically a navigable IP.  We have four cases.  The first
+     // three are:
+@@ -355,7 +355,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+   // scheme/trailing slash.
+   if ((host_info.family == url::CanonHostInfo::IPV4) &&
+       (host_info.num_ipv4_components > 1))
+-    return metrics::OmniboxInputType::QUERY;
++    return metrics::OmniboxInputType::URL;
+ 
+   // If there is more than one recognized non-host component, this is likely to
+   // be a URL, even if the TLD is unknown (in which case this is likely an
+@@ -369,7 +369,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+   // there _is_ a desired TLD, the user hit ctrl-enter, and we assume that
+   // implies an attempted navigation.)
+   if (canonicalized_url->has_username() && desired_tld.empty())
+-    return metrics::OmniboxInputType::UNKNOWN;
++    return metrics::OmniboxInputType::URL;
+ 
+   // If the host has a known TLD or a port, it's probably a URL.  Note that we
+   // special-case "localhost" as a known hostname.
+@@ -386,7 +386,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+   // returned URL.
+   if (!parts->path.is_valid() && !canonicalized_url->has_query() &&
+       canonicalized_url->has_ref())
+-    return metrics::OmniboxInputType::QUERY;
++    return metrics::OmniboxInputType::URL;
+ 
+   // No scheme, username, port, and no known TLD on the host.
+   // This could be:
+@@ -402,7 +402,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+   //   QUERY.  Since this is indistinguishable from the case above, and this
+   //   case is much more likely, claim these are UNKNOWN, which should default
+   //   to the right thing and let users correct us on a case-by-case basis.
+-  return metrics::OmniboxInputType::UNKNOWN;
++  return metrics::OmniboxInputType::URL;
+ }
+ 
+ // static
+--- a/chrome/browser/resources/options/browser_options.html
++++ b/chrome/browser/resources/options/browser_options.html
+@@ -142,7 +142,7 @@
+     </div>
+   </section>
+ </if>
+-  <section>
++  <section hidden="hidden">
+     <h3 i18n-content="sectionTitleSearch"></h3>
+       <div id="search-section-content">
+         <span id="default-search-engine-label"
+--- a/chrome/browser/ui/chrome_pages.cc
++++ b/chrome/browser/ui/chrome_pages.cc
+@@ -324,8 +324,6 @@ void ShowAboutChrome(Browser* browser) {
+ }
+ 
+ void ShowSearchEngineSettings(Browser* browser) {
+-  content::RecordAction(UserMetricsAction("EditSearchEngines"));
+-  ShowSettingsSubPage(browser, kSearchEnginesSubPage);
+ }
+ 
+ #if !defined(OS_ANDROID) && !defined(OS_IOS)
+--- a/components/search_engines/template_url_service.cc
++++ b/components/search_engines/template_url_service.cc
+@@ -246,95 +246,7 @@ bool TemplateURLService::LoadDefaultSearchProviderFromPrefs(
+     PrefService* prefs,
+     scoped_ptr<TemplateURLData>* default_provider_data,
+     bool* is_managed) {
+-  if (!prefs || !prefs->HasPrefPath(prefs::kDefaultSearchProviderSearchURL) ||
+-      !prefs->HasPrefPath(prefs::kDefaultSearchProviderKeyword))
+-    return false;
+-
+-  const PrefService::Preference* pref =
+-      prefs->FindPreference(prefs::kDefaultSearchProviderSearchURL);
+-  *is_managed = pref && pref->IsManaged();
+-
+-  if (!prefs->GetBoolean(prefs::kDefaultSearchProviderEnabled)) {
+-    // The user doesn't want a default search provider.
+-    default_provider_data->reset(NULL);
+-    return true;
+-  }
+-
+-  base::string16 name =
+-      base::UTF8ToUTF16(prefs->GetString(prefs::kDefaultSearchProviderName));
+-  base::string16 keyword =
+-      base::UTF8ToUTF16(prefs->GetString(prefs::kDefaultSearchProviderKeyword));
+-  if (keyword.empty())
+-    return false;
+-  std::string search_url =
+-      prefs->GetString(prefs::kDefaultSearchProviderSearchURL);
+-  // Force URL to be non-empty.  We've never supported this case, but past bugs
+-  // might have resulted in it slipping through; eventually this code can be
+-  // replaced with a DCHECK(!search_url.empty());.
+-  if (search_url.empty())
+-    return false;
+-  std::string suggest_url =
+-      prefs->GetString(prefs::kDefaultSearchProviderSuggestURL);
+-  std::string instant_url =
+-      prefs->GetString(prefs::kDefaultSearchProviderInstantURL);
+-  std::string image_url =
+-      prefs->GetString(prefs::kDefaultSearchProviderImageURL);
+-  std::string new_tab_url =
+-      prefs->GetString(prefs::kDefaultSearchProviderNewTabURL);
+-  std::string search_url_post_params =
+-      prefs->GetString(prefs::kDefaultSearchProviderSearchURLPostParams);
+-  std::string suggest_url_post_params =
+-      prefs->GetString(prefs::kDefaultSearchProviderSuggestURLPostParams);
+-  std::string instant_url_post_params =
+-      prefs->GetString(prefs::kDefaultSearchProviderInstantURLPostParams);
+-  std::string image_url_post_params =
+-      prefs->GetString(prefs::kDefaultSearchProviderImageURLPostParams);
+-  std::string icon_url =
+-      prefs->GetString(prefs::kDefaultSearchProviderIconURL);
+-  std::string encodings =
+-      prefs->GetString(prefs::kDefaultSearchProviderEncodings);
+-  std::string id_string = prefs->GetString(prefs::kDefaultSearchProviderID);
+-  std::string prepopulate_id =
+-      prefs->GetString(prefs::kDefaultSearchProviderPrepopulateID);
+-  const base::ListValue* alternate_urls =
+-      prefs->GetList(prefs::kDefaultSearchProviderAlternateURLs);
+-  std::string search_terms_replacement_key = prefs->GetString(
+-      prefs::kDefaultSearchProviderSearchTermsReplacementKey);
+-
+-  default_provider_data->reset(new TemplateURLData);
+-  (*default_provider_data)->short_name = name;
+-  (*default_provider_data)->SetKeyword(keyword);
+-  (*default_provider_data)->SetURL(search_url);
+-  (*default_provider_data)->suggestions_url = suggest_url;
+-  (*default_provider_data)->instant_url = instant_url;
+-  (*default_provider_data)->image_url = image_url;
+-  (*default_provider_data)->new_tab_url = new_tab_url;
+-  (*default_provider_data)->search_url_post_params = search_url_post_params;
+-  (*default_provider_data)->suggestions_url_post_params =
+-      suggest_url_post_params;
+-  (*default_provider_data)->instant_url_post_params = instant_url_post_params;
+-  (*default_provider_data)->image_url_post_params = image_url_post_params;
+-  (*default_provider_data)->favicon_url = GURL(icon_url);
+-  (*default_provider_data)->show_in_default_list = true;
+-  (*default_provider_data)->alternate_urls.clear();
+-  for (size_t i = 0; i < alternate_urls->GetSize(); ++i) {
+-    std::string alternate_url;
+-    if (alternate_urls->GetString(i, &alternate_url))
+-      (*default_provider_data)->alternate_urls.push_back(alternate_url);
+-  }
+-  (*default_provider_data)->search_terms_replacement_key =
+-      search_terms_replacement_key;
+-  base::SplitString(encodings, ';', &(*default_provider_data)->input_encodings);
+-  if (!id_string.empty() && !*is_managed) {
+-    int64 value;
+-    base::StringToInt64(id_string, &value);
+-    (*default_provider_data)->id = value;
+-  }
+-  if (!prepopulate_id.empty() && !*is_managed) {
+-    int value;
+-    base::StringToInt(prepopulate_id, &value);
+-    (*default_provider_data)->prepopulate_id = value;
+-  }
++  default_provider_data->reset(NULL);
+   return true;
+ }
+ 
+@@ -377,74 +289,6 @@ base::string16 TemplateURLService::CleanUserInputKeyword(
+ void TemplateURLService::SaveDefaultSearchProviderToPrefs(
+     const TemplateURL* t_url,
+     PrefService* prefs) {
+-  if (!prefs)
+-    return;
+-
+-  bool enabled = false;
+-  std::string search_url;
+-  std::string suggest_url;
+-  std::string instant_url;
+-  std::string image_url;
+-  std::string new_tab_url;
+-  std::string search_url_post_params;
+-  std::string suggest_url_post_params;
+-  std::string instant_url_post_params;
+-  std::string image_url_post_params;
+-  std::string icon_url;
+-  std::string encodings;
+-  std::string short_name;
+-  std::string keyword;
+-  std::string id_string;
+-  std::string prepopulate_id;
+-  base::ListValue alternate_urls;
+-  std::string search_terms_replacement_key;
+-  if (t_url) {
+-    DCHECK_EQ(TemplateURL::NORMAL, t_url->GetType());
+-    enabled = true;
+-    search_url = t_url->url();
+-    suggest_url = t_url->suggestions_url();
+-    instant_url = t_url->instant_url();
+-    image_url = t_url->image_url();
+-    new_tab_url = t_url->new_tab_url();
+-    search_url_post_params = t_url->search_url_post_params();
+-    suggest_url_post_params = t_url->suggestions_url_post_params();
+-    instant_url_post_params = t_url->instant_url_post_params();
+-    image_url_post_params = t_url->image_url_post_params();
+-    GURL icon_gurl = t_url->favicon_url();
+-    if (!icon_gurl.is_empty())
+-      icon_url = icon_gurl.spec();
+-    encodings = JoinString(t_url->input_encodings(), ';');
+-    short_name = base::UTF16ToUTF8(t_url->short_name());
+-    keyword = base::UTF16ToUTF8(t_url->keyword());
+-    id_string = base::Int64ToString(t_url->id());
+-    prepopulate_id = base::Int64ToString(t_url->prepopulate_id());
+-    for (size_t i = 0; i < t_url->alternate_urls().size(); ++i)
+-      alternate_urls.AppendString(t_url->alternate_urls()[i]);
+-    search_terms_replacement_key = t_url->search_terms_replacement_key();
+-  }
+-  prefs->SetBoolean(prefs::kDefaultSearchProviderEnabled, enabled);
+-  prefs->SetString(prefs::kDefaultSearchProviderSearchURL, search_url);
+-  prefs->SetString(prefs::kDefaultSearchProviderSuggestURL, suggest_url);
+-  prefs->SetString(prefs::kDefaultSearchProviderInstantURL, instant_url);
+-  prefs->SetString(prefs::kDefaultSearchProviderImageURL, image_url);
+-  prefs->SetString(prefs::kDefaultSearchProviderNewTabURL, new_tab_url);
+-  prefs->SetString(prefs::kDefaultSearchProviderSearchURLPostParams,
+-                   search_url_post_params);
+-  prefs->SetString(prefs::kDefaultSearchProviderSuggestURLPostParams,
+-                   suggest_url_post_params);
+-  prefs->SetString(prefs::kDefaultSearchProviderInstantURLPostParams,
+-                   instant_url_post_params);
+-  prefs->SetString(prefs::kDefaultSearchProviderImageURLPostParams,
+-                   image_url_post_params);
+-  prefs->SetString(prefs::kDefaultSearchProviderIconURL, icon_url);
+-  prefs->SetString(prefs::kDefaultSearchProviderEncodings, encodings);
+-  prefs->SetString(prefs::kDefaultSearchProviderName, short_name);
+-  prefs->SetString(prefs::kDefaultSearchProviderKeyword, keyword);
+-  prefs->SetString(prefs::kDefaultSearchProviderID, id_string);
+-  prefs->SetString(prefs::kDefaultSearchProviderPrepopulateID, prepopulate_id);
+-  prefs->Set(prefs::kDefaultSearchProviderAlternateURLs, alternate_urls);
+-  prefs->SetString(prefs::kDefaultSearchProviderSearchTermsReplacementKey,
+-      search_terms_replacement_key);
+ }
+ 
+ bool TemplateURLService::CanReplaceKeyword(
+@@ -1956,67 +1800,8 @@ bool TemplateURLService::AddNoNotify(TemplateURL* template_url,
+                                      bool newly_adding) {
+   DCHECK(template_url);
+ 
+-  if (newly_adding) {
+-    DCHECK_EQ(kInvalidTemplateURLID, template_url->id());
+-    DCHECK(std::find(template_urls_.begin(), template_urls_.end(),
+-                     template_url) == template_urls_.end());
+-    template_url->data_.id = ++next_id_;
+-  }
+-
+-  template_url->ResetKeywordIfNecessary(search_terms_data(), false);
+-  // Check whether |template_url|'s keyword conflicts with any already in the
+-  // model.
+-  TemplateURL* existing_keyword_turl =
+-      GetTemplateURLForKeyword(template_url->keyword());
+-
+-  // Check whether |template_url|'s keyword conflicts with any already in the
+-  // model.  Note that we can reach here during the loading phase while
+-  // processing the template URLs from the web data service.  In this case,
+-  // GetTemplateURLForKeyword() will look not only at what's already in the
+-  // model, but at the |initial_default_search_provider_|.  Since this engine
+-  // will presumably also be present in the web data, we need to double-check
+-  // that any "pre-existing" entries we find are actually coming from
+-  // |template_urls_|, lest we detect a "conflict" between the
+-  // |initial_default_search_provider_| and the web data version of itself.
+-  if (template_url->GetType() != TemplateURL::OMNIBOX_API_EXTENSION &&
+-      existing_keyword_turl &&
+-      existing_keyword_turl->GetType() != TemplateURL::OMNIBOX_API_EXTENSION &&
+-      (std::find(template_urls_.begin(), template_urls_.end(),
+-                 existing_keyword_turl) != template_urls_.end())) {
+-    DCHECK_NE(existing_keyword_turl, template_url);
+-    // Only replace one of the TemplateURLs if they are either both extensions,
+-    // or both not extensions.
+-    bool are_same_type = existing_keyword_turl->GetType() ==
+-        template_url->GetType();
+-    if (CanReplace(existing_keyword_turl) && are_same_type) {
+-      RemoveNoNotify(existing_keyword_turl);
+-    } else if (CanReplace(template_url) && are_same_type) {
+-      delete template_url;
+-      return false;
+-    } else {
+-      base::string16 new_keyword =
+-          UniquifyKeyword(*existing_keyword_turl, false);
+-      ResetTemplateURLNoNotify(existing_keyword_turl,
+-                               existing_keyword_turl->short_name(), new_keyword,
+-                               existing_keyword_turl->url());
+-    }
+-  }
+-  template_urls_.push_back(template_url);
+-  AddToMaps(template_url);
+-
+-  if (newly_adding &&
+-      (template_url->GetType() == TemplateURL::NORMAL)) {
+-    if (web_data_service_.get())
+-      web_data_service_->AddKeyword(template_url->data());
+-
+-    // Inform sync of the addition. Note that this will assign a GUID to
+-    // template_url and add it to the guid_to_template_map_.
+-    ProcessTemplateURLChange(FROM_HERE,
+-                             template_url,
+-                             syncer::SyncChange::ACTION_ADD);
+-  }
+-
+-  return true;
++  delete template_url;
++  return false;
+ }
+ 
+ void TemplateURLService::RemoveNoNotify(TemplateURL* template_url) {
+

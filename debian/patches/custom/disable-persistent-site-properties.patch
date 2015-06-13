@@ -1,0 +1,161 @@
+description: Disables saving site properties to the Preferences file, including per_host_zoom_levels and pattern_pairs keys
+
+--- a/net/http/http_server_properties_manager.cc
++++ b/net/http/http_server_properties_manager.cc
+@@ -789,8 +789,6 @@ void HttpServerPropertiesManager::UpdatePrefsOnPrefThread(
+ 
+   SaveSupportsQuicToPrefs(last_quic_address, &http_server_properties_dict);
+ 
+-  setting_prefs_ = true;
+-  pref_service_->Set(path_, http_server_properties_dict);
+   setting_prefs_ = false;
+ 
+   // Note that |completion| will be fired after we have written everything to
+--- a/chrome/browser/ui/zoom/chrome_zoom_level_prefs.cc
++++ b/chrome/browser/ui/zoom/chrome_zoom_level_prefs.cc
+@@ -94,34 +94,6 @@ ChromeZoomLevelPrefs::RegisterDefaultZoomLevelCallback(
+ 
+ void ChromeZoomLevelPrefs::OnZoomLevelChanged(
+     const content::HostZoomMap::ZoomLevelChange& change) {
+-  // If there's a manager to aggregate ZoomLevelChanged events, pass this event
+-  // along. Since we already hold a subscription to our associated HostZoomMap,
+-  // we don't need to create a separate subscription for this.
+-  if (zoom_event_manager_)
+-    zoom_event_manager_->OnZoomLevelChanged(change);
+-
+-  if (change.mode != content::HostZoomMap::ZOOM_CHANGED_FOR_HOST)
+-    return;
+-  double level = change.zoom_level;
+-  DictionaryPrefUpdate update(pref_service_,
+-                              prefs::kPartitionPerHostZoomLevels);
+-  base::DictionaryValue* host_zoom_dictionaries = update.Get();
+-  DCHECK(host_zoom_dictionaries);
+-
+-  bool modification_is_removal =
+-      content::ZoomValuesEqual(level, host_zoom_map_->GetDefaultZoomLevel());
+-
+-  base::DictionaryValue* host_zoom_dictionary = nullptr;
+-  if (!host_zoom_dictionaries->GetDictionary(partition_key_,
+-                                             &host_zoom_dictionary)) {
+-    host_zoom_dictionary = new base::DictionaryValue();
+-    host_zoom_dictionaries->Set(partition_key_, host_zoom_dictionary);
+-  }
+-
+-  if (modification_is_removal)
+-    host_zoom_dictionary->RemoveWithoutPathExpansion(change.host, nullptr);
+-  else
+-    host_zoom_dictionary->SetDoubleWithoutPathExpansion(change.host, level);
+ }
+ 
+ // TODO(wjmaclean): Remove the dictionary_path once the migration code is
+@@ -189,19 +161,6 @@ void ChromeZoomLevelPrefs::InitHostZoomMap(
+   // Initialize the default zoom level.
+   host_zoom_map_->SetDefaultZoomLevel(GetDefaultZoomLevelPref());
+ 
+-  // Initialize the HostZoomMap with per-host zoom levels from the persisted
+-  // zoom-level preference values.
+-  const base::DictionaryValue* host_zoom_dictionaries =
+-      pref_service_->GetDictionary(prefs::kPartitionPerHostZoomLevels);
+-  const base::DictionaryValue* host_zoom_dictionary = nullptr;
+-  if (host_zoom_dictionaries->GetDictionary(partition_key_,
+-                                            &host_zoom_dictionary)) {
+-    // Since we're calling this before setting up zoom_subscription_ below we
+-    // don't need to worry that host_zoom_dictionary is indirectly affected
+-    // by calls to HostZoomMap::SetZoomLevelForHost().
+-    ExtractPerHostZoomLevels(host_zoom_dictionary,
+-                             true /* sanitize_partition_host_zoom_levels */);
+-  }
+   zoom_subscription_ = host_zoom_map_->AddZoomLevelChangedCallback(base::Bind(
+       &ChromeZoomLevelPrefs::OnZoomLevelChanged, base::Unretained(this)));
+ }
+--- a/chrome/browser/prefs/pref_model_associator.cc
++++ b/chrome/browser/prefs/pref_model_associator.cc
+@@ -323,11 +323,6 @@ scoped_ptr<base::Value> PrefModelAssociator::MergePreference(
+         MergeListValues(local_value, server_value)).Pass();
+   }
+ 
+-  if (name == prefs::kContentSettingsPatternPairs) {
+-    return scoped_ptr<base::Value>(
+-        MergeDictionaryValues(local_value, server_value)).Pass();
+-  }
+-
+   // If this is not a specially handled preference, server wins.
+   return scoped_ptr<base::Value>(server_value.DeepCopy()).Pass();
+ }
+--- a/components/content_settings/core/browser/content_settings_pref_provider.cc
++++ b/components/content_settings/core/browser/content_settings_pref_provider.cc
+@@ -232,73 +232,6 @@ void PrefProvider::UpdatePref(
+     ContentSettingsType content_type,
+     const ResourceIdentifier& resource_identifier,
+     const base::Value* value) {
+-  // Ensure that |lock_| is not held by this thread, since this function will
+-  // send out notifications (by |~DictionaryPrefUpdate|).
+-  AssertLockNotHeld();
+-
+-  base::AutoReset<bool> auto_reset(&updating_preferences_, true);
+-  {
+-    DictionaryPrefUpdate update(prefs_,
+-                                prefs::kContentSettingsPatternPairs);
+-    base::DictionaryValue* pattern_pairs_settings = update.Get();
+-
+-    // Get settings dictionary for the given patterns.
+-    std::string pattern_str(CreatePatternString(primary_pattern,
+-                                                secondary_pattern));
+-    base::DictionaryValue* settings_dictionary = NULL;
+-    bool found = pattern_pairs_settings->GetDictionaryWithoutPathExpansion(
+-        pattern_str, &settings_dictionary);
+-
+-    if (!found && value) {
+-      settings_dictionary = new base::DictionaryValue;
+-      pattern_pairs_settings->SetWithoutPathExpansion(
+-          pattern_str, settings_dictionary);
+-    }
+-
+-    if (settings_dictionary) {
+-      std::string res_dictionary_path;
+-      if (GetResourceTypeName(content_type, &res_dictionary_path) &&
+-          !resource_identifier.empty()) {
+-        base::DictionaryValue* resource_dictionary = NULL;
+-        found = settings_dictionary->GetDictionary(
+-            res_dictionary_path, &resource_dictionary);
+-        if (!found) {
+-          if (value == NULL)
+-            return;  // Nothing to remove. Exit early.
+-          resource_dictionary = new base::DictionaryValue;
+-          settings_dictionary->Set(res_dictionary_path, resource_dictionary);
+-        }
+-        // Update resource dictionary.
+-        if (value == NULL) {
+-          resource_dictionary->RemoveWithoutPathExpansion(resource_identifier,
+-                                                          NULL);
+-          if (resource_dictionary->empty()) {
+-            settings_dictionary->RemoveWithoutPathExpansion(
+-                res_dictionary_path, NULL);
+-          }
+-        } else {
+-          resource_dictionary->SetWithoutPathExpansion(
+-              resource_identifier, value->DeepCopy());
+-        }
+-      } else {
+-        // Update settings dictionary.
+-        std::string setting_path = GetTypeName(content_type);
+-        if (value == NULL) {
+-          settings_dictionary->RemoveWithoutPathExpansion(setting_path,
+-                                                          NULL);
+-          settings_dictionary->RemoveWithoutPathExpansion(kLastUsed, NULL);
+-        } else {
+-          settings_dictionary->SetWithoutPathExpansion(
+-              setting_path, value->DeepCopy());
+-        }
+-      }
+-      // Remove the settings dictionary if it is empty.
+-      if (settings_dictionary->empty()) {
+-        pattern_pairs_settings->RemoveWithoutPathExpansion(
+-            pattern_str, NULL);
+-      }
+-    }
+-  }
+ }
+ 
+ 
+
