@@ -7,10 +7,10 @@
 # License: GPLv2 or later
 
 APPNAME=chromium
-LIBDIR=/usr/lib/chromium
+
 GDB=/usr/bin/gdb
+LIBDIR=/usr/lib/$APPNAME
 BUILD_DIST="@BUILD_DIST@"
-CHROMIUM_FLAGS="$CHROMIUM_FLAGS --disable-setuid-sandbox --disk-cache-dir=/dev/null --disk-cache-size=1 --media-cache-size=1"
 
 usage () {
   echo "$APPNAME [-h|--help] [-g|--debug] [--temp-profile] [options] [URL]"
@@ -36,18 +36,24 @@ if test -z "$(grep sse2 /proc/cpuinfo)"; then
   exit 1
 fi
 
+# Check for chrome-sandbox
+if test ! -u $LIBDIR/chrome-sandbox; then
+  CHROMIUM_FLAGS="$CHROMIUM_FLAGS --disable-setuid-sandbox"
+fi
+
 # Source additional settings
 for file in /etc/chromium.d/*; do
   test $file = /etc/chromium.d/README || expr $file : .*\.dpkg > /dev/null || . $file
 done
 
-# Set CHROME_VERSION_EXTRA visible in the About dialog and in about:version
-DIST="Debian `cat /etc/debian_version`"
-if [ "$DIST" = "$BUILD_DIST" ] ; then
-  export CHROME_VERSION_EXTRA="$DIST"
-else
-  export CHROME_VERSION_EXTRA="Built on $BUILD_DIST, running on $DIST"
+# Use the /usr/bin helper script for generated launchers
+if test -z "$CHROME_WRAPPER"; then
+    export CHROME_WRAPPER="/usr/bin/$APPNAME"
 fi
+
+# Set CHROME_VERSION_EXTRA text, which is displayed in the About dialog
+DIST=`cat /etc/debian_version`
+export CHROME_VERSION_EXTRA="Built on Debian $BUILD_DIST, running on Debian $DIST"
 
 want_debug=0
 want_temp_profile=0

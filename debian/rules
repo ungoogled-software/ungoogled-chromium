@@ -46,7 +46,8 @@ defines+=use_ozone=0 \
 		enable_prod_wallet_service=0 \
 
 # enabled features
-defines+=enable_webrtc=1 \
+defines+=enable_hidpi=1 \
+		enable_webrtc=1 \
 		use_gio=1 \
 		use_pulseaudio=1 \
 		linux_link_libpci=1 \
@@ -60,7 +61,6 @@ defines+=use_system_re2=1 \
 		use_system_zlib=1 \
 		use_system_speex=1 \
 		use_system_expat=1 \
-		use_system_snappy=1 \
 		use_system_libpng=1 \
 		use_system_libxml=1 \
 		use_system_libjpeg=1 \
@@ -109,10 +109,6 @@ endif
 flotpaths=/usr/share/javascript/jquery/*min.js \
 		/usr/share/javascript/jquery-flot/*min.js \
 
-# files to exclude from the upstream tarball
-excluded=native_client/NOTICE \
-	third_party/libsrtp/srtp/doc/rfc3711.txt \
-
 %:
 	dh $@ --parallel
 
@@ -121,12 +117,14 @@ override_dh_auto_configure:
 	GYP_DEFINES="$(defines)" ./build/gyp_chromium $(options)
 
 override_dh_auto_build:
-	ninja $(njobs) -C out/Release chrome chromedriver
+	ninja $(njobs) -C out/Release chrome chrome_sandbox chromedriver
 	mv out/Release/chrome out/Release/chromium || true
 	mv out/Release/chrome.1 out/Release/chromium.1 || true
 	mv out/Release/locales/en-US.pak out/Release/resources || true
+	mv out/Release/chrome_sandbox out/Release/chrome-sandbox || true
+	chmod 4755 out/Release/chrome-sandbox # suid sandbox
 
-override_dh_auto_install:
+override_dh_auto_install-arch:
 	dh_auto_install
 	echo "Any files placed in this directory will be sourced prior to executing chromium." \
 		> debian/chromium/etc/chromium.d/README
@@ -143,30 +141,37 @@ override_dh_auto_install:
 		done
 
 override_dh_fixperms:
-	dh_fixperms
+	dh_fixperms --exclude chrome-sandbox
 
 override_dh_strip:
-	dh_strip --dbg-package=chromium-dbg
+	dh_strip --dbg-package chromium-dbg
+
+override_dh_gencontrol:
+	dh_gencontrol -- -VBuilt-Using="$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W libjs-jquery libjs-jquery-flot)"
 
 override_dh_auto_clean:
-	rm -rf out Makefile third_party/flot/*
-	find . -name \*.mk -execdir rm -rf {} \;
+	rm -rf out
 	find . -name \*.pyc -execdir rm -rf {} \;
-	#find . -name config.sub -execdir rm -rf {} \;
-	#find . -name config.guess -execdir rm -rf {} \;
+	dh_auto_clean
 
 ###################### upstream source downloading ############################
 
 url=https://gsdview.appspot.com/chromium-browser-official
-version=$(shell dpkg-parsechangelog --show-field=version | sed s/-.*//)
+url_backup=https://github.com/zcbenz/chromium-source-tarball/releases/download
+version=$(shell dpkg-parsechangelog -S Version | sed s/-.*//)
 tarball=chromium-$(version).tar.xz
+removed=chromium-browser_$(version).files-removed
 
 get-orig-source:
-	cd .. && wget -c $(url)/$(tarball)
-	mk-origtargz $(shell for f in $(excluded); do echo --exclude-file $$f; done) ../$(tarball)
+	wget -nv --show-progress -c $(url)/$(tarball) -O ../$(tarball)
+	mk-origtargz ../$(tarball) | tee ../$(removed)
+	echo >> ../$(removed)
+	tar tf ../$(tarball) | sort > ../chromium.upstream
+	tar tf ../chromium-browser_$(version).orig.tar.xz | sort > ../chromium.orig
+	diff -u ../chromium.upstream ../chromium.orig >> ../$(removed) || true
 
 download-source:
-	wget -c $(url)/$(tarball)
+	@-wget -c $(url)/$(tarball) || ([ $$? -eq 8 ] && wget -c $(url_backup)/$(version)/$(tarball))
 	tar -xf $(tarball) --strip-components=1
 	rm $(tarball)
 	find . -not \( -path ./debian -prune \) -name "*.h" -o -name "*.hh" -o -name "*.hpp" -o -name "*.hxx" -o -name "*.cc" -o -name "*.cpp" -o -name "*.cxx" -o -name "*.c" -o -name "*.h" -o -name "*.json" -o -name "*.js" -o -name "*.html" -o -name "*.htm" -o -name "*.py" -o -name "*.grd" -o -name "*.sql" -o -name "*.idl" -o -name "*.grd" | xargs -L1 -I{} sed -i -r -e 's/google([A-Za-z\-]*)\.com/9oo91e\1\.qjz9zk/g' -e 's/gstatic([A-Za-z\-]*)\.com/95tat1c\1\.qjz9zk/g' -e 's/chrome([A-Za-z\-]*)\.com/ch40me\1\.qjz9zk/g' -e 's/chromium([A-Za-z\-]*)\.org/ch40m1um\1\.qjz9zk/g' -e 's/mozilla([A-Za-z\-]*)\.org/m0z111a\1\.qjz9zk/g' -e 's/facebook([A-Za-z\-]*)\.com/f8c3b00k\1\.qjz9zk/g' -e 's/appspot([A-Za-z\-]*)\.com/8pp2p8t\1\.qjz9zk/g' {}

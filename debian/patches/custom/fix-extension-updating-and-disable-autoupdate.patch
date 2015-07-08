@@ -1,0 +1,156 @@
+description: Fix extension updating due to the domain replacement command, and disable extension auto-updating and checking
+
+--- a/chrome/common/extensions/extension_constants.cc
++++ b/chrome/common/extensions/extension_constants.cc
+@@ -9,7 +9,7 @@ namespace extension_urls {
+ namespace {
+ 
+ const char kGalleryUpdateHttpsUrl[] =
+-    "https://clients2.9oo91e.qjz9zk/service/update2/crx";
++    "https://clients2.google.com/service/update2/crx";
+ 
+ }  // namespace
+ 
+--- a/chrome/browser/extensions/extension_system_impl.cc
++++ b/chrome/browser/extensions/extension_system_impl.cc
+@@ -311,7 +311,7 @@ void ExtensionSystemImpl::Shared::Init(bool extensions_enabled) {
+   // ExtensionService depends on RuntimeData.
+   runtime_data_.reset(new RuntimeData(ExtensionRegistry::Get(profile_)));
+ 
+-  bool autoupdate_enabled = !profile_->IsGuestSession();
++  bool autoupdate_enabled = false;
+ #if defined(OS_CHROMEOS)
+   if (!extensions_enabled)
+     autoupdate_enabled = false;
+--- a/extensions/common/extension_urls.cc
++++ b/extensions/common/extension_urls.cc
+@@ -29,9 +29,9 @@ bool IsSourceFromAnExtension(const base::string16& source) {
+ 
+ namespace extension_urls {
+ 
+-const char kChromeWebstoreBaseURL[] = "https://chrome.9oo91e.qjz9zk/webstore";
++const char kChromeWebstoreBaseURL[] = "https://chrome.google.com/webstore";
+ const char kChromeWebstoreUpdateURL[] =
+-    "https://clients2.9oo91e.qjz9zk/service/update2/crx";
++    "https://clients2.google.com/service/update2/crx";
+ 
+ std::string GetWebstoreLaunchURL() {
+   extensions::ExtensionsClient* client = extensions::ExtensionsClient::Get();
+--- a/chrome/browser/extensions/extension_service.cc
++++ b/chrome/browser/extensions/extension_service.cc
+@@ -310,7 +310,7 @@ ExtensionService::ExtensionService(Profile* profile,
+       ->AddObserver(this);
+ 
+   // Set up the ExtensionUpdater.
+-  if (autoupdate_enabled) {
++  if (false) {
+     int update_frequency = extensions::kDefaultUpdateFrequencySeconds;
+     if (command_line->HasSwitch(switches::kExtensionsUpdateFrequency)) {
+       base::StringToInt(command_line->GetSwitchValueASCII(
+--- a/components/policy/core/common/policy_loader_win.cc
++++ b/components/policy/core/common/policy_loader_win.cc
+@@ -69,7 +69,7 @@ const char kLegacyBrowserSupportExtensionId[] =
+ 
+ // The web store url that is the only trusted source for extensions.
+ const char kExpectedWebStoreUrl[] =
+-    ";https://clients2.9oo91e.qjz9zk/service/update2/crx";
++    ";https://clients2.google.com/service/update2/crx";
+ // String to be prepended to each blocked entry.
+ const char kBlockedExtensionPrefix[] = "[BLOCKED]";
+ 
+--- a/chrome/browser/ui/views/accessibility/invert_bubble_view.cc
++++ b/chrome/browser/ui/views/accessibility/invert_bubble_view.cc
+@@ -29,9 +29,9 @@
+ namespace {
+ 
+ const char kHighContrastExtensionUrl[] =
+-    "https://chrome.9oo91e.qjz9zk/webstore/detail/djcfdncoelnlbldjfhinnjlhdjlikmph";
++    "https://chrome.google.com/webstore/detail/djcfdncoelnlbldjfhinnjlhdjlikmph";
+ const char kDarkThemeSearchUrl[] =
+-    "https://chrome.9oo91e.qjz9zk/webstore/search-themes/dark";
++    "https://chrome.google.com/webstore/search-themes/dark";
+ const char kLearnMoreUrl[] =
+     "https://groups.9oo91e.qjz9zk/a/9oo91eproductforums.qjz9zk/d/topic/chrome/Xrco2HsXS-8/discussion";
+ 
+--- a/chrome/browser/apps/install_chrome_app.cc
++++ b/chrome/browser/apps/install_chrome_app.cc
+@@ -25,7 +25,7 @@ namespace {
+ 
+ // The URL to the webstore page for a specific app.
+ const char kWebstoreUrlFormat[] =
+-    "https://chrome.9oo91e.qjz9zk/webstore/detail/%s";
++    "https://chrome.google.com/webstore/detail/%s";
+ 
+ // Error given when the extension is not an app.
+ const char kInstallChromeAppErrorNotAnApp[] =
+--- a/chrome/app_installer/win/app_installer_main.cc
++++ b/chrome/app_installer/win/app_installer_main.cc
+@@ -36,7 +36,7 @@ DEFINE_GUID(kAppInstallerLogProvider,
+             0x4625,
+             0x82, 0x82, 0x4d, 0x57, 0x0c, 0x4d, 0xad, 0x12);
+ 
+-const wchar_t kChromeServer[] = L"chrome.9oo91e.qjz9zk";
++const wchar_t kChromeServer[] = L"chrome.google.com";
+ 
+ const wchar_t kInlineInstallDetail[] = L"/webstore/inlineinstall/detail/";
+ 
+--- a/chrome/app/resources/locale_settings.grd
++++ b/chrome/app/resources/locale_settings.grd
+@@ -332,12 +332,12 @@
+ 
+       <!-- The URL for the themes gallery. -->
+       <message name="IDS_THEMES_GALLERY_URL" translateable="false">
+-        https://chrome.9oo91e.qjz9zk/webstore?hl=[GRITLANGCODE]&amp;category=theme
++        https://chrome.google.com/webstore?hl=[GRITLANGCODE]&amp;category=theme
+       </message>
+ 
+       <!-- The URL for the webstore. -->
+       <message name="IDS_WEBSTORE_URL" translateable="false">
+-        https://chrome.9oo91e.qjz9zk/webstore?hl=[GRITLANGCODE]
++        https://chrome.google.com/webstore?hl=[GRITLANGCODE]
+       </message>
+ 
+       <!-- The URL for Google Chrome welcome page. This is used for the pre -->
+--- a/extensions/browser/api/web_request/web_request_permissions.cc
++++ b/extensions/browser/api/web_request/web_request_permissions.cc
+@@ -51,7 +51,7 @@ bool IsSensitiveURL(const GURL& url) {
+     sensitive_chrome_url = sensitive_chrome_url ||
+         EndsWith(url.host(), ".clients.9oo91e.qjz9zk", true) ||
+         url.host() == "sb-ssl.9oo91e.qjz9zk" ||
+-        (url.host() ==  "chrome.9oo91e.qjz9zk" &&
++        (url.host() ==  "chrome.google.com" &&
+              StartsWithASCII(url.path(), "/webstore", true));
+   }
+   GURL::Replacements replacements;
+--- a/chrome/browser/resources/ntp4/new_tab.html
++++ b/chrome/browser/resources/ntp4/new_tab.html
+@@ -96,7 +96,7 @@
+ 
+   <div id="app-launcher-promo" hidden>
+     <div class="apps-promo-text" i18n-content="appsPromoTitle"></div>
+-    <a href="https://chrome.9oo91e.qjz9zk/webstore/launcher"
++    <a href="https://chrome.google.com/webstore/launcher"
+        id="apps-promo-learn-more" class="apps-promo-learn-more"
+        i18n-content="learn_more">
+     </a>
+--- a/ui/file_manager/file_manager/foreground/js/file_tasks.js
++++ b/ui/file_manager/file_manager/foreground/js/file_tasks.js
+@@ -41,7 +41,7 @@ function FileTasks(fileManager) {
+  * @const
+  * @type {string}
+  */
+-FileTasks.CHROME_WEB_STORE_URL = 'https://chrome.9oo91e.qjz9zk/webstore';
++FileTasks.CHROME_WEB_STORE_URL = 'https://chrome.google.com/webstore';
+ 
+ /**
+  * Base URL of apps list in the Chrome Web Store. This constant is used in
+@@ -51,7 +51,7 @@ FileTasks.CHROME_WEB_STORE_URL = 'https://chrome.9oo91e.qjz9zk/webstore';
+  * @type {string}
+  */
+ FileTasks.WEB_STORE_HANDLER_BASE_URL =
+-    'https://chrome.9oo91e.qjz9zk/webstore/category/collection/file_handlers';
++    'https://chrome.google.com/webstore/category/collection/file_handlers';
+ 
+ 
+ /**
+
