@@ -52,7 +52,7 @@ description: Fix building with safe_browsing=0 in gyp flags
      // will work here.
 --- a/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
 +++ b/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
-@@ -45,90 +45,6 @@ class InterstitialHTMLSource : public content::URLDataSource {
+@@ -46,99 +46,6 @@ class InterstitialHTMLSource : public content::URLDataSource {
    DISALLOW_COPY_AND_ASSIGN(InterstitialHTMLSource);
  };
  
@@ -62,6 +62,7 @@ description: Fix building with safe_browsing=0 in gyp flags
 -  GURL request_url("https://example.com");
 -  bool overridable = false;
 -  bool strict_enforcement = false;
+-  base::Time time_triggered_ = base::Time::NowFromSystemTime();
 -  std::string url_param;
 -  if (net::GetValueForKeyInQuery(web_contents->GetURL(),
 -                                 "url",
@@ -81,6 +82,17 @@ description: Fix building with safe_browsing=0 in gyp flags
 -                                 &strict_enforcement_param)) {
 -    strict_enforcement = strict_enforcement_param == "1";
 -  }
+-  std::string clock_manipulation_param;
+-  if (net::GetValueForKeyInQuery(web_contents->GetURL(), "clock_manipulation",
+-                                 &clock_manipulation_param) == 1) {
+-    cert_error = net::ERR_CERT_DATE_INVALID;
+-    int time_offset;
+-    if (base::StringToInt(clock_manipulation_param, &time_offset)) {
+-      time_triggered_ += base::TimeDelta::FromDays(365 * time_offset);
+-    } else {
+-      time_triggered_ += base::TimeDelta::FromDays(365 * 2);
+-    }
+-  }
 -  net::SSLInfo ssl_info;
 -  ssl_info.cert = new net::X509Certificate(
 -      request_url.host(), "CA", base::Time::Max(), base::Time::Max());
@@ -90,11 +102,8 @@ description: Fix building with safe_browsing=0 in gyp flags
 -    options_mask |= SSLBlockingPage::OVERRIDABLE;
 -  if (strict_enforcement)
 -    options_mask |= SSLBlockingPage::STRICT_ENFORCEMENT;
--  return new SSLBlockingPage(web_contents,
--                             cert_error,
--                             ssl_info,
--                             request_url,
--                             options_mask,
+-  return new SSLBlockingPage(web_contents, cert_error, ssl_info, request_url,
+-                             options_mask, time_triggered_, nullptr,
 -                             base::Callback<void(bool)>());
 -}
 -
@@ -143,7 +152,7 @@ description: Fix building with safe_browsing=0 in gyp flags
  } //  namespace
  
  InterstitialUI::InterstitialUI(content::WebUI* web_ui)
-@@ -175,15 +91,9 @@ void InterstitialHTMLSource::StartDataRequest(
+@@ -182,15 +89,9 @@ void InterstitialHTMLSource::StartDataRequest(
      int render_frame_id,
      const content::URLDataSource::GotDataCallback& callback) {
    scoped_ptr<content::InterstitialPageDelegate> interstitial_delegate;
@@ -158,8 +167,8 @@ description: Fix building with safe_browsing=0 in gyp flags
 -    html = interstitial_delegate.get()->GetHTMLContents();
 +  if (false) {
    } else {
-     html = "<html><head><title>Interstitials</title></head>"
-            "<body><h2>Choose an interstitial<h2>"
+     html = ResourceBundle::GetSharedInstance()
+                           .GetRawDataResource(IDR_SECURITY_INTERSTITIAL_UI_HTML)
 --- a/chrome/browser/renderer_host/chrome_resource_dispatcher_host_delegate.cc
 +++ b/chrome/browser/renderer_host/chrome_resource_dispatcher_host_delegate.cc
 @@ -351,9 +351,6 @@ void ChromeResourceDispatcherHostDelegate::RequestBeginning(
@@ -172,4 +181,32 @@ description: Fix building with safe_browsing=0 in gyp flags
    const ResourceRequestInfo* info = ResourceRequestInfo::ForRequest(request);
    bool is_prerendering =
        info->GetVisibilityState() == blink::WebPageVisibilityStatePrerender;
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -1710,12 +1710,9 @@ void ChromeContentBrowserClient::AllowCertificateError(
+   if (expired_previous_decision)
+     options_mask |= SSLBlockingPage::EXPIRED_BUT_PREVIOUSLY_ALLOWED;
+ 
+-  SafeBrowsingService* safe_browsing_service =
+-      g_browser_process->safe_browsing_service();
+   SSLErrorHandler::HandleSSLError(
+       tab, cert_error, ssl_info, request_url, options_mask,
+-      safe_browsing_service ? safe_browsing_service->ui_manager().get()
+-                            : nullptr,
++      nullptr,
+       callback);
+ }
+ 
+--- a/chrome/browser/ssl/ssl_blocking_page.cc
++++ b/chrome/browser/ssl/ssl_blocking_page.cc
+@@ -662,9 +662,6 @@ void SSLBlockingPage::FinishCertCollection() {
+ 
+   if (certificate_report_callback_for_testing_.is_null())
+     scoped_callback.Reset(base::Bind(&base::DoNothing));
+-
+-  safe_browsing_ui_manager_->ReportInvalidCertificateChain(
+-      request_url().host(), ssl_info_, scoped_callback.Release());
+ }
+ 
+ // static
 

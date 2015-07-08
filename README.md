@@ -8,10 +8,10 @@
 - Disabled browser sign-in
 - Disabled searching in Omnibox
 - Disabled automatic formatting of URL in Omnibox
-- Disabled JavaScript dialog boxes from showing when a page is closing
+- Disabled JavaScript dialog boxes from showing when a page closes (onbeforeunload dialog boxes)
 - Added menu item under "More tools" to clear the HTTP authentication cache on-demand
 - Disabled persistent per-site settings in Preferences file
-- Includes Preferences file with preset settings
+- Disabled extension autoupdating
 
 ## Building
 
@@ -32,14 +32,16 @@ Debian packages will appear under chromium/
 
 ## TODO
 
-- Add the setuid sandbox as a separate Debian package
-- Add additional patches to disable connections with clients2.google.com
-- Improve current patches
+- Disable background communication with translate.9oo91eapis.qjz9zk (when patched with domain-replacement script) when settings are opened
+- Make Webstore and extension updating work
 - Add Windows support
-- Add settings menu to manually edit credentials database(?)
+- Add settings menu to manually edit password database(?)
 
 ## Credits
 
-Debian for build scripts
+Debian for build scripts <br />
 Google for Chromium
 
+## License
+
+Public domain
