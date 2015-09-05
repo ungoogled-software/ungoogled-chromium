@@ -1,0 +1,64 @@
+description: Disables browser translation
+
+--- a/components/translate/core/browser/translate_manager.cc
++++ b/components/translate/core/browser/translate_manager.cc
+@@ -86,6 +86,7 @@ base::WeakPtr<TranslateManager> TranslateManager::GetWeakPtr() {
+ }
+ 
+ void TranslateManager::InitiateTranslation(const std::string& page_lang) {
++  return;
+   // Short-circuit out if not in a state where initiating translation makes
+   // sense (this method may be called muhtiple times for a given page).
+   if (!language_state_.page_needs_translation() ||
+--- a/components/translate/content/renderer/translate_helper.cc
++++ b/components/translate/content/renderer/translate_helper.cc
+@@ -87,6 +87,7 @@ scoped_ptr<translate::RendererCldDataProvider> CreateDataProvider(
+ // translation.  Some pages can explictly specify (via a meta-tag) that they
+ // should not be translated.
+ bool HasNoTranslateMeta(WebDocument* document) {
++  return false;
+   WebElement head = document->head();
+   if (head.isNull() || !head.hasChildNodes())
+     return false;
+@@ -145,6 +146,8 @@ TranslateHelper::TranslateHelper(content::RenderView* render_view,
+       extension_group_(extension_group),
+       extension_scheme_(extension_scheme),
+       weak_method_factory_(this) {
++  CancelPendingTranslation();
++  CancelCldDataPolling();
+ }
+ 
+ TranslateHelper::~TranslateHelper() {
+@@ -398,6 +401,7 @@ void TranslateHelper::OnTranslatePage(int page_seq_no,
+                                       const std::string& translate_script,
+                                       const std::string& source_lang,
+                                       const std::string& target_lang) {
++  return;
+   WebFrame* main_frame = GetMainFrame();
+   if (!main_frame || page_seq_no_ != page_seq_no)
+     return;  // We navigated away, nothing to do.
+--- a/components/translate/core/browser/translate_language_list.cc
++++ b/components/translate/core/browser/translate_language_list.cc
+@@ -200,6 +200,8 @@ GURL TranslateLanguageList::TranslateLanguageUrl() {
+ }
+ 
+ void TranslateLanguageList::RequestLanguageList() {
++  request_pending_ = false;
++  return;
+   // If resource requests are not allowed, we'll get a callback when they are.
+   if (!resource_requests_allowed_) {
+     request_pending_ = true;
+--- a/components/translate/core/browser/translate_script.cc
++++ b/components/translate/core/browser/translate_script.cc
+@@ -131,9 +131,8 @@ void TranslateScript::OnScriptFetchComplete(
+     data_ = base::StringPrintf("var translateApiKey = '%s';\n",
+                                google_apis::GetAPIKey().c_str());
+ 
+-    GURL security_origin = translate::GetTranslateSecurityOrigin();
+     base::StringAppendF(
+-        &data_, "var securityOrigin = '%s';", security_origin.spec().c_str());
++        &data_, "var securityOrigin = '';");
+ 
+     // Append embedded translate.js and a remote element library.
+     base::StringPiece str = ResourceBundle::GetSharedInstance().
+

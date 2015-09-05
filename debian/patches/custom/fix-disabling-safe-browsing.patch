@@ -36,7 +36,7 @@ description: Fix building with safe_browsing=0 in gyp flags
  void Blacklist::AddObserver(Observer* observer) {
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -483,13 +483,6 @@ ProfileImpl::ProfileImpl(
+@@ -453,13 +453,6 @@ ProfileImpl::ProfileImpl(
        path_, sequenced_task_runner, create_mode == CREATE_MODE_SYNCHRONOUS);
  #endif
  
@@ -48,8 +48,8 @@ description: Fix building with safe_browsing=0 in gyp flags
 -  }
 -
    {
-     // On startup, preference loading is always synchronous so a scoped timer
-     // will work here.
+     prefs_ = chrome_prefs::CreateProfilePrefs(
+         path_,
 --- a/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
 +++ b/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
 @@ -46,99 +46,6 @@ class InterstitialHTMLSource : public content::URLDataSource {
@@ -152,13 +152,14 @@ description: Fix building with safe_browsing=0 in gyp flags
  } //  namespace
  
  InterstitialUI::InterstitialUI(content::WebUI* web_ui)
-@@ -182,15 +89,9 @@ void InterstitialHTMLSource::StartDataRequest(
+@@ -182,16 +89,9 @@ void InterstitialHTMLSource::StartDataRequest(
      int render_frame_id,
      const content::URLDataSource::GotDataCallback& callback) {
    scoped_ptr<content::InterstitialPageDelegate> interstitial_delegate;
--  if (StartsWithASCII(path, "ssl", true)) {
+-  if (base::StartsWith(path, "ssl", base::CompareCase::SENSITIVE)) {
 -    interstitial_delegate.reset(CreateSSLBlockingPage(web_contents_));
--  } else if (StartsWithASCII(path, "safebrowsing", true)) {
+-  } else if (base::StartsWith(path, "safebrowsing",
+-                              base::CompareCase::SENSITIVE)) {
 -    interstitial_delegate.reset(CreateSafeBrowsingBlockingPage(web_contents_));
 -  }
  
@@ -183,30 +184,29 @@ description: Fix building with safe_browsing=0 in gyp flags
        info->GetVisibilityState() == blink::WebPageVisibilityStatePrerender;
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -1710,12 +1710,9 @@ void ChromeContentBrowserClient::AllowCertificateError(
+@@ -549,10 +549,6 @@ class SafeBrowsingSSLCertReporter : public SSLCertReporter {
+   // SSLCertReporter implementation
+   void ReportInvalidCertificateChain(
+       const std::string& serialized_report) override {
+-    if (safe_browsing_ui_manager_) {
+-      safe_browsing_ui_manager_->ReportInvalidCertificateChain(
+-          serialized_report, base::Bind(&base::DoNothing));
+-    }
+   }
+ 
+  private:
+@@ -1830,12 +1826,8 @@ void ChromeContentBrowserClient::AllowCertificateError(
    if (expired_previous_decision)
      options_mask |= SSLBlockingPage::EXPIRED_BUT_PREVIOUSLY_ALLOWED;
  
 -  SafeBrowsingService* safe_browsing_service =
 -      g_browser_process->safe_browsing_service();
-   SSLErrorHandler::HandleSSLError(
-       tab, cert_error, ssl_info, request_url, options_mask,
--      safe_browsing_service ? safe_browsing_service->ui_manager().get()
--                            : nullptr,
-+      nullptr,
-       callback);
+   scoped_ptr<SafeBrowsingSSLCertReporter> cert_reporter(
+-      new SafeBrowsingSSLCertReporter(safe_browsing_service
+-                                          ? safe_browsing_service->ui_manager()
+-                                          : nullptr));
++      new SafeBrowsingSSLCertReporter(nullptr));
+   SSLErrorHandler::HandleSSLError(tab, cert_error, ssl_info, request_url,
+                                   options_mask, cert_reporter.Pass(), callback);
  }
- 
---- a/chrome/browser/ssl/ssl_blocking_page.cc
-+++ b/chrome/browser/ssl/ssl_blocking_page.cc
-@@ -662,9 +662,6 @@ void SSLBlockingPage::FinishCertCollection() {
- 
-   if (certificate_report_callback_for_testing_.is_null())
-     scoped_callback.Reset(base::Bind(&base::DoNothing));
--
--  safe_browsing_ui_manager_->ReportInvalidCertificateChain(
--      request_url().host(), ssl_info_, scoped_callback.Release());
- }
- 
- // static
 
