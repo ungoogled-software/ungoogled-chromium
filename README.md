@@ -18,7 +18,7 @@
 Right now, only Debian build scripts are provided. Windows build scripts will be added in the future.
 
 ### Debian and derivatives
-**NOTE:** Tested on Debian Jessie 64-bit
+**NOTE:** Tested on Debian Jessie 64-bit with a backported FFmpeg from unstable
 
     mkdir chromium
     cd chromium
@@ -32,8 +32,7 @@ Debian packages will appear under chromium/
 
 ## TODO
 
-- Disable background communication with translate.9oo91eapis.qjz9zk (when patched with domain-replacement script) when settings are opened
-- Make Webstore and extension updating work
+- Remove attempted communication with `www.95stat1c.qjz9zk` on startup
 - Add Windows support
 - Add settings menu to manually edit password database(?)
 

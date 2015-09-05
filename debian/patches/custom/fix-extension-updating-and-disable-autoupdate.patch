@@ -13,11 +13,12 @@ description: Fix extension updating due to the domain replacement command, and d
  
 --- a/chrome/browser/extensions/extension_system_impl.cc
 +++ b/chrome/browser/extensions/extension_system_impl.cc
-@@ -311,7 +311,7 @@ void ExtensionSystemImpl::Shared::Init(bool extensions_enabled) {
+@@ -135,8 +135,7 @@ void ExtensionSystemImpl::Shared::Init(bool extensions_enabled) {
    // ExtensionService depends on RuntimeData.
    runtime_data_.reset(new RuntimeData(ExtensionRegistry::Get(profile_)));
  
--  bool autoupdate_enabled = !profile_->IsGuestSession();
+-  bool autoupdate_enabled = !profile_->IsGuestSession() &&
+-                            !profile_->IsSystemProfile();
 +  bool autoupdate_enabled = false;
  #if defined(OS_CHROMEOS)
    if (!extensions_enabled)
@@ -83,17 +84,6 @@ description: Fix extension updating due to the domain replacement command, and d
  
  // Error given when the extension is not an app.
  const char kInstallChromeAppErrorNotAnApp[] =
---- a/chrome/app_installer/win/app_installer_main.cc
-+++ b/chrome/app_installer/win/app_installer_main.cc
-@@ -36,7 +36,7 @@ DEFINE_GUID(kAppInstallerLogProvider,
-             0x4625,
-             0x82, 0x82, 0x4d, 0x57, 0x0c, 0x4d, 0xad, 0x12);
- 
--const wchar_t kChromeServer[] = L"chrome.9oo91e.qjz9zk";
-+const wchar_t kChromeServer[] = L"chrome.google.com";
- 
- const wchar_t kInlineInstallDetail[] = L"/webstore/inlineinstall/detail/";
- 
 --- a/chrome/app/resources/locale_settings.grd
 +++ b/chrome/app/resources/locale_settings.grd
 @@ -332,12 +332,12 @@
@@ -113,13 +103,25 @@ description: Fix extension updating due to the domain replacement command, and d
        <!-- The URL for Google Chrome welcome page. This is used for the pre -->
 --- a/extensions/browser/api/web_request/web_request_permissions.cc
 +++ b/extensions/browser/api/web_request/web_request_permissions.cc
-@@ -51,7 +51,7 @@ bool IsSensitiveURL(const GURL& url) {
-     sensitive_chrome_url = sensitive_chrome_url ||
-         EndsWith(url.host(), ".clients.9oo91e.qjz9zk", true) ||
+@@ -28,7 +28,7 @@ bool IsSensitiveURL(const GURL& url) {
+   // PermissionsData::CanAccessPage into one function.
+   bool sensitive_chrome_url = false;
+   const std::string host = url.host();
+-  const char kGoogleCom[] = ".9oo91e.qjz9zk";
++  const char kGoogleCom[] = ".google.com";
+   const char kClient[] = "clients";
+   if (base::EndsWith(host, kGoogleCom, true)) {
+     // Check for "clients[0-9]*.9oo91e.qjz9zk" hosts.
+@@ -50,9 +50,9 @@ bool IsSensitiveURL(const GURL& url) {
+     // others.
+     sensitive_chrome_url =
+         sensitive_chrome_url ||
+-        base::EndsWith(url.host(), ".clients.9oo91e.qjz9zk", true) ||
++        base::EndsWith(url.host(), ".clients.google.com", true) ||
          url.host() == "sb-ssl.9oo91e.qjz9zk" ||
--        (url.host() ==  "chrome.9oo91e.qjz9zk" &&
-+        (url.host() ==  "chrome.google.com" &&
-              StartsWithASCII(url.path(), "/webstore", true));
+-        (url.host() == "chrome.9oo91e.qjz9zk" &&
++        (url.host() == "chrome.google.com" &&
+          base::StartsWithASCII(url.path(), "/webstore", true));
    }
    GURL::Replacements replacements;
 --- a/chrome/browser/resources/ntp4/new_tab.html
@@ -153,4 +155,141 @@ description: Fix extension updating due to the domain replacement command, and d
  
  
  /**
+--- a/chrome/browser/chromeos/extensions/file_manager/private_api_misc.cc
++++ b/chrome/browser/chromeos/extensions/file_manager/private_api_misc.cc
+@@ -53,7 +53,7 @@
+ namespace extensions {
+ 
+ namespace {
+-const char kCWSScope[] = "https://www.9oo91eapis.qjz9zk/auth/chromewebstore";
++const char kCWSScope[] = "https://www.googleapis.com/auth/chromewebstore";
+ 
+ // Obtains the current app window.
+ AppWindow* GetCurrentAppWindow(ChromeSyncExtensionFunction* function) {
+--- a/chrome/browser/chromeos/status/data_promo_notification.cc
++++ b/chrome/browser/chromeos/status/data_promo_notification.cc
+@@ -48,7 +48,7 @@ namespace {
+ const char kDataPromoNotificationId[] = "chrome://settings/internet/data_promo";
+ const char kDataSaverNotificationId[] = "chrome://settings/internet/data_saver";
+ const char kDataSaverExtensionUrl[] =
+-    "https://chrome.9oo91e.qjz9zk/webstore/detail/"
++    "https://chrome.google.com/webstore/detail/"
+     "pfmgfdlgomnbgkofeojodiodmgpgmkac?utm_source=chromeos-datasaver-prompt";
+ 
+ const int kNotificationCountPrefDefault = -1;
+--- a/chrome/browser/resources/settings/a11y_page/a11y_page.html
++++ b/chrome/browser/resources/settings/a11y_page/a11y_page.html
+@@ -9,7 +9,7 @@
+   <template>
+     <paper-material>
+       <div class="more-a11y-link">
+-        <a href="https://chrome.9oo91e.qjz9zk/webstore/category/collection/accessibility"
++        <a href="https://chrome.google.com/webstore/category/collection/accessibility"
+             target="_blank" i18n-content="moreFeaturesLink"></a>
+       </div>
+ 
+--- a/chrome/browser/resources/webstore_app/manifest.json
++++ b/chrome/browser/resources/webstore_app/manifest.json
+@@ -9,10 +9,10 @@
+   },
+   "app": {
+     "launch": {
+-      "web_url": "https://chrome.9oo91e.qjz9zk/webstore"
++      "web_url": "https://chrome.google.com/webstore"
+     },
+     "urls": [
+-      "https://chrome.9oo91e.qjz9zk/webstore"
++      "https://chrome.google.com/webstore"
+     ]
+   },
+   "permissions": [
+--- a/chrome/browser/resources/options/browser_options.html
++++ b/chrome/browser/resources/options/browser_options.html
+@@ -794,7 +794,7 @@
+   <h3 i18n-content="accessibilityTitle"></h3>
+ 
+   <div>
+-    <a href="https://chrome.9oo91e.qjz9zk/webstore/category/collection/accessibility"
++    <a href="https://chrome.google.com/webstore/category/collection/accessibility"
+         id="accessibility-features" target="_blank"
+         i18n-content="accessibilityFeaturesLink"></a>
+   </div>
+--- a/chrome/browser/extensions/install_signer.cc
++++ b/chrome/browser/extensions/install_signer.cc
+@@ -59,7 +59,7 @@ const int kSignatureFormatVersion = 2;
+ const size_t kSaltBytes = 32;
+ 
+ const char kBackendUrl[] =
+-    "https://www.9oo91eapis.qjz9zk/chromewebstore/v1.1/items/verify";
++    "https://www.googleapis.com/chromewebstore/v1.1/items/verify";
+ 
+ const char kPublicKeyPEM[] =                                            \
+     "-----BEGIN PUBLIC KEY-----"                                        \
+--- a/extensions/browser/updater/extension_downloader.cc
++++ b/extensions/browser/updater/extension_downloader.cc
+@@ -83,10 +83,10 @@ const int kMaxOAuth2Attempts = 3;
+ const char kNotFromWebstoreInstallSource[] = "notfromwebstore";
+ const char kDefaultInstallSource[] = "";
+ 
+-const char kGoogleDotCom[] = "9oo91e.qjz9zk";
++const char kGoogleDotCom[] = "google.com";
+ const char kTokenServiceConsumerId[] = "extension_downloader";
+ const char kWebstoreOAuth2Scope[] =
+-    "https://www.9oo91eapis.qjz9zk/auth/chromewebstore.readonly";
++    "https://www.googleapis.com/auth/chromewebstore.readonly";
+ 
+ #define RETRY_HISTOGRAM(name, retry_count, url)                           \
+   if ((url).DomainIs(kGoogleDotCom)) {                                    \
+--- a/components/chrome_apps/webstore_widget/cws_widget/cws_widget_container.js
++++ b/components/chrome_apps/webstore_widget/cws_widget/cws_widget_container.js
+@@ -31,14 +31,14 @@ var WEBVIEW_HEIGHT = 480;
+  * @const
+  */
+ var CWS_WIDGET_URL =
+-    'https://clients5.9oo91e.qjz9zk/webstore/wall/cros-widget-container';
++    'https://clients5.google.com/webstore/wall/cros-widget-container';
+ 
+ /**
+  * The origin of the widget.
+  * @type {string}
+  * @const
+  */
+-var CWS_WIDGET_ORIGIN = 'https://clients5.9oo91e.qjz9zk';
++var CWS_WIDGET_ORIGIN = 'https://clients5.google.com';
+ 
+ /**
+  * Creates the widget container element in DOM tree.
+--- a/chrome/browser/extensions/api/identity/identity_api.cc
++++ b/chrome/browser/extensions/api/identity/identity_api.cc
+@@ -70,7 +70,7 @@ const int kCachedIssueAdviceTTLSeconds = 1;
+ namespace {
+ 
+ static const char kChromiumDomainRedirectUrlPattern[] =
+-    "https://%s.ch40m1umapp.qjz9zk/";
++    "https://%s.chromiumapp.com/";
+ 
+ std::string GetPrimaryAccountId(content::BrowserContext* context) {
+   SigninManagerBase* signin_manager =
+--- a/extensions/common/update_manifest.cc
++++ b/extensions/common/update_manifest.cc
+@@ -17,7 +17,7 @@
+ 
+ static const char* kExpectedGupdateProtocol = "2.0";
+ static const char* kExpectedGupdateXmlns =
+-    "http://www.9oo91e.qjz9zk/update2/response";
++    "http://www.google.com/update2/response";
+ 
+ UpdateManifest::Result::Result()
+     : size(0),
+--- a/extensions/common/csp_validator.cc
++++ b/extensions/common/csp_validator.cc
+@@ -101,7 +101,7 @@ bool isNonWildcardTLD(const std::string& url,
+ 
+   // Allow *.9oo91eapis.qjz9zk to be whitelisted for backwards-compatibility.
+   // (crbug.com/409952)
+-  if (host == "9oo91eapis.qjz9zk")
++  if (host == "googleapis.com")
+     return true;
+ 
+   // Wildcards on subdomains of a TLD are not allowed.
 
