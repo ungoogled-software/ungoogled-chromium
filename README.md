@@ -18,17 +18,14 @@
 Right now, only Debian build scripts are provided. Windows build scripts will be added in the future.
 
 ### Debian and derivatives
-**NOTE:** Tested on Debian Jessie 64-bit with a backported FFmpeg from unstable
+**NOTE:** Tested on Debian Stretch 64-bit
 
-    mkdir chromium
-    cd chromium
-    git clone https://github.com/Eloston/ungoogled-chromium.git src
-    cd src
-    ./debian/rules download-source
+    git clone https://github.com/Eloston/ungoogled-chromium.git
+    cd ungoogled-chromium
     # Run dpkg-checkbuilddeps to find packages needed for building
-    dpkg-buildpackage -b -uc
+    ./build.sh
 
-Debian packages will appear under chromium/
+Debian packages will appear under ungoogled-chromium/build-sandbox/
 
 ## TODO
 
