@@ -1,0 +1,77 @@
+From 9cb2d521effb9d66a5fa5578b5a49d102ea5e249 Mon Sep 17 00:00:00 2001
+From: Jan Engelhardt <jengelh@inai.de>
+Date: Sun, 9 Nov 2014 01:54:27 +0100
+Subject: [PATCH 48/56] promo: disable Google promotion fetching
+
+Documentation is scarce, and sprinkled with misleading acronyms.
+NTP is not NTP, for example. FWIW:
+
+// A PromoResourceService fetches data from a web resource server to
+// be used to dynamically change the appearance of the New Tab Page.
+// For example, it has been used to fetch "tips" to be displayed on
+// the NTP, or to display promotional messages to certain groups of
+// Chrome users.
+
+Whatever it is that it downloads, deactivate the one that leads to
+Google.
+
+References: https://github.com/iridium-browser/iridium-browser/issues/33
+---
+ chrome/browser/browser_process_impl.cc        | 2 ++
+ chrome/browser/signin/signin_promo.cc         | 5 +++--
+ components/web_resource/notification_promo.cc | 2 +-
+ 3 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/chrome/browser/browser_process_impl.cc b/chrome/browser/browser_process_impl.cc
+index fecf890..ae52be8 100644
+--- a/chrome/browser/browser_process_impl.cc
++++ b/chrome/browser/browser_process_impl.cc
+@@ -1082,7 +1082,9 @@ void BrowserProcessImpl::PreMainMessageLoopRun() {
+         local_state(), chrome::GetChannel(), GetApplicationLocale(),
+         system_request_context(), switches::kDisableBackgroundNetworking,
+         base::Bind(safe_json::SafeJsonParser::Parse)));
++#if 0
+     promo_resource_service_->StartAfterDelay();
++#endif
+   }
+ 
+ #if !defined(OS_ANDROID) && !defined(OS_IOS)
+diff --git a/chrome/browser/signin/signin_promo.cc b/chrome/browser/signin/signin_promo.cc
+index 9db75c8..3ae6455a 100644
+--- a/chrome/browser/signin/signin_promo.cc
++++ b/chrome/browser/signin/signin_promo.cc
+@@ -105,6 +105,7 @@ bool ShouldShowPromo(Profile* profile) {
+ 
+ bool ShouldShowPromoAtStartup(Profile* profile, bool is_new_profile) {
+   DCHECK(profile);
++  return false;
+ 
+   // Don't show if the profile is an incognito.
+   if (profile->IsOffTheRecord())
+@@ -262,8 +263,8 @@ void ForceWebBasedSigninFlowForTesting(bool force) {
+ void RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterIntegerPref(prefs::kSignInPromoStartupCount, 0);
+-  registry->RegisterBooleanPref(prefs::kSignInPromoUserSkipped, false);
+-  registry->RegisterBooleanPref(prefs::kSignInPromoShowOnFirstRunAllowed, true);
++  registry->RegisterBooleanPref(prefs::kSignInPromoUserSkipped, true);
++  registry->RegisterBooleanPref(prefs::kSignInPromoShowOnFirstRunAllowed, false);
+   registry->RegisterBooleanPref(prefs::kSignInPromoShowNTPBubble, false);
+ }
+ 
+diff --git a/components/web_resource/notification_promo.cc b/components/web_resource/notification_promo.cc
+index 73e7d4b..2f526b5 100644
+--- a/components/web_resource/notification_promo.cc
++++ b/components/web_resource/notification_promo.cc
+@@ -30,7 +30,7 @@ namespace {
+ 
+ const int kDefaultGroupSize = 100;
+ 
+-const char promo_server_url[] = "https://clients3.google.com/crsignal/client";
++const char promo_server_url[] = "trk:122:about:blank";
+ 
+ // The name of the preference that stores the promotion object.
+ const char kPrefPromoObject[] = "promo";
+-- 
+2.4.3
+
