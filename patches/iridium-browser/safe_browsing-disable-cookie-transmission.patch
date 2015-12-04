@@ -1,0 +1,138 @@
+From 7f26eb85a41d5ee057eaa31d5bde24940fedc7f0 Mon Sep 17 00:00:00 2001
+From: Joachim Bauch <jojo@struktur.de>
+Date: Wed, 22 Jul 2015 12:24:15 +0200
+Subject: [PATCH 46/56] safe_browsing: disable cookie transmission
+
+Disables sending/setting cookies for Safebrowsing requests. This
+prevents the long-living tracking cookie from being set.
+
+References: https://github.com/iridium-browser/iridium-browser/issues/37
+---
+ .../safe_browsing/client_side_detection_service.cc       |  8 ++++++--
+ .../browser/safe_browsing/download_protection_service.cc |  4 +++-
+ chrome/browser/safe_browsing/malware_details_cache.cc    |  3 ++-
+ chrome/browser/safe_browsing/protocol_manager.cc         | 16 ++++++++++++----
+ chrome/browser/safe_browsing/srt_fetcher_win.cc          |  4 +++-
+ 5 files changed, 26 insertions(+), 9 deletions(-)
+
+diff --git a/chrome/browser/safe_browsing/client_side_detection_service.cc b/chrome/browser/safe_browsing/client_side_detection_service.cc
+index c749294..ef3186b 100644
+--- a/chrome/browser/safe_browsing/client_side_detection_service.cc
++++ b/chrome/browser/safe_browsing/client_side_detection_service.cc
+@@ -314,7 +314,9 @@ void ClientSideDetectionService::StartClientReportPhishingRequest(
+   info->phishing_url = GURL(request->url());
+   client_phishing_reports_[fetcher] = info;
+ 
+-  fetcher->SetLoadFlags(net::LOAD_DISABLE_CACHE);
++  fetcher->SetLoadFlags(net::LOAD_DO_NOT_SAVE_COOKIES |
++                        net::LOAD_DO_NOT_SEND_COOKIES |
++                        net::LOAD_DISABLE_CACHE);
+   fetcher->SetRequestContext(request_context_getter_.get());
+   fetcher->SetUploadData("application/octet-stream", request_data);
+   fetcher->Start();
+@@ -360,7 +362,9 @@ void ClientSideDetectionService::StartClientReportMalwareRequest(
+   info->original_url = GURL(request->url());
+   client_malware_reports_[fetcher] = info;
+ 
+-  fetcher->SetLoadFlags(net::LOAD_DISABLE_CACHE);
++  fetcher->SetLoadFlags(net::LOAD_DO_NOT_SAVE_COOKIES |
++                        net::LOAD_DO_NOT_SEND_COOKIES |
++                        net::LOAD_DISABLE_CACHE);
+   fetcher->SetRequestContext(request_context_getter_.get());
+   fetcher->SetUploadData("application/octet-stream", request_data);
+   fetcher->Start();
+diff --git a/chrome/browser/safe_browsing/download_protection_service.cc b/chrome/browser/safe_browsing/download_protection_service.cc
+index 228894f..f126674 100644
+--- a/chrome/browser/safe_browsing/download_protection_service.cc
++++ b/chrome/browser/safe_browsing/download_protection_service.cc
+@@ -811,7 +811,9 @@ class DownloadProtectionService::CheckClientDownloadRequest
+     fetcher_ = net::URLFetcher::Create(0 /* ID used for testing */,
+                                        GetDownloadRequestUrl(),
+                                        net::URLFetcher::POST, this);
+-    fetcher_->SetLoadFlags(net::LOAD_DISABLE_CACHE);
++    fetcher_->SetLoadFlags(net::LOAD_DISABLE_CACHE |
++                           net::LOAD_DO_NOT_SAVE_COOKIES |
++                           net::LOAD_DO_NOT_SEND_COOKIES);
+     fetcher_->SetAutomaticallyRetryOn5xx(false);  // Don't retry on error.
+     fetcher_->SetRequestContext(service_->request_context_getter_.get());
+     fetcher_->SetUploadData("application/octet-stream",
+diff --git a/chrome/browser/safe_browsing/malware_details_cache.cc b/chrome/browser/safe_browsing/malware_details_cache.cc
+index ae76255..9bf7493 100644
+--- a/chrome/browser/safe_browsing/malware_details_cache.cc
++++ b/chrome/browser/safe_browsing/malware_details_cache.cc
+@@ -82,7 +82,8 @@ void MalwareDetailsCacheCollector::OpenEntry() {
+   current_fetch_->SetRequestContext(request_context_getter_.get());
+   // Only from cache, and don't save cookies.
+   current_fetch_->SetLoadFlags(net::LOAD_ONLY_FROM_CACHE |
+-                               net::LOAD_DO_NOT_SAVE_COOKIES);
++                               net::LOAD_DO_NOT_SAVE_COOKIES |
++                               net::LOAD_DO_NOT_SEND_COOKIES);
+   current_fetch_->SetAutomaticallyRetryOn5xx(false);  // No retries.
+   current_fetch_->Start();  // OnURLFetchComplete will be called when done.
+ }
+diff --git a/chrome/browser/safe_browsing/protocol_manager.cc b/chrome/browser/safe_browsing/protocol_manager.cc
+index 0be2eb2..dd464f8 100644
+--- a/chrome/browser/safe_browsing/protocol_manager.cc
++++ b/chrome/browser/safe_browsing/protocol_manager.cc
+@@ -224,7 +224,9 @@ void SafeBrowsingProtocolManager::GetFullHash(
+ 
+   const std::string get_hash = safe_browsing::FormatGetHash(prefixes);
+ 
+-  fetcher->SetLoadFlags(net::LOAD_DISABLE_CACHE);
++  fetcher->SetLoadFlags(net::LOAD_DISABLE_CACHE |
++                        net::LOAD_DO_NOT_SAVE_COOKIES |
++                        net::LOAD_DO_NOT_SEND_COOKIES);
+   fetcher->SetRequestContext(request_context_getter_.get());
+   fetcher->SetUploadData("text/plain", get_hash);
+   fetcher->Start();
+@@ -598,7 +600,9 @@ bool SafeBrowsingProtocolManager::IssueBackupUpdateRequest(
+   GURL backup_update_url = BackupUpdateUrl(backup_update_reason);
+   request_ = net::URLFetcher::Create(url_fetcher_id_++, backup_update_url,
+                                      net::URLFetcher::POST, this);
+-  request_->SetLoadFlags(net::LOAD_DISABLE_CACHE);
++  request_->SetLoadFlags(net::LOAD_DISABLE_CACHE |
++                         net::LOAD_DO_NOT_SAVE_COOKIES |
++                         net::LOAD_DO_NOT_SEND_COOKIES);
+   request_->SetRequestContext(request_context_getter_.get());
+   request_->SetUploadData("text/plain", update_list_data_);
+   request_->Start();
+@@ -625,7 +629,9 @@ void SafeBrowsingProtocolManager::IssueChunkRequest() {
+   request_type_ = CHUNK_REQUEST;
+   request_ = net::URLFetcher::Create(url_fetcher_id_++, chunk_url,
+                                      net::URLFetcher::GET, this);
+-  request_->SetLoadFlags(net::LOAD_DISABLE_CACHE);
++  request_->SetLoadFlags(net::LOAD_DISABLE_CACHE |
++                         net::LOAD_DO_NOT_SAVE_COOKIES |
++                         net::LOAD_DO_NOT_SEND_COOKIES);
+   request_->SetRequestContext(request_context_getter_.get());
+   chunk_request_start_ = base::Time::Now();
+   request_->Start();
+@@ -678,7 +684,9 @@ void SafeBrowsingProtocolManager::OnGetChunksComplete(
+   GURL update_url = UpdateUrl(is_extended_reporting);
+   request_ = net::URLFetcher::Create(url_fetcher_id_++, update_url,
+                                      net::URLFetcher::POST, this);
+-  request_->SetLoadFlags(net::LOAD_DISABLE_CACHE);
++  request_->SetLoadFlags(net::LOAD_DISABLE_CACHE |
++                         net::LOAD_DO_NOT_SAVE_COOKIES |
++                         net::LOAD_DO_NOT_SEND_COOKIES);
+   request_->SetRequestContext(request_context_getter_.get());
+   request_->SetUploadData("text/plain", update_list_data_);
+   request_->Start();
+diff --git a/chrome/browser/safe_browsing/srt_fetcher_win.cc b/chrome/browser/safe_browsing/srt_fetcher_win.cc
+index e21be25..b3bc395 100644
+--- a/chrome/browser/safe_browsing/srt_fetcher_win.cc
++++ b/chrome/browser/safe_browsing/srt_fetcher_win.cc
+@@ -181,7 +181,9 @@ class SRTFetcher : public net::URLFetcherDelegate {
+                                              GURL(GetSRTDownloadURL()),
+                                              net::URLFetcher::GET,
+                                              this)) {
+-    url_fetcher_->SetLoadFlags(net::LOAD_DISABLE_CACHE);
++    url_fetcher_->SetLoadFlags(net::LOAD_DISABLE_CACHE |
++                               net::LOAD_DO_NOT_SAVE_COOKIES |
++                               net::LOAD_DO_NOT_SEND_COOKIES);
+     url_fetcher_->SetMaxRetriesOn5xx(3);
+     url_fetcher_->SaveResponseToTemporaryFile(
+         BrowserThread::GetMessageLoopProxyForThread(BrowserThread::FILE));
+-- 
+2.4.3
+

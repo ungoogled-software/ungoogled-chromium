@@ -13,9 +13,29 @@
 - Disabled persistent per-site settings in Preferences file
 - Disabled extension autoupdating
 
+## Patches
+
+Patches are stored in the `patches` directory, with the exception of system-dependant patches (these are in the `build_templates` directory).
+
+Here's some information on what's in the `patches` directory:
+* `ungoogled-chromium/`
+  * This directory contains new patches for ungoogled-chromium
+* `iridium-browser`
+  * This directory contains patches from Iridium Browser.
+  * Patches are from the `patchview` branch of its Git repository. [Web view of the patchview branch](https://git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
+* `inox-patchset/`
+  * This directory contains patches from Inox patchset.
+  * Patches are from [inox-patchset's GitHub](https://github.com/gcarq/inox-patchset)
+  * [Inox patchset's license](https://github.com/gcarq/inox-patchset/blob/master/LICENSE)
+* `debian/`
+  * This directory contains patches from Debian's Chromium.
+  * These patches are not Debian-specific. For those, see the `build-templates/debian/` directory
+* `patch_order`
+  * Determines which patches are used and what order they should be applied
+
 ## Building
 
-Right now, only Debian build scripts are provided. Windows build scripts will be added in the future.
+Right now, only Debian build scripts are provided.
 
 ### Debian and derivatives
 **NOTE:** Tested on Debian Stretch 64-bit
@@ -29,15 +49,31 @@ Debian packages will appear under ungoogled-chromium/build-sandbox/
 
 ## TODO
 
+- Move TODO list to the Issue Tracker
+- Strip binaries from source package
+- Fix updating extensions via clicking "Update extensions now" (NOTE: network capture shows no attempted communication after clicking the button)
 - Remove attempted communication with `www.95stat1c.qjz9zk` on startup
-- Add Windows support
 - Add settings menu to manually edit password database(?)
+- Add Windows support
+
+## Contributing
+
+ungoogled-chromium is undergoing major changes for Chromium 47
+
+Use the [Issue Tracker](/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions.
+
+You may also contribute by submitting pull requests.
 
 ## Credits
 
-Debian for build scripts <br />
+[Iridium Browser](https://iridiumbrowser.de/)
+
+[Inox patchset](https://github.com/gcarq/inox-patchset)
+
+Debian for build scripts
+
 Google for Chromium
 
 ## License
 
-Public domain
+GPLv3. See [LICENSE](LICENSE)
