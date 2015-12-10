@@ -43,9 +43,14 @@ Right now, only Debian build scripts are provided.
     git clone https://github.com/Eloston/ungoogled-chromium.git
     cd ungoogled-chromium
     # Run dpkg-checkbuilddeps to find packages needed for building
-    ./build.sh
+    ./generate_debian.sh
+    cd build-sandbox
+    ./debian/rules download-source
+    ../source_cleaner.sh
+    ../domain_patcher.sh
+    dpkg-buildpackage -B -uc
 
-Debian packages will appear under ungoogled-chromium/build-sandbox/
+Debian packages will appear under `ungoogled-chromium/`
 
 ## TODO
 
