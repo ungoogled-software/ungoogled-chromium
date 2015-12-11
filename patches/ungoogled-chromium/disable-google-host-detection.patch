@@ -2,9 +2,9 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
 
 --- a/net/base/net_util.cc
 +++ b/net/base/net_util.cc
-@@ -816,25 +816,6 @@ bool IsLocalhostTLD(const std::string& host) {
+@@ -607,28 +607,6 @@ bool IsLocalhostTLD(base::StringPiece host) {
  }
- 
+
  bool HasGoogleHost(const GURL& url) {
 -  static const char* kGoogleHostSuffixes[] = {
 -      ".9oo91e.qjz9zk",
@@ -20,9 +20,12 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
 -      ".9oo91eapis.qjz9zk",
 -      ".yt1mg.qjz9zk",
 -  };
--  const std::string& host = url.host();
+-  base::StringPiece host = url.host_piece();
 -  for (const char* suffix : kGoogleHostSuffixes) {
--    if (base::EndsWith(host, suffix, false))
+-    // Here it's possible to get away with faster case-sensitive comparisons
+-    // because the list above is all lowercase, and a GURL's host name will
+-    // always be canonicalized to lowercase as well.
+-    if (base::EndsWith(host, suffix, base::CompareCase::SENSITIVE))
 -      return true;
 -  }
    return false;
@@ -30,7 +33,7 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
  
 --- a/components/google/core/browser/google_util.cc
 +++ b/components/google/core/browser/google_util.cc
-@@ -79,6 +79,7 @@ namespace google_util {
+@@ -80,6 +80,7 @@ namespace google_util {
  // Global functions -----------------------------------------------------------
  
  bool HasGoogleSearchQueryParam(const std::string& str) {
@@ -38,7 +41,7 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
    url::Component query(0, static_cast<int>(str.length())), key, value;
    while (url::ExtractQueryKeyValue(str.c_str(), &query, &key, &value)) {
      if (value.is_nonempty()) {
-@@ -168,6 +169,7 @@ bool StartsWithCommandLineGoogleBaseURL(const GURL& url) {
+@@ -169,6 +170,7 @@ bool StartsWithCommandLineGoogleBaseURL(const GURL& url) {
  
  bool IsGoogleHostname(const std::string& host,
                        SubdomainPermission subdomain_permission) {
@@ -46,7 +49,7 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
    GURL base_url(CommandLineGoogleBaseURL());
    if (base_url.is_valid() && (host == base_url.host()))
      return true;
-@@ -178,11 +180,11 @@ bool IsGoogleHostname(const std::string& host,
+@@ -179,11 +181,11 @@ bool IsGoogleHostname(const std::string& host,
  bool IsGoogleDomainUrl(const GURL& url,
                         SubdomainPermission subdomain_permission,
                         PortPermission port_permission) {
@@ -60,7 +63,7 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
    // First check to see if this has a Google domain.
    if (!IsGoogleDomainUrl(url, DISALLOW_SUBDOMAIN, DISALLOW_NON_STANDARD_PORTS))
      return false;
-@@ -193,6 +195,7 @@ bool IsGoogleHomePageUrl(const GURL& url) {
+@@ -195,6 +197,7 @@ bool IsGoogleHomePageUrl(const GURL& url) {
  }
  
  bool IsGoogleSearchUrl(const GURL& url) {
@@ -68,7 +71,7 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
    // First check to see if this has a Google domain.
    if (!IsGoogleDomainUrl(url, DISALLOW_SUBDOMAIN, DISALLOW_NON_STANDARD_PORTS))
      return false;
-@@ -212,8 +215,7 @@ bool IsGoogleSearchUrl(const GURL& url) {
+@@ -214,8 +217,7 @@ bool IsGoogleSearchUrl(const GURL& url) {
  bool IsYoutubeDomainUrl(const GURL& url,
                          SubdomainPermission subdomain_permission,
                          PortPermission port_permission) {
@@ -92,7 +95,7 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
  bool IsGoogleSearchResultURL(const GURL& url) {
 --- a/chrome/renderer/page_load_histograms.cc
 +++ b/chrome/renderer/page_load_histograms.cc
-@@ -180,6 +180,7 @@ bool ViaHeaderContains(WebFrame* frame, const std::string& via_value) {
+@@ -181,6 +181,7 @@ bool ViaHeaderContains(WebFrame* frame, const std::string& via_value) {
  // purposes.
  // TODO(pmeenan): Remove the fuzzy logic when the referrer is reliable
  bool IsFromGoogleSearchResult(const GURL& url, const GURL& referrer) {
@@ -102,12 +105,12 @@ description: Disables HasGoogleHost in net_util, google_util domain checking fun
      return false;
 --- a/content/browser/service_worker/service_worker_metrics.cc
 +++ b/content/browser/service_worker/service_worker_metrics.cc
-@@ -23,6 +23,7 @@ void RecordURLMetricOnUI(const GURL& url) {
- }
- 
- bool ShouldExcludeForHistogram(const GURL& scope) {
-+  return false;
-   // Exclude NTP scope from UMA for now as it tends to dominate the stats
-   // and makes the results largely skewed.
-   // TOOD(kinuko): This should be temporary, revisit this once we have
+@@ -47,7 +47,7 @@ enum EventHandledRatioType {
+ }  // namespace
 
+ bool ServiceWorkerMetrics::ShouldExcludeSiteFromHistogram(Site site) {
+-  return site == ServiceWorkerMetrics::Site::NEW_TAB_PAGE;
++  return true;
+ }
+
+ bool ServiceWorkerMetrics::ShouldExcludeURLFromHistogram(const GURL& url) {
