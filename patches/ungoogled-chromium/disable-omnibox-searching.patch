@@ -2,16 +2,16 @@ description: Disables searching in the omnibox, hides search options, and disabl
 
 --- a/components/omnibox/browser/autocomplete_input.cc
 +++ b/components/omnibox/browser/autocomplete_input.cc
-@@ -202,7 +202,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -203,7 +203,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
    *canonicalized_url =
-       url_fixer::FixupURL(base::UTF16ToUTF8(text), desired_tld);
+       url_formatter::FixupURL(base::UTF16ToUTF8(text), desired_tld);
    if (!canonicalized_url->is_valid())
 -    return metrics::OmniboxInputType::QUERY;
 +    return metrics::OmniboxInputType::URL;
  
    if (base::LowerCaseEqualsASCII(parsed_scheme_utf8, url::kFileScheme)) {
      // A user might or might not type a scheme when entering a file URL.  In
-@@ -223,7 +223,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -224,7 +224,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
      metrics::OmniboxInputType::Type type =
          scheme_classifier.GetInputTypeForScheme(parsed_scheme_utf8);
      if (type != metrics::OmniboxInputType::INVALID)
@@ -20,7 +20,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
  
      // We don't know about this scheme.  It might be that the user typed a
      // URL of the form "username:password@foo.com".
-@@ -273,7 +273,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -274,7 +274,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
      // the option of treating it as a URL if we're wrong.
      // Note that SegmentURL() is smart so we aren't tricked by "c:\foo" or
      // "www.example.com:81" in this case.
@@ -29,7 +29,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
    }
  
    // Either the user didn't type a scheme, in which case we need to distinguish
-@@ -285,7 +285,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -286,7 +286,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
    // valid, non-standard URL; for standard URLs, an empty host would have
    // resulted in an invalid |canonicalized_url| above.)
    if (!canonicalized_url->has_host())
@@ -38,7 +38,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
  
    // Determine the host family.  We get this information by (re-)canonicalizing
    // the already-canonicalized host rather than using the user's original input,
-@@ -330,9 +330,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -331,9 +331,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
      // * Navigations to a hostname with invalid characters and an unknown TLD
      // These might be possible in intranets, but we're not going to support them
      // without concrete evidence that doing so is necessary.
@@ -49,7 +49,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
    }
  
    // For hostnames that look like IP addresses, distinguish between IPv6
-@@ -383,7 +381,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -384,7 +382,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
      // By this point, if we have an "IP" with first octet zero, we know it
      // wasn't "0.0.0.0", so mark it as non-navigable.
      if (host_info.address[0] == 0)
@@ -58,7 +58,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
    }
  
    // Now that we've ruled out all schemes other than http or https and done a
-@@ -404,7 +402,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -405,7 +403,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
    // scheme/trailing slash.
    if ((host_info.family == url::CanonHostInfo::IPV4) &&
        (host_info.num_ipv4_components > 1))
@@ -67,7 +67,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
  
    // If there is more than one recognized non-host component, this is likely to
    // be a URL, even if the TLD is unknown (in which case this is likely an
-@@ -418,7 +416,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -419,7 +417,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
    // there _is_ a desired TLD, the user hit ctrl-enter, and we assume that
    // implies an attempted navigation.)
    if (canonicalized_url->has_username() && desired_tld.empty())
@@ -76,7 +76,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
  
    // If the host has a known TLD or a port, it's probably a URL.  Note that we
    // special-case "localhost" as a known hostname.
-@@ -436,7 +434,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -437,7 +435,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
    if (!OmniboxFieldTrial::PreventUWYTDefaultForNonURLInputs() &&
        !parts->path.is_valid() && !canonicalized_url->has_query() &&
        canonicalized_url->has_ref())
@@ -85,7 +85,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
  
    // No scheme, username, port, and no known TLD on the host.
    // This could be:
-@@ -452,7 +450,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
+@@ -453,7 +451,7 @@ metrics::OmniboxInputType::Type AutocompleteInput::Parse(
    //   QUERY.  Since this is indistinguishable from the case above, and this
    //   case is much more likely, claim these are UNKNOWN, which should default
    //   to the right thing and let users correct us on a case-by-case basis.
@@ -96,7 +96,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
  // static
 --- a/chrome/browser/resources/options/browser_options.html
 +++ b/chrome/browser/resources/options/browser_options.html
-@@ -142,7 +142,7 @@
+@@ -138,7 +138,7 @@
      </div>
    </section>
  </if>
@@ -107,7 +107,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
          <span id="default-search-engine-label"
 --- a/chrome/browser/ui/chrome_pages.cc
 +++ b/chrome/browser/ui/chrome_pages.cc
-@@ -324,8 +324,6 @@ void ShowAboutChrome(Browser* browser) {
+@@ -342,8 +342,6 @@ void ShowAboutChrome(Browser* browser) {
  }
  
  void ShowSearchEngineSettings(Browser* browser) {
@@ -118,16 +118,16 @@ description: Disables searching in the omnibox, hides search options, and disabl
  #if !defined(OS_ANDROID) && !defined(OS_IOS)
 --- a/chrome/browser/prefs/chrome_pref_service_factory.cc
 +++ b/chrome/browser/prefs/chrome_pref_service_factory.cc
-@@ -42,7 +42,6 @@
+@@ -39,7 +39,6 @@
  #include "components/component_updater/pref_names.h"
  #include "components/pref_registry/pref_registry_syncable.h"
  #include "components/search_engines/default_search_manager.h"
 -#include "components/search_engines/default_search_pref_migration.h"
  #include "components/search_engines/search_engines_pref_names.h"
  #include "components/sync_driver/pref_names.h"
- #include "content/public/browser/browser_context.h"
-@@ -533,8 +532,6 @@ scoped_ptr<PrefServiceSyncable> CreateProfilePrefs(
-   scoped_ptr<PrefServiceSyncable> pref_service =
+ #include "components/syncable_prefs/pref_model_associator.h"
+@@ -527,8 +526,6 @@ scoped_ptr<PrefServiceSyncable> CreateProfilePrefs(
+   scoped_ptr<syncable_prefs::PrefServiceSyncable> pref_service =
        factory.CreateSyncable(pref_registry.get());
  
 -  ConfigureDefaultSearchPrefMigrationToDictionaryValue(pref_service.get());
@@ -148,7 +148,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
          'search_engines/keyword_web_data_service.cc',
 --- a/components/search_engines/template_url_service.cc
 +++ b/components/search_engines/template_url_service.cc
-@@ -1862,6 +1862,8 @@ bool TemplateURLService::ApplyDefaultSearchChangeNoMetrics(
+@@ -1909,6 +1909,8 @@ bool TemplateURLService::ApplyDefaultSearchChangeNoMetrics(
  bool TemplateURLService::AddNoNotify(TemplateURL* template_url,
                                       bool newly_adding) {
    DCHECK(template_url);
@@ -168,7 +168,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
  
  }  // namespace
  
-@@ -150,7 +150,7 @@ DefaultSearchManager::GetDefaultSearchEngineSource() const {
+@@ -149,7 +149,7 @@ DefaultSearchManager::GetDefaultSearchEngineSource() const {
  
  void DefaultSearchManager::SetUserSelectedDefaultSearchEngine(
      const TemplateURLData& data) {
@@ -177,7 +177,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
      prefs_default_search_.reset(new TemplateURLData(data));
      MergePrefsDataWithPrepopulated();
      NotifyObserver();
-@@ -256,6 +256,7 @@ void DefaultSearchManager::OnOverridesPrefChanged() {
+@@ -255,6 +255,7 @@ void DefaultSearchManager::OnOverridesPrefChanged() {
  }
  
  void DefaultSearchManager::MergePrefsDataWithPrepopulated() {
@@ -185,7 +185,7 @@ description: Disables searching in the omnibox, hides search options, and disabl
    if (!prefs_default_search_ || !prefs_default_search_->prepopulate_id)
      return;
  
-@@ -294,6 +295,8 @@ void DefaultSearchManager::LoadDefaultSearchEngineFromPrefs() {
+@@ -293,6 +294,8 @@ void DefaultSearchManager::LoadDefaultSearchEngineFromPrefs() {
    DCHECK(pref);
    default_search_controlled_by_policy_ = pref->IsManaged();
  
