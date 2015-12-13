@@ -48,7 +48,7 @@ Right now, only Debian build scripts are provided.
     ./debian/rules download-source
     ../source_cleaner.sh
     ../domain_patcher.sh
-    dpkg-buildpackage -B -uc
+    dpkg-buildpackage -b -uc
 
 Debian packages will appear under `ungoogled-chromium/`
 
