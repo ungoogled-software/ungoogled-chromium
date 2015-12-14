@@ -24,7 +24,7 @@ All features come in the form of patches. Patches are stored in the `patches` di
 
 Here's some information on what's in the `patches` directory:
 * `ungoogled-chromium/`
-  * This directory contains new patches for ungoogled-chromium
+  * This directory contains new patches for ungoogled-chromium. They implement the features described above.
 * `iridium-browser`
   * This directory contains patches from Iridium Browser.
   * Patches are from the `patchview` branch of its Git repository. [Web view of the patchview branch](https://git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
@@ -37,6 +37,10 @@ Here's some information on what's in the `patches` directory:
   * These patches are not Debian-specific. For those, see the `build-templates/debian/` directory
 * `patch_order`
   * Determines which patches are used and what order they should be applied
+
+## Releases
+
+[Releases are available here](/Eloston/ungoogled-chromium/releases)
 
 ## Building
 
