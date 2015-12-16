@@ -5,3 +5,5 @@ find . -path ./debian -prune -o -path ./third_party/icu/source -prune -o -path .
 
 # Remove existing out/ directory
 rm -r ./out
+
+exit 0;
