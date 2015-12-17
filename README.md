@@ -40,7 +40,7 @@ Here's some information on what's in the `patches` directory:
 
 ## Releases
 
-[Releases are available here](/Eloston/ungoogled-chromium/releases)
+[Releases are available here](https://github.com/Eloston/ungoogled-chromium/releases)
 
 ## Building
 
