@@ -14,7 +14,7 @@ print_usage() {
     echo "Usage: $0 [-h] [-v version | -c debian_changelog] [-d tarball_directory] [-x extract_directory | -x extract_directory -R]";
     echo "Options:";
     echo "  -h: Show this help message";
-    echo "  -v: (No default) Path to a Debian changelog file";
+    echo "  -v: (No default) Specify the specific Chromium version to download";
     echo "  -c: (Default: $CURRENT_DIR/build_templates/debian/changelog) Path to a Debian changelog file";
     echo "  -d: (Default: $CURRENT_DIR) Directory to store the sourcecode tarball";
     echo "  -x: (Not enabled by default) Directory to extract the source tarball";
