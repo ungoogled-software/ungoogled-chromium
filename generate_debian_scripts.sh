@@ -2,6 +2,8 @@
 
 # Script to generate Debian build scripts
 
+set -e -u
+
 if [[ -z "$1" ]]; then
     echo "Usage: $0 sandbox_directory" >&2;
     exit 1;

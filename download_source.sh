@@ -2,6 +2,8 @@
 
 # A script that downloads the source tarball
 
+set -e -u
+
 CURRENT_DIR=$(dirname $(readlink -f $0));
 
 DOWNLOAD_VERSION=;
@@ -97,13 +99,13 @@ if [[ $? -ne 0 ]]; then
 fi
 
 if [[ -n "$EXTRACT_DESTINATION" ]]; then
-    echo "Extracting $TARBALL to $EXTRACTION_DESTINATION ...";
+    echo "Extracting $TARBALL to $EXTRACT_DESTINATION ...";
     if [[ ! -d "$EXTRACT_DESTINATION" ]]; then
         echo "Extraction destination $EXTRACT_DESTINATION is not a directory" >&2;
         exit 1;
     fi
     CWD=$(pwd);
-    cd "$EXTRACTION_DESTINATION";
+    cd "$EXTRACT_DESTINATION";
     tar -xf "$TARBALL_DESTINATION/$TARBALL" --strip-components=1;
     cd "$CWD";
     if [[ "$REMOVE_AFTER_EXTRACTION" == "1" ]]; then
