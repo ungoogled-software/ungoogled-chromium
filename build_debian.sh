@@ -2,6 +2,8 @@
 
 # Script to build Debian packages
 
+set -e -u
+
 SCRIPT_DIR=$(dirname $(readlink -f $0));
 CWD=$(pwd);
 
@@ -64,19 +66,6 @@ set_or_fail() {
         set_if_empty $1 "$2";
     else
         echo "set_or_fail() did not get three arguments" >&2;
-        exit 1;
-    fi
-}
-
-check_exit_status() {
-    local exit_code=$?;
-    local exit_message="(No message)";
-    if [[ -n $1 ]]; then
-        exit_message=$1;
-    fi
-    if [[ $exit_code -ne 0 ]]; then
-        echo "Exit status $exit_code: $exit_message";
-        cd "$CWD";
         exit 1;
     fi
 }
@@ -153,10 +142,8 @@ if [[ $DOWNLOAD_EXTRACT_TARBALL -eq 1 ]]; then
     echo "Downloading and extracting tarball...";
     if [[ $KEEP_TARBALL -eq 1 ]]; then
         $SCRIPT_DIR/download_source.sh -x "$SANDBOX_PATH"
-        check_exit_status "Source downloading failed";
     else
         $SCRIPT_DIR/download_source.sh -x "$SANDBOX_PATH" -R
-        check_exit_status "Source downloading failed";
     fi
 fi
 
@@ -176,11 +163,9 @@ if [[ -n "$CUSTOM_TARBALL" ]]; then
     echo "Unpacking tarball $CUSTOM_TARBALL ...";
     cd "$SANDBOX_PATH";
     tar -xf "$CUSTOM_TARBALL" --strip-components=1;
-    check_exit_status "Tarball extraction failed";
     cd "$CWD";
     if [[ $KEEP_TARBALL -eq 0 ]]; then
         rm $CUSTOM_TARBALL;
-        check_exit_status "Could not remove custom tarball";
     fi
 fi
 
@@ -194,13 +179,11 @@ cd "$SANDBOX_PATH";
 if [[ $RUN_SOURCE_CLEANER -eq 1 ]]; then
     echo "Running source cleaner...";
     $SCRIPT_DIR/source_cleaner.sh
-    check_exit_status "Source cleaning encountered an error";
 fi
 
 if [[ $RUN_DOMAIN_PATCHER -eq 1 ]]; then
     echo "Running domain patcher...";
     $SCRIPT_DIR/domain_patcher.sh
-    check_exit_status "Domain patching encountered an error";
 fi;
 
 if [[ $GENERATE_BUILD_SCRIPTS -eq 1 ]]; then
@@ -211,22 +194,18 @@ if [[ $GENERATE_BUILD_SCRIPTS -eq 1 ]]; then
         echo "Generating $DISTRIBUTION build scripts...";
         if [[ "$DISTRIBUTION" == "Debian" ]]; then
             $SCRIPT_DIR/generate_debian_scripts.sh $SANDBOX_PATH;
-            check_exit_status "Could not generate $DISTRIBUTION build scripts";
         elif [[ "$DISTRIBUTION" == "Ubuntu" ]]; then
             $SCRIPT_DIR/generate_ubuntu_scripts.sh $SANDBOX_PATH;
-            check_exit_status "Could not generate $DISTRIBUTION build scripts";
         else
             echo "Invalid distribution name: $DISTRIBUTION" >&2;
             exit 1;
         fi
-        check_exit_status "Could not generate $DISTRIBUTION build scripts";
     fi
 fi
 
 if [[ $RUN_BUILD_COMMAND -eq 1 ]]; then
     echo "Running build command...";
     dpkg-buildpackage -b -uc
-    check_exit_status "Build command encountered an error";
 fi
 
 cd "$CWD";
