@@ -25,7 +25,7 @@ print_usage() {
     echo "  -k: Keep the tarball after source extraction. Otherwise it will be deleted. Requires -d or -x to be present";
     echo "  -c: Run source_cleaner.sh on the source code";
     echo "  -p: Run domain_patcher.sh on the source code";
-    echo "  -g: Generate Debian build scripts and place them into the building sandbox, if they do not already exist";
+    echo "  -g: Generate Debian or Ubuntu build scripts (depending on lsb_release) and place them into the building sandbox, if they do not already exist";
     echo "  -b: Run dpkg-buildpackage";
 }
 
@@ -204,12 +204,22 @@ if [[ $RUN_DOMAIN_PATCHER -eq 1 ]]; then
 fi;
 
 if [[ $GENERATE_BUILD_SCRIPTS -eq 1 ]]; then
+    DISTRIBUTION=$(lsb_release -si);
     if [[ -e "$SANDBOX_PATH/debian" ]]; then
-        echo "Debian build scripts already exist. Skipping...";
+        echo "$DISTRIBUTION build scripts already exist. Skipping...";
     else
-        echo "Generating Debian build scripts...";
-        $SCRIPT_DIR/generate_debian_scripts.sh $SANDBOX_PATH;
-        check_exit_status "Could not generate Debian build scripts";
+        echo "Generating $DISTRIBUTION build scripts...";
+        if [[ "$DISTRIBUTION" == "Debian" ]]; then
+            $SCRIPT_DIR/generate_debian_scripts.sh $SANDBOX_PATH;
+            check_exit_status "Could not generate $DISTRIBUTION build scripts";
+        elif [[ "$DISTRIBUTION" == "Ubuntu" ]]; then
+            $SCRIPT_DIR/generate_ubuntu_scripts.sh $SANDBOX_PATH;
+            check_exit_status "Could not generate $DISTRIBUTION build scripts";
+        else
+            echo "Invalid distribution name: $DISTRIBUTION" >&2;
+            exit 1;
+        fi
+        check_exit_status "Could not generate $DISTRIBUTION build scripts";
     fi
 fi
 
