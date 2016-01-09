@@ -44,10 +44,10 @@ Here's some information on what's in the `patches` directory:
 
 ## Building
 
-Right now, only Debian build scripts are provided.
+Right now, only Debian and Ubuntu build scripts are provided.
 
 ### Debian and derivatives
-**NOTE:** Tested on Debian Stretch 64-bit
+**NOTE:** Tested on Debian Stretch 64-bit and Ubuntu Wily 64-bit
 
     git clone https://github.com/Eloston/ungoogled-chromium.git
     cd ungoogled-chromium
