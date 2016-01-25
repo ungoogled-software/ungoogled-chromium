@@ -1,6 +1,6 @@
---- ./components/autofill/core/browser/autofill_download_manager.cc
-+++ ./components/autofill/core/browser/autofill_download_manager.cc.new
-@@ -55,11 +55,6 @@
+--- a/components/autofill/core/browser/autofill_download_manager.cc
++++ b/components/autofill/core/browser/autofill_download_manager.cc
+@@ -56,11 +56,6 @@ std::string RequestTypeToString(AutofillDownloadManager::RequestType type) {
    return std::string();
  }
  
@@ -12,7 +12,7 @@
  }  // namespace
  
  struct AutofillDownloadManager::FormRequestData {
-@@ -188,35 +183,6 @@
+@@ -190,46 +185,6 @@ void AutofillDownloadManager::SetNegativeUploadRate(double rate) {
  bool AutofillDownloadManager::StartRequest(
      const std::string& form_xml,
      const FormRequestData& request_data) {
@@ -20,6 +20,16 @@
 -      driver_->GetURLRequestContext();
 -  DCHECK(request_context);
 -  GURL request_url = GetRequestUrl(request_data.request_type);
+-
+-  std::string compressed_data;
+-  if (!compression::GzipCompress(form_xml, &compressed_data)) {
+-    NOTREACHED();
+-    return false;
+-  }
+-
+-  AutofillMetrics::LogPayloadCompressionRatio(
+-      static_cast<int>(100 * compressed_data.size() / form_xml.size()),
+-      request_data.request_type);
 -
 -  // Id is ignored for regular chrome, in unit test id's for fake fetcher
 -  // factory will be 0, 1, 2, ...
@@ -31,11 +41,12 @@
 -  url_fetchers_[fetcher] = request_data;
 -  fetcher->SetAutomaticallyRetryOn5xx(false);
 -  fetcher->SetRequestContext(request_context);
--  fetcher->SetUploadData("text/plain", form_xml);
+-  fetcher->SetUploadData("text/xml", compressed_data);
 -  fetcher->SetLoadFlags(net::LOAD_DO_NOT_SAVE_COOKIES |
 -                        net::LOAD_DO_NOT_SEND_COOKIES);
--  // Add Chrome experiment state to the request headers.
+-  // Add Chrome experiment state and GZIP encoding to the request headers.
 -  net::HttpRequestHeaders headers;
+-  headers.SetHeaderIfMissing("content-encoding", "gzip");
 -  variations::VariationsHttpHeaderProvider::GetInstance()->AppendHeaders(
 -      fetcher->GetOriginalURL(), driver_->IsOffTheRecord(), false, &headers);
 -  fetcher->SetExtraRequestHeaders(headers.ToString());
@@ -48,4 +59,3 @@
    return true;
  }
  
-
