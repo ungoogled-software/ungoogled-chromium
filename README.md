@@ -22,7 +22,7 @@ In addition to features provided by [Iridium Browser](https://iridiumbrowser.de/
 
 All features come in the form of patches. Patches are stored in the `patches` directory, with the exception of system-dependant patches (these are in the `build_templates` directory).
 
-Here's some information on what's in the `patches` directory:
+Here's a summary of the `patches` directory contents:
 * `ungoogled-chromium/`
   * This directory contains new patches for ungoogled-chromium. They implement the features described above.
 * `iridium-browser`
@@ -44,7 +44,9 @@ Here's some information on what's in the `patches` directory:
 
 ## Building
 
-Right now, only Debian and Ubuntu build scripts are provided.
+If you want to use these patches in your own build of Chromium, make sure to run `domain_patcher.sh` from the root of the source tree first. Otherwise, some patches will need to be modified to apply. In the situation that you run `domain_patcher.sh` and your build flags require the downloading of additional files during compilation-time, the download URLs will most likely be invalid.
+
+At this time, ungoogled-chromium only provides Debian and Ubuntu package build scripts that will automate the whole downloading, patching, and building process. The main script is `build_debian.sh`; all other sibling scripts are invoked by the main script.
 
 ### Debian and derivatives
 **NOTE:** Tested on Debian Stretch 64-bit and Ubuntu Wily 64-bit
@@ -56,7 +58,7 @@ Right now, only Debian and Ubuntu build scripts are provided.
 
 Debian packages will appear under `ungoogled-chromium/`
 
-For more options, run `./build_debian.sh -h` to see the available options. This applies to `download_source.sh` as well.
+Pass the `-h` flag into `build_debian.sh` or `download_source.sh` for more options.
 
 ## Contributing
 

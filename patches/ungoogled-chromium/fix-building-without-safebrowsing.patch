@@ -2,7 +2,7 @@ description: Fix building with safe browsing disabled
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -565,10 +565,10 @@ class SafeBrowsingSSLCertReporter : public SSLCertReporter {
+@@ -570,10 +570,10 @@ class SafeBrowsingSSLCertReporter : public SSLCertReporter {
    // SSLCertReporter implementation
    void ReportInvalidCertificateChain(
        const std::string& serialized_report) override {
@@ -15,15 +15,15 @@ description: Fix building with safe browsing disabled
 +    //      serialized_report, base::Bind(&base::DoNothing));
 +    //}
    }
-
+ 
   private:
-@@ -1943,11 +1943,11 @@ void ChromeContentBrowserClient::AllowCertificateError(
+@@ -1991,11 +1991,11 @@ void ChromeContentBrowserClient::AllowCertificateError(
    if (expired_previous_decision)
      options_mask |= SSLBlockingPage::EXPIRED_BUT_PREVIOUSLY_ALLOWED;
-
--  SafeBrowsingService* safe_browsing_service =
+ 
+-  safe_browsing::SafeBrowsingService* safe_browsing_service =
 -      g_browser_process->safe_browsing_service();
-+  //SafeBrowsingService* safe_browsing_service =
++  //safe_browsing::SafeBrowsingService* safe_browsing_service =
 +  //    g_browser_process->safe_browsing_service();
    scoped_ptr<SafeBrowsingSSLCertReporter> cert_reporter(
 -      new SafeBrowsingSSLCertReporter(safe_browsing_service
@@ -35,17 +35,17 @@ description: Fix building with safe browsing disabled
                                    options_mask, cert_reporter.Pass(), callback);
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -446,12 +446,12 @@ ProfileImpl::ProfileImpl(
+@@ -451,12 +451,12 @@ ProfileImpl::ProfileImpl(
        path_, sequenced_task_runner, create_mode == CREATE_MODE_SYNCHRONOUS);
  #endif
  
--  scoped_refptr<SafeBrowsingService> safe_browsing_service(
+-  scoped_refptr<safe_browsing::SafeBrowsingService> safe_browsing_service(
 -      g_browser_process->safe_browsing_service());
 -  if (safe_browsing_service.get()) {
 -    pref_validation_delegate_ =
 -        safe_browsing_service->CreatePreferenceValidationDelegate(this).Pass();
 -  }
-+  //scoped_refptr<SafeBrowsingService> safe_browsing_service(
++  //scoped_refptr<safe_browsing::SafeBrowsingService> safe_browsing_service(
 +  //    g_browser_process->safe_browsing_service());
 +  //if (safe_browsing_service.get()) {
 +  //  pref_validation_delegate_ =
@@ -56,7 +56,7 @@ description: Fix building with safe browsing disabled
      prefs_ = chrome_prefs::CreateProfilePrefs(
 --- a/chrome/browser/renderer_host/chrome_resource_dispatcher_host_delegate.cc
 +++ b/chrome/browser/renderer_host/chrome_resource_dispatcher_host_delegate.cc
-@@ -319,8 +319,8 @@ void ChromeResourceDispatcherHostDelegate::RequestBeginning(
+@@ -322,8 +322,8 @@ void ChromeResourceDispatcherHostDelegate::RequestBeginning(
      content::AppCacheService* appcache_service,
      ResourceType resource_type,
      ScopedVector<content::ResourceThrottle>* throttles) {
@@ -75,10 +75,10 @@ description: Fix building with safe browsing disabled
  }
 -
 +/*
- SafeBrowsingBlockingPage* CreateSafeBrowsingBlockingPage(
+ safe_browsing::SafeBrowsingBlockingPage* CreateSafeBrowsingBlockingPage(
      content::WebContents* web_contents) {
-   SBThreatType threat_type = SB_THREAT_TYPE_URL_MALWARE;
-@@ -215,7 +215,7 @@ SafeBrowsingBlockingPage* CreateSafeBrowsingBlockingPage(
+   safe_browsing::SBThreatType threat_type =
+@@ -216,7 +216,7 @@ safe_browsing::SafeBrowsingBlockingPage* CreateSafeBrowsingBlockingPage(
        web_contents,
        resource);
  }
@@ -87,7 +87,7 @@ description: Fix building with safe browsing disabled
  #if defined(ENABLE_CAPTIVE_PORTAL_DETECTION)
  CaptivePortalBlockingPage* CreateCaptivePortalBlockingPage(
      content::WebContents* web_contents) {
-@@ -304,9 +304,11 @@ void InterstitialHTMLSource::StartDataRequest(
+@@ -305,9 +305,11 @@ void InterstitialHTMLSource::StartDataRequest(
    scoped_ptr<content::InterstitialPageDelegate> interstitial_delegate;
    if (base::StartsWith(path, "ssl", base::CompareCase::SENSITIVE)) {
      interstitial_delegate.reset(CreateSSLBlockingPage(web_contents_));
@@ -133,22 +133,24 @@ description: Fix building with safe browsing disabled
  
    SendRequest(id);
  }
-@@ -79,10 +79,10 @@ void BlacklistStateFetcher::SendRequest(const std::string& id) {
+@@ -79,11 +79,11 @@ void BlacklistStateFetcher::SendRequest(const std::string& id) {
    fetcher->Start();
  }
  
 -void BlacklistStateFetcher::SetSafeBrowsingConfig(
--    const SafeBrowsingProtocolConfig& config) {
--  safe_browsing_config_.reset(new SafeBrowsingProtocolConfig(config));
+-    const safe_browsing::SafeBrowsingProtocolConfig& config) {
+-  safe_browsing_config_.reset(
+-      new safe_browsing::SafeBrowsingProtocolConfig(config));
 -}
 +//void BlacklistStateFetcher::SetSafeBrowsingConfig(
-+//    const SafeBrowsingProtocolConfig& config) {
-+//  safe_browsing_config_.reset(new SafeBrowsingProtocolConfig(config));
++//    const safe_browsing::SafeBrowsingProtocolConfig& config) {
++//  safe_browsing_config_.reset(
++//      new safe_browsing::SafeBrowsingProtocolConfig(config));
 +//}
  
  void BlacklistStateFetcher::SetURLRequestContextForTest(
        net::URLRequestContextGetter* request_context) {
-@@ -90,6 +90,7 @@ void BlacklistStateFetcher::SetURLRequestContextForTest(
+@@ -91,6 +91,7 @@ void BlacklistStateFetcher::SetURLRequestContextForTest(
  }
  
  GURL BlacklistStateFetcher::RequestUrl() const {
@@ -156,11 +158,10 @@ description: Fix building with safe browsing disabled
    std::string url = base::StringPrintf(
        "%s/%s?client=%s&appver=%s&pver=2.2",
        safe_browsing_config_->url_prefix.c_str(),
-@@ -101,7 +102,8 @@ GURL BlacklistStateFetcher::RequestUrl() const {
-     base::StringAppendF(&url, "&key=%s",
+@@ -103,6 +104,8 @@ GURL BlacklistStateFetcher::RequestUrl() const {
                          net::EscapeQueryParamValue(api_key, true).c_str());
    }
--  return GURL(url);
+   return GURL(url);
 +  */
 +  return GURL();
  }
@@ -168,21 +169,23 @@ description: Fix building with safe browsing disabled
  void BlacklistStateFetcher::OnURLFetchComplete(const net::URLFetcher* source) {
 --- a/chrome/browser/extensions/blacklist_state_fetcher.h
 +++ b/chrome/browser/extensions/blacklist_state_fetcher.h
-@@ -32,7 +32,7 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
+@@ -32,8 +32,8 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
  
    virtual void Request(const std::string& id, const RequestCallback& callback);
  
--  void SetSafeBrowsingConfig(const SafeBrowsingProtocolConfig& config);
-+  //void SetSafeBrowsingConfig(const SafeBrowsingProtocolConfig& config);
+-  void SetSafeBrowsingConfig(
+-      const safe_browsing::SafeBrowsingProtocolConfig& config);
++  //void SetSafeBrowsingConfig(
++  //    const safe_browsing::SafeBrowsingProtocolConfig& config);
  
    void SetURLRequestContextForTest(
        net::URLRequestContextGetter* request_context);
-@@ -51,7 +51,7 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
+@@ -52,7 +52,7 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
    // ID for URLFetchers for testing.
    int url_fetcher_id_;
  
--  scoped_ptr<SafeBrowsingProtocolConfig> safe_browsing_config_;
-+  //scoped_ptr<SafeBrowsingProtocolConfig> safe_browsing_config_;
+-  scoped_ptr<safe_browsing::SafeBrowsingProtocolConfig> safe_browsing_config_;
++  //scoped_ptr<safe_browsing::SafeBrowsingProtocolConfig> safe_browsing_config_;
    scoped_refptr<net::URLRequestContextGetter> url_request_context_getter_;
    scoped_refptr<net::URLRequestContextGetter> parent_request_context_for_test_;
  
