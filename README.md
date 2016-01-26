@@ -84,11 +84,13 @@ For Arch Linux, consider using [Inox patchset](https://github.com/gcarq/inox-pat
 
 ### Other systems, platforms, and configurations
 
+Consult the build instructions on the [Chromium homepage](http://www.chromium.org/Home) to learn how to build Chromium for your system.
+
 The patches in the `patches` directory should work for any build of Chromium. They assume a clean Chromium source tree processed by `domain_patcher.sh`.
 
 These patches are also tested with the GYP flags defined in [`build_templates/debian/rules`](build_templates/debian/rules). Note that enabling some flags, such as `safe_browsing`, may cause the build to fail.
 
-Note about `domain_patcher.sh`: This script will break URLs used to download additional files from Google servers during compilation-time. If your build configuration requires additional downloads, you will have to work-around this.
+Note about `domain_patcher.sh`: This script will break URLs in the source tree pointing to Google servers. If your building steps requires additional downloads (such as the the PNaCl toolkit), note that scripts in the source tree may fail to work.
 
 ## Contributing
 
