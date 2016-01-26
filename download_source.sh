@@ -88,7 +88,7 @@ if [[ ! -d "$TARBALL_DESTINATION" ]]; then
 fi
 
 TARBALL="chromium-$DOWNLOAD_VERSION.tar.xz";
-URL="https://gsdview.appspot.com/chromium-browser-official/$TARBALL";
+URL="https://commondatastorage.googleapis.com/chromium-browser-official/$TARBALL";
 
 echo "Downloading version $DOWNLOAD_VERSION to $TARBALL_DESTINATION ...";
 

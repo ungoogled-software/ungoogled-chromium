@@ -20,16 +20,18 @@ In addition to features provided by [Iridium Browser](https://iridiumbrowser.de/
 
 ## Patches
 
-All features come in the form of patches. Patches are stored in the `patches` directory, with the exception of system-dependant patches (these are in the `build_templates` directory).
+All features come in the form of patches. Patches are stored in the `patches` directory, with the exception of platform-specific patches (which are in the `build_templates` directory).
 
-Here's a summary of the `patches` directory contents:
+Currently, the patches are applied on top of Chromium 48.0.2564.82. See the Building section below for information on using these patches.
+
+Here's an overview of the files in the `patches` directory:
 * `ungoogled-chromium/`
   * This directory contains new patches for ungoogled-chromium. They implement the features described above.
 * `iridium-browser`
-  * This directory contains patches from Iridium Browser.
+  * This directory contains patches derived from Iridium Browser.
   * Patches are from the `patchview` branch of its Git repository. [Web view of the patchview branch](https://git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
 * `inox-patchset/`
-  * This directory contains patches from Inox patchset.
+  * This directory contains patches derived from Inox patchset.
   * Patches are from [inox-patchset's GitHub](https://github.com/gcarq/inox-patchset)
   * [Inox patchset's license](https://github.com/gcarq/inox-patchset/blob/master/LICENSE)
 * `debian/`
@@ -40,16 +42,32 @@ Here's a summary of the `patches` directory contents:
 
 ## Releases
 
-[Releases are available here](https://github.com/Eloston/ungoogled-chromium/releases)
+[Builds with these patches are available here](https://github.com/Eloston/ungoogled-chromium/releases).
 
 ## Building
 
-If you want to use these patches in your own build of Chromium, make sure to run `domain_patcher.sh` from the root of the source tree first. Otherwise, some patches will need to be modified to apply. In the situation that you run `domain_patcher.sh` and your build flags require the downloading of additional files during compilation-time, the download URLs will most likely be invalid.
-
-At this time, ungoogled-chromium only provides Debian and Ubuntu package build scripts that will automate the whole downloading, patching, and building process. The main script is `build_debian.sh`; all other sibling scripts are invoked by the main script.
+ungoogled-chromium provides scripts to automate the downloading, patching, and building of Chromium with these patches. Here's an overview of the building scripts and files:
+* `build-sandbox` - This directory is the build sandbox; the container for all files used and generated during building. It is created when the building environment is setup.
+* `build_templates` - This holds the system-dependant files that are used for compiling and generating a binary package. They are copied into the build sandbox by the build setup scripts.
+  * `debian` - This contains files to generate a dpkg debian directory. Debian-specific patches are located here.
+  * `ubuntu` - This contains files to generate a dpkg debian directory for Ubuntu
+* `download_source.sh` - This script downloads the source tarball from `commondatastorage.googleapis.com` and unpacks it into the build sandbox.
+  * It accepts arguments; pass in `-h` for more information.
+* `domain_patcher.sh` - This script replaces multiple domain name strings with invalid domain names.
+  * It recursively works down the current working directory, and thus should be run at the root of the build sandbox.
+* `source_cleaner.sh` - This script strips the source tree of mostly all binary files.
+  * It should be run at the root of the build sandbox.
+* `generate_debian_scripts.sh` - This script creates a dpkg debian directory in the build sandbox for Debian
+* `generate_ubuntu_scripts.sh` - This script creates a dpkg debian directory in the build sandbox for Ubuntu
+* `build_debian.sh` - This is the main build script for Debian and derivative distributions. It handles the downloading, patching, and building of .deb packages.
+  * This script will invoke the other scripts to do certain tasks.
+  * It accepts arguments; pass in `-h` for more information.
+  * Currently, only Debian Stretch 64-bit and Ubuntu Wily 64-bit are tested.
 
 ### Debian and derivatives
-**NOTE:** Tested on Debian Stretch 64-bit and Ubuntu Wily 64-bit
+**NOTE:** Instructions are tested on Debian Stretch 64-bit and Ubuntu Wily 64-bit
+
+Run these steps on the system you want to build packages for.
 
     git clone https://github.com/Eloston/ungoogled-chromium.git
     cd ungoogled-chromium
@@ -59,6 +77,18 @@ At this time, ungoogled-chromium only provides Debian and Ubuntu package build s
 Debian packages will appear under `ungoogled-chromium/`
 
 Pass the `-h` flag into `build_debian.sh` or `download_source.sh` for more options.
+
+### Arch Linux
+
+For Arch Linux, consider using [Inox patchset](https://github.com/gcarq/inox-patchset); one of the projects which ungoogled-chromium draws its patches from. It offers pre-built binaries and is also available in AUR.
+
+### Other systems, platforms, and configurations
+
+The patches in the `patches` directory should work for any build of Chromium. They assume a clean Chromium source tree processed by `domain_patcher.sh`.
+
+These patches are also tested with the GYP flags defined in [`build_templates/debian/rules`](build_templates/debian/rules). Note that enabling some flags, such as `safe_browsing`, may cause the build to fail.
+
+Note about `domain_patcher.sh`: This script will break URLs used to download additional files from Google servers during compilation-time. If your build configuration requires additional downloads, you will have to work-around this.
 
 ## Contributing
 
