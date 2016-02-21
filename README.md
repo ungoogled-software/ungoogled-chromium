@@ -22,7 +22,7 @@ In addition to features provided by [Iridium Browser](https://iridiumbrowser.de/
 
 All features come in the form of patches. Patches are stored in the `patches` directory, with the exception of platform-specific patches (which are in the `build_templates` directory).
 
-Currently, the patches are applied on top of Chromium 48.0.2564.97. See the Building section below for information on using these patches.
+Currently, the patches are applied on top of Chromium 48.0.2564.116. See the Building section below for information on using these patches.
 
 Here's an overview of the files in the `patches` directory:
 * `ungoogled-chromium/`
