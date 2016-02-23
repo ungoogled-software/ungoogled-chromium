@@ -75,7 +75,7 @@ if [[ -n "$DEBIAN_CHANGELOG" ]]; then
         exit 1;
     fi
     echo "Reading version from $DEBIAN_CHANGELOG";
-    DOWNLOAD_VERSION=$(dpkg-parsechangelog -l $DEBIAN_CHANGELOG -S Version | sed s/-.*//);
+    DOWNLOAD_VERSION=$(dpkg-parsechangelog -l$DEBIAN_CHANGELOG -S Version | sed s/-.*//);
     if [[ -z "$DOWNLOAD_VERSION" ]]; then
         echo "Could not read the Debian changelog!" >&2;
         exit 1;
