@@ -65,7 +65,9 @@ ungoogled-chromium provides scripts to automate the downloading, patching, and b
   * Currently, only Debian Stretch 64-bit and Ubuntu Wily 64-bit are tested.
 
 ### Debian and derivatives
-**NOTE:** Instructions are tested on Debian Stretch 64-bit and Ubuntu Wily 64-bit
+**NOTE:** Instructions are tested on Debian Jessie 64-bit and Stretch 64-bit, and Ubuntu Wily 64-bit
+
+**Debian Jessie users**: ungoogled-chromium is configured to build against the system's [FFmpeg](https://www.ffmpeg.org/) (available in Stretch and onwards); [Libav](http://libav.org) (used in Jessie) will not work. However, FFmpeg is available in `jessie-backports`. To install it, add `jessie-backports` to the apt sources, and then install `libavutil-dev`, `libavcodec-dev`, and `libavformat-dev` from it. Note that this will replace Libav.
 
 Run these steps on the system you want to build packages for.
 
