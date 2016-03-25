@@ -28,8 +28,10 @@ fi
 cp -ri $SCRIPT_DIR/build_templates/debian ./
 cp -r $SCRIPT_DIR/build_templates/ubuntu/* ./debian
 cp -ri $SCRIPT_DIR/patches/. ./debian/patches
-cat ./debian/patches/series >> ./debian/patches/patch_order
+cat ./debian/patches/patch_order >> ./debian/patches/ubuntu_patches/ubuntu_patch_order
+rm ./debian/patches/patch_order
+cat ./debian/patches/series >> ./debian/patches/ubuntu_patches/ubuntu_patch_order
 rm ./debian/patches/series
-mv ./debian/patches/patch_order ./debian/patches/series
+mv ./debian/patches/ubuntu_patches/ubuntu_patch_order ./debian/patches/series
 
 cd "$CWD";
