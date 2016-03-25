@@ -22,7 +22,7 @@ In addition to features provided by [Iridium Browser](https://iridiumbrowser.de/
 
 All features come in the form of patches. Patches are stored in the `patches` directory, with the exception of platform-specific patches (which are in the `build_templates` directory).
 
-Currently, the patches are applied on top of Chromium 48.0.2564.116. See the Building section below for information on using these patches.
+The latest set of patches are available on [the tags page](https://github.com/Eloston/ungoogled-chromium/tags). See the Building section below for information on using these patches.
 
 Here's an overview of the files in the `patches` directory:
 * `ungoogled-chromium/`
@@ -42,7 +42,7 @@ Here's an overview of the files in the `patches` directory:
 
 ## Releases
 
-[Builds with these patches are available here](https://github.com/Eloston/ungoogled-chromium/releases).
+Builds with these patches are available on [the releases page](https://github.com/Eloston/ungoogled-chromium/releases).
 
 ## Building
 
