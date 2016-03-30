@@ -1,8 +1,8 @@
-description: Fix building with safe browsing disabled
+# Fix building with safe browsing disabled
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -570,10 +570,10 @@ class SafeBrowsingSSLCertReporter : public SSLCertReporter {
+@@ -592,10 +592,10 @@ class SafeBrowsingSSLCertReporter : public SSLCertReporter {
    // SSLCertReporter implementation
    void ReportInvalidCertificateChain(
        const std::string& serialized_report) override {
@@ -17,7 +17,7 @@ description: Fix building with safe browsing disabled
    }
  
   private:
-@@ -1470,7 +1470,7 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
+@@ -1504,7 +1504,7 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
        // Disable client-side phishing detection in the renderer if it is
        // disabled in the Profile preferences or the browser process.
        if (!prefs->GetBoolean(prefs::kSafeBrowsingEnabled) ||
@@ -26,9 +26,9 @@ description: Fix building with safe browsing disabled
          command_line->AppendSwitch(
              switches::kDisableClientSidePhishingDetection);
        }
-@@ -1991,11 +1991,11 @@ void ChromeContentBrowserClient::AllowCertificateError(
+@@ -2037,11 +2037,11 @@ void ChromeContentBrowserClient::AllowCertificateError(
    if (expired_previous_decision)
-     options_mask |= SSLBlockingPage::EXPIRED_BUT_PREVIOUSLY_ALLOWED;
+     options_mask |= SSLErrorUI::EXPIRED_BUT_PREVIOUSLY_ALLOWED;
  
 -  safe_browsing::SafeBrowsingService* safe_browsing_service =
 -      g_browser_process->safe_browsing_service();
@@ -40,11 +40,11 @@ description: Fix building with safe browsing disabled
 +      new SafeBrowsingSSLCertReporter(false
 +                                          ? nullptr
                                            : nullptr));
-   SSLErrorHandler::HandleSSLError(tab, cert_error, ssl_info, request_url,
-                                   options_mask, cert_reporter.Pass(), callback);
+   SSLErrorHandler::HandleSSLError(web_contents, cert_error, ssl_info,
+                                   request_url, options_mask,
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -451,12 +451,12 @@ ProfileImpl::ProfileImpl(
+@@ -452,12 +452,12 @@ ProfileImpl::ProfileImpl(
        path_, sequenced_task_runner, create_mode == CREATE_MODE_SYNCHRONOUS);
  #endif
  
@@ -52,20 +52,20 @@ description: Fix building with safe browsing disabled
 -      g_browser_process->safe_browsing_service());
 -  if (safe_browsing_service.get()) {
 -    pref_validation_delegate_ =
--        safe_browsing_service->CreatePreferenceValidationDelegate(this).Pass();
+-        safe_browsing_service->CreatePreferenceValidationDelegate(this);
 -  }
 +  //scoped_refptr<safe_browsing::SafeBrowsingService> safe_browsing_service(
 +  //    g_browser_process->safe_browsing_service());
 +  //if (safe_browsing_service.get()) {
 +  //  pref_validation_delegate_ =
-+  //      safe_browsing_service->CreatePreferenceValidationDelegate(this).Pass();
++  //      safe_browsing_service->CreatePreferenceValidationDelegate(this);
 +  //}
  
    {
      prefs_ = chrome_prefs::CreateProfilePrefs(
 --- a/chrome/browser/renderer_host/chrome_resource_dispatcher_host_delegate.cc
 +++ b/chrome/browser/renderer_host/chrome_resource_dispatcher_host_delegate.cc
-@@ -274,8 +274,7 @@ void AppendComponentUpdaterThrottles(
+@@ -276,8 +276,7 @@ void AppendComponentUpdaterThrottles(
  }  // namespace
  
  ChromeResourceDispatcherHostDelegate::ChromeResourceDispatcherHostDelegate()
@@ -84,7 +84,7 @@ description: Fix building with safe browsing disabled
  
    const ResourceRequestInfo* info = ResourceRequestInfo::ForRequest(request);
    bool is_prerendering =
-@@ -489,13 +486,13 @@ void ChromeResourceDispatcherHostDelegate::AppendStandardResourceThrottles(
+@@ -488,13 +485,13 @@ void ChromeResourceDispatcherHostDelegate::AppendStandardResourceThrottles(
    content::ResourceThrottle* first_throttle = NULL;
  #if defined(OS_ANDROID)
    first_throttle = DataReductionProxyResourceThrottle::MaybeCreate(
@@ -102,25 +102,25 @@ description: Fix building with safe browsing disabled
  
 --- a/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
 +++ b/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
-@@ -173,7 +173,7 @@ BadClockBlockingPage* CreateBadClockBlockingPage(
+@@ -179,7 +179,7 @@ BadClockBlockingPage* CreateBadClockBlockingPage(
                                    request_url, time_triggered_, nullptr,
                                    base::Callback<void(bool)>());
  }
 -
-+/*
++#if 0
  safe_browsing::SafeBrowsingBlockingPage* CreateSafeBrowsingBlockingPage(
      content::WebContents* web_contents) {
    safe_browsing::SBThreatType threat_type =
-@@ -216,7 +216,7 @@ safe_browsing::SafeBrowsingBlockingPage* CreateSafeBrowsingBlockingPage(
-       web_contents,
-       resource);
+@@ -231,7 +231,7 @@ safe_browsing::SafeBrowsingBlockingPage* CreateSafeBrowsingBlockingPage(
+       g_browser_process->safe_browsing_service()->ui_manager().get(),
+       web_contents, main_frame_url, resource);
  }
 -
-+*/
++#endif
  #if defined(ENABLE_CAPTIVE_PORTAL_DETECTION)
  CaptivePortalBlockingPage* CreateCaptivePortalBlockingPage(
      content::WebContents* web_contents) {
-@@ -305,9 +305,11 @@ void InterstitialHTMLSource::StartDataRequest(
+@@ -320,9 +320,11 @@ void InterstitialHTMLSource::StartDataRequest(
    scoped_ptr<content::InterstitialPageDelegate> interstitial_delegate;
    if (base::StartsWith(path, "ssl", base::CompareCase::SENSITIVE)) {
      interstitial_delegate.reset(CreateSSLBlockingPage(web_contents_));
@@ -202,7 +202,7 @@ description: Fix building with safe browsing disabled
  void BlacklistStateFetcher::OnURLFetchComplete(const net::URLFetcher* source) {
 --- a/chrome/browser/extensions/blacklist_state_fetcher.h
 +++ b/chrome/browser/extensions/blacklist_state_fetcher.h
-@@ -32,8 +32,8 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
+@@ -33,8 +33,8 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
  
    virtual void Request(const std::string& id, const RequestCallback& callback);
  
@@ -213,7 +213,7 @@ description: Fix building with safe browsing disabled
  
    void SetURLRequestContextForTest(
        net::URLRequestContextGetter* request_context);
-@@ -52,7 +52,7 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
+@@ -53,7 +53,7 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
    // ID for URLFetchers for testing.
    int url_fetcher_id_;
  
@@ -224,38 +224,37 @@ description: Fix building with safe browsing disabled
  
 --- a/chrome/browser/browsing_data/browsing_data_remover.cc
 +++ b/chrome/browser/browsing_data/browsing_data_remover.cc
-@@ -495,17 +495,17 @@ void BrowsingDataRemover::RemoveImpl(int remove_mask,
-     // hours/days to the safebrowsing cookies since they aren't the result of
-     // any user action.
-     if (delete_begin_ == base::Time()) {
+@@ -583,27 +583,6 @@ void BrowsingDataRemover::RemoveImpl(const TimeRange& time_range,
+     storage_partition_remove_mask |=
+         content::StoragePartition::REMOVE_DATA_MASK_COOKIES;
+ 
+-    // Clear the safebrowsing cookies only if time period is for "all time".  It
+-    // doesn't make sense to apply the time period of deleting in the last X
+-    // hours/days to the safebrowsing cookies since they aren't the result of
+-    // any user action.
+-    if (delete_begin_ == base::Time()) {
 -      safe_browsing::SafeBrowsingService* sb_service =
 -          g_browser_process->safe_browsing_service();
 -      if (sb_service) {
--        net::URLRequestContextGetter* sb_context =
+-        scoped_refptr<net::URLRequestContextGetter> sb_context =
 -            sb_service->url_request_context();
 -        ++waiting_for_clear_cookies_count_;
 -        BrowserThread::PostTask(
 -            BrowserThread::IO, FROM_HERE,
--            base::Bind(&BrowsingDataRemover::ClearCookiesOnIOThread,
--                       base::Unretained(this), base::Unretained(sb_context)));
+-            base::Bind(&ClearCookiesOnIOThread, delete_begin_, delete_end_,
+-                       std::move(sb_context),
+-                       UIThreadTrampoline(
+-                           base::Bind(&BrowsingDataRemover::OnClearedCookies,
+-                                      weak_ptr_factory_.GetWeakPtr()))));
 -      }
-+      //safe_browsing::SafeBrowsingService* sb_service =
-+      //    g_browser_process->safe_browsing_service();
-+      //if (sb_service) {
-+      //  net::URLRequestContextGetter* sb_context =
-+      //      sb_service->url_request_context();
-+      //  ++waiting_for_clear_cookies_count_;
-+      //  BrowserThread::PostTask(
-+      //      BrowserThread::IO, FROM_HERE,
-+      //      base::Bind(&BrowsingDataRemover::ClearCookiesOnIOThread,
-+      //                 base::Unretained(this), base::Unretained(sb_context)));
-+      //}
-     }
- 
+-    }
+-
      MediaDeviceIDSalt::Reset(profile_->GetPrefs());
+ 
+     // TODO(mkwst): If we're not removing passwords, then clear the 'zero-click'
 --- a/chrome/browser/download/chrome_download_manager_delegate.cc
 +++ b/chrome/browser/download/chrome_download_manager_delegate.cc
-@@ -191,12 +191,12 @@ ChromeDownloadManagerDelegate::~ChromeDownloadManagerDelegate() {
+@@ -194,12 +194,12 @@ ChromeDownloadManagerDelegate::~ChromeDownloadManagerDelegate() {
  void ChromeDownloadManagerDelegate::SetDownloadManager(DownloadManager* dm) {
    download_manager_ = dm;
  
@@ -276,7 +275,7 @@ description: Fix building with safe browsing disabled
  void ChromeDownloadManagerDelegate::Shutdown() {
 --- a/chrome/browser/browser_process_impl.cc
 +++ b/chrome/browser/browser_process_impl.cc
-@@ -57,7 +57,6 @@
+@@ -62,7 +62,6 @@
  #include "chrome/browser/printing/print_preview_dialog_controller.h"
  #include "chrome/browser/profiles/profile_manager.h"
  #include "chrome/browser/renderer_host/chrome_resource_dispatcher_host_delegate.h"
@@ -284,24 +283,24 @@ description: Fix building with safe browsing disabled
  #include "chrome/browser/shell_integration.h"
  #include "chrome/browser/status_icons/status_tray.h"
  #include "chrome/browser/ui/browser_dialogs.h"
-@@ -185,7 +184,6 @@ BrowserProcessImpl::BrowserProcessImpl(
+@@ -191,7 +190,6 @@ BrowserProcessImpl::BrowserProcessImpl(
        created_local_state_(false),
        created_icon_manager_(false),
        created_notification_ui_manager_(false),
 -      created_safe_browsing_service_(false),
        module_ref_count_(0),
        did_start_(false),
-       download_status_updater_(new DownloadStatusUpdater),
-@@ -258,8 +256,6 @@ void BrowserProcessImpl::StartTearDown() {
-   // PostDelayedTask operation on the IO thread. (The IO thread will handle that
+       tearing_down_(false),
+@@ -268,8 +266,6 @@ void BrowserProcessImpl::StartTearDown() {
    // URLFetcher operation before going away.)
+   metrics_services_manager_.reset();
    intranet_redirect_detector_.reset();
 -  if (safe_browsing_service_.get())
 -    safe_browsing_service()->ShutDown();
  #if defined(ENABLE_PLUGIN_INSTALLATION)
    plugins_resource_service_.reset();
  #endif
-@@ -877,22 +873,6 @@ StatusTray* BrowserProcessImpl::status_tray() {
+@@ -882,22 +878,6 @@ StatusTray* BrowserProcessImpl::status_tray() {
    return status_tray_.get();
  }
  
@@ -324,7 +323,7 @@ description: Fix building with safe browsing disabled
  #if (defined(OS_WIN) || defined(OS_LINUX)) && !defined(OS_CHROMEOS)
  void BrowserProcessImpl::StartAutoupdateTimer() {
    autoupdate_timer_.Start(FROM_HERE,
-@@ -1162,16 +1142,6 @@ void BrowserProcessImpl::CreateBackgroundPrintingManager() {
+@@ -1151,16 +1131,6 @@ void BrowserProcessImpl::CreateBackgroundPrintingManager() {
  #endif
  }
  
@@ -343,7 +342,7 @@ description: Fix building with safe browsing disabled
  
 --- a/chrome/browser/browser_process_impl.h
 +++ b/chrome/browser/browser_process_impl.h
-@@ -126,9 +126,6 @@ class BrowserProcessImpl : public BrowserProcess,
+@@ -129,9 +129,6 @@ class BrowserProcessImpl : public BrowserProcess,
    void set_background_mode_manager_for_test(
        scoped_ptr<BackgroundModeManager> manager) override;
    StatusTray* status_tray() override;
@@ -353,7 +352,7 @@ description: Fix building with safe browsing disabled
  
  #if (defined(OS_WIN) || defined(OS_LINUX)) && !defined(OS_CHROMEOS)
    void StartAutoupdateTimer() override;
-@@ -241,9 +238,6 @@ class BrowserProcessImpl : public BrowserProcess,
+@@ -244,9 +241,6 @@ class BrowserProcessImpl : public BrowserProcess,
    scoped_ptr<BackgroundModeManager> background_mode_manager_;
  #endif
  
@@ -365,7 +364,7 @@ description: Fix building with safe browsing disabled
  
 --- a/chrome/browser/metrics/chrome_metrics_services_manager_client.cc
 +++ b/chrome/browser/metrics/chrome_metrics_services_manager_client.cc
-@@ -70,21 +70,7 @@ ChromeMetricsServicesManagerClient::GetURLRequestContext() {
+@@ -72,21 +72,7 @@ ChromeMetricsServicesManagerClient::GetURLRequestContext() {
  
  bool ChromeMetricsServicesManagerClient::IsSafeBrowsingEnabled(
      const base::Closure& on_update_callback) {
@@ -390,7 +389,7 @@ description: Fix building with safe browsing disabled
  bool ChromeMetricsServicesManagerClient::IsMetricsReportingEnabled() {
 --- a/chrome/browser/browser_process.h
 +++ b/chrome/browser/browser_process.h
-@@ -39,10 +39,6 @@ class WatchDogThread;
+@@ -42,10 +42,6 @@ class WatchDogThread;
  class WebRtcLogUploader;
  #endif
  
@@ -401,7 +400,7 @@ description: Fix building with safe browsing disabled
  namespace variations {
  class VariationsService;
  }
-@@ -104,10 +100,6 @@ namespace rappor {
+@@ -107,10 +103,6 @@ namespace rappor {
  class RapporService;
  }
  
@@ -412,7 +411,7 @@ description: Fix building with safe browsing disabled
  namespace web_resource {
  class PromoResourceService;
  }
-@@ -214,14 +206,6 @@ class BrowserProcess {
+@@ -217,14 +209,6 @@ class BrowserProcess {
    // on this platform (or this is a unit test).
    virtual StatusTray* status_tray() = 0;
  
@@ -429,20 +428,19 @@ description: Fix building with safe browsing disabled
    // whether an update is available, and if that's the case, restart the
 --- a/chrome/browser/download/download_danger_prompt.cc
 +++ b/chrome/browser/download/download_danger_prompt.cc
-@@ -279,16 +279,4 @@ DownloadDangerPrompt* DownloadDangerPrompt::Create(
+@@ -316,6 +316,7 @@ DownloadDangerPrompt* DownloadDangerPrompt::Create(
  void DownloadDangerPrompt::SendSafeBrowsingDownloadRecoveryReport(
      bool did_proceed,
-     const GURL& url) {
--  safe_browsing::SafeBrowsingService* sb_service =
--      g_browser_process->safe_browsing_service();
--  ClientSafeBrowsingReportRequest report;
--  report.set_type(ClientSafeBrowsingReportRequest::MALICIOUS_DOWNLOAD_RECOVERY);
--  report.set_url(url.spec());
--  report.set_did_proceed(did_proceed);
--
--  std::string serialized_report;
--  if (report.SerializeToString(&serialized_report))
--    sb_service->SendDownloadRecoveryReport(serialized_report);
--  else
--    DLOG(ERROR) << "Unable to serialize the threat report.";
+     const content::DownloadItem& download) {
++#if 0
+   safe_browsing::SafeBrowsingService* sb_service =
+       g_browser_process->safe_browsing_service();
+   ClientSafeBrowsingReportRequest report;
+@@ -345,6 +346,7 @@ void DownloadDangerPrompt::SendSafeBrowsingDownloadRecoveryReport(
+     sb_service->SendDownloadRecoveryReport(serialized_report);
+   else
+     DLOG(ERROR) << "Unable to serialize the threat report.";
++#endif
  }
+ 
+ void DownloadDangerPrompt::RecordDownloadDangerPrompt(
