@@ -10,21 +10,21 @@ CWD=$(pwd);
 SANDBOX_PATH="$SCRIPT_DIR/build-sandbox";
 DOWNLOAD_EXTRACT_TARBALL=;
 CUSTOM_TARBALL=;
-KEEP_TARBALL=;
+REMOVE_TARBALL=;
 RUN_SOURCE_CLEANER=;
 RUN_DOMAIN_PATCHER=;
 GENERATE_BUILD_SCRIPTS=;
 RUN_BUILD_COMMAND=;
 
 print_usage() {
-    echo "Usage: $0 [-h] {-A | [-d | -x tarball] [-k] [-c] [-p] [-g] [-b]}";
+    echo "Usage: $0 [-h] {-A | [-d | -x tarball] [-R] [-c] [-p] [-g] [-b]}";
     echo "Options:";
     echo "  -h: Show this help message";
     echo "  -s: (Default: $SANDBOX_PATH) Path to to the building sandbox";
     echo "  -A: Same as -d -c -p -g -b";
     echo "  -d: Download the source tarball and extract it into the building sandbox. Cannot be used with -x";
     echo "  -x: Extract the provided tarball into the building sandbox. Cannot be used with -d";
-    echo "  -k: Keep the tarball after source extraction. Otherwise it will be deleted. Requires -d or -x to be present";
+    echo "  -R: Remove the tarball after source extraction. Otherwise it will be kept. Requires -d or -x to be present";
     echo "  -c: Run source_cleaner.sh on the source code";
     echo "  -p: Run domain_patcher.sh on the source code";
     echo "  -g: Generate Debian or Ubuntu build scripts (depending on lsb_release) and place them into the building sandbox, if they do not already exist";
@@ -82,7 +82,7 @@ while getopts ":hs:Adx:kcpgb" opt; do
         A)
             A_conflict="Argument -A cannot be used with any other argument except -s";
             set_or_fail "DOWNLOAD_EXTRACT_TARBALL" 1 "$A_conflict";
-            set_or_fail "KEEP_TARBALL" 0 "$A_conflict";
+            set_or_fail "REMOVE_TARBALL" 0 "$A_conflict";
             set_or_fail "RUN_SOURCE_CLEANER" 1 "$A_conflict";
             set_or_fail "RUN_DOMAIN_PATCHER" 1 "$A_conflict";
             set_or_fail "GENERATE_BUILD_SCRIPTS" 1 "$A_conflict";
@@ -97,8 +97,8 @@ while getopts ":hs:Adx:kcpgb" opt; do
             is_not_set "DOWNLOAD_EXTRACT_TARBALL" "Argument -x cannot be used with -d";
             CUSTOM_TARBALL=$OPTARG;
             ;;
-        k)
-            KEEP_TARBALL=1;
+        R)
+            REMOVE_TARBALL=1;
             ;;
         c)
             RUN_SOURCE_CLEANER=1;
@@ -126,7 +126,7 @@ while getopts ":hs:Adx:kcpgb" opt; do
 done
 
 set_if_empty "DOWNLOAD_EXTRACT_TARBALL" 0
-set_if_empty "KEEP_TARBALL" 0
+set_if_empty "REMOVE_TARBALL" 0
 set_if_empty "RUN_SOURCE_CLEANER" 0
 set_if_empty "RUN_DOMAIN_PATCHER" 0
 set_if_empty "GENERATE_BUILD_SCRIPTS" 0
@@ -140,10 +140,10 @@ if [[ $DOWNLOAD_EXTRACT_TARBALL -eq 1 ]]; then
         mkdir $SANDBOX_PATH;
     fi
     echo "Downloading and extracting tarball...";
-    if [[ $KEEP_TARBALL -eq 1 ]]; then
-        $SCRIPT_DIR/download_source.sh -x "$SANDBOX_PATH"
-    else
+    if [[ $REMOVE_TARBALL -eq 1 ]]; then
         $SCRIPT_DIR/download_source.sh -x "$SANDBOX_PATH" -R
+    else
+        $SCRIPT_DIR/download_source.sh -x "$SANDBOX_PATH"
     fi
 fi
 
@@ -164,7 +164,7 @@ if [[ -n "$CUSTOM_TARBALL" ]]; then
     cd "$SANDBOX_PATH";
     tar -xf "$CUSTOM_TARBALL" --strip-components=1;
     cd "$CWD";
-    if [[ $KEEP_TARBALL -eq 0 ]]; then
+    if [[ $REMOVE_TARBALL -eq 1 ]]; then
         rm $CUSTOM_TARBALL;
     fi
 fi

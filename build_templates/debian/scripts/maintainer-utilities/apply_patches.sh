@@ -1,5 +1,4 @@
 #!/bin/bash
 
-export QUILT_PATCHES=debian/patches
-export QUILT_REFRESH_ARGS="-p ab --no-timestamps --no-index"
+source "$(dirname $(readlink -f $0))/quilt_variables.sh"
 quilt push -a
