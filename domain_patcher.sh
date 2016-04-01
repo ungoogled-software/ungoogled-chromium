@@ -37,7 +37,7 @@ find . -path ./debian -prune \
     -e 's/gmail([A-Za-z\-]*)\.com/9ma1l\1\.qjz9zk/g' \
     -e 's/doubleclick([A-Za-z\-]*)\.net/60u613cl1c4\1\.qjz9zk/g' \
     -e 's/googlezip\.net/9oo91e21p\.qjz9zk/g' \
-    -e 's/beacon[1-9]\.gvt[1-9]\.com/b3ac0n\1\.9vt\2\.qjz9zk/g' \
+    -e 's/beacons([1-9]?)\.gvt([1-9]?)\.com/b3ac0n2\1\.9vt\2\.qjz9zk/g' \
     -e 's/microsoft\.com/m1cr050ft\.qjz9zk/g' {}
 
 exit 0;
