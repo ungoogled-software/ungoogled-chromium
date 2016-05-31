@@ -11,8 +11,6 @@ SANDBOX_PATH="$SCRIPT_DIR/build-sandbox";
 DOWNLOAD_EXTRACT_TARBALL=;
 CUSTOM_TARBALL=;
 REMOVE_TARBALL=;
-RUN_SOURCE_CLEANER=;
-RUN_DOMAIN_PATCHER=;
 GENERATE_BUILD_SCRIPTS=;
 RUN_BUILD_COMMAND=;
 
@@ -25,8 +23,6 @@ print_usage() {
     echo "  -d: Download the source tarball and extract it into the building sandbox. Cannot be used with -x";
     echo "  -x: Extract the provided tarball into the building sandbox. Cannot be used with -d";
     echo "  -R: Remove the tarball after source extraction. Otherwise it will be kept. Requires -d or -x to be present";
-    echo "  -c: Run source_cleaner.sh on the source code";
-    echo "  -p: Run domain_patcher.sh on the source code";
     echo "  -g: Generate Debian or Ubuntu build scripts (depending on lsb_release) and place them into the building sandbox, if they do not already exist";
     echo "  -b: Run dpkg-buildpackage";
 }
@@ -100,12 +96,6 @@ while getopts ":hs:Adx:kcpgb" opt; do
         R)
             REMOVE_TARBALL=1;
             ;;
-        c)
-            RUN_SOURCE_CLEANER=1;
-            ;;
-        p)
-            RUN_DOMAIN_PATCHER=1;
-            ;;
         g)
             GENERATE_BUILD_SCRIPTS=1;
             ;;
@@ -127,8 +117,6 @@ done
 
 set_if_empty "DOWNLOAD_EXTRACT_TARBALL" 0
 set_if_empty "REMOVE_TARBALL" 0
-set_if_empty "RUN_SOURCE_CLEANER" 0
-set_if_empty "RUN_DOMAIN_PATCHER" 0
 set_if_empty "GENERATE_BUILD_SCRIPTS" 0
 set_if_empty "RUN_BUILD_COMMAND" 0
 
@@ -175,16 +163,6 @@ if [[ ! -d $SANDBOX_PATH ]]; then
 fi
 
 cd "$SANDBOX_PATH";
-
-if [[ $RUN_SOURCE_CLEANER -eq 1 ]]; then
-    echo "Running source cleaner...";
-    $SCRIPT_DIR/source_cleaner.sh
-fi
-
-if [[ $RUN_DOMAIN_PATCHER -eq 1 ]]; then
-    echo "Running domain patcher...";
-    $SCRIPT_DIR/domain_patcher.sh
-fi;
 
 if [[ $GENERATE_BUILD_SCRIPTS -eq 1 ]]; then
     DISTRIBUTION=$(lsb_release -si);

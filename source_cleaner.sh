@@ -1,4 +1,4 @@
-# A script that strips unwanted files
+# A script that prints files to be removed
 
 # Delete all binary files
 find . -path ./debian -prune \
@@ -35,9 +35,7 @@ find . -path ./debian -prune \
         -o -name "*.json" \
         -o -name "*.txt" \
         -o -name "*.TXT" \) \
-    -not \( -exec grep -Iq . {} \; \) -print | xargs -L1 -I{} rm {}
+    -not \( -exec grep -Iq . {} \; \) -printf '%P\n'
 
 # Delete domain_reliability files
-rm -r ./components/domain_reliability/baked_in_configs/*
-
-exit 0;
+find ./components/domain_reliability/baked_in_configs/ -type f -printf '%P\n'
