@@ -2,12 +2,9 @@
 
 # Delete all binary files
 find . -path ./debian -prune \
-    -o -path ./third_party/icu/source -prune \
-    -o -path ./third_party/liblouis/src/tables -prune \
     -o -path ./components/dom_distiller/core/data/distillable_page_model.bin -prune \
     -o -path ./components/dom_distiller/core/data/distillable_page_model_new.bin -prune \
-    -o -path ./third_party/skia/resources -prune \
-    -o -path ./third_party/deqp/src/data -prune \
+    -o -path ./components/dom_distiller/core/data/long_page_model.bin -prune \
     -o -type f -not \( -empty \) -not \( -name "*.ttf" \
         -o -name "*.png" \
         -o -name "*.jpg" \
