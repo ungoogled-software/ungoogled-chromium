@@ -1,7 +1,7 @@
-From 2e0016bbc9c5bee59ab1f6df01281c6d7d296e06 Mon Sep 17 00:00:00 2001
+From b510803b3746492c3fb69c4f17eb25cd739d3836 Mon Sep 17 00:00:00 2001
 From: Joachim Bauch <jojo@struktur.de>
 Date: Mon, 10 Nov 2014 16:19:32 +0100
-Subject: [PATCH 03/57] webrtc: generate "real" ephemeral keys
+Subject: [PATCH 03/55] webrtc: generate "real" ephemeral keys
 
 By default, the browser caches generated keypairs for ECDHE key
 exchange for the lifetime of the application. This means the same
@@ -13,26 +13,26 @@ We obviously do not want that.
  1 file changed, 12 insertions(+), 30 deletions(-)
 
 diff --git a/net/third_party/nss/ssl/ssl3ecc.c b/net/third_party/nss/ssl/ssl3ecc.c
-index ab5ab14..f8365b62 100644
+index c8e9d06..85c3e3b 100644
 --- a/net/third_party/nss/ssl/ssl3ecc.c
 +++ b/net/third_party/nss/ssl/ssl3ecc.c
-@@ -155,6 +155,7 @@ static const Bits2Curve bits2curve [] = {
-    {  65535,     ec_noName    }
+@@ -149,6 +149,7 @@ static const Bits2Curve bits2curve[] = {
+     { 65535, ec_noName }
  };
  
 +#if 0
  typedef struct ECDHEKeyPairStr {
-     ssl3KeyPair *  pair;
-     int            error;  /* error code of the call-once function */
-@@ -163,6 +164,7 @@ typedef struct ECDHEKeyPairStr {
+     ssl3KeyPair *pair;
+     int error; /* error code of the call-once function */
+@@ -157,6 +158,7 @@ typedef struct ECDHEKeyPairStr {
  
  /* arrays of ECDHE KeyPairs */
  static ECDHEKeyPair gECDHEKeyPairs[ec_pastLastName];
 +#endif
  
  SECStatus
- ssl3_ECName2Params(PLArenaPool * arena, ECName curve, SECKEYECParams * params)
-@@ -485,6 +487,7 @@ ssl3_GetCurveNameForServerSocket(sslSocket *ss)
+ ssl3_ECName2Params(PLArenaPool *arena, ECName curve, SECKEYECParams *params)
+@@ -626,6 +628,7 @@ ssl3_GetCurveNameForServerSocket(sslSocket *ss)
                                            requiredECCbits);
  }
  
@@ -40,18 +40,18 @@ index ab5ab14..f8365b62 100644
  /* function to clear out the lists */
  static SECStatus
  ssl3_ShutdownECDHECurves(void *appData, void *nssData)
-@@ -511,6 +514,7 @@ ssl3_ECRegister(void)
+@@ -652,6 +655,7 @@ ssl3_ECRegister(void)
      }
      return (PRStatus)rv;
  }
 +#endif
  
  /* Create an ECDHE key pair for a given curve */
- static SECStatus
-@@ -519,10 +523,12 @@ ssl3_CreateECDHEphemeralKeyPair(ECName ec_curve, ssl3KeyPair** keyPair)
-     SECKEYPrivateKey *    privKey  = NULL;
-     SECKEYPublicKey *     pubKey   = NULL;
-     SECKEYECParams        ecParams = { siBuffer, NULL, 0 };
+ SECStatus
+@@ -660,10 +664,12 @@ ssl3_CreateECDHEphemeralKeyPair(ECName ec_curve, ssl3KeyPair **keyPair)
+     SECKEYPrivateKey *privKey = NULL;
+     SECKEYPublicKey *pubKey = NULL;
+     SECKEYECParams ecParams = { siBuffer, NULL, 0 };
 +    SECStatus status;
  
 -    if (ssl3_ECName2Params(NULL, ec_curve, &ecParams) != SECSuccess) {
@@ -64,15 +64,15 @@ index ab5ab14..f8365b62 100644
      privKey = SECKEY_CreateECPrivateKey(&ecParams, &pubKey, NULL);
      SECITEM_FreeItem(&ecParams, PR_FALSE);
  
-@@ -540,6 +546,7 @@ ssl3_CreateECDHEphemeralKeyPair(ECName ec_curve, ssl3KeyPair** keyPair)
+@@ -681,6 +687,7 @@ ssl3_CreateECDHEphemeralKeyPair(ECName ec_curve, ssl3KeyPair **keyPair)
      return SECSuccess;
  }
  
 +#if 0
  /* CallOnce function, called once for each named curve. */
  static PRStatus
- ssl3_CreateECDHEphemeralKeyPairOnce(void * arg)
-@@ -558,6 +565,7 @@ ssl3_CreateECDHEphemeralKeyPairOnce(void * arg)
+ ssl3_CreateECDHEphemeralKeyPairOnce(void *arg)
+@@ -699,6 +706,7 @@ ssl3_CreateECDHEphemeralKeyPairOnce(void *arg)
      gECDHEKeyPairs[ec_curve].pair = keyPair;
      return PR_SUCCESS;
  }
@@ -80,11 +80,11 @@ index ab5ab14..f8365b62 100644
  
  /*
   * Creates the ephemeral public and private ECDH keys used by
-@@ -571,33 +579,7 @@ ssl3_CreateECDHEphemeralKeyPairOnce(void * arg)
+@@ -712,33 +720,7 @@ ssl3_CreateECDHEphemeralKeyPairOnce(void *arg)
  static SECStatus
  ssl3_CreateECDHEphemeralKeys(sslSocket *ss, ECName ec_curve)
  {
--    ssl3KeyPair *         keyPair        = NULL;
+-    ssl3KeyPair *keyPair = NULL;
 -
 -    /* if there's no global key for this curve, make one. */
 -    if (gECDHEKeyPairs[ec_curve].pair == NULL) {
@@ -116,5 +116,5 @@ index ab5ab14..f8365b62 100644
  
  SECStatus
 -- 
-2.6.2
+2.6.6
 
