@@ -48,6 +48,8 @@ Builds with these patches are available on [the releases page](https://github.co
 
 ## Building
 
+**NOTE**: The master branch is not always in a working state. [Tag versions](https://github.com/Eloston/ungoogled-chromium/tags) are guaranteed to work.
+
 ungoogled-chromium provides scripts to automate the downloading, patching, and building of Chromium with these patches. Here's an overview of the building scripts and files:
 * `build-sandbox` - This directory is the build sandbox; the container for all files used and generated during building. It is created when the building environment is setup.
 * `build_templates` - This holds the system-dependent files that are used for compiling and generating a binary package. They are copied into the build sandbox by the build setup scripts.
