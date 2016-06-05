@@ -170,8 +170,8 @@ fi
 cd "$SANDBOX_PATH";
 
 if [[ $EVALUATE_CLEANING_LIST -eq 1 ]]; then
-    echo "Deleting files in cleaning list..."
-    $SCRIPT_DIR/delete_files_in_list.py $SCRIPT_DIR/cleaning_list
+    echo "Evaluating cleaning list..."
+    $SCRIPT_DIR/evaluate_cleaning_list.py $SCRIPT_DIR/cleaning_list
 fi
 
 if [[ $GENERATE_BUILD_SCRIPTS -eq 1 ]]; then
