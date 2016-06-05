@@ -11,18 +11,20 @@ SANDBOX_PATH="$SCRIPT_DIR/build-sandbox";
 DOWNLOAD_EXTRACT_TARBALL=;
 CUSTOM_TARBALL=;
 REMOVE_TARBALL=;
+EVALUATE_CLEANING_LIST=;
 GENERATE_BUILD_SCRIPTS=;
 RUN_BUILD_COMMAND=;
 
 print_usage() {
-    echo "Usage: $0 [-h] {-A | [-d | -x tarball] [-R] [-c] [-p] [-g] [-b]}";
+    echo "Usage: $0 [-h] {-A | [-d | -x tarball] [-R] [-c] [-g] [-b]}";
     echo "Options:";
     echo "  -h: Show this help message";
     echo "  -s: (Default: $SANDBOX_PATH) Path to to the building sandbox";
-    echo "  -A: Same as -d -c -p -g -b";
+    echo "  -A: Same as -d -c -g -b";
     echo "  -d: Download the source tarball and extract it into the building sandbox. Cannot be used with -x";
     echo "  -x: Extract the provided tarball into the building sandbox. Cannot be used with -d";
     echo "  -R: Remove the tarball after source extraction. Otherwise it will be kept. Requires -d or -x to be present";
+    echo "  -c: Delete the files defined in cleaning_list";
     echo "  -g: Generate Debian or Ubuntu build scripts (depending on lsb_release) and place them into the building sandbox, if they do not already exist";
     echo "  -b: Run dpkg-buildpackage";
 }
@@ -79,8 +81,7 @@ while getopts ":hs:Adx:kcpgb" opt; do
             A_conflict="Argument -A cannot be used with any other argument except -s";
             set_or_fail "DOWNLOAD_EXTRACT_TARBALL" 1 "$A_conflict";
             set_or_fail "REMOVE_TARBALL" 0 "$A_conflict";
-            set_or_fail "RUN_SOURCE_CLEANER" 1 "$A_conflict";
-            set_or_fail "RUN_DOMAIN_PATCHER" 1 "$A_conflict";
+            set_or_fail "EVALUATE_CLEANING_LIST" 1 "$A_conflict";
             set_or_fail "GENERATE_BUILD_SCRIPTS" 1 "$A_conflict";
             set_or_fail "RUN_BUILD_COMMAND" 1 "$A_conflict";
             unset A_conflict;
@@ -95,6 +96,9 @@ while getopts ":hs:Adx:kcpgb" opt; do
             ;;
         R)
             REMOVE_TARBALL=1;
+            ;;
+        c)
+            EVALUATE_CLEANING_LIST=1;
             ;;
         g)
             GENERATE_BUILD_SCRIPTS=1;
@@ -117,6 +121,7 @@ done
 
 set_if_empty "DOWNLOAD_EXTRACT_TARBALL" 0
 set_if_empty "REMOVE_TARBALL" 0
+set_if_empty "EVALUATE_CLEANING_LIST" 0
 set_if_empty "GENERATE_BUILD_SCRIPTS" 0
 set_if_empty "RUN_BUILD_COMMAND" 0
 
@@ -164,6 +169,11 @@ fi
 
 cd "$SANDBOX_PATH";
 
+if [[ $EVALUATE_CLEANING_LIST -eq 1 ]]; then
+    echo "Deleting files in cleaning list..."
+    $SCRIPT_DIR/delete_files_in_list.py $SCRIPT_DIR/cleaning_list
+fi
+
 if [[ $GENERATE_BUILD_SCRIPTS -eq 1 ]]; then
     DISTRIBUTION=$(lsb_release -si);
     if [[ -e "$SANDBOX_PATH/debian" ]]; then
@@ -176,6 +186,7 @@ if [[ $GENERATE_BUILD_SCRIPTS -eq 1 ]]; then
             $SCRIPT_DIR/generate_ubuntu_scripts.sh $SANDBOX_PATH;
         else
             echo "Invalid distribution name: $DISTRIBUTION" >&2;
+            cd "$CWD"
             exit 1;
         fi
     fi

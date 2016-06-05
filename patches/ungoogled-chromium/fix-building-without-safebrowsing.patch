@@ -213,18 +213,20 @@
  
    void SetURLRequestContextForTest(
        net::URLRequestContextGetter* request_context);
-@@ -53,7 +53,7 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
+@@ -53,8 +53,8 @@ class BlacklistStateFetcher : public net::URLFetcherDelegate {
    // ID for URLFetchers for testing.
    int url_fetcher_id_;
  
--  scoped_ptr<safe_browsing::SafeBrowsingProtocolConfig> safe_browsing_config_;
-+  //scoped_ptr<safe_browsing::SafeBrowsingProtocolConfig> safe_browsing_config_;
+-  std::unique_ptr<safe_browsing::SafeBrowsingProtocolConfig>
+-      safe_browsing_config_;
++  //std::unique_ptr<safe_browsing::SafeBrowsingProtocolConfig>
++  //    safe_browsing_config_;
    scoped_refptr<net::URLRequestContextGetter> url_request_context_getter_;
    scoped_refptr<net::URLRequestContextGetter> parent_request_context_for_test_;
  
 --- a/chrome/browser/browsing_data/browsing_data_remover.cc
 +++ b/chrome/browser/browsing_data/browsing_data_remover.cc
-@@ -583,27 +583,6 @@ void BrowsingDataRemover::RemoveImpl(const TimeRange& time_range,
+@@ -612,27 +612,6 @@ void BrowsingDataRemover::RemoveImpl(const TimeRange& time_range,
      storage_partition_remove_mask |=
          content::StoragePartition::REMOVE_DATA_MASK_COOKIES;
  
@@ -242,7 +244,7 @@
 -        BrowserThread::PostTask(
 -            BrowserThread::IO, FROM_HERE,
 -            base::Bind(&ClearCookiesOnIOThread, delete_begin_, delete_end_,
--                       std::move(sb_context),
+-                       base::RetainedRef(std::move(sb_context)),
 -                       UIThreadTrampoline(
 -                           base::Bind(&BrowsingDataRemover::OnClearedCookies,
 -                                      weak_ptr_factory_.GetWeakPtr()))));
@@ -250,8 +252,8 @@
 -    }
 -
      MediaDeviceIDSalt::Reset(profile_->GetPrefs());
+   }
  
-     // TODO(mkwst): If we're not removing passwords, then clear the 'zero-click'
 --- a/chrome/browser/download/chrome_download_manager_delegate.cc
 +++ b/chrome/browser/download/chrome_download_manager_delegate.cc
 @@ -194,12 +194,12 @@ ChromeDownloadManagerDelegate::~ChromeDownloadManagerDelegate() {
@@ -288,9 +290,9 @@
        created_icon_manager_(false),
        created_notification_ui_manager_(false),
 -      created_safe_browsing_service_(false),
-       module_ref_count_(0),
-       did_start_(false),
+       shutting_down_(false),
        tearing_down_(false),
+       download_status_updater_(new DownloadStatusUpdater),
 @@ -268,8 +266,6 @@ void BrowserProcessImpl::StartTearDown() {
    // URLFetcher operation before going away.)
    metrics_services_manager_.reset();
@@ -359,9 +361,9 @@
 -  bool created_safe_browsing_service_;
 -  scoped_refptr<safe_browsing::SafeBrowsingService> safe_browsing_service_;
 -
-   unsigned int module_ref_count_;
-   bool did_start_;
+   bool shutting_down_;
  
+   bool tearing_down_;
 --- a/chrome/browser/metrics/chrome_metrics_services_manager_client.cc
 +++ b/chrome/browser/metrics/chrome_metrics_services_manager_client.cc
 @@ -72,21 +72,7 @@ ChromeMetricsServicesManagerClient::GetURLRequestContext() {

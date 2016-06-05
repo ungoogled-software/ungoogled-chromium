@@ -38,4 +38,4 @@ find . -path ./debian -prune \
     -not \( -exec grep -Iq . {} \; \) -printf '%P\n'
 
 # Delete domain_reliability files
-find ./components/domain_reliability/baked_in_configs/ -type f -printf '%P\n'
+find . -path "./components/domain_reliability/baked_in_configs/*" -type f -printf '%P\n'
