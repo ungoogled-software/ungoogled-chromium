@@ -1,4 +1,5 @@
 # A script that prints files to be removed
+# This script's output is cleaning_list
 
 # Delete all binary files
 find . -path ./debian -prune \
