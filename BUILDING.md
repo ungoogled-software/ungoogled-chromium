@@ -56,6 +56,8 @@ TODO
 
 ## Other systems, platforms, and configurations
 
+Please note that building on other platforms and systems is not officially supported, and multiple things can go wrong while attempting to build. Nevertheless, here are some tips: TODO
+
 Consult the build instructions on the [Chromium homepage](http://www.chromium.org/Home) to build Chromium for your system.
 
 The patches in the `patches` directory should work for any build of Chromium. They assume a clean and unmodified Chromium source tree.
