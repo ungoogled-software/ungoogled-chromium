@@ -19,6 +19,8 @@ In addition to features provided by [Iridium Browser](https://iridiumbrowser.de/
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
 * (Iridium and Inox feature change) Prevent pinging of IPv6 address when detecting the availability of IPv6
 
+**DISCLAIMER: Although I try my best to eliminate bugs and privacy-invading code, there will be those that slip by due to the enormity and continuing evolution of the Chromium project.**
+
 ## Getting ungoogled-chromium
 
 Users are encouraged to use [one of the available tag](https://github.com/Eloston/ungoogled-chromium/tags) versions. Binaries are available on [the releases page](https://github.com/Eloston/ungoogled-chromium/releases) for the corresponding tag.
