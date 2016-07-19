@@ -31,11 +31,13 @@ QUILT_ENV_VARS = {
 }
 
 class DebianPlatform(generic.GenericPlatform):
+    PLATFORM_RESOURCES = pathlib.Path("building", "resources", "debian")
+
     def __init__(self, *args, **kwargs):
         super(DebianPlatform, self).__init__(*args, **kwargs)
 
-        self._platform_resources = pathlib.Path("building", "resources", "debian")
-        self._sandbox_patches = self.ungoogled_dir / pathlib.Path("patches")
+        self.sandbox_patches = self.ungoogled_dir / pathlib.Path("patches")
+        self._domains_subbed = False
 
     def generate_orig_tar_xz(self, tar_xz_path):
         pass
@@ -44,29 +46,32 @@ class DebianPlatform(generic.GenericPlatform):
         pass
 
     def setup_build_sandbox(self, *args, run_domain_substitution=True, domain_regexes=pathlib.Path("domain_regex_list"), **kwargs):
-        '''
-        In addition to domain substituting the source, it also copies and optionally domain subsitutes the patches into the ungoogled_dir
-        '''
         super(DebianPlatform, self).setup_build_sandbox(*args, run_domain_substitution, domain_regexes, **kwargs)
 
-        self.logger.info("Copying patches to {}...".format(str(self._sandbox_patches)))
+        self._domains_subbed = run_domain_substitution
+        self._regex_defs_used = domain_regexes
 
-        series_path = self._sandbox_patches / pathlib.Path("series")
-        patch_order_path = self._sandbox_patches / pathlib.Path("patch_order")
+    def apply_patches(self):
+        self.logger.info("Copying patches to {}...".format(str(self.sandbox_patches)))
 
-        distutils.dir_util.copy_tree("patches", str(self._sandbox_patches))
-        distutils.dir_util.copy_tree(str(self._platform_resources / pathlib.Path("patches")), str(self._sandbox_patches))
+        if self.sandbox_patches.exists():
+            raise Exception("Sandbox patches directory already exists")
+
+        series_path = self.sandbox_patches / pathlib.Path("series")
+        patch_order_path = self.sandbox_patches / pathlib.Path("patch_order")
+
+        distutils.dir_util.copy_tree("patches", str(self.sandbox_patches))
+        distutils.dir_util.copy_tree(str(self.PLATFORM_RESOURCES / pathlib.Path("patches")), str(self.sandbox_patches))
 
         with patch_order_path.open("ab") as patch_order_file:
             with series_path.open("rb") as series_file:
                 patch_order_file.write(series_file.read())
             series_path.unlink()
 
-        if run_domain_substitution:
+        if self._domains_subbed:
             self.logger.info("Running domain substitution over patches...")
-            self._domain_substitute(domain_regexes, self._sandbox_patches.rglob("*.patch"), log_warnings=False)
+            self._domain_substitute(self._regex_defs_used, self.sandbox_patches.rglob("*.patch"), log_warnings=False)
 
-    def apply_patches(self):
         self.logger.info("Applying patches via quilt...")
         new_env = dict(os.environ)
         new_env.update(QUILT_ENV_VARS)
