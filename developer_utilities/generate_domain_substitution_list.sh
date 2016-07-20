@@ -29,6 +29,7 @@ EOF
 find . -path ./debian -prune \
 -o -path ./.pc -prune \
 -o -path './components/test/*' -prune \
+-o -path './net/http/transport_security_state_static.json' -prune \
 -o -type f \( -name "*.h" \
     -o -name "*.hh" \
     -o -name "*.hpp" \
