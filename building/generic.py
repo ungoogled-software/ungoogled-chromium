@@ -148,6 +148,7 @@ class GenericPlatform:
                     if file_subs > 0:
                         f.seek(0)
                         f.write(content)
+                        f.truncate()
                     elif log_warnings:
                         self.logger.warning("File {} has no matches".format(path))
             except Exception as e:
@@ -336,3 +337,7 @@ class GenericPlatform:
     def build(self):
         self.logger.info("Running build command...")
         self._run_ninja(self.build_output, ["chrome"])
+
+    def generate_package(self):
+        # TODO: Create .tar.xz of binaries?
+        pass
