@@ -108,3 +108,4 @@ class DebianPlatform(generic.GenericPlatform):
         with debian_gyp_flags.open() as f:
             gyp_list += f.read().splitlines()
         self._gyp_generate_ninja(gyp_list, build_output, python2_command)
+        self.build_output = build_output
