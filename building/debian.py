@@ -22,6 +22,7 @@ import pathlib
 import distutils.dir_util
 import os
 import subprocess
+import itertools
 
 from . import generic
 
@@ -47,6 +48,14 @@ class DebianPlatform(generic.GenericPlatform):
 
     def setup_build_sandbox(self, *args, run_domain_substitution=True, domain_regexes=pathlib.Path("domain_regex_list"), **kwargs):
         super(DebianPlatform, self).setup_build_sandbox(*args, run_domain_substitution, domain_regexes, **kwargs)
+
+        # Symlink flot libraries
+        for system_path in itertools.chain(pathlib.Path("/").glob("usr/share/javascript/jquery/*min.js"), pathlib.Path("/").glob("usr/share/javascript/jquery-flot/*min.js")):
+            symlink_path = self.sandbox_root / pathlib.Path("third_party", "flot", system_path.name)
+            self.logger.debug("Symlinking flot library {} ...".format(system_path.name))
+            if symlink_path.exists():
+                symlink_path.unlink()
+            symlink_path.symlink_to(system_path)
 
         self._domains_subbed = run_domain_substitution
         self._regex_defs_used = domain_regexes
