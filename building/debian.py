@@ -78,3 +78,33 @@ class DebianPlatform(generic.GenericPlatform):
         result = subprocess.run(["quilt", "push", "-a"], env=new_env, cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
+
+    #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"), build_output=pathlib.Path("out", "Default"), debian_gn_args=(self.PLATFORM_RESOURCES / pathlib.Path("gn_args.ini")):
+    #    (self.sandbox_root / build_output).mkdir(parents=True, exist_ok=True)
+    #    common_config = configparser.ConfigParser()
+    #    common_config.read(str(gn_args))
+    #    debian_config = configparser.ConfigParser()
+    #    debian_config.read(str(debian_gn_args))
+    #    combined_dict = dict()
+    #    for section in common_config:
+    #        if not section == "DEFAULT":
+    #            combined_dict[section] = dict()
+    #            for config_key in common_config[section]:
+    #                combined_dict[section][config_key] = common_config[section][config_key]
+    #    for section in debian_config:
+    #        if not section == "DEFAULT":
+    #            if not section in combined_dict:
+    #                combined_dict[section] = dict()
+    #            for config_key in debian_config[section]:
+    #                combined_dict[section][config_key] = debian_config[section][config_key]
+    #    self._gn_write_args(combined_dict, build_output)
+    #    self._gn_generate_ninja(build_output)
+
+    def generate_build_configuration(self, gyp_flags=pathlib.Path("gyp_flags"), build_output=pathlib.Path("out", "Release"), python2_command=None, debian_gyp_flags=(PLATFORM_RESOURCES / pathlib.Path("gyp_flags"))):
+        self.logger.info("Running gyp command with additional Debian gyp flags...")
+        gyp_list = list()
+        with gyp_flags.open() as f:
+            gyp_list = f.read().splitlines()
+        with debian_gyp_flags.open() as f:
+            gyp_list += f.read().splitlines()
+        self._gyp_generate_ninja(gyp_list, build_output, python2_command)
