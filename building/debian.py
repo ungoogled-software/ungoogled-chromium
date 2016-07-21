@@ -24,6 +24,8 @@ import os
 import subprocess
 import itertools
 import tempfile
+import locale
+import datetime
 
 from . import generic
 
@@ -135,3 +137,39 @@ class DebianPlatform(generic.GenericPlatform):
     def build(self):
         self.logger.info("Running build command...")
         self._run_ninja(self.build_output, ["chrome", "chrome_sandbox", "chromedriver"])
+
+    def generate_package(self):
+        def get_changelog_date(override_datetime=None):
+            if override_datetime is None:
+                current_datetime = datetime.date.today()
+            else:
+                current_datetime = override_datetime
+            current_lc = locale.setlocale(locale.LC_TIME)
+            try:
+                locale.setlocale(locale.LC_TIME, "C")
+                result = current_datetime.strftime("%a, %d %b %Y %H:%M:%S ")
+                timezone = current_datetime.strftime("%z")
+                if len(timezone) == 0:
+                    timezone = "+0000"
+                return result + timezone
+            finally:
+                locale.setlocale(locale.LC_TIME, current_lc)
+        template_parsing_defs = {
+            ("changelog.in", "changelog"): {
+                "VERSION": "{}-{}".format(self.version, self.revision),
+                "DATETIME": get_changelog_date()
+            }
+        }
+        self.logger.info("Building Debian package...")
+        destination_dpkg_dir = self.sandbox_root / pathlib.Path("debian")
+        distutils.dir_util.copy_tree(str(self.PLATFORM_RESOURCES / pathlib.Path("dpkg_dir")), str(destination_dpkg_dir))
+        for template_expr in template_parsing_defs:
+            old_name, new_name = template_expr
+            with (destination_dpkg_dir / pathlib.Path(old_name)).open() as old_file:
+                content = old_file.read().format(**template_parsing_defs[template_expr])
+                with (destination_dpkg_dir / pathlib.Path(new_name)).open("w") as new_file:
+                    new_file.write(content)
+            (destination_dpkg_dir / pathlib.Path(old_name)).unlink()
+        result = subprocess.run(["dpkg-buildpackage", "-b", "-uc"], cwd=str(self.sandbox_root))
+        if not result.returncode == 0:
+            raise Exception("dpkg-buildpackage returned non-zero exit code: {}".format(result.returncode))
