@@ -47,12 +47,14 @@ class DebianPlatform(generic.GenericPlatform):
     def generate_debian_tar_xz(self, tar_xz_path):
         pass
 
-    def setup_chromium_source(cleaning_list=pathlib.Path("cleaning_list"), debian_cleaning_list=(PLATFORM_RESOURCES / pathlib.Path("cleaning_list")), **kwargs):
+    def setup_chromium_source(self, cleaning_list=pathlib.Path("cleaning_list"), debian_cleaning_list=(PLATFORM_RESOURCES / pathlib.Path("cleaning_list")), **kwargs):
         tmp = tempfile.SpooledTemporaryFile(mode="w+")
-        with cleaning_list.open() as f:
-            tmp.write(f.read())
-        with debian_cleaning_list.open() as f:
-            tmp.write(f.read())
+        if not cleaning_list is None:
+            with cleaning_list.open() as f:
+                tmp.write(f.read())
+        if not debian_cleaning_list is None:
+            with debian_cleaning_list.open() as f:
+                tmp.write(f.read())
         tmp.seek(0)
         tmp.open = lambda: tmp
         super(DebianPlatform, self).setup_chromium_source(cleaning_list=tmp, **kwargs)

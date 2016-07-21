@@ -88,19 +88,19 @@ class GenericPlatform:
                 else:
                     self.logger.warning("Hash algorithm '{}' not available. Skipping...".format(hash_line[0]))
 
-    def _download_source_archive(self, archive_path):
+    def _download_source_archive(self):
         '''
         Downloads the original Chromium source code in .tar.xz format
         '''
         download_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-{version}.tar.xz".format(version=self.version)
         with urllib.request.urlopen(download_url) as response:
-            with archive_path.open("wb") as f:
+            with self.sourcearchive.open("wb") as f:
                 shutil.copyfileobj(response, f)
 
-    def _download_source_hashes(self, hashes_path):
+    def _download_source_hashes(self):
         hashes_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-{version}.tar.xz.hashes".format(version=self.version)
         with urllib.request.urlopen(hashes_url) as response:
-            with hashes_path.open("wb") as f:
+            with self.sourcearchive_hashes.open("wb") as f:
                 shutil.copyfileobj(response, f)
 
     def _extract_source_archive(self, cleaning_list):
@@ -277,8 +277,11 @@ class GenericPlatform:
 
         if extract_archive:
             self.logger.info("Extracting source archive into building sandbox...")
-            with cleaning_list.open() as f:
-                self._extract_source_archive([x for x in f.read().splitlines() if x != ""])
+            if cleaning_list is None:
+                self._extract_source_archive(list())
+            else:
+                with cleaning_list.open() as f:
+                    self._extract_source_archive([x for x in f.read().splitlines() if x != ""])
 
     def setup_build_sandbox(self, run_domain_substitution=True, domain_regexes=pathlib.Path("domain_regex_list"), domain_sub_list=pathlib.Path("domain_substitution_list")):
         '''
