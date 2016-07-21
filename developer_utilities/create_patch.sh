@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TEXT_EDITOR_CMD=nano
+TEXT_EDITOR_CMD=vi
 DIFF_CMD="git diff --no-index"
 FILE_PATH=$1
 

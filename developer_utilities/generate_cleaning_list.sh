@@ -6,6 +6,8 @@ find . -path ./debian -prune \
     -o -path ./components/dom_distiller/core/data/distillable_page_model.bin -prune \
     -o -path ./components/dom_distiller/core/data/distillable_page_model_new.bin -prune \
     -o -path ./components/dom_distiller/core/data/long_page_model.bin -prune \
+    -o -path ./third_party/icu/common/icudtl.dat -prune \
+    -o -path ./third_party/icu/android/icudtl.dat -prune \
     -o -type f -not \( -empty \) -not \( -name "*.ttf" \
         -o -name "*.png" \
         -o -name "*.jpg" \
