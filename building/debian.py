@@ -26,6 +26,8 @@ import itertools
 import tempfile
 import locale
 import datetime
+import re
+import string
 
 from . import generic
 
@@ -154,22 +156,33 @@ class DebianPlatform(generic.GenericPlatform):
                 return result + timezone
             finally:
                 locale.setlocale(locale.LC_TIME, current_lc)
-        template_parsing_defs = {
-            ("changelog.in", "changelog"): {
-                "VERSION": "{}-{}".format(self.version, self.revision),
-                "DATETIME": get_changelog_date()
-            }
-        }
+
+        class CustomTemplate(string.Template): # Inspired by http://stackoverflow.com/questions/12768107/string-substitutions-using-templates-in-python
+            pattern = r"""
+            {delim}(?:
+              (?P<escaped>{delim}) |
+              _(?P<named>{id})      |
+              {{(?P<braced>{id})}}   |
+              (?P<invalid>{delim}((?!_)|(?!{{)))
+            )
+            """.format(delim=re.escape("$ungoog"), id=string.Template.idpattern)
+
+        template_parsing_defs = dict(
+            changelog_version="{}-{}".format(self.version, self.revision),
+            changelog_datetime=get_changelog_date(),
+            build_output=str(self.build_output)
+        )
         self.logger.info("Building Debian package...")
         destination_dpkg_dir = self.sandbox_root / pathlib.Path("debian")
         distutils.dir_util.copy_tree(str(self.PLATFORM_RESOURCES / pathlib.Path("dpkg_dir")), str(destination_dpkg_dir))
-        for template_expr in template_parsing_defs:
-            old_name, new_name = template_expr
-            with (destination_dpkg_dir / pathlib.Path(old_name)).open() as old_file:
-                content = old_file.read().format(**template_parsing_defs[template_expr])
-                with (destination_dpkg_dir / pathlib.Path(new_name)).open("w") as new_file:
-                    new_file.write(content)
-            (destination_dpkg_dir / pathlib.Path(old_name)).unlink()
+        for old_path in destination_dpkg_dir.glob("*.in"):
+            new_path = destination_dpkg_dir / old_path.stem
+            old_path.replace(new_path)
+            with new_path.open("r+") as new_file:
+                content = CustomTemplate(new_file.read()).substitute(**template_parsing_defs)
+                new_file.seek(0)
+                new_file.write(content)
+                new_file.truncate()
         result = subprocess.run(["dpkg-buildpackage", "-b", "-uc"], cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("dpkg-buildpackage returned non-zero exit code: {}".format(result.returncode))
