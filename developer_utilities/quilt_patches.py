@@ -33,30 +33,34 @@ import shutil
 import configparser
 import sys
 
+if not pathlib.Path("building").is_dir():
+    print("ERROR: Run this in the same directory as 'building'")
+    exit(1)
+
 sys.path.insert(1, str(pathlib.Path.cwd().resolve()))
 
 import building.debian
-
-class Action(enum.Enum):
-    recreate = 0
-    top = 1
-    pushall = 2
-    popall = 3
-    pushto = 4
-    popto = 5
 
 def read_version_config(config_location):
     config = configparser.ConfigParser()
     config.read(config_location)
     return (config["main"]["chromium_version"], config["main"]["release_revision"])
 
-def main(action):
+def print_help():
+    print("Simple wrapper around quilt")
+    print("Useage: recreate | top | pushall | popall | pushto <patch_name> | popto <patch_name>")
+
+def main(action, patch_name=None):
+    if action == "help" or action == "-h" or action == "--help":
+        print_help()
+        return 0
+
     platform = building.debian.DebianPlatform(*read_version_config("version.ini"))
     # TODO: Make these configurable
     platform._domains_subbed = True
     platform._regex_defs_used = pathlib.Path("domain_regex_list")
 
-    if action == Action.recreate:
+    if action == "recreate":
         if platform.sandbox_patches.exists():
             shutil.rmtree(str(platform.sandbox_patches))
         platform.apply_patches()
@@ -64,23 +68,33 @@ def main(action):
 
     new_env = dict(os.environ)
     new_env.update(building.debian.QUILT_ENV_VARS)
-    if action == Action.top:
+    if action == "top":
         result = subprocess.run(["quilt", "top"], env=new_env, cwd=str(platform.sandbox_root))
         print(result)
-    elif action == Action.pushall:
+    elif action == "pushall":
         result = subprocess.run(["quilt", "push", "-a"], env=new_env, cwd=str(platform.sandbox_root))
         print(result)
-    elif action == Action.popall:
+    elif action == "popall":
         result = subprocess.run(["quilt", "pop", "-a"], env=new_env, cwd=str(platform.sandbox_root))
         print(result)
+    elif action == "pushto":
+        if patch_name is None:
+            print("ERROR: Patch name must be defined")
+            return 1
+        result = subprocess.run(["quilt", "push", patch_name], env=new_env, cwd=str(platform.sandbox_root))
+        print(result)
+    elif action == "popto":
+        if patch_name is None:
+            print("ERROR: Patch name must be defined")
+            return 1
+        result = subprocess.run(["quilt", "pop", patch_name], env=new_env, cwd=str(platform.sandbox_root))
+        print(result)
     else:
-        print("Unimplemented command")
+        print("ERROR: Unknown command")
+        print_help()
         return 1
 
     return 0
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", metavar="action", help="Choose from: {}".format(", ".join([i.name for i in Action])), type=Action.__getitem__, choices=list(Action))
-    args = parser.parse_args()
-    exit(main(args.action))
+    exit(main(*sys.argv[1:]))

@@ -23,6 +23,7 @@ import distutils.dir_util
 import os
 import subprocess
 import itertools
+import tempfile
 
 from . import generic
 
@@ -45,6 +46,16 @@ class DebianPlatform(generic.GenericPlatform):
 
     def generate_debian_tar_xz(self, tar_xz_path):
         pass
+
+    def setup_chromium_source(cleaning_list=pathlib.Path("cleaning_list"), debian_cleaning_list=(PLATFORM_RESOURCES / pathlib.Path("cleaning_list")), **kwargs):
+        tmp = tempfile.SpooledTemporaryFile(mode="w+")
+        with cleaning_list.open() as f:
+            tmp.write(f.read())
+        with debian_cleaning_list.open() as f:
+            tmp.write(f.read())
+        tmp.seek(0)
+        tmp.open = lambda: tmp
+        super(DebianPlatform, self).setup_chromium_source(cleaning_list=tmp, **kwargs)
 
     def setup_build_sandbox(self, *args, run_domain_substitution=True, domain_regexes=pathlib.Path("domain_regex_list"), **kwargs):
         super(DebianPlatform, self).setup_build_sandbox(*args, run_domain_substitution, domain_regexes, **kwargs)
@@ -118,3 +129,7 @@ class DebianPlatform(generic.GenericPlatform):
             gyp_list += f.read().splitlines()
         self._gyp_generate_ninja(gyp_list, build_output, python2_command)
         self.build_output = build_output
+
+    def build(self):
+        self.logger.info("Running build command...")
+        self._run_ninja(self.build_output, ["chrome", "chrome_sandbox", "chromedriver"])
