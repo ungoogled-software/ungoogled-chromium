@@ -6,140 +6,10 @@ export DH_VERBOSE=1
 # enable all build hardening flags
 export DEB_BUILD_MAINT_OPTIONS=hardening=+all
 
-# linker flags to avoid memory allocation issues on i386
-export LDFLAGS+=-Wl,--no-keep-memory -Wl,--reduce-memory-overheads -Wl,--hash-size=7919
-
-# more verbose linker output
-export LDFLAGS+=-Wl,--stats
-
-# use the gold linker to avoid memory exhaustion issues at link time
-export CFLAGS+=-fuse-ld=gold
-export CXXFLAGS+=-fuse-ld=gold
-
-# treat all warnings as errors
-defines=werror=
-
-defines+=default_apps_list=[] \
-		default_apps_list_linux_dest=[]
-
-# use clang instead of gcc
-defines+=clang=1
-defines+=clang_use_chrome_plugins=
-
-# disabled features
-defines+=use_ozone=0 \
-		use_gconf=0 \
-		use_sysroot=0 \
-		use_allocator=none \
-		linux_breakpad=0 \
-		linux_use_libgps=0 \
-		linux_use_gold_flags=0 \
-		linux_use_bundled_gold=0 \
-		linux_use_bundled_binutils=0 \
-		remoting=0 \
-		disable_nacl=1 \
-		disable_pnacl=1 \
-		enable_remoting_host=0 \
-		use_gnome_keyring=0 \
-		linux_link_gsettings=0 \
-		linux_link_gnome_keyring=0 \
-		enable_automation=0 \
-		enable_google_now=0 \
-		safe_browsing=0 \
-		enable_webrtc=0 \
-		remoting=0 \
-		enable_hotwording=0 \
-		enable_hangout_services_extension=0 \
-		enable_wifi_bootstrapping=0 \
-		use_official_google_api_keys=0 \
-		enable_rlz=0 \
-		enable_pre_sync_backup=0 \
-		enable_prod_wallet_service=0 \
-		enable_supervised_users=0 \
-		enable_one_click_signin=0 \
-		disable_newlib=1 \
-		icu_use_data_file_flag=0
-
-# enabled features
-defines+=enable_hidpi=1 \
-		use_gio=1 \
-		use_pulseaudio=1 \
-		linux_link_libpci=1 \
-		linux_link_libspeechd=1 \
-		fastbuild=1 \
-		disable_fatal_linker_warnings=1 \
-		tracing_like_official_build=1 \
-		fieldtrial_testing_like_official_build=1 \
-		linux_strip_binary=1
-
-# system libraries to use
-defines+=use_system_re2=1 \
-		use_system_yasm=1 \
-		use_system_opus=1 \
-		use_system_zlib=1 \
-		use_system_speex=1 \
-		use_system_expat=1 \
-		use_system_libpng=1 \
-		use_system_libxml=1 \
-		use_system_libjpeg=1 \
-		use_system_libwebp=1 \
-		use_system_libxslt=1 \
-		use_system_libsrtp=1 \
-		use_system_jsoncpp=1 \
-		use_system_libevent=1 \
-		use_system_harfbuzz=1 \
-		use_system_xdg_utils=1
-
-# enable proprietary codecs
-defines+=proprietary_codecs=1 \
-		ffmpeg_branding=ChromeOS \
-		enable_mpeg2ts_stream_parser=1 \
-		enable_hevc_demuxing=1
-
-# use embedded protobuf for now (bug #764911)
-defines+=use_system_protobuf=0 \
-
-# icu
-defines+=use_system_icu=0 \
-		 #icu_use_data_file_flag=0 \
-		 #want_separate_host_toolset=0 \
-
-# reduce the size of debugging symbols
-defines+=remove_webcore_debug_symbols=1
-
-# some notes about embedded libraries
-#  use_system_libusb=0 requires modified source that exposes libusb_interrupt_handle_event api
-#  use_system_libvpx=0 need to run unbundler
-#  use_system_sqlite=0 build fails
-#  can't use system nss since net/third_party/nss is heavily patched
-#  can't use system ots (open text *summarizer*) since that's not google's ots (open text *sanitizer*)
-
-# make gyp a little more informative
-options+=--check \
-		--debug=includes \
-
-# avoid the need for a special src directory (--depth=. seems to require --no-parallel)
-options+=--depth=. \
-		--no-parallel \
-
-# handle parallel build options
-ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
-njobs=-j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
-endif
-
-# paths to files needed by flot
-flotpaths=/usr/share/javascript/jquery/*min.js \
-		/usr/share/javascript/jquery-flot/*min.js \
-
 %:
 	dh $@ --parallel
 
-override_dh_auto_configure:
-	for file in $(flotpaths); do ln -sf $$file third_party/flot; done
-	GYP_DEFINES="$(defines)" ./build/gyp_chromium $(options)
-
 override_dh_auto_build-arch:
-	ninja $(njobs) -C out/Release chrome chrome_sandbox chromedriver
 	mv out/Release/chrome out/Release/chromium || true
 	mv out/Release/chrome.1 out/Release/chromium.1 || true
 	mv out/Release/chrome_sandbox out/Release/chrome-sandbox || true
@@ -147,8 +17,7 @@ override_dh_auto_build-arch:
 	chmod 4755 out/Release/chrome-sandbox # suid sandbox
 
 override_dh_auto_build-indep:
-	ninja $(njobs) -C out/Release packed_resources
-	rm -f out/Release/locales/en-US.pak
+	mv out/Release/locales/en-US.pak out/Release/resources || true
 
 override_dh_auto_install-arch:
 	dh_auto_install
@@ -172,23 +41,3 @@ override_dh_fixperms:
 
 override_dh_gencontrol:
 	dh_gencontrol -- -VBuilt-Using="$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W libjs-jquery libjs-jquery-flot)"
-
-override_dh_auto_clean:
-	rm -rf out
-	find . -name \*.pyc -execdir rm -f {} \;
-	dh_auto_clean
-
-###################### upstream source downloading ############################
-
-url=https://gsdview.appspot.com/chromium-browser-official
-version=$(shell dpkg-parsechangelog -S Version | sed s/-.*//)
-tarball=chromium-$(version).tar.xz
-removed=chromium-browser_$(version).files-removed
-
-get-orig-source:
-	wget -nv --show-progress -c $(url)/$(tarball) -O ../$(tarball)
-	mk-origtargz ../$(tarball) | tee ../$(removed)
-	echo >> ../$(removed)
-	tar tf ../$(tarball) | sort > ../chromium.upstream
-	tar tf ../chromium-browser_$(version).orig.tar.xz | sort > ../chromium.orig
-	diff -u ../chromium.upstream ../chromium.orig >> ../$(removed) || true
