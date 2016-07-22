@@ -32,15 +32,15 @@ import shutil
 import configparser
 import sys
 
-if not pathlib.Path("building").is_dir():
-    print("ERROR: Run this in the same directory as 'building'")
+if not pathlib.Path("buildlib").is_dir():
+    print("ERROR: Run this in the same directory as 'buildlib'")
     exit(1)
 
 sys.path.insert(1, str(pathlib.Path.cwd().resolve()))
 
-import building.debian
+import buildlib.debian
 
-def generate_cleaning_list(sandbox_path, list_file=pathlib.Path("cleaning_list")):
+def generate_cleaning_list(sandbox_path, list_file):
     exclude_matches = [
         "components/dom_distiller/core/data/distillable_page_model.bin",
         "components/dom_distiller/core/data/distillable_page_model_new.bin",
@@ -123,7 +123,7 @@ def check_regex_match(file_path, parsed_regex_list):
                 return True
     return False
 
-def generate_domain_substitution_list(sandbox_path, list_file=pathlib.Path("domain_substitution_list"), regex_defs=pathlib.Path("domain_regex_list")):
+def generate_domain_substitution_list(sandbox_path, list_file, regex_defs):
     exclude_left_matches = [
         "components/test/",
         "net/http/transport_security_state_static.json"
@@ -211,12 +211,12 @@ def main():
 
     chromium_version, release_revision = read_version_config("version.ini")
 
-    platform = building.debian.DebianPlatform(chromium_version, release_revision, logger=logger)
+    platform = buildlib.debian.DebianPlatform(chromium_version, release_revision, logger=logger)
     logger.info("Setting up Chromium source in build sandbox...")
-    platform.setup_chromium_source(cleaning_list=None)
+    platform.setup_chromium_source(use_cleaning_list=False)
 
     logger.info("Generating cleaning list...")
-    cleaning_list = generate_cleaning_list(platform.sandbox_root)
+    cleaning_list = generate_cleaning_list(platform.sandbox_root, (platform.COMMON_RESOURCES / platform.CLEANING_LIST))
 
     logger.info("Removing files in cleaning list...")
     for i in cleaning_list:
@@ -226,7 +226,7 @@ def main():
             logger.error("File does not exist: {}".format(str(i)))
 
     logger.info("Generating domain substitution list...")
-    generate_domain_substitution_list(platform.sandbox_root)
+    generate_domain_substitution_list(platform.sandbox_root, (platform.COMMON_RESOURCES / platform.DOMAIN_SUBSTITUTION_LIST), (platform.COMMON_RESOURCES / platform.DOMAIN_REGEX_LIST)) # TODO: Autogenerate platform domain substutition list when platforms have their own domain substitutions
 
     logger.info("Running domain substitution...")
     platform.setup_build_sandbox()

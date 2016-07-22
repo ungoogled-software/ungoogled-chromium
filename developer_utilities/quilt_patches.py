@@ -33,13 +33,13 @@ import shutil
 import configparser
 import sys
 
-if not pathlib.Path("building").is_dir():
-    print("ERROR: Run this in the same directory as 'building'")
+if not pathlib.Path("buildlib").is_dir():
+    print("ERROR: Run this in the same directory as 'buildlib'")
     exit(1)
 
 sys.path.insert(1, str(pathlib.Path.cwd().resolve()))
 
-import building.debian
+import buildlib.debian
 
 def read_version_config(config_location):
     config = configparser.ConfigParser()
@@ -55,10 +55,8 @@ def main(action, patch_name=None):
         print_help()
         return 0
 
-    platform = building.debian.DebianPlatform(*read_version_config("version.ini"))
-    # TODO: Make these configurable
-    platform._domains_subbed = True
-    platform._regex_defs_used = pathlib.Path("domain_regex_list")
+    platform = buildlib.debian.DebianPlatform(*read_version_config("version.ini"))
+    platform._ran_domain_substitution = True # TODO: Make this configurable
 
     if action == "recreate":
         if platform.sandbox_patches.exists():
@@ -67,7 +65,7 @@ def main(action, patch_name=None):
         return 0
 
     new_env = dict(os.environ)
-    new_env.update(building.debian.QUILT_ENV_VARS)
+    new_env.update(platform.quilt_env_vars)
     if action == "top":
         result = subprocess.run(["quilt", "top"], env=new_env, cwd=str(platform.sandbox_root))
         print(result)
