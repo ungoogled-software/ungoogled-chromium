@@ -12,10 +12,10 @@ Currently, there is no command-line-configurable build script. You must create a
 
 The following is needed to fully use `buildlib`:
 * Python 3 (tested on 3.5) for running `buildlib`
-* The below can be provided by [Google's depot_tools](https://www.chromium.org/developers/how-tos/install-depot-tools)
+* The below can be provided by [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools)
     * Python 2 (tested on 2.7) for running gyp
     * [Jinja2](http://jinja.pocoo.org/) for running gyp
-    * [Ninja](https://ninja-build.org/) for running the build command
+    * [Ninja](//ninja-build.org/) for running the build command
 
 There are additional requirements for specific platforms. See the following sections for more information.
 
@@ -28,7 +28,7 @@ Building is done by simply invoking a Python script like `build.py`. It will tak
 As of now, only Debian Stretch 64-bit is tested. Ubuntu Xenial 64-bit support will come soon.
 This may work on other Debian-based distributions and 32-bit systems
 
-**Note for Debian Jessie users**: ungoogled-chromium is configured to build against the system's [FFmpeg](https://www.ffmpeg.org/) (available in Stretch and onwards); [Libav](http://libav.org) (used in Jessie) will not work. However, FFmpeg is available in `jessie-backports`. To install it, add `jessie-backports` to the apt sources, and then install `libavutil-dev`, `libavcodec-dev`, and `libavformat-dev` from it. Note that this will replace Libav.
+**Note for Debian Jessie users**: ungoogled-chromium is configured to build against the system's [FFmpeg](//www.ffmpeg.org/) (available in Stretch and onwards); [Libav](//libav.org) (used in Jessie) will not work. However, FFmpeg is available in `jessie-backports`. To install it, add `jessie-backports` to the apt sources, and then install `libavutil-dev`, `libavcodec-dev`, and `libavformat-dev` from it. Note that this will replace Libav.
 
 Run these steps on the system you want to build packages for.
 
@@ -42,15 +42,15 @@ Debian packages will appear in the current working directory.
 
 ## Arch Linux
 
-For Arch Linux, consider using [Inox patchset](https://github.com/gcarq/inox-patchset); one of the projects which ungoogled-chromium draws its patches from. It offers pre-built binaries and is also available in AUR.
+For Arch Linux, consider using [Inox patchset](//github.com/gcarq/inox-patchset); one of the projects which ungoogled-chromium draws its patches from. It offers pre-built binaries and is also available in AUR.
 
 ## Windows
 
-TODO. See Issue #1
+TODO. See [Issue #1](//github.com/Eloston/ungoogled-chromium/issues/1)
 
 ## Other systems, platforms, and configurations
 
-Consult the build instructions on the [Chromium homepage](http://www.chromium.org/Home) to build Chromium for your system.
+Consult the build instructions on the [Chromium homepage](//www.chromium.org/Home) to build Chromium for your system.
 
 The main set of patches (in `resources/common/patches`) should work on most, if not all, platforms supported by desktop Chromium. Some patches are there to fix building with certain build flags, so those may not work with other platforms or configurations. However, the patches as they are should apply as long as there is a clean and unmodified source tree.
 

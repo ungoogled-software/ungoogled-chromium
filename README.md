@@ -3,7 +3,7 @@
 
 ### Features
 
-In addition to features provided by [Iridium Browser](https://iridiumbrowser.de/) and [Inox patchset](https://github.com/gcarq/inox-patchset), the following is also included:
+In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and [Inox patchset](//github.com/gcarq/inox-patchset), the following is also included:
 * Remove additional detection of and disable specific functionality for Google hosts
 * Disabled searching in Omnibox
 * Disabled automatic formatting of URL in Omnibox
@@ -24,7 +24,7 @@ In addition to features provided by [Iridium Browser](https://iridiumbrowser.de/
 
 ## Getting ungoogled-chromium
 
-Users are encouraged to use [one of the available tag](https://github.com/Eloston/ungoogled-chromium/tags) versions. Binaries are available on [the releases page](https://github.com/Eloston/ungoogled-chromium/releases) for the corresponding tag.
+Users are encouraged to use [one of the available tag](//github.com/Eloston/ungoogled-chromium/tags) versions. Binaries are available on [the releases page](//github.com/Eloston/ungoogled-chromium/releases) for the corresponding tag.
 
 Tags are formatted in the following manner: `{chromium_version}-{release_revision}` where
 
@@ -45,7 +45,7 @@ Here's a breakdown of what is in a resources directory:
 * `cleaning_list` - (Used for source cleaning) A list of files to be excluded during the extraction of the Chromium source
 * `domain_regex_list` - (Used for domain substitution) A list of regular expressions that define how domains will be replaced in the source code
 * `domain_substitution_list` - (Used for domain substitution) A list of files that are processed by `domain_regex_list`
-* `gn_args.ini` - A list of GN arguments to use for building. (Currently unused, see Issue #16)
+* `gn_args.ini` - A list of GN arguments to use for building. (Currently unused, see [Issue #16](//github.com/Eloston/ungoogled-chromium/issues/16))
 * `gyp_flags` - A list of GYP flags to use for building.
 * `patches/` - Contains patches. The patches in here vary by platform, but the ones in the `common` directory are described below.
     * `patch_order` - The order to apply the patches in. Patches from `common` should be applied before the one for a platform.
@@ -56,10 +56,10 @@ Here's a breakdown of the `common/patches` directory:
 * `ungoogled-chromium/` - Contains new patches for ungoogled-chromium. They implement the features described above.
 * `iridium-browser` - Contains a subset of patches from Iridium Browser.
     * Patches are not touched unless they do not apply cleanly onto the version of Chromium being built
-    * Patches are from the `patchview` branch of Iridium's Git repository. [Git webview of the patchview branch](https://git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
+    * Patches are from the `patchview` branch of Iridium's Git repository. [Git webview of the patchview branch](//git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
 * `inox-patchset/` - Contains a modified subset of patches from Inox patchset.
-    * Patches are from [inox-patchset's GitHub](https://github.com/gcarq/inox-patchset)
-    * [Inox patchset's license](https://github.com/gcarq/inox-patchset/blob/master/LICENSE)
+    * Patches are from [inox-patchset's GitHub](//github.com/gcarq/inox-patchset)
+    * [Inox patchset's license](//github.com/gcarq/inox-patchset/blob/master/LICENSE)
 * `debian/` - Contains patches from Debian's Chromium.
     * These patches are not Debian-specific. For those, see the `resources/debian/patches` directory
 
@@ -71,19 +71,19 @@ Here's a breakdown of the `common/patches` directory:
 
 Contributers are welcome!
 
-Use the [Issue Tracker](/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions.
+Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions.
 
 You may also contribute by submitting pull requests.
 
 ## Credits
 
-[Iridium Browser](https://iridiumbrowser.de/)
+[Iridium Browser](//iridiumbrowser.de/)
 
-[Inox patchset](https://github.com/gcarq/inox-patchset)
+[Inox patchset](//github.com/gcarq/inox-patchset)
 
-[Debian for build scripts](https://tracker.debian.org/pkg/chromium-browser)
+[Debian for build scripts](//tracker.debian.org/pkg/chromium-browser)
 
-[The Chromium Project](https://www.chromium.org/)
+[The Chromium Project](//www.chromium.org/)
 
 ## License
 
