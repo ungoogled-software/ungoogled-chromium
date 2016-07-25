@@ -56,6 +56,16 @@ class DebianPlatform(generic.GenericPlatform):
             "QUILT_SERIES": str(self.PATCH_ORDER)
         }
 
+        self.logger.info("Checking build dependencies...")
+        if not self._dpkg_checkbuilddeps():
+            raise Exception("Build dependencies not met")
+
+    def _dpkg_checkbuilddeps(self):
+        result = subprocess.run(["dpkg-checkbuilddeps", str(self.DPKG_DIR / pathlib.Path("control"))])
+        if not result.returncode == 0:
+            return False
+        return True
+
     def _get_dpkg_changelog_datetime(self, override_datetime=None):
         if override_datetime is None:
             current_datetime = datetime.date.today()

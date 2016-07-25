@@ -25,7 +25,7 @@ Building is done by simply invoking a Python script like `build.py`. It will tak
 
 ## Debian and derivatives
 
-As of now, only Debian Stretch 64-bit is tested. Ubuntu Xenial 64-bit support will come soon.
+As of now, Debian Stretch 64-bit and Ubuntu Xenial 64-bit are tested.
 This may work on other Debian-based distributions and 32-bit systems
 
 **Note for Debian Jessie users**: ungoogled-chromium is configured to build against the system's [FFmpeg](//www.ffmpeg.org/) (available in Stretch and onwards); [Libav](//libav.org) (used in Jessie) will not work. However, FFmpeg is available in `jessie-backports`. To install it, add `jessie-backports` to the apt sources, and then install `libavutil-dev`, `libavcodec-dev`, and `libavformat-dev` from it. Note that this will replace Libav.
