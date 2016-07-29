@@ -5,16 +5,17 @@
 
 In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and [Inox patchset](//github.com/gcarq/inox-patchset), the following is also included:
 * Remove additional detection of and disable specific functionality for Google hosts
-* Disabled searching in Omnibox
-* Disabled automatic formatting of URL in Omnibox
-* Disabled JavaScript dialog boxes from showing when a page closes (onbeforeunload dialog boxes)
-* Added menu item under "More tools" to clear the HTTP authentication cache on-demand
-* Disabled persistent per-site settings in Preferences file
-* Make all popups go to tabs
-* Replaced many domains in the source code with non-existant alternatives (known as domain substitution)
-* Stripped binaries from the source code (known as source cleaning)
-* Disabled intranet redirect detector
-* Debian build scripts
+* Disable searching in Omnibox
+* Disable automatic formatting of URL in Omnibox
+* Disable JavaScript dialog boxes from showing when a page closes (onbeforeunload dialog boxes)
+* Adde menu item under "More tools" to clear the HTTP authentication cache on-demand
+* Disable persistent per-site settings in Preferences file
+* Force all popups into tabs
+* Replace many domains in the source code with non-existant alternatives (known as domain substitution)
+* Strip binaries from the source code (known as source cleaning)
+* Disable intranet redirect detector
+* Add more URL schemes allowed for saving
+* Provide Debian build scripts
     * (Debian build scripts change) Move the chrome-sandbox into a separate package
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
     * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
