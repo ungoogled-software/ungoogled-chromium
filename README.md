@@ -1,5 +1,6 @@
 # ungoogled-chromium
-**Google Chromium patches for removing Google integration, enhancing privacy, and adding features**
+
+**A Google Chromium variant focusing on removing Google integration, enhancing privacy, and adding features**
 
 ### Features
 
@@ -8,13 +9,14 @@ In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and 
 * Disable searching in Omnibox
 * Disable automatic formatting of URL in Omnibox
 * Disable JavaScript dialog boxes from showing when a page closes (onbeforeunload dialog boxes)
-* Adde menu item under "More tools" to clear the HTTP authentication cache on-demand
+* Added menu item under "More tools" to clear the HTTP authentication cache on-demand
 * Disable persistent per-site settings in Preferences file
-* Force all popups into tabs
-* Replace many domains in the source code with non-existant alternatives (known as domain substitution)
+* Force all pop-ups into tabs
+* Replace many domains in the source code with non-existent alternatives (known as domain substitution)
 * Strip binaries from the source code (known as source cleaning)
-* Disable intranet redirect detector
+* Disable intranet redirect detector (unnecessary invalid DNS requests)
 * Add more URL schemes allowed for saving
+* (Windows) Do not set the Zone Identifier on downloaded files (which is a hassle to remove)
 * Provide Debian build scripts
     * (Debian build scripts change) Move the chrome-sandbox into a separate package
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
@@ -32,7 +34,7 @@ Tags are formatted in the following manner: `{chromium_version}-{release_revisio
 * `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
 * `release_revision` is an integer indicating the version of ungoogled-chromium for the corresponding Chromium version.
 
-The `master` branch is for development, so it is not guarenteed to be in a working state.
+The `master` branch is for development, so it is not guaranteed to be in a working state.
 
 ## How ungoogled-chromium is designed
 
@@ -48,7 +50,7 @@ Here's a breakdown of what is in a resources directory:
 * `domain_substitution_list` - (Used for domain substitution) A list of files that are processed by `domain_regex_list`
 * `gn_args.ini` - A list of GN arguments to use for building. (Currently unused, see [Issue #16](//github.com/Eloston/ungoogled-chromium/issues/16))
 * `gyp_flags` - A list of GYP flags to use for building.
-* `patches/` - Contains patches. The patches in here vary by platform, but the ones in the `common` directory are described below.
+* `patches/` - Contains patches. `common/patches` directory contains patches that provide the main features of ungoogled-chromium (as listed above) and can be applied on any platform (but are not necessarily designed to affect all platforms). However, other `patches/` directories in other platform directories are platform-specific. The contents of `common/patches` are explained more in-depth below.
     * `patch_order` - The order to apply the patches in. Patches from `common` should be applied before the one for a platform.
 
 All of these files are human-readable, but they are usually processed by the Python building system. See the Building section below for more information.
