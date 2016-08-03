@@ -169,6 +169,8 @@ def generate_domain_substitution_list(sandbox_path, list_file, regex_defs):
         for i in pathlib.Path().rglob("*"):
             if not i.is_file():
                 continue
+            if i.is_symlink():
+                continue
             for include_pattern in include_matches:
                 if i.match(include_pattern):
                     found_match = False

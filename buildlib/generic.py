@@ -28,6 +28,7 @@ import subprocess
 import logging
 import configparser
 import distutils.dir_util
+import os
 
 class GenericPlatform:
     # Define default paths and file names. Some may be overridden by the methods
@@ -83,6 +84,7 @@ class GenericPlatform:
         self.sourcearchive = None
         self.sourcearchive_hashes = None
         self.gn_command = None
+        self.python2_command = None
         self.ninja_command = None
         self.build_output = None
 
@@ -113,13 +115,11 @@ class GenericPlatform:
             for hash_line in hashes_file.read().split("\n"):
                 hash_line = hash_line.split("  ")
                 if hash_line[0] in hashlib.algorithms_available:
-                    self.logger.info("Running '{}' hash check...".format(hash_line[0]))
+                    self.logger.debug("Running '{}' hash check...".format(hash_line[0]))
                     hasher = hashlib.new(hash_line[0])
                     with self.sourcearchive.open("rb") as f:
                         hasher.update(f.read())
-                        if hasher.hexdigest() == hash_line[1]:
-                            self.logger.debug("'{}' hash matches".format(hash_line[0]))
-                        else:
+                        if not hasher.hexdigest() == hash_line[1]:
                             self.logger.error("Archive does not have matching '{algorithm}' hash '{hashhex}'".format(algorithm=hash_line[0], hashhex=hash_line[1]))
                             return None
                 else:
@@ -149,6 +149,20 @@ class GenericPlatform:
             def append(self, obj):
                 pass
 
+        # Simple hack to check if symlinks are supported. Tested on Linux and Windows
+        try:
+            os.symlink("", "")
+        except OSError:
+            # Symlinks probably not supported
+            self.logger.warning("Symlinks not supported. Will ignore all symlinks")
+            symlink_supported = False
+        except FileNotFoundError:
+            # Symlinks probably supported
+            symlink_supported = True
+        except Exception as e:
+            # Unexpected exception
+            raise e
+
         with tarfile.open(str(self.sourcearchive)) as tar_file_obj:
             tar_file_obj.members = NoAppendList()
             for tarinfo in tar_file_obj:
@@ -158,6 +172,14 @@ class GenericPlatform:
                         cleaning_list.remove(str(relative_path))
                     else:
                         destination = self.sandbox_root / pathlib.Path(*relative_path.parts)
+                        if tarinfo.issym() and not symlink_supported:
+                            # In this situation, TarFile.makelink() will try to create a copy of the target. But this fails because TarFile.members is empty
+                            # But if symlinks are not supported, it's safe to assume that symlinks aren't needed. The only situation where this happens is on Windows.
+                            continue
+                        if tarinfo.islnk():
+                            # Derived from TarFile.extract()
+                            relative_target = pathlib.PurePosixPath(tarinfo.linkname).relative_to("chromium-{}".format(self.version))
+                            tarinfo._link_target = str(self.sandbox_root / pathlib.Path(*relative_target.parts))
                         tar_file_obj._extract_member(tarinfo, str(destination))
                 except Exception as e:
                     self.logger.error("Exception thrown for tar member {}".format(tarinfo.name))
@@ -215,7 +237,15 @@ class GenericPlatform:
             self.logger.debug("Running domain substitution over patches...")
             self._domain_substitute(self._get_parsed_domain_regexes(), self.sandbox_patches.rglob("*.patch"), log_warnings=False)
 
-    def _gyp_generate_ninja(self, args_list, build_output, python2_command):
+    def _run_subprocess(*args, append_environ=None, **kwargs):
+        if append_environ is None:
+            return subprocess.run(*args, **kwargs)
+        else:
+            new_env = dict(os.environ)
+            new_env.update(append_environ)
+            return subprocess.run(*args, env=new_env, **kwargs)
+
+    def _gyp_generate_ninja(self, args_list, append_environ, python2_command):
         command_list = list()
         if not python2_command is None:
             command_list.append(python2_command)
@@ -224,7 +254,7 @@ class GenericPlatform:
         for i in args_list:
             command_list.append("-D{}".format(i))
         self.logger.debug("GYP command: {}".format(" ".join(command_list)))
-        result = subprocess.run(command_list, cwd=str(self.sandbox_root))
+        result = self._run_subprocess(command_list, append_environ=append_environ, cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("GYP command returned non-zero exit code: {}".format(result.returncode))
 
@@ -253,16 +283,16 @@ class GenericPlatform:
             command_list.append(gn_override)
         command_list.append("gen")
         command_list.append(str(build_output))
-        result = subprocess.run(command_list, cwd=str(self.sandbox_root))
+        result = self._run_subprocess(command_list, cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("gn gen returned non-zero exit code: {}".format(result.returncode))
 
-    def _run_ninja(self, build_output, targets):
-        result = subprocess.run([self.ninja_command, "-C", str(build_output), *targets], cwd=str(self.sandbox_root))
+    def _run_ninja(self, ninja_command, build_output, targets):
+        result = self._run_subprocess([ninja_command, "-C", str(build_output), *targets], cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("ninja returned non-zero exit code: {}".format(result.returncode))
 
-    def _build_gn(self, python2_command):
+    def _build_gn(self, ninja_command, python2_command):
         '''
         Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string. Only works on Linux or Mac.
         '''
@@ -275,7 +305,7 @@ class GenericPlatform:
             command_list = [str(pathlib.Path("tools", "gn", "bootstrap", "bootstrap.py")), "-v", "-s", "-o", str(temp_gn_executable), "--gn-gen-args= use_sysroot=false"]
             if not python2_command is None:
                 command_list.insert(0, python2_command)
-            result = subprocess.run(command_list, cwd=str(self.sandbox_root))
+            result = self._run_subprocess(command_list, cwd=str(self.sandbox_root))
             if not result.returncode == 0:
                 raise Exception("GN bootstrap command returned non-zero exit code: {}".format(result.returncode))
         self.logger.info("Building gn using bootstrap gn...")
@@ -283,7 +313,7 @@ class GenericPlatform:
         (self.sandbox_root / build_output).mkdir(parents=True, exist_ok=True)
         self._gn_write_args({"global": {"use_sysroot": "false", "is_debug": "false"}}, build_output)
         self._gn_generate_ninja(build_output, gn_override=str(temp_gn_executable))
-        self._run_ninja(build_output, ["gn"])
+        self._run_ninja(ninja_command, build_output, ["gn"])
         return str(build_output / pathlib.Path("gn"))
 
     def setup_chromium_source(self, check_if_exists=True, force_download=False, check_integrity=True, extract_archive=True, destination_dir=pathlib.Path("."), use_cleaning_list=True, archive_path=None, hashes_path=None):
@@ -353,7 +383,7 @@ class GenericPlatform:
             self.logger.info("Running domain substitution over build sandbox...")
             def file_list_generator():
                 for x in self._read_list_resource(self.DOMAIN_SUBSTITUTION_LIST):
-                    yield self.sandbox_root / pathlib.Path(*pathlib.PurePosixPath(x).parts)
+                    yield self.sandbox_root / pathlib.Path(x)
             self._domain_substitute(self._get_parsed_domain_regexes(), file_list_generator())
             self._ran_domain_substitution = True
 
@@ -380,7 +410,8 @@ class GenericPlatform:
     #    else:
     #        self.gn_command = gn_command
 
-    def setup_build_utilities(self, ninja_command="ninja"):
+    def setup_build_utilities(self, python2_command=None, ninja_command="ninja"):
+        self.python2_command = python2_command
         self.ninja_command = ninja_command
 
     #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"), build_output=pathlib.Path("out", "Default")):
@@ -390,16 +421,16 @@ class GenericPlatform:
     #    self._gn_write_args(config, build_output)
     #    self._gn_generate_ninja(build_output)
 
-    def generate_build_configuration(self, build_output=pathlib.Path("out", "Release"), python2_command=None):
+    def generate_build_configuration(self, build_output=pathlib.Path("out", "Release")):
         self.logger.info("Running gyp command...")
-        self._gyp_generate_ninja(self._read_list_resource(self.GYP_FLAGS), build_output, python2_command)
+        self._gyp_generate_ninja(self._read_list_resource(self.GYP_FLAGS), None, self.python2_command)
         self.build_output = build_output
 
     def build(self, build_targets=["chrome"]):
         self.logger.info("Running build command...")
         if self.build_output is None:
             raise Exception("build_output member variable is not defined. Run generate_build_configuration() first or set it manually")
-        self._run_ninja(self.build_output, build_targets)
+        self._run_ninja(self.ninja_command, self.build_output, build_targets)
 
     def generate_package(self):
         # TODO: Create .tar.xz of binaries?

@@ -20,8 +20,6 @@
 
 import pathlib
 import distutils.dir_util
-import os
-import subprocess
 import itertools
 import tempfile
 import locale
@@ -61,7 +59,7 @@ class DebianPlatform(generic.GenericPlatform):
             raise Exception("Build dependencies not met")
 
     def _dpkg_checkbuilddeps(self):
-        result = subprocess.run(["dpkg-checkbuilddeps", str(self.DPKG_DIR / pathlib.Path("control"))])
+        result = self._run_subprocess(["dpkg-checkbuilddeps", str(self.DPKG_DIR / pathlib.Path("control"))])
         if not result.returncode == 0:
             return False
         return True
@@ -108,9 +106,7 @@ class DebianPlatform(generic.GenericPlatform):
         self._generate_patches(self.sandbox_patches, self._ran_domain_substitution)
 
         self.logger.info("Applying patches via quilt...")
-        new_env = dict(os.environ)
-        new_env.update(self.quilt_env_vars)
-        result = subprocess.run(["quilt", "push", "-a"], env=new_env, cwd=str(self.sandbox_root))
+        result = self._run_subprocess(["quilt", "push", "-a"], append_environ=self.quilt_env_vars, cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
 
@@ -156,6 +152,6 @@ class DebianPlatform(generic.GenericPlatform):
                 new_file.seek(0)
                 new_file.write(content)
                 new_file.truncate()
-        result = subprocess.run(["dpkg-buildpackage", "-b", "-uc"], cwd=str(self.sandbox_root))
+        result = self._run_subprocess(["dpkg-buildpackage", "-b", "-uc"], cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("dpkg-buildpackage returned non-zero exit code: {}".format(result.returncode))

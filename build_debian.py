@@ -19,9 +19,7 @@
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
 '''
-Simple build script for Debian
-
-Will be extended to work with other platforms
+Simple build script for Debian and derivatives
 '''
 
 import logging
