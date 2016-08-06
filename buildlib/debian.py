@@ -46,7 +46,6 @@ class DebianPlatform(generic.GenericPlatform):
     def __init__(self, *args, **kwargs):
         super(DebianPlatform, self).__init__(*args, **kwargs)
 
-        self.sandbox_patches = self.ungoogled_dir / self.PATCHES
         self.sandbox_dpkg_dir = self.sandbox_root / pathlib.Path("debian")
 
         self.quilt_env_vars = {
