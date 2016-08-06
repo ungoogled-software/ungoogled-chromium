@@ -43,12 +43,12 @@ For Arch Linux, consider using [Inox patchset](//github.com/gcarq/inox-patchset)
 
 ## Windows
 
-Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#Setting-up-the-environment-for-Visual-Studio). These instructions are tested on Windows 10 Home x64.
+Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md#Setting-up-the-environment-for-Visual-Studio). These instructions are tested on Windows 10 Home x64.
 
 For maximum portability, the build configuration will generate x86 binaries.
 
 In addition to the general building requirements, there are additional requirements:
-* Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md) for the specific version needed
+* Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md) for the specific version needed
 * GNU patch (to deal with patches that have fuzz). You can get the latest GNU patch from [MSYS2](http://msys2.github.io/).
     * If you don't want to use the installer, you can download and extract the following files manually from [MSYS2's repository on SourceForge](https://sourceforge.net/projects/msys2/files/REPOS/MSYS2/x86_64/):
         * `/usr/bin/patch.exe` from `patch-*-x86_64.pkg.tar.xz`
