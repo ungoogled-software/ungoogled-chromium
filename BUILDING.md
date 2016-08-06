@@ -4,7 +4,7 @@
 
 ## The building system
 
-ungoogled-chromium provides a flexible and extensible Python library called [`buildlib`](buildlib) that does source code downloading, source cleaning, domain substitution, patching, building, and packaging. There's no documentation on `buildlib` yet, but it's pretty straight-forward to use. [See `build.py`](build.py) for an example on using `buildlib`.
+ungoogled-chromium provides a flexible and extensible Python library called [`buildlib`](buildlib) that does source code downloading, source cleaning, domain substitution, patching, building, and packaging. There's no documentation on `buildlib` yet, but it's pretty straight-forward to use. See `build_*.py` for examples on using `buildlib`.
 
 Currently, there is no command-line-configurable build script. You must create a script to use `buildlib`.
 
@@ -14,7 +14,6 @@ The following is needed to fully use `buildlib`:
 * Python 3 (tested on 3.5) for running `buildlib`
 * The below can be provided by [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools)
     * Python 2 (tested on 2.7) for running gyp
-    * [Jinja2](http://jinja.pocoo.org/) for running gyp
     * [Ninja](//ninja-build.org/) for running the build command
 
 There are additional requirements for specific platforms. See the following sections for more information.
@@ -30,13 +29,11 @@ This may work on other Debian-based distributions and 32-bit systems
 
 **Note for Debian Jessie users**: ungoogled-chromium is configured to build against the system's [FFmpeg](//www.ffmpeg.org/) (available in Stretch and onwards); [Libav](//libav.org) (used in Jessie) will not work. However, FFmpeg is available in `jessie-backports`. To install it, add `jessie-backports` to the apt sources, and then install `libavutil-dev`, `libavcodec-dev`, and `libavformat-dev` from it. Note that this will replace Libav.
 
-Run these steps on the system you want to build packages for.
+Run these steps on the system you want to build packages for:
 
-    git clone https://github.com/Eloston/ungoogled-chromium.git
-    cd ungoogled-chromium
-    git checkout $(git describe --tags `git rev-list --tags --max-count=1`) # Checkout newest tag
-    dpkg-checkbuilddeps resources/debian/dpkg_dir/control # Use this to see the packages needed to build
-    ./build.py
+    # Change directory to ungoogled-chromium's root directory
+    dpkg-checkbuilddeps resources/debian/dpkg_dir/control # Use this to see the packages needed to build. This includes packages for "General building requirements"
+    ./build_debian.py
 
 Debian packages will appear in the current working directory.
 
@@ -46,7 +43,36 @@ For Arch Linux, consider using [Inox patchset](//github.com/gcarq/inox-patchset)
 
 ## Windows
 
-TODO. See [Issue #1](//github.com/Eloston/ungoogled-chromium/issues/1)
+Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#Setting-up-the-environment-for-Visual-Studio). These instructions are tested on Windows 10 Home x64.
+
+For maximum portability, the build configuration will generate x86 binaries.
+
+In addition to the general building requirements, there are additional requirements:
+* Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md) for the specific version needed
+* GNU patch (to deal with patches that have fuzz). You can get the latest GNU patch from [MSYS2](http://msys2.github.io/).
+    * If you don't want to use the installer, you can download and extract the following files manually from [MSYS2's repository on SourceForge](https://sourceforge.net/projects/msys2/files/REPOS/MSYS2/x86_64/):
+        * `/usr/bin/patch.exe` from `patch-*-x86_64.pkg.tar.xz`
+        * `/usr/bin/msys-2.0.dll` from `msys2-runtime-*-x86_64.pkg.tar.xz`
+        * These files are portable.
+* [gperf from GNUWin32](http://gnuwin32.sourceforge.net/packages/gperf.htm)
+* [bison from GNUWin32](http://gnuwin32.sourceforge.net/packages/bison.htm)
+    * Get the Binaries, Developer files, and Dependencies
+
+Make sure all of the following are in the `PATH`:
+* Python 2 as `python`
+* Ninja as `ninja`
+* GNU patch as `patch`
+* gperf as `gperf`
+* bison as `bison`
+
+Also, ensure that `TEMP` and `TMP` environment variables point to existing directories.
+
+See `build_windows.py` for more on customizing the build environment or process.
+
+Build steps:
+
+    # Change directory to ungoogled-chromium's root directory
+    path\to\python3 build_windows.py
 
 ## Other systems, platforms, and configurations
 

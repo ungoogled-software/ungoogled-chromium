@@ -81,6 +81,8 @@ class GenericPlatform:
             self.logger.info("ungoogled_dir does not exist. Creating...")
             self.ungoogled_dir.mkdir()
 
+        self.sandbox_patches = self.ungoogled_dir / self.PATCHES
+
         self.sourcearchive = None
         self.sourcearchive_hashes = None
         self.gn_command = None
@@ -106,6 +108,13 @@ class GenericPlatform:
                     tmp_list.extend(f.read().splitlines())
                     self.logger.debug("Successfully appended platform list")
         return [x for x in tmp_list if len(x) > 0]
+
+    def _get_gyp_flags(self):
+        args_dict = dict()
+        for i in self._read_list_resource(self.GYP_FLAGS):
+            arg_key, arg_value = i.split("=", 1)
+            args_dict[arg_key] = arg_value
+        return args_dict
 
     def _check_source_archive(self):
         '''
@@ -228,8 +237,9 @@ class GenericPlatform:
 
         distutils.dir_util.copy_tree(str(self.COMMON_RESOURCES / self.PATCHES), str(output_dir))
         (output_dir / self.PATCH_ORDER).unlink()
-        distutils.dir_util.copy_tree(str(self.PLATFORM_RESOURCES / self.PATCHES), str(output_dir))
-        (output_dir / self.PATCH_ORDER).unlink()
+        if platform_patches_exist:
+            distutils.dir_util.copy_tree(str(self.PLATFORM_RESOURCES / self.PATCHES), str(output_dir))
+            (output_dir / self.PATCH_ORDER).unlink()
         with (output_dir / self.PATCH_ORDER).open("w") as f:
             f.write(new_patch_order)
 
@@ -237,7 +247,7 @@ class GenericPlatform:
             self.logger.debug("Running domain substitution over patches...")
             self._domain_substitute(self._get_parsed_domain_regexes(), self.sandbox_patches.rglob("*.patch"), log_warnings=False)
 
-    def _run_subprocess(*args, append_environ=None, **kwargs):
+    def _run_subprocess(self, *args, append_environ=None, **kwargs):
         if append_environ is None:
             return subprocess.run(*args, **kwargs)
         else:
@@ -245,14 +255,14 @@ class GenericPlatform:
             new_env.update(append_environ)
             return subprocess.run(*args, env=new_env, **kwargs)
 
-    def _gyp_generate_ninja(self, args_list, append_environ, python2_command):
+    def _gyp_generate_ninja(self, args_dict, append_environ, python2_command):
         command_list = list()
         if not python2_command is None:
             command_list.append(python2_command)
         command_list.append(str(pathlib.Path("build", "gyp_chromium")))
         command_list += ["--depth=.", "--check"]
-        for i in args_list:
-            command_list.append("-D{}".format(i))
+        for arg_key, arg_value in args_dict.items():
+            command_list.append("-D{}={}".format(arg_key, arg_value))
         self.logger.debug("GYP command: {}".format(" ".join(command_list)))
         result = self._run_subprocess(command_list, append_environ=append_environ, cwd=str(self.sandbox_root))
         if not result.returncode == 0:
@@ -423,7 +433,7 @@ class GenericPlatform:
 
     def generate_build_configuration(self, build_output=pathlib.Path("out", "Release")):
         self.logger.info("Running gyp command...")
-        self._gyp_generate_ninja(self._read_list_resource(self.GYP_FLAGS), None, self.python2_command)
+        self._gyp_generate_ninja(self._get_gyp_flags(), None, self.python2_command)
         self.build_output = build_output
 
     def build(self, build_targets=["chrome"]):
