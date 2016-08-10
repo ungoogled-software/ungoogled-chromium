@@ -134,26 +134,32 @@ class GenericPlatform:
                 else:
                     self.logger.warning("Hash algorithm '{}' not available. Skipping...".format(hash_line[0]))
 
+    def _download_file(self, url, file_path):
+        with urllib.request.urlopen(url) as response:
+            with file_path.open("wb") as f:
+                shutil.copyfileobj(response, f)
+
     def _download_source_archive(self):
         '''
         Downloads the original Chromium source code in .tar.xz format
         '''
         download_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-{version}.tar.xz".format(version=self.version)
-        with urllib.request.urlopen(download_url) as response:
-            with self.sourcearchive.open("wb") as f:
-                shutil.copyfileobj(response, f)
+        self._download_file(download_url, self.sourcearchive)
 
     def _download_source_hashes(self):
         hashes_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-{version}.tar.xz.hashes".format(version=self.version)
-        with urllib.request.urlopen(hashes_url) as response:
-            with self.sourcearchive_hashes.open("wb") as f:
-                shutil.copyfileobj(response, f)
+        self._download_file(download_url, self.sourcearchive_hashes)
 
-    def _extract_source_archive(self, cleaning_list):
-        '''
-        Extract the archive located on archive_path to the sandbox root
-        Also modifies cleaning_list to contain paths not removed
-        '''
+    def _download_helper(self, file_path, force_download, check_if_exists, downloader):
+        if file_path.exists() and not file_path.is_file():
+            raise Exception("{} is an existing non-file".format(str(file_path)))
+        elif force_download or check_if_exists and not file_path.is_file():
+            self.logger.info("Downloading {} ...".format(str(file_path)))
+            downloader()
+        else:
+            self.logger.info("{} already exists. Skipping download.".format(str(file_path)))
+
+    def _extract_tar_file(self, tar_path, destination_dir, ignore_files, relative_to):
         class NoAppendList(list): # Hack to workaround memory issues with large tar files
             def append(self, obj):
                 pass
@@ -172,27 +178,34 @@ class GenericPlatform:
             # Unexpected exception
             raise e
 
-        with tarfile.open(str(self.sourcearchive)) as tar_file_obj:
+        with tarfile.open(str(tar_path)) as tar_file_obj:
             tar_file_obj.members = NoAppendList()
             for tarinfo in tar_file_obj:
                 try:
-                    relative_path = pathlib.PurePosixPath(tarinfo.name).relative_to("chromium-{}".format(self.version))
-                    if str(relative_path) in cleaning_list:
-                        cleaning_list.remove(str(relative_path))
+                    relative_path = pathlib.PurePosixPath(tarinfo.name).relative_to(relative_to)
+                    if str(relative_path) in ignore_files:
+                        ignore_files.remove(str(relative_path))
                     else:
-                        destination = self.sandbox_root / pathlib.Path(*relative_path.parts)
+                        destination = destination_dir / pathlib.Path(*relative_path.parts)
                         if tarinfo.issym() and not symlink_supported:
                             # In this situation, TarFile.makelink() will try to create a copy of the target. But this fails because TarFile.members is empty
                             # But if symlinks are not supported, it's safe to assume that symlinks aren't needed. The only situation where this happens is on Windows.
                             continue
                         if tarinfo.islnk():
                             # Derived from TarFile.extract()
-                            relative_target = pathlib.PurePosixPath(tarinfo.linkname).relative_to("chromium-{}".format(self.version))
-                            tarinfo._link_target = str(self.sandbox_root / pathlib.Path(*relative_target.parts))
+                            relative_target = pathlib.PurePosixPath(tarinfo.linkname).relative_to(relative_to)
+                            tarinfo._link_target = str(destination_dir / pathlib.Path(*relative_target.parts))
                         tar_file_obj._extract_member(tarinfo, str(destination))
                 except Exception as e:
                     self.logger.error("Exception thrown for tar member {}".format(tarinfo.name))
                     raise e
+
+    def _extract_source_archive(self, cleaning_list):
+        '''
+        Extract the archive located on archive_path to the sandbox root
+        Also modifies cleaning_list to contain paths not removed
+        '''
+        self._extract_tar_file(self.sourcearchive, self.sandbox_root, cleaning_list, "chromium-{}".format(self.version))
 
     def _get_parsed_domain_regexes(self):
         if self._domain_regex_cache is None:
@@ -346,22 +359,10 @@ class GenericPlatform:
             self.sourcearchive = destination_dir / pathlib.Path("chromium-{version}.tar.xz".format(version=self.version))
             self.sourcearchive_hashes = destination_dir / pathlib.Path("chromium-{version}.tar.xz.hashes".format(version=self.version))
 
-            if self.sourcearchive.exists() and not self.sourcearchive.is_file():
-                raise Exception("sourcearchive is an existing non-file")
-            elif force_download or check_if_exists and not self.sourcearchive.is_file():
-                self.logger.info("Downloading source archive...")
-                self._download_source_archive()
-            else:
-                self.logger.info("Source archive already exists. Skipping download.")
+            self._download_helper(self.sourcearchive, force_download, check_if_exists, self._download_source_archive)
 
             if check_integrity:
-                if self.sourcearchive_hashes.exists() and not self.sourcearchive_hashes.is_file():
-                    raise Exception("sourcearchive_hashes is an existing non-file")
-                elif force_download or check_if_exists and not self.sourcearchive_hashes.is_file():
-                    self.logger.info("Downloading source archive hashes...")
-                    self._download_source_hashes()
-                else:
-                    self.logger.info("Source hashes file already exists. Skipping download.")
+                self._download_helper(self.sourcearchive_hashes, force_download, check_if_exists, self._download_source_hashes)
         else:
             if check_integrity and hashes_path is None:
                 raise Exception("Hashes path must be set with archive_path")
