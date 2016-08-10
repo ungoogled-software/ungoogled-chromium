@@ -26,6 +26,16 @@ from . import generic
 class WindowsPlatform(generic.GenericPlatform):
     PLATFORM_RESOURCES = pathlib.Path("resources", "windows")
     FILES_CFG = generic.GenericPlatform.SANDBOX_ROOT / pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg")
+    SYZYGY_COMMIT = "3c00ec0d484aeada6a3d04a14a11bd7353640107"
+
+    def __init__(self, *args, **kwargs):
+        super(WindowsPlatform, self).__init__(*args, **kwargs)
+
+        self.syzygyarchive = None
+
+    def _download_syzygy(self):
+        download_url = "https://github.com/Eloston/syzygy/archive/{}.tar.gz".format(self.SYZYGY_COMMIT)
+        self._download_file(download_url, self.syzygyarchive)
 
     def _run_subprocess(self, *args, **kwargs):
         # On Windows for some reason, subprocess.run(['python']) will use the current interpreter's executable even though it is not in the PATH or cwd
@@ -33,6 +43,22 @@ class WindowsPlatform(generic.GenericPlatform):
         # Adding shell=True solves all of these problems
         kwargs["shell"] = True
         return super(WindowsPlatform, self)._run_subprocess(*args, **kwargs)
+
+    def setup_chromium_source(self, *args, check_if_exists=True, force_download=False, extract_archive=True, destination_dir=pathlib.Path("."), syzygyarchive_path=None, **kwargs):
+        super(WindowsPlatform, self).setup_chromium_source(*args, check_if_exists=check_if_exists, force_download=force_download, extract_archive=extract_archive, destination_dir=destination_dir, **kwargs)
+
+        if syzygyarchive_path is None:
+            self.syzygyarchive = destination_dir / pathlib.Path("syzygy-{}.tar.gz".format(self.SYZYGY_COMMIT))
+
+            self._download_helper(self.syzygyarchive, force_download, check_if_exists, self._download_syzygy)
+        else:
+            self.syzygyarchive = syzygyarchive_path
+
+        if extract_archive:
+            self.logger.info("Extracting syzygy archive...")
+            syzygy_dir = self.sandbox_root / pathlib.Path("third_party", "syzygy")
+            os.makedirs(str(syzygy_dir.resolve()))
+            self._extract_tar_file(self.syzygyarchive, syzygy_dir, list(), "syzygy-{}".format(self.SYZYGY_COMMIT))
 
     def apply_patches(self, patch_command=["patch", "-p1"]):
         self.logger.info("Applying patches via '{}' ...".format(" ".join(patch_command)))
@@ -66,24 +92,15 @@ class WindowsPlatform(generic.GenericPlatform):
         self.logger.info("Creating build output archive {} ...".format(output_filename))
         def file_list_generator():
             exec_globals = {"__builtins__": None}
-            with FILES_CFG.open() as cfg_file:
+            with self.FILES_CFG.open() as cfg_file:
                 exec(cfg_file.read(), exec_globals)
             for file_spec in exec_globals["FILES"]:
                 if "dev" in file_spec["buildtype"] and "official" in file_spec["buildtype"]:
                     if "arch" in file_spec and not "32bit" in file_spec["arch"]:
                         continue
-                    file_path = self.sandbox_root / self.build_output / pathlib.Path(file_spec["filename"])
-                    if file_path.exists():
-                        if file_path.is_file():
-                            yield (file_spec["filename"], file_path)
-                        elif file_path.is_dir():
-                            for i in file_path.iterdir():
-                                yield (str(i.relative_to(self.sandbox_root / self.build_output)), i)
-                        else:
-                            self.logger.warning("Unknown file type for {}".format(file_spec["filename"]))
-                    else:
-                        if not "optional" in file_spec:
-                            self.logger.warning("Missing file {}".format(file_spec["filename"]))
+                    for file_path in (self.sandbox_root / self.build_output).glob(file_spec["filename"]):
+                        if not file_path.suffix.lower() == "pdb":
+                            yield (str(file_path.relative_to(self.sandbox_root / self.build_output)), file_path)
         with zipfile.ZipFile(output_filename, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
             for arcname, real_path in file_list_generator():
                 zip_file.write(str(real_path), arcname)
