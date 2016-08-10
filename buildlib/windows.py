@@ -20,6 +20,7 @@
 
 import pathlib
 import zipfile
+import os
 
 from . import generic
 
@@ -57,7 +58,7 @@ class WindowsPlatform(generic.GenericPlatform):
         if extract_archive:
             self.logger.info("Extracting syzygy archive...")
             syzygy_dir = self.sandbox_root / pathlib.Path("third_party", "syzygy")
-            os.makedirs(str(syzygy_dir.resolve()))
+            os.makedirs(str(syzygy_dir))
             self._extract_tar_file(self.syzygyarchive, syzygy_dir, list(), "syzygy-{}".format(self.SYZYGY_COMMIT))
 
     def apply_patches(self, patch_command=["patch", "-p1"]):
@@ -99,7 +100,7 @@ class WindowsPlatform(generic.GenericPlatform):
                     if "arch" in file_spec and not "32bit" in file_spec["arch"]:
                         continue
                     for file_path in (self.sandbox_root / self.build_output).glob(file_spec["filename"]):
-                        if not file_path.suffix.lower() == "pdb":
+                        if not file_path.suffix.lower() == ".pdb":
                             yield (str(file_path.relative_to(self.sandbox_root / self.build_output)), file_path)
         with zipfile.ZipFile(output_filename, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
             for arcname, real_path in file_list_generator():

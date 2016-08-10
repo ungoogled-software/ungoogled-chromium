@@ -48,7 +48,11 @@ Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/
 For maximum portability, the build configuration will generate x86 binaries.
 
 In addition to the general building requirements, there are additional requirements:
-* Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md) for the specific version needed
+* Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md) for Google's requirements
+    * Build has been tested on 2015 Community Edition Update 2 with only the following features installed:
+        * Programming Languages -> Visual C++ (including all subcomponents)
+        * Universal Windows App Development Tools -> Windows 10 SDK 10.0.10586
+        * Windows 8.1 and Windows Phone 8.0/8.1 Tools -> Tools and Windows SDKs
 * GNU patch (to deal with patches that have fuzz). You can get the latest GNU patch from [MSYS2](http://msys2.github.io/).
     * If you don't want to use the installer, you can download and extract the following files manually from [MSYS2's repository on SourceForge](https://sourceforge.net/projects/msys2/files/REPOS/MSYS2/x86_64/):
         * `/usr/bin/patch.exe` from `patch-*-x86_64.pkg.tar.xz`
