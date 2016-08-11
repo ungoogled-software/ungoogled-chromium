@@ -80,7 +80,9 @@ Build steps:
 
 ## Other systems, platforms, and configurations
 
-Consult the build instructions on the [Chromium homepage](//www.chromium.org/Home) to build Chromium for your system.
+Please read the section in the README explaning ungoogled-chromium's design first.
+
+Consult the build instructions on the [Chromium homepage](//www.chromium.org/Home) for platform-specific building information.
 
 The main set of patches (in `resources/common/patches`) should work on most, if not all, platforms supported by desktop Chromium. Some patches are there to fix building with certain build flags, so those may not work with other platforms or configurations. However, the patches as they are should apply as long as there is a clean and unmodified source tree.
 

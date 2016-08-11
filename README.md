@@ -43,13 +43,21 @@ Tags are formatted in the following manner: `{chromium_version}-{release_revisio
 
 The `master` branch is for development, so it is not guaranteed to be in a working state.
 
-## How ungoogled-chromium is designed
+## ungoogled-chromium's design
 
 Features are implemented through a combination of build flags, patches, and a few configuration files for scripts. All of these settings are stored in the `resources` directory. The `resources` directory contains the `common` directory, which has such files that apply to all platforms. All other directories, named by platform, contain additional platform-specific data. Most of the features, however, are stored in the `common` directory.
 
 There are currently two automated scripts that process the source code:
 * Source cleaner - Used to clean out binary files (i.e. do not seem to be human-readable text files, except a few required for building)
 * Domain substitution - Used to replace Google and other domains in the source code to eliminate communication not caught by the patches and build flags.
+
+These are the general steps that ungoogled-chromium follows to build:
+1. Get the source code
+2. Run source cleaner
+2. Run domain substitution
+2. Apply patches
+3. Configure the build utilities and run meta-build configuration (e.g. GYP, GN)
+4. Build (i.e. run ninja)
 
 Here's a breakdown of what is in a resources directory:
 * `cleaning_list` - (Used for source cleaning) A list of files to be excluded during the extraction of the Chromium source
