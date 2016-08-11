@@ -52,6 +52,7 @@ There are currently two automated scripts that process the source code:
 * Domain substitution - Used to replace Google and other domains in the source code to eliminate communication not caught by the patches and build flags.
 
 These are the general steps that ungoogled-chromium follows to build:
+
 1. Get the source code
 2. Run source cleaner
 2. Run domain substitution
