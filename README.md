@@ -30,7 +30,7 @@ In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and 
     * Use user-provided building utilities instead of the ones bundled with Chromium (currently `gperf` and `bison`)
     * Do not set the Zone Identifier on downloaded files (which is a hassle to unset)
 
-**DISCLAIMER: Although I try my best to eliminate bugs and privacy-invading code, there will be those that slip by due to the enormity and continuing evolution of the Chromium project.**
+**DISCLAIMER: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
 
 ## Getting ungoogled-chromium
 
@@ -42,6 +42,11 @@ Tags are formatted in the following manner: `{chromium_version}-{release_revisio
 * `release_revision` is an integer indicating the version of ungoogled-chromium for the corresponding Chromium version.
 
 The `master` branch is for development, so it is not guaranteed to be in a working state.
+
+Currently supported platforms and distributions:
+* Debian
+* Ubuntu
+* Windows
 
 ## ungoogled-chromium's design
 
@@ -92,7 +97,12 @@ Contributers are welcome!
 
 Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions.
 
-You may also contribute by submitting pull requests.
+### Pull requests
+
+Pull requests are also welcome. Here are some guidelines:
+* Changes that fix certain configurations or add small features and do not break compatibility are generally okay
+* Larger changes, such as those that change `buildlib`, should be proposed through an issue first before submitting a pull request.
+* When in doubt, propose the idea through an issue first.
 
 ## Credits
 
