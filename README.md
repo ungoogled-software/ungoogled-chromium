@@ -51,14 +51,14 @@ There are currently two automated scripts that process the source code:
 * Source cleaner - Used to clean out binary files (i.e. do not seem to be human-readable text files, except a few required for building)
 * Domain substitution - Used to replace Google and other domains in the source code to eliminate communication not caught by the patches and build flags.
 
-These are the general steps that ungoogled-chromium follows to build:
+These are the general steps that ungoogled-chromium takes to build:
 
-1. Get the source code
-2. Run source cleaner
+1. Get the source code archive in `.tar.xz` format via https://commondatastorage.googleapis.com/
+2. Run source cleaner (done during source archive extraction)
 2. Run domain substitution
 2. Apply patches
-3. Configure the build utilities and run meta-build configuration (e.g. GYP, GN)
-4. Build (i.e. run ninja)
+3. Configure the build utilities and run meta-build configuration (i.e. GYP, not GN. See [Issue #16](//github.com/Eloston/ungoogled-chromium/issues/16))
+4. Build (via 'ninja')
 
 Here's a breakdown of what is in a resources directory:
 * `cleaning_list` - (Used for source cleaning) A list of files to be excluded during the extraction of the Chromium source
