@@ -37,10 +37,6 @@ Run these steps on the system you want to build packages for:
 
 Debian packages will appear in the current working directory.
 
-## Arch Linux
-
-For Arch Linux, consider using [Inox patchset](//github.com/gcarq/inox-patchset); one of the projects which ungoogled-chromium draws its patches from. It offers pre-built binaries and is also available in AUR.
-
 ## Windows
 
 Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md#Setting-up-the-environment-for-Visual-Studio). These instructions are tested on Windows 10 Home x64.
