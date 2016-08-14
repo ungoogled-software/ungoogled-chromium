@@ -74,6 +74,17 @@ Build steps:
     # Change directory to ungoogled-chromium's root directory
     path\to\python3 build_windows.py
 
+## Mac OS X
+
+**NOTE: Currently, the build instructions for this platform have several caveats:**
+* No automatic source cleaning or domain substitution
+* Uses Google's binaries; downloads tools automatically from Google
+* No automatic patching
+* Uses depot_tools and Chromium's git repository (which takes quite a bit of space) as opposed to the source archive
+* Does not use `buildlib`
+
+[The build instructions can be found here](https://github.com/Eloston/ungoogled-chromium/issues/30#issuecomment-239644518). Credits to [9Morello](//github.com/9Morello)
+
 ## Other systems, platforms, and configurations
 
 Please read the section in the README explaning ungoogled-chromium's design first.
