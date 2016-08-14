@@ -74,7 +74,7 @@ Build steps:
     # Change directory to ungoogled-chromium's root directory
     path\to\python3 build_windows.py
 
-## Mac OS X
+## Mac OS
 
 **NOTE: Currently, the build instructions for this platform have several caveats:**
 * No automatic source cleaning or domain substitution
