@@ -148,7 +148,7 @@ class GenericPlatform:
 
     def _download_source_hashes(self):
         hashes_url = "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-{version}.tar.xz.hashes".format(version=self.version)
-        self._download_file(download_url, self.sourcearchive_hashes)
+        self._download_file(hashes_url, self.sourcearchive_hashes)
 
     def _download_helper(self, file_path, force_download, check_if_exists, downloader):
         if file_path.exists() and not file_path.is_file():
