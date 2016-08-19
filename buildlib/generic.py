@@ -239,9 +239,11 @@ class GenericPlatform:
                 raise e
 
     def _generate_patches(self, output_dir, run_domain_substitution):
-        platform_patches_exist = (not self.PLATFORM_RESOURCES is None) and platform_patch_order.exists()
-        if platform_patches_exist:
+        platform_patches_exist = False
+        if not self.PLATFORM_RESOURCES is None:
             platform_patch_order = self.PLATFORM_RESOURCES / self.PATCHES / self.PATCH_ORDER
+            if platform_patch_order.exists():
+                platform_patches_exist = True
         with (self.COMMON_RESOURCES / self.PATCHES / self.PATCH_ORDER).open() as f:
             new_patch_order = f.read()
         if platform_patches_exist:
