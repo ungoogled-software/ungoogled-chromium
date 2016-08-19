@@ -1,0 +1,84 @@
+# Add more URL schemes allowed for saving
+
+--- a/content/common/savable_url_schemes.cc
++++ b/content/common/savable_url_schemes.cc
+@@ -13,6 +13,10 @@ namespace content {
+ namespace {
+ 
+ const char* const kDefaultSavableSchemes[] = {
++  url::kAboutScheme,
++  url::kBlobScheme,
++  url::kContentScheme,
++  url::kGopherScheme,
+   url::kHttpScheme,
+   url::kHttpsScheme,
+   url::kFileScheme,
+@@ -21,6 +25,17 @@ const char* const kDefaultSavableSchemes[] = {
+   kChromeDevToolsScheme,
+   kChromeUIScheme,
+   url::kDataScheme,
++  url::kJavaScriptScheme,
++  url::kMailToScheme,
++  url::kWsScheme,
++  url::kWssScheme,
++  kGuestScheme,
++  kMetadataScheme,
++  kSwappedOutScheme,
++  kViewSourceScheme,
++#if defined(OS_CHROMEOS)
++  kExternalFileScheme,
++#endif
+   NULL
+ };
+ 
+--- a/content/public/common/url_utils.cc
++++ b/content/public/common/url_utils.cc
+@@ -21,11 +21,7 @@ bool HasWebUIScheme(const GURL& url) {
+ }
+ 
+ bool IsSavableURL(const GURL& url) {
+-  for (int i = 0; GetSavableSchemes()[i] != NULL; ++i) {
+-    if (url.SchemeIs(GetSavableSchemes()[i]))
+-      return true;
+-  }
+-  return false;
++  return true;
+ }
+ 
+ }  // namespace content
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -314,12 +314,6 @@ int GetContentRestrictions(const Browser* browser) {
+     CoreTabHelper* core_tab_helper =
+         CoreTabHelper::FromWebContents(current_tab);
+     content_restrictions = core_tab_helper->content_restrictions();
+-    NavigationEntry* last_committed_entry =
+-        current_tab->GetController().GetLastCommittedEntry();
+-    if (!content::IsSavableURL(
+-            last_committed_entry ? last_committed_entry->GetURL() : GURL()) ||
+-        current_tab->ShowingInterstitialPage())
+-      content_restrictions |= CONTENT_RESTRICTION_SAVE;
+     if (current_tab->ShowingInterstitialPage())
+       content_restrictions |= CONTENT_RESTRICTION_PRINT;
+   }
+@@ -848,8 +842,7 @@ bool CanSavePage(const Browser* browser) {
+       prefs::kAllowFileSelectionDialogs)) {
+     return false;
+   }
+-  return !browser->is_devtools() &&
+-      !(GetContentRestrictions(browser) & CONTENT_RESTRICTION_SAVE);
++  return true;
+ }
+ 
+ void ShowFindBar(Browser* browser) {
+--- a/components/offline_pages/offline_page_model.cc
++++ b/components/offline_pages/offline_page_model.cc
+@@ -110,7 +110,7 @@ void EnsureArchivesDirCreated(const base::FilePath& archives_dir) {
+ 
+ // static
+ bool OfflinePageModel::CanSavePage(const GURL& url) {
+-  return url.SchemeIsHTTPOrHTTPS();
++  return true;
+ }
+ 
+ // static
