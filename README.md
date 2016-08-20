@@ -14,7 +14,6 @@ In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and 
 * Disable automatic formatting of URL in Omnibox
 * Disable JavaScript dialog boxes from showing when a page closes (onbeforeunload dialog boxes)
 * Added menu item under "More tools" to clear the HTTP authentication cache on-demand
-* Disable persistent per-site settings in Preferences file
 * Force all pop-ups into tabs
 * Disable intranet redirect detector (unnecessary invalid DNS requests)
 * Add more URL schemes allowed for saving
