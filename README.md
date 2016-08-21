@@ -46,7 +46,7 @@ Currently supported platforms and distributions:
 * Debian
 * Ubuntu
 * Windows
-* Mac OS (partial; see [Building](#building))
+* Mac OS
 
 ## ungoogled-chromium's design
 

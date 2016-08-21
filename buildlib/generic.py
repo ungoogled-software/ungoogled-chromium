@@ -182,7 +182,10 @@ class GenericPlatform:
             tar_file_obj.members = NoAppendList()
             for tarinfo in tar_file_obj:
                 try:
-                    relative_path = pathlib.PurePosixPath(tarinfo.name).relative_to(relative_to)
+                    if relative_to is None:
+                        relative_path = pathlib.PurePosixPath(tarinfo.name)
+                    else:
+                        relative_path = pathlib.PurePosixPath(tarinfo.name).relative_to(relative_to)
                     if str(relative_path) in ignore_files:
                         ignore_files.remove(str(relative_path))
                     else:

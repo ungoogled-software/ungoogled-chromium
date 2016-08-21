@@ -43,7 +43,7 @@ Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/
 
 For maximum portability, the build configuration will generate x86 binaries.
 
-In addition to the general building requirements, there are additional requirements:
+### Additional Requirements
 * Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md) for Google's requirements
     * Build has been tested on 2015 Community Edition Update 2 with only the following features installed:
         * Programming Languages -> Visual C++ (including all subcomponents)
@@ -58,6 +58,8 @@ In addition to the general building requirements, there are additional requireme
 * [bison from GNUWin32](http://gnuwin32.sourceforge.net/packages/bison.htm)
     * Get the Binaries, Developer files, and Dependencies
 
+### Setting up the build environment
+
 Make sure all of the following are in the `PATH`:
 * Python 2 as `python`
 * Ninja as `ninja`
@@ -69,21 +71,40 @@ Also, ensure that `TEMP` and `TMP` environment variables point to existing direc
 
 See `build_windows.py` for more on customizing the build environment or process.
 
-Build steps:
+### Build
 
     # Change directory to ungoogled-chromium's root directory
     path\to\python3 build_windows.py
 
 ## Mac OS
 
-**NOTE: Currently, the build instructions for this platform have several caveats:**
-* No automatic source cleaning or domain substitution
-* Uses Google's binaries; downloads tools automatically from Google
-* No automatic patching
-* Uses depot_tools and Chromium's git repository (which takes quite a bit of space) as opposed to the source archive
-* Does not use `buildlib`
+**NOTE: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue**
 
-[The build instructions can be found here](https://github.com/Eloston/ungoogled-chromium/issues/30#issuecomment-239644518). Credits to [9Morello](//github.com/9Morello)
+Tested on Mac OS 10.11.6
+
+Credits to [9Morello](//github.com/9Morello) for most of the work done on this platform.
+
+### Additional Requirements
+
+* Xcode 7
+* Homebrew
+* Subversion client
+* Perl (for creating a `.dmg` package)
+* LLVM with Clang (see next section)
+* GNU patch (see next section)
+
+### Setting up the build environment
+
+1. Setup [Homebrew Versions](//github.com/Homebrew/homebrew-versions) if you haven't already: `brew tap homebrew/versions`
+2. Install LLVM 3.8 via Homebrew: `brew install llvm38 --with-clang --with-clang-extra-tools`
+3. Install GNU patch via Homebrew: `brew install gpatch`
+
+See `build_macos.py` for more on customizing the build environment or process.
+
+### Build
+
+    # Change directory to ungoogled-chromium's root directory
+    python3 build_macos.py
 
 ## Other systems, platforms, and configurations
 

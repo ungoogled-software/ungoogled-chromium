@@ -26,12 +26,12 @@ from . import generic
 
 class WindowsPlatform(generic.GenericPlatform):
     PLATFORM_RESOURCES = pathlib.Path("resources", "windows")
-    FILES_CFG = generic.GenericPlatform.SANDBOX_ROOT / pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg")
     SYZYGY_COMMIT = "3c00ec0d484aeada6a3d04a14a11bd7353640107"
 
     def __init__(self, *args, **kwargs):
         super(WindowsPlatform, self).__init__(*args, **kwargs)
 
+        self._files_cfg = self.sandbox_root / pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg")
         self.syzygyarchive = None
 
     def _download_syzygy(self):
@@ -89,11 +89,11 @@ class WindowsPlatform(generic.GenericPlatform):
     def generate_package(self):
         # Derived from chrome/tools/build/make_zip.py
         # Hardcoded to only include files with buildtype "dev" and "official", and files for 32bit
-        output_filename = "ungoogled-chromium_{}-{}.zip".format(self.version, self.revision)
+        output_filename = "ungoogled-chromium_{}-{}_win32.zip".format(self.version, self.revision)
         self.logger.info("Creating build output archive {} ...".format(output_filename))
         def file_list_generator():
             exec_globals = {"__builtins__": None}
-            with self.FILES_CFG.open() as cfg_file:
+            with self._files_cfg.open() as cfg_file:
                 exec(cfg_file.read(), exec_globals)
             for file_spec in exec_globals["FILES"]:
                 if "dev" in file_spec["buildtype"] and "official" in file_spec["buildtype"]:
