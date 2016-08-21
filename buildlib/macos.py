@@ -19,6 +19,8 @@
 '''Code for Mac OS'''
 
 import tempfile
+import pathlib
+import os
 
 from . import generic
 
