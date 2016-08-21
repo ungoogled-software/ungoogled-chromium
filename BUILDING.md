@@ -97,7 +97,7 @@ Credits to [9Morello](//github.com/9Morello) for most of the work done on this p
 
 1. Setup [Homebrew Versions](//github.com/Homebrew/homebrew-versions) if you haven't already: `brew tap homebrew/versions`
 2. Install LLVM 3.8 via Homebrew: `brew install llvm38 --with-clang --with-clang-extra-tools`
-3. Install GNU patch via Homebrew: `brew install gpatch`
+3. Install GNU patch via Homebrew: `brew install homebrew/dupes/gpatch`
 
 See `build_macos.py` for more on customizing the build environment or process.
 
