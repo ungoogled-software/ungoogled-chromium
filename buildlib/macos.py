@@ -63,7 +63,7 @@ class MacOSPlatform(generic.GenericPlatform):
             self.logger.info("Extracting google-toolbox-for-mac archive...")
             google_toolbox_dir = self.sandbox_root / pathlib.Path("third_party", "google_toolbox_for_mac", "src")
             os.makedirs(str(google_toolbox_dir))
-            self._extract_tar_file(google_toolboxarchive, google_toolbox_dir, list(), "google-toolbox-for-mac-{}".format(self.GOOGLE_TOOLBOX_FOR_MAC))
+            self._extract_tar_file(google_toolboxarchive, google_toolbox_dir, list(), "google-toolbox-for-mac-{}".format(self.GOOGLE_TOOLBOX_FOR_MAC_COMMIT))
 
     def apply_patches(self, patch_command=["patch", "-p1"]):
         self.logger.info("Applying patches via '{}' ...".format(" ".join(patch_command)))
