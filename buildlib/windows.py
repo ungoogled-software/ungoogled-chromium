@@ -58,7 +58,7 @@ class WindowsPlatform(generic.GenericPlatform):
         if extract_archive:
             self.logger.info("Extracting syzygy archive...")
             syzygy_dir = self.sandbox_root / pathlib.Path("third_party", "syzygy")
-            os.makedirs(str(syzygy_dir))
+            os.makedirs(str(syzygy_dir), exist_ok=True)
             self._extract_tar_file(self.syzygyarchive, syzygy_dir, list(), "syzygy-{}".format(self.SYZYGY_COMMIT))
 
     def apply_patches(self, patch_command=["patch", "-p1"]):

@@ -57,12 +57,12 @@ class MacOSPlatform(generic.GenericPlatform):
         if extract_archive:
             self.logger.info("Extracting pdfsqueeze archive...")
             pdfsqueeze_dir = self.sandbox_root / pathlib.Path("third_party", "pdfsqueeze")
-            os.makedirs(str(pdfsqueeze_dir))
+            os.makedirs(str(pdfsqueeze_dir), exist_ok=True)
             self._extract_tar_file(pdfsqueezearchive, pdfsqueeze_dir, list(), None)
 
             self.logger.info("Extracting google-toolbox-for-mac archive...")
             google_toolbox_dir = self.sandbox_root / pathlib.Path("third_party", "google_toolbox_for_mac", "src")
-            os.makedirs(str(google_toolbox_dir))
+            os.makedirs(str(google_toolbox_dir), exist_ok=True)
             self._extract_tar_file(google_toolboxarchive, google_toolbox_dir, list(), "google-toolbox-for-mac-{}".format(self.GOOGLE_TOOLBOX_FOR_MAC_COMMIT))
 
     def apply_patches(self, patch_command=["patch", "-p1"]):
