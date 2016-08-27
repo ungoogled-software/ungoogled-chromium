@@ -4,9 +4,9 @@
 
 ## The building system
 
-ungoogled-chromium provides a flexible and extensible Python library called [`buildlib`](buildlib) that does source code downloading, source cleaning, domain substitution, patching, building, and packaging. There's no documentation on `buildlib` yet, but it's pretty straight-forward to use. See `build_*.py` for examples on using `buildlib`.
+ungoogled-chromium provides a flexible and extensible Python library called [`buildlib`](buildlib.py) that does source code downloading, source cleaning, domain substitution, patching, building, and packaging. There's no documentation on `buildlib` yet, but it's pretty straight-forward to use. See `build.py` for examples on using `buildlib`.
 
-Currently, there is no command-line-configurable build script. You must create a script to use `buildlib`.
+Currently, there is no command-line-configurable build script. You must create a script or modify `build.py` to use `buildlib`.
 
 ## General building requirements
 
@@ -20,7 +20,7 @@ There are additional requirements for specific platforms. See the following sect
 
 ## How to build
 
-Building is done by simply invoking a Python script like `build.py`. It will take care of the setup and building processes. See the following for more information.
+Building is done by simply invoking `build.py`. It will take care of the setup and building processes. See the following for more information.
 
 ## Debian and derivatives
 
@@ -33,7 +33,7 @@ Run these steps on the system you want to build packages for:
 
     # Change directory to ungoogled-chromium's root directory
     dpkg-checkbuilddeps resources/debian/dpkg_dir/control # Use this to see the packages needed to build. This includes packages for "General building requirements"
-    ./build_debian.py
+    ./build.py
 
 Debian packages will appear in the current working directory.
 
@@ -69,12 +69,12 @@ Make sure all of the following are in the `PATH`:
 
 Also, ensure that `TEMP` and `TMP` environment variables point to existing directories.
 
-See `build_windows.py` for more on customizing the build environment or process.
+See `build.py` for more on customizing the build environment or process.
 
 ### Build
 
     # Change directory to ungoogled-chromium's root directory
-    path\to\python3 build_windows.py
+    path\to\python3 build.py
 
 ## Mac OS
 
@@ -99,12 +99,12 @@ Credits to [9Morello](//github.com/9Morello) for most of the work done on this p
 2. Install LLVM 3.8 via Homebrew: `brew install llvm38 --with-clang --with-clang-extra-tools`
 3. Install GNU patch via Homebrew: `brew install homebrew/dupes/gpatch`
 
-See `build_macos.py` for more on customizing the build environment or process.
+See `build.py` for more on customizing the build environment or process.
 
 ### Build
 
     # Change directory to ungoogled-chromium's root directory
-    python3 build_macos.py
+    python3 build.py
 
 ## Other systems, platforms, and configurations
 
