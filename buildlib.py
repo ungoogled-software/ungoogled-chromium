@@ -1,4 +1,5 @@
-# ungoogled-chromium: Google Chromium patches for removing Google integration, enhancing privacy, and adding features
+# ungoogled-chromium: Google Chromium patches for removing Google integration, enhancing privacy,
+# and adding features
 # Copyright (C) 2016  Eloston
 #
 # This file is part of ungoogled-chromium.
@@ -49,19 +50,54 @@ _GYP_FLAGS = pathlib.Path("gyp_flags")
 #_GN_ARGS = pathlib.Path("gn_args.ini")
 
 class Builder:
+    '''
+    Generic builder class. Also a metaclass for specific Builder implementations
+    '''
+
     _platform_resources = None
 
-    source_archive = None # The path to the Chromium source archive. Will be set automatically if left as None
-    source_archive_hashes = None # The path to the Chromium source archive hashes file. Will be set automatically if left as None
-    download_dir = pathlib.Path(".") # The directory to store downloads if downloading is needed
-    force_download = False # Force the downloading of dependencies instead of checking if they exist
-    run_source_cleaner = True # Switch for running source cleaning
-    run_domain_substitution = True # Switch for running domain substitution
+    # The path to the Chromium source archive. Will be set automatically if left as None
+    source_archive = None
+
+    # The path to the Chromium source archive hashes file.
+    # Will be set automatically if left as None
+    source_archive_hashes = None
+
+    # The directory to store downloads if downloading is needed
+    download_dir = pathlib.Path(".")
+
+    # Force the downloading of dependencies instead of checking if they exist
+    force_download = False
+
+    # Switch for running source cleaning
+    run_source_cleaner = True
+
+    # Switch for running domain substitution
+    run_domain_substitution = True
+
     #gn_command = None
-    python2_command = None # The command to invoke Python 2. If set to none, the shebang line or file associations are used
-    ninja_command = "ninja" # The command to invoke ninja
-    build_output = pathlib.Path("out", "Release") # The build directory relative to the build sandbox
+
+    # The command to invoke Python 2
+    # If set to none, the shebang line or file associations are used
+    python2_command = None
+
+    # The command to invoke ninja
+    ninja_command = "ninja"
+
+    # The build directory relative to the build sandbox
+    build_output = pathlib.Path("out", "Release")
+
+    # The ninja targets to build
     build_targets = ["chrome"]
+
+    @staticmethod
+    def _run_subprocess(*args, append_environ=None, **kwargs):
+        if append_environ is None:
+            return subprocess.run(*args, **kwargs)
+        else:
+            new_env = dict(os.environ)
+            new_env.update(append_environ)
+            return subprocess.run(*args, env=new_env, **kwargs)
 
     def __new__(cls, *args, **kwargs):
         if cls is Builder:
@@ -73,10 +109,12 @@ class Builder:
                 # TODO: Add finer granularity when non-Debian distributions are supported
                 cls = DebianBuilder
             else:
-                raise NotImplementedError("Unsupported sys.platform value '{}'".format(sys.platform))
+                raise NotImplementedError("Unsupported sys.platform value"
+                                          "'{}'".format(sys.platform))
         return object.__new__(cls, *args, **kwargs)
 
-    def __init__(self, version_configfile=pathlib.Path("version.ini"), chromium_version=None, release_revision=None, sandbox_root=pathlib.Path("build_sandbox"), logger=None):
+    def __init__(self, version_configfile=pathlib.Path("version.ini"), chromium_version=None,
+                 release_revision=None, sandbox_root=pathlib.Path("build_sandbox"), logger=None):
         if logger is None:
             self.logger = logging.getLogger("ungoogled_chromium")
             self.logger.setLevel(logging.DEBUG)
@@ -107,18 +145,22 @@ class Builder:
 
         if sandbox_root.exists():
             if not sandbox_root.is_dir():
-                raise Exception("sandbox_root path {!s} already exists, but is not a directory".format(sandbox_root))
+                raise Exception(("sandbox_root path {!s} already exists, "
+                                 "but is not a directory").format(sandbox_root))
         else:
-            self.logger.info("sandbox_root path {!s} does not exist. Creating...".format(sandbox_root))
+            self.logger.info("sandbox_root path {!s} does not exist. Creating...".format(
+                sandbox_root))
             sandbox_root.mkdir(parents=True)
         self.sandbox_root = sandbox_root
 
         self._ungoogled_dir = self.sandbox_root / ".ungoogled"
         if self._ungoogled_dir.exists():
             if not self._ungoogled_dir.is_dir():
-                raise Exception("_ungoogled_dir path {!s} exists, but is not a directory".format(self._ungoogled_dir))
+                raise Exception("_ungoogled_dir path {!s} exists, but is not a directory".format(
+                    self._ungoogled_dir))
         else:
-            self.logger.info("_ungoogled_dir path {!s} does not exist. Creating...".format(self._ungoogled_dir))
+            self.logger.info("_ungoogled_dir path {!s} does not exist. Creating...".format(
+                self._ungoogled_dir))
             self._ungoogled_dir.mkdir()
 
         self._domain_regex_cache = None
@@ -129,13 +171,13 @@ class Builder:
         else:
             file_mode = "r"
         common_path = _COMMON_RESOURCES / file_name
-        with common_path.open(file_mode) as f:
-            tmp_list = f.read().splitlines()
+        with common_path.open(file_mode) as file_obj:
+            tmp_list = file_obj.read().splitlines()
         if not self._platform_resources is None:
             platform_path = self._platform_resources / file_name
             if platform_path.exists():
-                with platform_path.open(file_mode) as f:
-                    tmp_list.extend(f.read().splitlines())
+                with platform_path.open(file_mode) as file_obj:
+                    tmp_list.extend(file_obj.read().splitlines())
                     self.logger.debug("Successfully appended platform list")
         return [x for x in tmp_list if len(x) > 0]
 
@@ -149,32 +191,34 @@ class Builder:
     def _download_if_needed(self, file_path, url):
         if file_path.exists() and not file_path.is_file():
             raise Exception("{} is an existing non-file".format(str(file_path)))
-        elif force_download or not file_path.is_file():
+        elif self.force_download or not file_path.is_file():
             self.logger.info("Downloading {} ...".format(str(file_path)))
             with urllib.request.urlopen(url) as response:
-                with file_path.open("wb") as f:
-                    shutil.copyfileobj(response, f)
+                with file_path.open("wb") as file_obj:
+                    shutil.copyfileobj(response, file_obj)
         else:
             self.logger.info("{} already exists. Skipping download.".format(str(file_path)))
 
     def _extract_tar_file(self, tar_path, destination_dir, ignore_files, relative_to):
-        class NoAppendList(list): # Hack to workaround memory issues with large tar files
+        class NoAppendList(list):
+            '''Hack to workaround memory issues with large tar files'''
+
             def append(self, obj):
                 pass
 
         # Simple hack to check if symlinks are supported
         try:
             os.symlink("", "")
+        except FileNotFoundError:
+            # Symlinks probably supported
+            symlink_supported = True
         except OSError:
             # Symlinks probably not supported
             self.logger.warning("Symlinks not supported. Will ignore all symlinks")
             symlink_supported = False
-        except FileNotFoundError:
-            # Symlinks probably supported
-            symlink_supported = True
-        except Exception as e:
+        except Exception as exc:
             # Unexpected exception
-            raise e
+            raise exc
 
         with tarfile.open(str(tar_path)) as tar_file_obj:
             tar_file_obj.members = NoAppendList()
@@ -189,17 +233,21 @@ class Builder:
                     else:
                         destination = destination_dir / pathlib.Path(*relative_path.parts)
                         if tarinfo.issym() and not symlink_supported:
-                            # In this situation, TarFile.makelink() will try to create a copy of the target. But this fails because TarFile.members is empty
-                            # But if symlinks are not supported, it's safe to assume that symlinks aren't needed. The only situation where this happens is on Windows.
+                            # In this situation, TarFile.makelink() will try to create a copy of the
+                            # target. But this fails because TarFile.members is empty
+                            # But if symlinks are not supported, it's safe to assume that symlinks
+                            # aren't needed. The only situation where this happens is on Windows.
                             continue
                         if tarinfo.islnk():
                             # Derived from TarFile.extract()
-                            relative_target = pathlib.PurePosixPath(tarinfo.linkname).relative_to(relative_to)
-                            tarinfo._link_target = str(destination_dir / pathlib.Path(*relative_target.parts))
+                            relative_target = pathlib.PurePosixPath(
+                                tarinfo.linkname).relative_to(relative_to)
+                            tarinfo._link_target = str(
+                                destination_dir / pathlib.Path(*relative_target.parts))
                         tar_file_obj._extract_member(tarinfo, str(destination))
-                except Exception as e:
+                except Exception as exc:
                     self.logger.error("Exception thrown for tar member {}".format(tarinfo.name))
-                    raise e
+                    raise exc
 
     def _get_parsed_domain_regexes(self):
         if self._domain_regex_cache is None:
@@ -215,22 +263,22 @@ class Builder:
         '''
         for path in file_list:
             try:
-                with path.open(mode="r+b") as f:
-                    content = f.read()
+                with path.open(mode="r+b") as file_obj:
+                    content = file_obj.read()
                     file_subs = 0
                     for regex_pair in regex_list:
                         compiled_regex, replacement_regex = regex_pair
                         content, number_of_subs = compiled_regex.subn(replacement_regex, content)
                         file_subs += number_of_subs
                     if file_subs > 0:
-                        f.seek(0)
-                        f.write(content)
-                        f.truncate()
+                        file_obj.seek(0)
+                        file_obj.write(content)
+                        file_obj.truncate()
                     elif log_warnings:
                         self.logger.warning("File {} has no matches".format(path))
-            except Exception as e:
+            except Exception as exc:
                 self.logger.error("Exception thrown for path {}".format(path))
-                raise e
+                raise exc
 
     def _generate_patches(self):
         platform_patches_exist = False
@@ -238,32 +286,28 @@ class Builder:
             platform_patch_order = self._platform_resources / _PATCHES / _PATCH_ORDER
             if platform_patch_order.exists():
                 platform_patches_exist = True
-        with (_COMMON_RESOURCES / _PATCHES / _PATCH_ORDER).open() as f:
-            new_patch_order = f.read()
+        with (_COMMON_RESOURCES / _PATCHES / _PATCH_ORDER).open() as file_obj:
+            new_patch_order = file_obj.read()
         if platform_patches_exist:
             self.logger.debug("Using platform patches")
-            with platform_patch_order.open() as f:
-                new_patch_order += f.read()
+            with platform_patch_order.open() as file_obj:
+                new_patch_order += file_obj.read()
 
-        distutils.dir_util.copy_tree(str(_COMMON_RESOURCES / _PATCHES), str(self._ungoogled_dir / _PATCHES))
+        distutils.dir_util.copy_tree(str(_COMMON_RESOURCES / _PATCHES),
+                                     str(self._ungoogled_dir / _PATCHES))
         (self._ungoogled_dir / _PATCHES / _PATCH_ORDER).unlink()
         if platform_patches_exist:
-            distutils.dir_util.copy_tree(str(self._platform_resources / _PATCHES), str(self._ungoogled_dir / _PATCHES))
+            distutils.dir_util.copy_tree(str(self._platform_resources / _PATCHES),
+                                         str(self._ungoogled_dir / _PATCHES))
             (self._ungoogled_dir / _PATCHES / _PATCH_ORDER).unlink()
-        with (self._ungoogled_dir / _PATCHES / _PATCH_ORDER).open("w") as f:
-            f.write(new_patch_order)
+        with (self._ungoogled_dir / _PATCHES / _PATCH_ORDER).open("w") as file_obj:
+            file_obj.write(new_patch_order)
 
         if self.run_domain_substitution:
             self.logger.debug("Running domain substitution over patches...")
-            self._domain_substitute(self._get_parsed_domain_regexes(), (self._ungoogled_dir / _PATCHES).rglob("*.patch"), log_warnings=False)
-
-    def _run_subprocess(self, *args, append_environ=None, **kwargs):
-        if append_environ is None:
-            return subprocess.run(*args, **kwargs)
-        else:
-            new_env = dict(os.environ)
-            new_env.update(append_environ)
-            return subprocess.run(*args, env=new_env, **kwargs)
+            self._domain_substitute(self._get_parsed_domain_regexes(),
+                                    (self._ungoogled_dir / _PATCHES).rglob("*.patch"),
+                                    log_warnings=False)
 
     def _gyp_generate_ninja(self, args_dict, append_environ):
         command_list = list()
@@ -274,7 +318,8 @@ class Builder:
         for arg_key, arg_value in args_dict.items():
             command_list.append("-D{}={}".format(arg_key, arg_value))
         self.logger.debug("GYP command: {}".format(" ".join(command_list)))
-        result = self._run_subprocess(command_list, append_environ=append_environ, cwd=str(self.sandbox_root))
+        result = self._run_subprocess(command_list, append_environ=append_environ,
+                                      cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("GYP command returned non-zero exit code: {}".format(result.returncode))
 
@@ -285,71 +330,92 @@ class Builder:
         gn_imports = list()
         gn_flags = list()
         for gn_path in args_map:
-            if not gn_path == "DEFAULT" and not gn_path == "global": # Checking against DEFAULT for configparser mapping interface
+            # Checking against DEFAULT for configparser mapping interface
+            if not gn_path == "DEFAULT" and not gn_path == "global":
                 if not gn_path.lower().endswith(".gn"):
                     gn_imports.append('import("{}")'.format(gn_path))
             for flag in args_map[gn_path]:
                 gn_flags.append("{}={}".format(flag, args_map[gn_path][flag]))
-        with (self.sandbox_root / self.build_output / pathlib.Path("args.gn")).open("w") as f:
-            f.write("\n".join(gn_imports))
-            f.write("\n")
-            f.write("\n".join(gn_flags))
+        with (self.sandbox_root / self.build_output /
+              pathlib.Path("args.gn")).open("w") as file_obj:
+            file_obj.write("\n".join(gn_imports))
+            file_obj.write("\n")
+            file_obj.write("\n".join(gn_flags))
 
-    def _gn_generate_ninja(self, gn_override=None):
-        command_list = list()
-        if gn_override is None:
-            command_list.append(self.gn_command)
-        else:
-            command_list.append(gn_override)
-        command_list.append("gen")
-        command_list.append(str(self.build_output))
-        result = self._run_subprocess(command_list, cwd=str(self.sandbox_root))
-        if not result.returncode == 0:
-            raise Exception("gn gen returned non-zero exit code: {}".format(result.returncode))
+    #def _gn_generate_ninja(self, gn_override=None):
+    #    command_list = list()
+    #    if gn_override is None:
+    #        command_list.append(self.gn_command)
+    #    else:
+    #        command_list.append(gn_override)
+    #    command_list.append("gen")
+    #    command_list.append(str(self.build_output))
+    #    result = self._run_subprocess(command_list, cwd=str(self.sandbox_root))
+    #    if not result.returncode == 0:
+    #        raise Exception("gn gen returned non-zero exit code: {}".format(result.returncode))
 
     def _run_ninja(self, output, targets):
-        result = self._run_subprocess([self.ninja_command, "-C", str(output), *targets], cwd=str(self.sandbox_root))
+        result = self._run_subprocess([self.ninja_command, "-C", str(output), *targets],
+                                      cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("ninja returned non-zero exit code: {}".format(result.returncode))
 
-    def _build_gn(self):
-        '''
-        Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string. Only works on Linux or Mac.
-        '''
-        self.logger.info("Building gn...")
-        temp_gn_executable = pathlib.Path("out", "temp_gn")
-        if (self.sandbox_root / temp_gn_executable).exists():
-            self.logger.info("Bootstrap gn already exists")
-        else:
-            self.logger.info("Building bootstrap gn")
-            command_list = [str(pathlib.Path("tools", "gn", "bootstrap", "bootstrap.py")), "-v", "-s", "-o", str(temp_gn_executable), "--gn-gen-args= use_sysroot=false"]
-            if not self.python2_command is None:
-                command_list.insert(0, self.python2_command)
-            result = self._run_subprocess(command_list, cwd=str(self.sandbox_root))
-            if not result.returncode == 0:
-                raise Exception("GN bootstrap command returned non-zero exit code: {}".format(result.returncode))
-        self.logger.info("Building gn using bootstrap gn...")
-        build_output = pathlib.Path("out", "gn_release")
-        (self.sandbox_root / build_output).mkdir(parents=True, exist_ok=True)
-        self._gn_write_args({"global": {"use_sysroot": "false", "is_debug": "false"}}, build_output)
-        self._gn_generate_ninja(build_output, gn_override=str(temp_gn_executable))
-        self._run_ninja(build_output, ["gn"])
-        return str(build_output / pathlib.Path("gn"))
+    #def _build_gn(self):
+    #    '''
+    #    Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string.
+    #
+    #    Only works on Linux or Mac.
+    #    '''
+    #    self.logger.info("Building gn...")
+    #    temp_gn_executable = pathlib.Path("out", "temp_gn")
+    #    if (self.sandbox_root / temp_gn_executable).exists():
+    #        self.logger.info("Bootstrap gn already exists")
+    #    else:
+    #        self.logger.info("Building bootstrap gn")
+    #        command_list = [str(pathlib.Path("tools", "gn", "bootstrap", "bootstrap.py")),
+    #                        "-v", "-s", "-o", str(temp_gn_executable),
+    #                        "--gn-gen-args= use_sysroot=false"]
+    #        if not self.python2_command is None:
+    #            command_list.insert(0, self.python2_command)
+    #        result = self._run_subprocess(command_list, cwd=str(self.sandbox_root))
+    #        if not result.returncode == 0:
+    #            raise Exception("GN bootstrap command returned non-zero exit code: {}".format(
+    #                result.returncode))
+    #    self.logger.info("Building gn using bootstrap gn...")
+    #    build_output = pathlib.Path("out", "gn_release")
+    #    (self.sandbox_root / build_output).mkdir(parents=True, exist_ok=True)
+    #    self._gn_write_args({"global": {"use_sysroot": "false", "is_debug": "false"}},
+    #                        build_output)
+    #    self._gn_generate_ninja(build_output, gn_override=str(temp_gn_executable))
+    #    self._run_ninja(build_output, ["gn"])
+    #    return str(build_output / pathlib.Path("gn"))
 
     def check_build_environment(self):
+        '''Checks the build environment before building'''
         pass
 
     def setup_chromium_source(self):
         '''
-        Sets up the Chromium source code in the build sandbox. It can download the source code in .tar.xz format, integrity check it, and extract it into the build sandbox while excluding any files in the cleaning list.
+        Sets up the Chromium source code in the build sandbox.
         '''
         if self.source_archive is None:
-            self.source_archive = self.download_dir / pathlib.Path("chromium-{version}.tar.xz".format(version=self.chromium_version))
+            self.source_archive = (self.download_dir /
+                                   pathlib.Path("chromium-{version}.tar.xz".format(
+                                       version=self.chromium_version)))
         if self.source_archive_hashes is None:
-            self.source_archive_hashes = self.download_dir / pathlib.Path("chromium-{version}.tar.xz.hashes".format(version=self.chromium_version))
+            self.source_archive_hashes = (self.download_dir /
+                                          pathlib.Path("chromium-{version}.tar.xz.hashes".format(
+                                              version=self.chromium_version)))
 
-        self._download_if_needed(self.source_archive, "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-{version}.tar.xz".format(version=self.chromium_version))
-        self._download_if_needed(self.source_archive_hashes, "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-{version}.tar.xz.hashes".format(version=self.chromium_version))
+        self._download_if_needed(self.source_archive,
+                                 ("https://commondatastorage.googleapis.com/"
+                                  "chromium-browser-official/chromium-{version}.tar.xz").format(
+                                      version=self.chromium_version))
+        self._download_if_needed(self.source_archive_hashes,
+                                 ("https://commondatastorage.googleapis.com/"
+                                  "chromium-browser-official/"
+                                  "chromium-{version}.tar.xz.hashes").format(
+                                      version=self.chromium_version))
 
         self.logger.info("Checking source archive integrity...")
         with self.source_archive_hashes.open("r") as hashes_file:
@@ -358,22 +424,27 @@ class Builder:
                 if hash_line[0] in hashlib.algorithms_available:
                     self.logger.debug("Running '{}' hash check...".format(hash_line[0]))
                     hasher = hashlib.new(hash_line[0])
-                    with self.source_archive.open("rb") as f:
-                        hasher.update(f.read())
+                    with self.source_archive.open("rb") as file_obj:
+                        hasher.update(file_obj.read())
                         if not hasher.hexdigest() == hash_line[1]:
-                            self.logger.error("Archive does not have matching '{algorithm}' hash '{hashhex}'".format(algorithm=hash_line[0], hashhex=hash_line[1]))
+                            self.logger.error(("Archive does not have matching '{algorithm}'"
+                                               "hash '{hashhex}'").format(algorithm=hash_line[0],
+                                                                          hashhex=hash_line[1]))
                             return None
                 else:
-                    self.logger.warning("Hash algorithm '{}' not available. Skipping...".format(hash_line[0]))
+                    self.logger.warning("Hash algorithm '{}' not available. Skipping...".format(
+                        hash_line[0]))
 
         self.logger.info("Extracting source archive into building sandbox...")
         if self.run_source_cleaner:
             list_obj = self._read_list_resource(_CLEANING_LIST)
-            self._extract_tar_file(self.source_archive, self.sandbox_root, list_obj, "chromium-{}".format(self.chromium_version))
+            self._extract_tar_file(self.source_archive, self.sandbox_root, list_obj,
+                                   "chromium-{}".format(self.chromium_version))
             for i in list_obj:
                 self.logger.warning("File does not exist in tar file: {}".format(i))
         else:
-            self._extract_tar_file(self.source_archive, self.sandbox_root, list(), "chromium-{}".format(self.chromium_version))
+            self._extract_tar_file(self.source_archive, self.sandbox_root, list(),
+                                   "chromium-{}".format(self.chromium_version))
 
     def setup_build_sandbox(self):
         '''
@@ -382,20 +453,26 @@ class Builder:
         if self.run_domain_substitution:
             self.logger.info("Running domain substitution over build sandbox...")
             def file_list_generator():
-                for x in self._read_list_resource(_DOMAIN_SUBSTITUTION_LIST):
-                    yield self.sandbox_root / pathlib.Path(x)
+                '''Generator for files in domain substitution list'''
+
+                for list_item in self._read_list_resource(_DOMAIN_SUBSTITUTION_LIST):
+                    yield self.sandbox_root / pathlib.Path(list_item)
             self._domain_substitute(self._get_parsed_domain_regexes(), file_list_generator())
 
     def apply_patches(self):
+        '''Applies patches'''
         # TODO: Use Python to apply patches defined in `patch_order`
         pass
 
-    #def setup_build_utilities(self, build_gn=True, gn_command=None, python2_command=None, ninja_command="ninja"):
+    #def setup_build_utilities(self, build_gn=True, gn_command=None, python2_command=None,
+    #                          ninja_command="ninja"):
     #    '''
     #    Sets up the utilities required for building. For now, this is just the "gn" tool.
     #
-    #    If `build_gn` is True, then the `tools/gn/bootstrap/bootstrap.py` script is invoked in the build directory to build gn.
-    #    If `python2_command` is set, it must be a string of a command to invoke Python 2 for running bootstrap.py. Otherwise, the bootstrap.py path will be the executable path.
+    #    If `build_gn` is True, then the `tools/gn/bootstrap/bootstrap.py` script is invoked
+    #    in the build directory to build gn.
+    #    If `python2_command` is set, it must be a string of a command to invoke Python 2 for
+    #    running bootstrap.py. Otherwise, the bootstrap.py path will be the executable path.
     #
     #    If `gn_command` is set, it must be a string of a command to invoke gn.
     #
@@ -410,10 +487,12 @@ class Builder:
     #        self.gn_command = gn_command
 
     def setup_build_utilities(self):
+        '''Sets up additional build utilities not provided by the build environment'''
         # TODO: Implement this when switching to GN
         pass
 
-    #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"), build_output=pathlib.Path("out", "Default")):
+    #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"),
+    #                                 build_output=pathlib.Path("out", "Default")):
     #    (self.sandbox_root / build_output).mkdir(parents=True, exist_ok=True)
     #    config = configparser.ConfigParser()
     #    config.read(str(gn_args))
@@ -421,24 +500,36 @@ class Builder:
     #    self._gn_generate_ninja(build_output)
 
     def generate_build_configuration(self):
+        '''Generates build configuration'''
         self.logger.info("Running gyp command...")
         self._gyp_generate_ninja(self._get_gyp_flags(), None)
 
     def build(self):
+        '''Starts building'''
         self.logger.info("Running build command...")
         self._run_ninja(self.build_output, self.build_targets)
 
     def generate_package(self):
+        '''Generates binary packages ready for distribution'''
         # TODO: Create .tar.xz of binaries?
         pass
 
 class DebianBuilder(Builder):
+    '''Builder for Debian and Ubuntu'''
+
     _platform_resources = pathlib.Path("resources", "debian")
     _dpkg_dir = _platform_resources / pathlib.Path("dpkg_dir")
 
     build_targets = ["chrome", "chrome_sandbox", "chromedriver"]
 
-    class BuildFileStringTemplate(string.Template): # Inspired by http://stackoverflow.com/questions/12768107/string-substitutions-using-templates-in-python
+    class BuildFileStringTemplate(string.Template):
+        '''
+        Custom string substitution class
+
+        Inspired by
+        http://stackoverflow.com/questions/12768107/string-substitutions-using-templates-in-python
+        '''
+
         pattern = r"""
         {delim}(?:
           (?P<escaped>{delim}) |
@@ -448,17 +539,8 @@ class DebianBuilder(Builder):
         )
         """.format(delim=re.escape("$ungoog"), id=string.Template.idpattern)
 
-    def __init__(self, *args, **kwargs):
-        super(DebianBuilder, self).__init__(*args, **kwargs)
-
-        self._sandbox_dpkg_dir = self.sandbox_root / pathlib.Path("debian")
-
-        self.quilt_env_vars = {
-            "QUILT_PATCHES": str(self._ungoogled_dir / _PATCHES),
-            "QUILT_SERIES": str(_PATCH_ORDER)
-        }
-
-    def _get_dpkg_changelog_datetime(self, override_datetime=None):
+    @staticmethod
+    def _get_dpkg_changelog_datetime(override_datetime=None):
         if override_datetime is None:
             current_datetime = datetime.date.today()
         else:
@@ -474,9 +556,20 @@ class DebianBuilder(Builder):
         finally:
             locale.setlocale(locale.LC_TIME, current_lc)
 
+    def __init__(self, *args, **kwargs):
+        super(DebianBuilder, self).__init__(*args, **kwargs)
+
+        self._sandbox_dpkg_dir = self.sandbox_root / pathlib.Path("debian")
+
+        self.quilt_env_vars = {
+            "QUILT_PATCHES": str(self._ungoogled_dir / _PATCHES),
+            "QUILT_SERIES": str(_PATCH_ORDER)
+        }
+
     def check_build_environment(self):
         self.logger.info("Checking build dependencies...")
-        result = self._run_subprocess(["dpkg-checkbuilddeps", str(self._dpkg_dir / pathlib.Path("control"))])
+        result = self._run_subprocess(["dpkg-checkbuilddeps",
+                                       str(self._dpkg_dir / pathlib.Path("control"))])
         if not result.returncode == 0:
             raise Exception("Build dependencies not met")
 
@@ -484,7 +577,10 @@ class DebianBuilder(Builder):
         super(DebianBuilder, self).setup_build_sandbox()
 
         # Symlink flot libraries
-        for system_path in itertools.chain(pathlib.Path("/").glob("usr/share/javascript/jquery/*min.js"), pathlib.Path("/").glob("usr/share/javascript/jquery-flot/*min.js")):
+        for system_path in itertools.chain(pathlib.Path("/").glob(
+                                               "usr/share/javascript/jquery/*min.js"),
+                                           pathlib.Path("/").glob(
+                                               "usr/share/javascript/jquery-flot/*min.js")):
             symlink_path = self.sandbox_root / pathlib.Path("third_party", "flot", system_path.name)
             self.logger.debug("Symlinking flot library {} ...".format(system_path.name))
             if symlink_path.exists():
@@ -500,11 +596,15 @@ class DebianBuilder(Builder):
         self._generate_patches()
 
         self.logger.info("Applying patches via quilt...")
-        result = self._run_subprocess(["quilt", "push", "-a"], append_environ=self.quilt_env_vars, cwd=str(self.sandbox_root))
+        result = self._run_subprocess(["quilt", "push", "-a"], append_environ=self.quilt_env_vars,
+                                      cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
 
-    #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"), build_output=pathlib.Path("out", "Default"), debian_gn_args=(self.PLATFORM_RESOURCES / pathlib.Path("gn_args.ini")):
+    #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"),
+    #                                 build_output=pathlib.Path("out", "Default"),
+    #                                 debian_gn_args=(self.PLATFORM_RESOURCES /
+    #                                                 pathlib.Path("gn_args.ini")):
     #    (self.sandbox_root / build_output).mkdir(parents=True, exist_ok=True)
     #    common_config = configparser.ConfigParser()
     #    common_config.read(str(gn_args))
@@ -537,61 +637,76 @@ class DebianBuilder(Builder):
             new_path = self._sandbox_dpkg_dir / old_path.stem
             old_path.replace(new_path)
             with new_path.open("r+") as new_file:
-                content = self.BuildFileStringTemplate(new_file.read()).substitute(**build_file_subs)
+                content = self.BuildFileStringTemplate(new_file.read()).substitute(
+                    **build_file_subs)
                 new_file.seek(0)
                 new_file.write(content)
                 new_file.truncate()
-        result = self._run_subprocess(["dpkg-buildpackage", "-b", "-uc"], cwd=str(self.sandbox_root))
+        result = self._run_subprocess(["dpkg-buildpackage", "-b", "-uc"],
+                                      cwd=str(self.sandbox_root))
         if not result.returncode == 0:
-            raise Exception("dpkg-buildpackage returned non-zero exit code: {}".format(result.returncode))
+            raise Exception("dpkg-buildpackage returned non-zero exit code: {}".format(
+                result.returncode))
 
 class WindowsBuilder(Builder):
+    '''Builder for Windows'''
+
     _platform_resources = pathlib.Path("resources", "windows")
     _syzygy_commit = "3c00ec0d484aeada6a3d04a14a11bd7353640107"
 
     syzygy_archive = None
-    patch_command=["patch", "-p1"]
-    use_depot_tools_windows_toolchain=False
+    patch_command = ["patch", "-p1"]
+    use_depot_tools_toolchain = False
+
+    @staticmethod
+    def _run_subprocess(*args, **kwargs):
+        # On Windows for some reason, subprocess.run(['python']) will use the current interpreter's
+        # executable even though it is not in the PATH or cwd
+        # Also, subprocess calls CreateProcess on Windows, which has limitations as shown by
+        # https://bugs.python.org/issue17023
+        # Adding shell=True solves all of these problems
+        kwargs["shell"] = True
+        return super(WindowsBuilder, WindowsBuilder)._run_subprocess(*args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         super(WindowsBuilder, self).__init__(*args, **kwargs)
 
-        self._files_cfg = self.sandbox_root / pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg")
-
-    def _run_subprocess(self, *args, **kwargs):
-        # On Windows for some reason, subprocess.run(['python']) will use the current interpreter's executable even though it is not in the PATH or cwd
-        # Also, subprocess calls CreateProcess on Windows, which has limitations as shown by https://bugs.python.org/issue17023
-        # Adding shell=True solves all of these problems
-        kwargs["shell"] = True
-        return super(WindowsBuilder, self)._run_subprocess(*args, **kwargs)
+        self._files_cfg = (self.sandbox_root /
+                           pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg"))
 
     def setup_chromium_source(self):
         super(WindowsBuilder, self).setup_chromium_source()
 
         if self.syzygy_archive is None:
-            self.syzygy_archive = self.download_dir / pathlib.Path("syzygy-{}.tar.gz".format(self._syzygy_commit))
+            self.syzygy_archive = (self.download_dir /
+                                   pathlib.Path("syzygy-{}.tar.gz".format(self._syzygy_commit)))
 
-        self._download_if_needed(self.syzygy_archive, "https://github.com/Eloston/syzygy/archive/{}.tar.gz".format(self._syzygy_commit))
+        self._download_if_needed(self.syzygy_archive,
+                                 "https://github.com/Eloston/syzygy/archive/{}.tar.gz".format(
+                                     self._syzygy_commit))
 
         self.logger.info("Extracting syzygy archive...")
         syzygy_dir = self.sandbox_root / pathlib.Path("third_party", "syzygy")
         os.makedirs(str(syzygy_dir), exist_ok=True)
-        self._extract_tar_file(self.syzygy_archive, syzygy_dir, list(), "syzygy-{}".format(self._syzygy_commit))
+        self._extract_tar_file(self.syzygy_archive, syzygy_dir, list(),
+                               "syzygy-{}".format(self._syzygy_commit))
 
     def apply_patches(self):
         self.logger.info("Applying patches via '{}' ...".format(" ".join(self.patch_command)))
         self._generate_patches()
-        with (self.ungoogled_dir / self.PATCHES / self.PATCH_ORDER).open() as patch_order_file:
+        with (self._ungoogled_dir / _PATCHES / _PATCH_ORDER).open() as patch_order_file:
             for i in [x for x in patch_order_file.read().splitlines() if len(x) > 0]:
                 self.logger.debug("Applying patch {} ...".format(i))
-                with (self.ungoogled_dir / self.PATCHES / i).open("rb") as patch_file:
-                    result = self._run_subprocess(self.patch_command, cwd=str(self.sandbox_root), stdin=patch_file)
+                with (self._ungoogled_dir / _PATCHES / i).open("rb") as patch_file:
+                    result = self._run_subprocess(self.patch_command, cwd=str(self.sandbox_root),
+                                                  stdin=patch_file)
                     if not result.returncode == 0:
-                        raise Exception("'{}' returned non-zero exit code {}".format(" ".join(self.patch_command), result.returncode))
+                        raise Exception("'{}' returned non-zero exit code {}".format(
+                            " ".join(self.patch_command), result.returncode))
 
     def generate_build_configuration(self):
         self.logger.info("Running gyp command...")
-        if self.use_depot_tools_windows_toolchain:
+        if self.use_depot_tools_toolchain:
             append_environ = None
         else:
             append_environ = {"DEPOT_TOOLS_WIN_TOOLCHAIN": "0"}
@@ -600,9 +715,12 @@ class WindowsBuilder(Builder):
     def generate_package(self):
         # Derived from chrome/tools/build/make_zip.py
         # Hardcoded to only include files with buildtype "dev" and "official", and files for 32bit
-        output_filename = "ungoogled-chromium_{}-{}_win32.zip".format(self.chromium_version, self.release_revision)
+        output_filename = "ungoogled-chromium_{}-{}_win32.zip".format(self.chromium_version,
+                                                                      self.release_revision)
         self.logger.info("Creating build output archive {} ...".format(output_filename))
         def file_list_generator():
+            '''Generator for files to be included in package'''
+
             exec_globals = {"__builtins__": None}
             with self._files_cfg.open() as cfg_file:
                 exec(cfg_file.read(), exec_globals)
@@ -610,32 +728,47 @@ class WindowsBuilder(Builder):
                 if "dev" in file_spec["buildtype"] and "official" in file_spec["buildtype"]:
                     if "arch" in file_spec and not "32bit" in file_spec["arch"]:
                         continue
-                    for file_path in (self.sandbox_root / self.build_output).glob(file_spec["filename"]):
+                    for file_path in (self.sandbox_root /
+                                      self.build_output).glob(file_spec["filename"]):
                         if not file_path.suffix.lower() == ".pdb":
-                            yield (str(file_path.relative_to(self.sandbox_root / self.build_output)), file_path)
-        with zipfile.ZipFile(output_filename, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+                            yield (str(file_path.relative_to(self.sandbox_root /
+                                                             self.build_output)), file_path)
+        with zipfile.ZipFile(output_filename, mode="w",
+                             compression=zipfile.ZIP_DEFLATED) as zip_file:
             for arcname, real_path in file_list_generator():
                 zip_file.write(str(real_path), arcname)
 
 class MacOSBuilder(Builder):
+    '''Builder for Mac OS'''
+
     _platform_resources = pathlib.Path("resources", "macos")
     _pdfsqueeze_commit = "5936b871e6a087b7e50d4cbcb122378d8a07499f"
     _google_toolbox_commit = "401878398253074c515c03cb3a3f8bb0cc8da6e9"
 
     pdfsqueeze_archive = None
     google_toolbox_archive = None
-    patch_command=["patch", "-p1"]
+    patch_command = ["patch", "-p1"]
 
     def setup_chromium_source(self):
         super(MacOSBuilder, self).setup_chromium_source()
 
         if self.pdfsqueeze_archive is None:
-            self.pdfsqueeze_archive = self.download_dir / pathlib.Path("pdfsqueeze-{}.tar.gz".format(self._pdfsqueeze_commit))
+            self.pdfsqueeze_archive = (self.download_dir /
+                                       pathlib.Path(("pdfsqueeze-{}.tar.gz".format(
+                                           self._pdfsqueeze_commit))))
         if self.google_toolbox_archive is None:
-            self.google_toolbox_archive = self.download_dir / pathlib.Path("google-toolbox-for-mac-{}.tar.gz".format(self._google_toolbox_commit))
+            self.google_toolbox_archive = (self.download_dir /
+                                           pathlib.Path("google-toolbox-for-mac-{}.tar.gz".format(
+                                               self._google_toolbox_commit)))
 
-        self._download_if_needed(self.pdfsqueeze_archive, "https://chromium.googlesource.com/external/pdfsqueeze.git/+archive/{}.tar.gz".format(self._pdfsqueeze_commit))
-        self._download_if_needed(self.google_toolbox_archive, "https://github.com/google/google-toolbox-for-mac/archive/{}.tar.gz".format(self._google_toolbox_commit))
+        self._download_if_needed(self.pdfsqueeze_archive,
+                                 ("https://chromium.googlesource.com/external/pdfsqueeze.git/"
+                                  "+archive/{}.tar.gz").format(
+                                      self._pdfsqueeze_commit))
+        self._download_if_needed(self.google_toolbox_archive,
+                                 ("https://github.com/google/google-toolbox-for-mac/"
+                                  "archive/{}.tar.gz").format(
+                                      self._google_toolbox_commit))
 
         self.logger.info("Extracting pdfsqueeze archive...")
         pdfsqueeze_dir = self.sandbox_root / pathlib.Path("third_party", "pdfsqueeze")
@@ -643,31 +776,37 @@ class MacOSBuilder(Builder):
         self._extract_tar_file(self.pdfsqueeze_archive, pdfsqueeze_dir, list(), None)
 
         self.logger.info("Extracting google-toolbox-for-mac archive...")
-        google_toolbox_dir = self.sandbox_root / pathlib.Path("third_party", "google_toolbox_for_mac", "src")
+        google_toolbox_dir = (self.sandbox_root /
+                              pathlib.Path("third_party", "google_toolbox_for_mac", "src"))
         os.makedirs(str(google_toolbox_dir), exist_ok=True)
-        self._extract_tar_file(self.google_toolbox_archive, google_toolbox_dir, list(), "google-toolbox-for-mac-{}".format(self._google_toolbox_commit))
+        self._extract_tar_file(self.google_toolbox_archive, google_toolbox_dir, list(),
+                               "google-toolbox-for-mac-{}".format(self._google_toolbox_commit))
 
     def apply_patches(self):
         self.logger.info("Applying patches via '{}' ...".format(" ".join(self.patch_command)))
         self._generate_patches()
-        with (self.ungoogled_dir / self.PATCHES / self.PATCH_ORDER).open() as patch_order_file:
+        with (self._ungoogled_dir / _PATCHES / _PATCH_ORDER).open() as patch_order_file:
             for i in [x for x in patch_order_file.read().splitlines() if len(x) > 0]:
                 self.logger.debug("Applying patch {} ...".format(i))
-                with (self.ungoogled_dir / self.PATCHES / i).open("rb") as patch_file:
-                    result = self._run_subprocess(self.patch_command, cwd=str(self.sandbox_root), stdin=patch_file)
+                with (self._ungoogled_dir / _PATCHES / i).open("rb") as patch_file:
+                    result = self._run_subprocess(self.patch_command, cwd=str(self.sandbox_root),
+                                                  stdin=patch_file)
                     if not result.returncode == 0:
-                        raise Exception("'{}' returned non-zero exit code {}".format(" ".join(self.patch_command), result.returncode))
+                        raise Exception("'{}' returned non-zero exit code {}".format(
+                            " ".join(self.patch_command), result.returncode))
 
     def build(self):
         if (self.sandbox_root / pathlib.Path("third_party", "libc++-static", "libc++.a")).exists():
             self.logger.info("libc++.a already exists. Skipping its building")
         else:
             self.logger.info("Building libc++.a ...")
-            result = self._run_subprocess([str(self.sandbox_root / pathlib.Path("third_party", "libc++-static", "build.sh"))])
+            result = self._run_subprocess([str(self.sandbox_root /
+                                               pathlib.Path("third_party",
+                                                            "libc++-static", "build.sh"))])
             if not result.returncode == 0:
                 raise Exception("libc++.a build script returned non-zero exit code")
 
-        super(MacOSPlatform, self).build()
+        super(MacOSBuilder, self).build()
 
     def generate_package(self):
         # Based off of chrome/tools/build/mac/build_app_dmg
@@ -676,12 +815,14 @@ class MacOSBuilder(Builder):
             pkg_dmg_command = [
                 str(self.sandbox_root / pathlib.Path("chrome", "installer", "mac", "pkg-dmg")),
                 "--source", "/var/empty",
-                "--target", "ungoogled-chromium_{}-{}_macos.dmg".format(self.chromium_version, self.release_revision),
+                "--target", "ungoogled-chromium_{}-{}_macos.dmg".format(self.chromium_version,
+                                                                        self.release_revision),
                 "--format", "UDBZ",
                 "--verbosity", "2",
                 "--volname", "Chromium", # From chrome/app/theme/chromium/BRANDING
                 "--tempdir", tmpdirname,
-                "--copy", str(self.sandbox_root / self.build_output / "Chromium.app") + "/:/Chromium.app",
+                "--copy", str(self.sandbox_root / self.build_output /
+                              "Chromium.app") + "/:/Chromium.app",
                 "--symlink", "/Applications:/Drag to here to install"
             ]
             result = self._run_subprocess(pkg_dmg_command)
