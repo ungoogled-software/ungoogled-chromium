@@ -307,12 +307,8 @@ class Builder:
         if not result.returncode == 0:
             raise Exception("gn gen returned non-zero exit code: {}".format(result.returncode))
 
-    def _run_ninja(self, build_output=None, targets=None):
-        if build_output is None:
-            build_output = self.build_output
-        if targets is None:
-            targets = self.targets
-        result = self._run_subprocess([self.ninja_command, "-C", str(build_output), *targets], cwd=str(self.sandbox_root))
+    def _run_ninja(self, output, targets):
+        result = self._run_subprocess([self.ninja_command, "-C", str(output), *targets], cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise Exception("ninja returned non-zero exit code: {}".format(result.returncode))
 
@@ -430,7 +426,7 @@ class Builder:
 
     def build(self):
         self.logger.info("Running build command...")
-        self._run_ninja(self.ninja_command, self.build_output, self.build_targets)
+        self._run_ninja(self.build_output, self.build_targets)
 
     def generate_package(self):
         # TODO: Create .tar.xz of binaries?
