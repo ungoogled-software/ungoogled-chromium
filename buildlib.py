@@ -63,7 +63,7 @@ class Builder:
     build_output = pathlib.Path("out", "Release") # The build directory relative to the build sandbox
     build_targets = ["chrome"]
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if cls is Builder:
             if sys.platform == "win32":
                 cls = WindowsBuilder
@@ -74,7 +74,7 @@ class Builder:
                 cls = DebianBuilder
             else:
                 raise NotImplementedError("Unsupported sys.platform value '{}'".format(sys.platform))
-        return cls
+        return object.__new__(cls, *args, **kwargs)
 
     def __init__(self, version_configfile=pathlib.Path("version.ini"), chromium_version=None, release_revision=None, sandbox_root=pathlib.Path("build_sandbox"), logger=None):
         if logger is None:
