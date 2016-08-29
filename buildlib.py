@@ -93,16 +93,17 @@ class Builder:
         else:
             self.logger = logger
 
-        if not chromium_version is None or not release_revision is None:
-            version_config = configparser.ConfigParser().read(str(version_configfile))
-            if chromium_version is None:
-                self.chromium_version = version_config["main"]["chromium_version"]
-            else:
-                self.chromium_version = chromium_version
-            if release_revision is None:
-                self.release_revision = version_config["main"]["release_revision"]
-            else:
-                self.release_revision = release_revision
+        if chromium_version is None or release_revision is None:
+            version_config = configparser.ConfigParser()
+            version_config.read(str(version_configfile))
+        if chromium_version is None:
+            self.chromium_version = version_config["main"]["chromium_version"]
+        else:
+            self.chromium_version = chromium_version
+        if release_revision is None:
+            self.release_revision = version_config["main"]["release_revision"]
+        else:
+            self.release_revision = release_revision
 
         if sandbox_root.exists():
             if not sandbox_root.is_dir():
