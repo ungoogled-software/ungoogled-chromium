@@ -800,9 +800,9 @@ class MacOSBuilder(Builder):
             self.logger.info("libc++.a already exists. Skipping its building")
         else:
             self.logger.info("Building libc++.a ...")
-            result = self._run_subprocess([str(self.sandbox_root /
-                                               pathlib.Path("third_party",
-                                                            "libc++-static", "build.sh"))])
+            libcxx_dir = self.sandbox_root / pathlib.Path("third_party", "libc++-static")
+            result = self._run_subprocess([str(libcxx_dir / pathlib.Path("build.sh"))],
+                                          cwd=str(libcxx_dir), shell=True)
             if not result.returncode == 0:
                 raise Exception("libc++.a build script returned non-zero exit code")
 
