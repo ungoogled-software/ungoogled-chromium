@@ -800,7 +800,7 @@ class MacOSBuilder(Builder):
             self.logger.info("libc++.a already exists. Skipping its building")
         else:
             self.logger.info("Building libc++.a ...")
-            result = self._run_subprocess(["build.sh"],
+            result = self._run_subprocess("./build.sh",
                                           cwd=str(self.sandbox_root /
                                                   pathlib.Path("third_party", "libc++-static")),
                                           shell=True)
