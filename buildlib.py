@@ -591,7 +591,13 @@ class DebianBuilder(Builder):
         self.logger.debug("Copying patches to {}...".format(str(self._ungoogled_dir / _PATCHES)))
 
         if (self._ungoogled_dir / _PATCHES).exists():
-            raise Exception("Sandbox patches directory already exists")
+            self.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
+            result = self._run_subprocess(["quilt", "pop", "-a"],
+                                          append_environ=self.quilt_env_vars,
+                                          cwd=str(self.sandbox_root))
+            if not result.returncode == 0:
+                raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
+            shutil.rmtree(str(self._ungoogled_dir, _PATCHES))
 
         self._generate_patches()
 
@@ -747,7 +753,14 @@ class MacOSBuilder(Builder):
 
     pdfsqueeze_archive = None
     google_toolbox_archive = None
-    patch_command = ["patch", "-p1"]
+
+    def __init__(self, *args, **kwargs):
+        super(MacOSBuilder, self).__init__(*args, **kwargs)
+
+        self.quilt_env_vars = {
+            "QUILT_PATCHES": str(self._ungoogled_dir / _PATCHES),
+            "QUILT_SERIES": str(_PATCH_ORDER)
+        }
 
     def setup_chromium_source(self):
         super(MacOSBuilder, self).setup_chromium_source()
@@ -783,17 +796,24 @@ class MacOSBuilder(Builder):
                                "google-toolbox-for-mac-{}".format(self._google_toolbox_commit))
 
     def apply_patches(self):
-        self.logger.info("Applying patches via '{}' ...".format(" ".join(self.patch_command)))
+        self.logger.debug("Copying patches to {}...".format(str(self._ungoogled_dir / _PATCHES)))
+
+        if (self._ungoogled_dir / _PATCHES).exists():
+            self.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
+            result = self._run_subprocess(["quilt", "pop", "-a"],
+                                          append_environ=self.quilt_env_vars,
+                                          cwd=str(self.sandbox_root))
+            if not result.returncode == 0:
+                raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
+            shutil.rmtree(str(self._ungoogled_dir, _PATCHES))
+
         self._generate_patches()
-        with (self._ungoogled_dir / _PATCHES / _PATCH_ORDER).open() as patch_order_file:
-            for i in [x for x in patch_order_file.read().splitlines() if len(x) > 0]:
-                self.logger.debug("Applying patch {} ...".format(i))
-                with (self._ungoogled_dir / _PATCHES / i).open("rb") as patch_file:
-                    result = self._run_subprocess(self.patch_command, cwd=str(self.sandbox_root),
-                                                  stdin=patch_file)
-                    if not result.returncode == 0:
-                        raise Exception("'{}' returned non-zero exit code {}".format(
-                            " ".join(self.patch_command), result.returncode))
+
+        self.logger.info("Applying patches via quilt...")
+        result = self._run_subprocess(["quilt", "push", "-a"], append_environ=self.quilt_env_vars,
+                                      cwd=str(self.sandbox_root))
+        if not result.returncode == 0:
+            raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
 
     def build(self):
         if (self.sandbox_root / pathlib.Path("third_party", "libc++-static", "libc++.a")).exists():
