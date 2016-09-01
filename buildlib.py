@@ -49,6 +49,10 @@ _PATCH_ORDER = pathlib.Path("patch_order")
 _GYP_FLAGS = pathlib.Path("gyp_flags")
 #_GN_ARGS = pathlib.Path("gn_args.ini")
 
+class BuilderException(Exception):
+    '''buildlib Builder exception for distinguishing errors'''
+    pass
+
 class Builder:
     '''
     Generic builder class. Also a metaclass for specific Builder implementations
@@ -109,8 +113,8 @@ class Builder:
                 # TODO: Add finer granularity when non-Debian distributions are supported
                 cls = DebianBuilder
             else:
-                raise NotImplementedError("Unsupported sys.platform value"
-                                          "'{}'".format(sys.platform))
+                raise BuilderException("Unsupported sys.platform value"
+                                       "'{}'".format(sys.platform))
         return object.__new__(cls, *args, **kwargs)
 
     def __init__(self, version_configfile=pathlib.Path("version.ini"), chromium_version=None,
@@ -145,8 +149,8 @@ class Builder:
 
         if sandbox_root.exists():
             if not sandbox_root.is_dir():
-                raise Exception(("sandbox_root path {!s} already exists, "
-                                 "but is not a directory").format(sandbox_root))
+                raise BuilderException("sandbox_root path {!s} already exists, "
+                                       "but is not a directory".format(sandbox_root))
         else:
             self.logger.info("sandbox_root path {!s} does not exist. Creating...".format(
                 sandbox_root))
@@ -156,8 +160,8 @@ class Builder:
         self._ungoogled_dir = self.sandbox_root / ".ungoogled"
         if self._ungoogled_dir.exists():
             if not self._ungoogled_dir.is_dir():
-                raise Exception("_ungoogled_dir path {!s} exists, but is not a directory".format(
-                    self._ungoogled_dir))
+                raise BuilderException("_ungoogled_dir path {!s} exists, "
+                                       "but is not a directory".format(self._ungoogled_dir))
         else:
             self.logger.info("_ungoogled_dir path {!s} does not exist. Creating...".format(
                 self._ungoogled_dir))
@@ -190,7 +194,7 @@ class Builder:
 
     def _download_if_needed(self, file_path, url):
         if file_path.exists() and not file_path.is_file():
-            raise Exception("{} is an existing non-file".format(str(file_path)))
+            raise BuilderException("{} is an existing non-file".format(str(file_path)))
         elif self.force_download or not file_path.is_file():
             self.logger.info("Downloading {} ...".format(str(file_path)))
             with urllib.request.urlopen(url) as response:
@@ -321,7 +325,8 @@ class Builder:
         result = self._run_subprocess(command_list, append_environ=append_environ,
                                       cwd=str(self.sandbox_root))
         if not result.returncode == 0:
-            raise Exception("GYP command returned non-zero exit code: {}".format(result.returncode))
+            raise BuilderException("GYP command returned non-zero exit code: {}".format(
+                result.returncode))
 
     def _gn_write_args(self, args_map):
         '''
@@ -352,13 +357,15 @@ class Builder:
     #    command_list.append(str(self.build_output))
     #    result = self._run_subprocess(command_list, cwd=str(self.sandbox_root))
     #    if not result.returncode == 0:
-    #        raise Exception("gn gen returned non-zero exit code: {}".format(result.returncode))
+    #        raise BuilderException("gn gen returned non-zero exit code: {}".format(
+    #            result.returncode))
 
     def _run_ninja(self, output, targets):
         result = self._run_subprocess([self.ninja_command, "-C", str(output), *targets],
                                       cwd=str(self.sandbox_root))
         if not result.returncode == 0:
-            raise Exception("ninja returned non-zero exit code: {}".format(result.returncode))
+            raise BuilderException("ninja returned non-zero exit code: {}".format(
+                result.returncode))
 
     #def _build_gn(self):
     #    '''
@@ -379,8 +386,8 @@ class Builder:
     #            command_list.insert(0, self.python2_command)
     #        result = self._run_subprocess(command_list, cwd=str(self.sandbox_root))
     #        if not result.returncode == 0:
-    #            raise Exception("GN bootstrap command returned non-zero exit code: {}".format(
-    #                result.returncode))
+    #            raise BuilderException("GN bootstrap command returned "
+    #                                   "non-zero exit code: {}".format(result.returncode))
     #    self.logger.info("Building gn using bootstrap gn...")
     #    build_output = pathlib.Path("out", "gn_release")
     #    (self.sandbox_root / build_output).mkdir(parents=True, exist_ok=True)
@@ -479,7 +486,7 @@ class Builder:
     #    `build_gn` and `gn_command` are mutually exclusive.
     #    '''
     #    if build_gn and not gn_command is None:
-    #        raise Exception("Conflicting arguments: build_gn and gn_path")
+    #        raise BuilderException("Conflicting arguments: build_gn and gn_path")
     #    self.ninja_command = ninja_command
     #    if build_gn:
     #        self.gn_command = self._build_gn(python2_command)
@@ -571,7 +578,7 @@ class DebianBuilder(Builder):
         result = self._run_subprocess(["dpkg-checkbuilddeps",
                                        str(self._dpkg_dir / pathlib.Path("control"))])
         if not result.returncode == 0:
-            raise Exception("Build dependencies not met")
+            raise BuilderException("Build dependencies not met")
 
     def setup_build_sandbox(self):
         super(DebianBuilder, self).setup_build_sandbox()
@@ -596,7 +603,8 @@ class DebianBuilder(Builder):
                                           append_environ=self.quilt_env_vars,
                                           cwd=str(self.sandbox_root))
             if not result.returncode == 0:
-                raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
+                raise BuilderException("Quilt returned non-zero exit code: {}".format(
+                    result.returncode))
             shutil.rmtree(str(self._ungoogled_dir, _PATCHES))
 
         self._generate_patches()
@@ -605,7 +613,8 @@ class DebianBuilder(Builder):
         result = self._run_subprocess(["quilt", "push", "-a"], append_environ=self.quilt_env_vars,
                                       cwd=str(self.sandbox_root))
         if not result.returncode == 0:
-            raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
+            raise BuilderException("Quilt returned non-zero exit code: {}".format(
+                result.returncode))
 
     #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"),
     #                                 build_output=pathlib.Path("out", "Default"),
@@ -651,7 +660,7 @@ class DebianBuilder(Builder):
         result = self._run_subprocess(["dpkg-buildpackage", "-b", "-uc"],
                                       cwd=str(self.sandbox_root))
         if not result.returncode == 0:
-            raise Exception("dpkg-buildpackage returned non-zero exit code: {}".format(
+            raise BuilderException("dpkg-buildpackage returned non-zero exit code: {}".format(
                 result.returncode))
 
 class WindowsBuilder(Builder):
@@ -707,7 +716,7 @@ class WindowsBuilder(Builder):
                     result = self._run_subprocess(self.patch_command, cwd=str(self.sandbox_root),
                                                   stdin=patch_file)
                     if not result.returncode == 0:
-                        raise Exception("'{}' returned non-zero exit code {}".format(
+                        raise BuilderException("'{}' returned non-zero exit code {}".format(
                             " ".join(self.patch_command), result.returncode))
 
     def generate_build_configuration(self):
@@ -804,7 +813,8 @@ class MacOSBuilder(Builder):
                                           append_environ=self.quilt_env_vars,
                                           cwd=str(self.sandbox_root))
             if not result.returncode == 0:
-                raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
+                raise BuilderException("Quilt returned non-zero exit code: {}".format(
+                    result.returncode))
             shutil.rmtree(str(self._ungoogled_dir, _PATCHES))
 
         self._generate_patches()
@@ -813,7 +823,8 @@ class MacOSBuilder(Builder):
         result = self._run_subprocess(["quilt", "push", "-a"], append_environ=self.quilt_env_vars,
                                       cwd=str(self.sandbox_root))
         if not result.returncode == 0:
-            raise Exception("Quilt returned non-zero exit code: {}".format(result.returncode))
+            raise BuilderException("Quilt returned non-zero exit code: {}".format(
+                result.returncode))
 
     def build(self):
         if (self.sandbox_root / pathlib.Path("third_party", "libc++-static", "libc++.a")).exists():
@@ -825,7 +836,7 @@ class MacOSBuilder(Builder):
                                                   pathlib.Path("third_party", "libc++-static")),
                                           shell=True)
             if not result.returncode == 0:
-                raise Exception("libc++.a build script returned non-zero exit code")
+                raise BuilderException("libc++.a build script returned non-zero exit code")
 
         super(MacOSBuilder, self).build()
 
@@ -848,4 +859,4 @@ class MacOSBuilder(Builder):
             ]
             result = self._run_subprocess(pkg_dmg_command)
             if not result.returncode == 0:
-                raise Exception("pkg-dmg returned non-zero exit code")
+                raise BuilderException("pkg-dmg returned non-zero exit code")

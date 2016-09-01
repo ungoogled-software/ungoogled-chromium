@@ -27,16 +27,24 @@ Will probably add a CLI in the future
 import buildlib
 
 def main():
-    builder = buildlib.Builder()
-    # Modify builder's attributes as necessary. See the Builder class for options
-    builder.check_build_environment()
-    builder.setup_chromium_source()
-    builder.setup_build_sandbox()
-    builder.apply_patches()
-    builder.setup_build_utilities()
-    builder.generate_build_configuration()
-    builder.build()
-    builder.generate_package()
+    try:
+        builder = buildlib.Builder()
+        # Modify builder's attributes as necessary. See the Builder class for options
+        builder.check_build_environment()
+        builder.setup_chromium_source()
+        builder.setup_build_sandbox()
+        builder.apply_patches()
+        builder.setup_build_utilities()
+        builder.generate_build_configuration()
+        builder.build()
+        builder.generate_package()
+    except buildlib.BuilderException as exc:
+        try:
+            builder.logger.error(str(exc))
+        except AttributeError: # Failed before object instantiation
+            import sys
+            print("ERROR: {!s}".format(exc), file=sys.stderr)
+        return 1
 
     return 0
 
