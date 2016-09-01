@@ -399,7 +399,34 @@ class Builder:
 
     def check_build_environment(self):
         '''Checks the build environment before building'''
-        pass
+
+        self.logger.info("Checking Python 2 command...")
+        if self.python2_command is None:
+            # If None, probably using the shebang line which uses "python"
+            self.logger.info("No Python 2 command specified; testing with 'python'")
+            python_test_command = "python"
+        else:
+            python_test_command = self.python2_command
+        result = self._run_subprocess([python_test_command, "-c",
+                                       ("import sys;print '{}.{}.{}'.format("
+                                        "sys.version_info.major, sys.version_info.minor, "
+                                        "sys.version_info.micro)")],
+                                      stdout=subprocess.PIPE, universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("Python 2 command returned non-zero exit code {}".format(
+                result.returncode))
+        if not result.stdout.split(".")[0] is "2":
+            raise BuilderException("Unsupported Python version '{!s}'".format(
+                result.stdout.strip("\n")))
+        self.logger.debug("Using Python version '{!s}'".format(result.stdout.strip("\n")))
+
+        self.logger.info("Checking ninja command...")
+        result = self._run_subprocess([self.ninja_command, "--version"],
+                                      stdout=subprocess.PIPE, universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("Ninja command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using ninja version '{!s}'".format(result.stdout.strip("\n")))
 
     def setup_chromium_source(self):
         '''
@@ -527,6 +554,7 @@ class DebianBuilder(Builder):
     _platform_resources = pathlib.Path("resources", "debian")
     _dpkg_dir = _platform_resources / pathlib.Path("dpkg_dir")
 
+    quilt_command = "quilt"
     build_targets = ["chrome", "chrome_sandbox", "chromedriver"]
 
     class BuildFileStringTemplate(string.Template):
@@ -574,11 +602,13 @@ class DebianBuilder(Builder):
         }
 
     def check_build_environment(self):
-        self.logger.info("Checking build dependencies...")
+        self.logger.info("Checking installed packages...")
         result = self._run_subprocess(["dpkg-checkbuilddeps",
                                        str(self._dpkg_dir / pathlib.Path("control"))])
         if not result.returncode == 0:
-            raise BuilderException("Build dependencies not met")
+            raise BuilderException("Missing packages required for building")
+
+        super(DebianBuilder, self).check_build_environment()
 
     def setup_build_sandbox(self):
         super(DebianBuilder, self).setup_build_sandbox()
@@ -599,7 +629,7 @@ class DebianBuilder(Builder):
 
         if (self._ungoogled_dir / _PATCHES).exists():
             self.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
-            result = self._run_subprocess(["quilt", "pop", "-a"],
+            result = self._run_subprocess([self.quilt_command, "pop", "-a"],
                                           append_environ=self.quilt_env_vars,
                                           cwd=str(self.sandbox_root))
             if not result.returncode == 0:
@@ -610,7 +640,8 @@ class DebianBuilder(Builder):
         self._generate_patches()
 
         self.logger.info("Applying patches via quilt...")
-        result = self._run_subprocess(["quilt", "push", "-a"], append_environ=self.quilt_env_vars,
+        result = self._run_subprocess([self.quilt_command, "push", "-a"],
+                                      append_environ=self.quilt_env_vars,
                                       cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise BuilderException("Quilt returned non-zero exit code: {}".format(
@@ -689,6 +720,17 @@ class WindowsBuilder(Builder):
         self._files_cfg = (self.sandbox_root /
                            pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg"))
 
+    def check_build_environment(self):
+        super(WindowsBuilder, self).check_build_environment()
+
+        self.logger.info("Checking patch command...")
+        result = self._run_subprocess([self.patch_command[0], "--version"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("patch command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using patch command '{!s}'".format(result.stdout.split("\n")[0]))
+
     def setup_chromium_source(self):
         super(WindowsBuilder, self).setup_chromium_source()
 
@@ -760,6 +802,7 @@ class MacOSBuilder(Builder):
     _pdfsqueeze_commit = "5936b871e6a087b7e50d4cbcb122378d8a07499f"
     _google_toolbox_commit = "401878398253074c515c03cb3a3f8bb0cc8da6e9"
 
+    quilt_command = "quilt"
     pdfsqueeze_archive = None
     google_toolbox_archive = None
 
@@ -770,6 +813,43 @@ class MacOSBuilder(Builder):
             "QUILT_PATCHES": str(self._ungoogled_dir / _PATCHES),
             "QUILT_SERIES": str(_PATCH_ORDER)
         }
+
+    def check_build_environment(self):
+        super(MacOSBuilder, self).check_build_environment()
+
+        self.logger.info("Checking quilt command...")
+        result = self._run_subprocess([self.quilt_command, "--version"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("quilt command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using quilt command '{!s}'".format(result.stdout.strip("\n")))
+
+        self.logger.info("Checking svn command...")
+        result = self._run_subprocess(["svn", "--version", "--quiet"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("svn command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using svn command version '{!s}'".format(result.stdout.strip("\n")))
+
+        self.logger.info("Checking libtool command...")
+        result = self._run_subprocess(["libtool", "--version"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("libtool command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using libtool command '{!s}'".format(result.stdout.split("\n")[0]))
+
+        self.logger.info("Checking compilers...")
+        compiler_list = [ # TODO: Move these paths to another config file?
+            "/usr/local/Cellar/llvm/3.8.1/bin/clang",
+            "/usr/local/Cellar/llvm/3.8.1/bin/clang++",
+            "/usr/local/Cellar/gcc49/4.9.3/bin/x86_64-apple-darwin15.4.0-c++-4.9"]
+        for compiler in compiler_list:
+            if not pathlib.Path(compiler).is_file():
+                raise BuilderException("Compiler '{}' does not exist or is not a file".format(
+                    compiler))
 
     def setup_chromium_source(self):
         super(MacOSBuilder, self).setup_chromium_source()
@@ -809,7 +889,7 @@ class MacOSBuilder(Builder):
 
         if (self._ungoogled_dir / _PATCHES).exists():
             self.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
-            result = self._run_subprocess(["quilt", "pop", "-a"],
+            result = self._run_subprocess([self.quilt_command, "pop", "-a"],
                                           append_environ=self.quilt_env_vars,
                                           cwd=str(self.sandbox_root))
             if not result.returncode == 0:
@@ -820,7 +900,8 @@ class MacOSBuilder(Builder):
         self._generate_patches()
 
         self.logger.info("Applying patches via quilt...")
-        result = self._run_subprocess(["quilt", "push", "-a"], append_environ=self.quilt_env_vars,
+        result = self._run_subprocess([self.quilt_command, "push", "-a"],
+                                      append_environ=self.quilt_env_vars,
                                       cwd=str(self.sandbox_root))
         if not result.returncode == 0:
             raise BuilderException("Quilt returned non-zero exit code: {}".format(
