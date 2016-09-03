@@ -67,8 +67,6 @@ Make sure all of the following are in the `PATH`:
 * gperf as `gperf`
 * bison as `bison`
 
-Also, ensure that `TEMP` and `TMP` environment variables point to existing directories.
-
 See `build.py` for more on customizing the build environment or process.
 
 ### Build

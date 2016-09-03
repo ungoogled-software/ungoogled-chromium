@@ -702,6 +702,7 @@ class WindowsBuilder(Builder):
 
     syzygy_archive = None
     patch_command = ["patch", "-p1"]
+    python2_command = "python"
     use_depot_tools_toolchain = False
 
     @staticmethod
@@ -768,6 +769,13 @@ class WindowsBuilder(Builder):
         else:
             append_environ = {"DEPOT_TOOLS_WIN_TOOLCHAIN": "0"}
         self._gyp_generate_ninja(self._get_gyp_flags(), append_environ)
+
+    def build(self):
+        # Try to make temporary directories so ninja won't fail
+        os.makedirs(os.environ["TEMP"], exist_ok=True)
+        os.makedirs(os.environ["TMP"], exist_ok=True)
+
+        super(WindowsBuilder, self).build()
 
     def generate_package(self):
         # Derived from chrome/tools/build/make_zip.py
