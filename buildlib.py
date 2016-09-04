@@ -45,6 +45,7 @@ _CLEANING_LIST = pathlib.Path("cleaning_list")
 _DOMAIN_REGEX_LIST = pathlib.Path("domain_regex_list")
 _DOMAIN_SUBSTITUTION_LIST = pathlib.Path("domain_substitution_list")
 _PATCHES = pathlib.Path("patches")
+_EXTRA_DEPS = pathlib.Path("extra_deps.ini")
 _PATCH_ORDER = pathlib.Path("patch_order")
 _GYP_FLAGS = pathlib.Path("gyp_flags")
 #_GN_ARGS = pathlib.Path("gn_args.ini")
@@ -59,16 +60,6 @@ class Builder:
     '''
 
     _platform_resources = None
-
-    # The path to the Chromium source archive. Will be set automatically if left as None
-    source_archive = None
-
-    # The path to the Chromium source archive hashes file.
-    # Will be set automatically if left as None
-    source_archive_hashes = None
-
-    # The directory to store downloads if downloading is needed
-    download_dir = pathlib.Path(".")
 
     # Force the downloading of dependencies instead of checking if they exist
     force_download = False
@@ -167,6 +158,16 @@ class Builder:
                 self._sandbox_dir))
             self._sandbox_dir.mkdir()
 
+        self._downloads_dir = build_dir / pathlib.Path("downloads")
+        if self._downloads_dir.exists():
+            if not self._downloads_dir.is_dir():
+                raise BuilderException("_downloads_dir path {!s} already exists, "
+                                       "but is not a directory".format(self._downloads_dir))
+        else:
+            self.logger.info("_downloads_dir path {!s} does not exist. Creating...".format(
+                self._downloads_dir))
+            self._downloads_dir.mkdir()
+
         self._domain_regex_cache = None
 
     def _read_list_resource(self, file_name, is_binary=False):
@@ -174,9 +175,11 @@ class Builder:
             file_mode = "rb"
         else:
             file_mode = "r"
+        tmp_list = list()
         common_path = _COMMON_RESOURCES / file_name
-        with common_path.open(file_mode) as file_obj:
-            tmp_list = file_obj.read().splitlines()
+        if common_path.exists():
+            with common_path.open(file_mode) as file_obj:
+                tmp_list.extend(file_obj.read().splitlines())
         if not self._platform_resources is None:
             platform_path = self._platform_resources / file_name
             if platform_path.exists():
@@ -184,6 +187,34 @@ class Builder:
                     tmp_list.extend(file_obj.read().splitlines())
                     self.logger.debug("Successfully appended platform list")
         return [x for x in tmp_list if len(x) > 0]
+
+    def _read_ini_resource(self, file_name):
+        combined_dict = dict()
+        common_ini = _COMMON_RESOURCES / file_name
+        if common_ini.exists():
+            self.logger.debug("Found common ini")
+            common_config = configparser.ConfigParser()
+            common_config.read(str(common_ini))
+            for section in common_config:
+                if section == "DEFAULT":
+                    continue
+                combined_dict[section] = dict()
+                for config_key in common_config[section]:
+                    combined_dict[section][config_key] = common_config[section][config_key]
+        if not self._platform_resources is None:
+            platform_ini = self._platform_resources / file_name
+            if platform_ini.exists():
+                self.logger.debug("Found platform ini")
+                platform_config = configparser.ConfigParser()
+                platform_config.read(str(platform_ini))
+                for section in platform_config:
+                    if section == "DEFAULT":
+                        continue
+                    if not section in combined_dict:
+                        combined_dict[section] = dict()
+                    for config_key in platform_config[section]:
+                        combined_dict[section][config_key] = platform_config[section][config_key]
+        return combined_dict
 
     def _get_gyp_flags(self):
         args_dict = dict()
@@ -252,6 +283,14 @@ class Builder:
                 except Exception as exc:
                     self.logger.error("Exception thrown for tar member {}".format(tarinfo.name))
                     raise exc
+
+    def _setup_tar_dependency(self, tar_url, tar_filename, strip_tar_dirs, dep_destination):
+        tar_destination = self._downloads_dir / pathlib.Path(tar_filename)
+        self._download_if_needed(tar_destination, tar_url)
+        self.logger.info("Extracting {}...".format(tar_filename))
+        os.makedirs(str(self._sandbox_dir / dep_destination), exist_ok=True)
+        self._extract_tar_file(tar_destination, (self._sandbox_dir / dep_destination), list(),
+                               strip_tar_dirs)
 
     def _get_parsed_domain_regexes(self):
         if self._domain_regex_cache is None:
@@ -432,33 +471,31 @@ class Builder:
         '''
         Sets up the Chromium source code in the build sandbox.
         '''
-        if self.source_archive is None:
-            self.source_archive = (self.download_dir /
-                                   pathlib.Path("chromium-{version}.tar.xz".format(
-                                       version=self.chromium_version)))
-        if self.source_archive_hashes is None:
-            self.source_archive_hashes = (self.download_dir /
-                                          pathlib.Path("chromium-{version}.tar.xz.hashes".format(
-                                              version=self.chromium_version)))
+        source_archive = (self._downloads_dir /
+                          pathlib.Path("chromium-{version}.tar.xz".format(
+                              version=self.chromium_version)))
+        source_archive_hashes = (self._downloads_dir /
+                                 pathlib.Path("chromium-{version}.tar.xz.hashes".format(
+                                     version=self.chromium_version)))
 
-        self._download_if_needed(self.source_archive,
+        self._download_if_needed(source_archive,
                                  ("https://commondatastorage.googleapis.com/"
                                   "chromium-browser-official/chromium-{version}.tar.xz").format(
                                       version=self.chromium_version))
-        self._download_if_needed(self.source_archive_hashes,
+        self._download_if_needed(source_archive_hashes,
                                  ("https://commondatastorage.googleapis.com/"
                                   "chromium-browser-official/"
                                   "chromium-{version}.tar.xz.hashes").format(
                                       version=self.chromium_version))
 
         self.logger.info("Checking source archive integrity...")
-        with self.source_archive_hashes.open("r") as hashes_file:
+        with source_archive_hashes.open("r") as hashes_file:
             for hash_line in hashes_file.read().split("\n"):
                 hash_line = hash_line.split("  ")
                 if hash_line[0] in hashlib.algorithms_available:
                     self.logger.debug("Running '{}' hash check...".format(hash_line[0]))
                     hasher = hashlib.new(hash_line[0])
-                    with self.source_archive.open("rb") as file_obj:
+                    with source_archive.open("rb") as file_obj:
                         hasher.update(file_obj.read())
                         if not hasher.hexdigest() == hash_line[1]:
                             self.logger.error(("Archive does not have matching '{algorithm}'"
@@ -472,13 +509,26 @@ class Builder:
         self.logger.info("Extracting source archive into building sandbox...")
         if self.run_source_cleaner:
             list_obj = self._read_list_resource(_CLEANING_LIST)
-            self._extract_tar_file(self.source_archive, self._sandbox_dir, list_obj,
+            self._extract_tar_file(source_archive, self._sandbox_dir, list_obj,
                                    "chromium-{}".format(self.chromium_version))
             for i in list_obj:
                 self.logger.warning("File does not exist in tar file: {}".format(i))
         else:
-            self._extract_tar_file(self.source_archive, self._sandbox_dir, list(),
+            self._extract_tar_file(source_archive, self._sandbox_dir, list(),
                                    "chromium-{}".format(self.chromium_version))
+
+        extra_deps_dict = self._read_ini_resource(_EXTRA_DEPS)
+        for section in extra_deps_dict:
+            dep_commit = extra_deps_dict[section]["commit"]
+            dep_url = extra_deps_dict[section]["url"].format(commit=dep_commit)
+            dep_download_name = extra_deps_dict[section]["download_name"].format(commit=dep_commit)
+            if "strip_leading_dirs" in extra_deps_dict[section]:
+                dep_strip_dirs = pathlib.Path(
+                    extra_deps_dict[section]["strip_leading_dirs"].format(commit=dep_commit))
+            else:
+                dep_strip_dirs = None
+            self._setup_tar_dependency(dep_url, dep_download_name, dep_strip_dirs,
+                                       pathlib.Path(section))
 
     def setup_build_sandbox(self):
         '''
@@ -698,9 +748,7 @@ class WindowsBuilder(Builder):
     '''Builder for Windows'''
 
     _platform_resources = pathlib.Path("resources", "windows")
-    _syzygy_commit = "3c00ec0d484aeada6a3d04a14a11bd7353640107"
 
-    syzygy_archive = None
     patch_command = ["patch", "-p1"]
     python2_command = "python"
     use_depot_tools_toolchain = False
@@ -731,23 +779,6 @@ class WindowsBuilder(Builder):
             raise BuilderException("patch command returned non-zero exit code {}".format(
                 result.returncode))
         self.logger.debug("Using patch command '{!s}'".format(result.stdout.split("\n")[0]))
-
-    def setup_chromium_source(self):
-        super(WindowsBuilder, self).setup_chromium_source()
-
-        if self.syzygy_archive is None:
-            self.syzygy_archive = (self.download_dir /
-                                   pathlib.Path("syzygy-{}.tar.gz".format(self._syzygy_commit)))
-
-        self._download_if_needed(self.syzygy_archive,
-                                 "https://github.com/Eloston/syzygy/archive/{}.tar.gz".format(
-                                     self._syzygy_commit))
-
-        self.logger.info("Extracting syzygy archive...")
-        syzygy_dir = self._sandbox_dir / pathlib.Path("third_party", "syzygy")
-        os.makedirs(str(syzygy_dir), exist_ok=True)
-        self._extract_tar_file(self.syzygy_archive, syzygy_dir, list(),
-                               "syzygy-{}".format(self._syzygy_commit))
 
     def apply_patches(self):
         self.logger.info("Applying patches via '{}' ...".format(" ".join(self.patch_command)))
@@ -808,12 +839,8 @@ class MacOSBuilder(Builder):
     '''Builder for Mac OS'''
 
     _platform_resources = pathlib.Path("resources", "macos")
-    _pdfsqueeze_commit = "5936b871e6a087b7e50d4cbcb122378d8a07499f"
-    _google_toolbox_commit = "401878398253074c515c03cb3a3f8bb0cc8da6e9"
 
     quilt_command = "quilt"
-    pdfsqueeze_archive = None
-    google_toolbox_archive = None
 
     def __init__(self, *args, **kwargs):
         super(MacOSBuilder, self).__init__(*args, **kwargs)
@@ -859,39 +886,6 @@ class MacOSBuilder(Builder):
             if not pathlib.Path(compiler).is_file():
                 raise BuilderException("Compiler '{}' does not exist or is not a file".format(
                     compiler))
-
-    def setup_chromium_source(self):
-        super(MacOSBuilder, self).setup_chromium_source()
-
-        if self.pdfsqueeze_archive is None:
-            self.pdfsqueeze_archive = (self.download_dir /
-                                       pathlib.Path(("pdfsqueeze-{}.tar.gz".format(
-                                           self._pdfsqueeze_commit))))
-        if self.google_toolbox_archive is None:
-            self.google_toolbox_archive = (self.download_dir /
-                                           pathlib.Path("google-toolbox-for-mac-{}.tar.gz".format(
-                                               self._google_toolbox_commit)))
-
-        self._download_if_needed(self.pdfsqueeze_archive,
-                                 ("https://chromium.googlesource.com/external/pdfsqueeze.git/"
-                                  "+archive/{}.tar.gz").format(
-                                      self._pdfsqueeze_commit))
-        self._download_if_needed(self.google_toolbox_archive,
-                                 ("https://github.com/google/google-toolbox-for-mac/"
-                                  "archive/{}.tar.gz").format(
-                                      self._google_toolbox_commit))
-
-        self.logger.info("Extracting pdfsqueeze archive...")
-        pdfsqueeze_dir = self._sandbox_dir / pathlib.Path("third_party", "pdfsqueeze")
-        os.makedirs(str(pdfsqueeze_dir), exist_ok=True)
-        self._extract_tar_file(self.pdfsqueeze_archive, pdfsqueeze_dir, list(), None)
-
-        self.logger.info("Extracting google-toolbox-for-mac archive...")
-        google_toolbox_dir = (self._sandbox_dir /
-                              pathlib.Path("third_party", "google_toolbox_for_mac", "src"))
-        os.makedirs(str(google_toolbox_dir), exist_ok=True)
-        self._extract_tar_file(self.google_toolbox_archive, google_toolbox_dir, list(),
-                               "google-toolbox-for-mac-{}".format(self._google_toolbox_commit))
 
     def apply_patches(self):
         self.logger.debug("Copying patches to {}...".format(str(self.build_dir / _PATCHES)))

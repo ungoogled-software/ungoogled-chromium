@@ -58,17 +58,23 @@ There are currently two automated scripts that process the source code:
 
 These are the general steps that ungoogled-chromium takes to build:
 
-1. Get the source code archive in `.tar.xz` format via https://commondatastorage.googleapis.com/
+1. Get the source code archive in `.tar.xz` format via `https://commondatastorage.googleapis.com/` and extract it into `build/sandbox/`
+    * Also download any additional non-Linux dependencies for building on non-Linux platforms, since the `.tar.xz` is generated on a Linux system
 2. Run source cleaner (done during source archive extraction)
+    * Optional, enabled by default
 2. Run domain substitution
-2. Apply patches
+    * Optional, enabled by default
+2. Copy patches into `build/patches/` and apply them
+    * If domain substitution was run earlier, then the patches will pass through domain substitution first
 3. Configure the build utilities and run meta-build configuration (i.e. GYP, not GN. See [Issue #16](//github.com/Eloston/ungoogled-chromium/issues/16))
 4. Build (via 'ninja')
+5. Generate binary packages and place them in `build/`
 
 Here's a breakdown of what is in a resources directory:
 * `cleaning_list` - (Used for source cleaning) A list of files to be excluded during the extraction of the Chromium source
 * `domain_regex_list` - (Used for domain substitution) A list of regular expressions that define how domains will be replaced in the source code
 * `domain_substitution_list` - (Used for domain substitution) A list of files that are processed by `domain_regex_list`
+* `extra_deps.ini` - Contains info to download extra dependencies needed for the platform but not included in the main Chromium source archive
 * `gn_args.ini` - A list of GN arguments to use for building. (Currently unused, see [Issue #16](//github.com/Eloston/ungoogled-chromium/issues/16))
 * `gyp_flags` - A list of GYP flags to use for building.
 * `patches/` - Contains patches. `common/patches` directory contains patches that provide the main features of ungoogled-chromium (as listed above) and can be applied on any platform (but are not necessarily designed to affect all platforms). However, other `patches/` directories in other platform directories are platform-specific. The contents of `common/patches` are explained more in-depth below.
