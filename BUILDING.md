@@ -115,6 +115,8 @@ Please read the section in the README explaning ungoogled-chromium's design firs
 
 Consult the build instructions on the [Chromium homepage](//www.chromium.org/Home) for platform-specific building information.
 
+You can use `depot_tools` to setup the Chromium source tree in `build/sandbox` if `buildlib`'s source downloading system does not work on a platform. However, please note that this will involve executing Google binaries part of `depot_tools` and will run scripts that can download and run more Google binaries.
+
 The main set of patches (in `resources/common/patches`) should work on most, if not all, platforms supported by desktop Chromium. Some patches are there to fix building with certain build flags, so those may not work with other platforms or configurations. However, the patches as they are should apply as long as there is a clean and unmodified source tree.
 
 It is not recommended to run domain substitution or source cleaning, especially if your build requires additional downloads from Google.
