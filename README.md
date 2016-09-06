@@ -2,7 +2,18 @@
 
 **A Google Chromium variant focusing on removing Google integration, enhancing privacy, and adding features**
 
-### Features
+* [Features](#features)
+    * [Supported platforms and distributions](#supported-platforms-and-distributions)
+* [Download pre-built packages](#download-pre-built-packages)
+* [Getting the source code](#getting-the-source-code)
+* [Design and implementation](#design-and-implementation)
+* [Building](#building)
+* [Contributing](#contributing)
+    * [Pull requests](#pull-requests)
+* [Credits](#credits)
+* [License](#license)
+
+## Features
 
 In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and [Inox patchset](//github.com/gcarq/inox-patchset), the following is also included:
 * Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
@@ -24,31 +35,37 @@ In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and 
     * Creates a separate package `chrome-sandbox` for the SUID sandbox
 * Windows support with additional changes:
     * Build `wow_helper.exe` from source instead of using the pre-built version
-    * Build `swapimport.exe` from source instead of downloading it from Google (requires [customized syzygy source code](https://github.com/Eloston/syzygy))
+    * Build `swapimport.exe` from source instead of downloading it from Google (requires [customized syzygy source code](//github.com/Eloston/syzygy))
     * Build `yasm.exe` from source instead of using the pre-built version
     * Use user-provided building utilities instead of the ones bundled with Chromium (currently `gperf` and `bison`)
     * Do not set the Zone Identifier on downloaded files (which is a hassle to unset)
 
 **DISCLAIMER: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
 
-## Getting ungoogled-chromium
-
-Users are encouraged to use [one of the available tag](//github.com/Eloston/ungoogled-chromium/tags) versions. Binaries are available on [the releases page](//github.com/Eloston/ungoogled-chromium/releases) for the corresponding tag.
-
-Tags are formatted in the following manner: `{chromium_version}-{release_revision}` where
-
-* `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
-* `release_revision` is an integer indicating the version of ungoogled-chromium for the corresponding Chromium version.
-
-The `master` branch is for development, so it is not guaranteed to be in a working state.
-
-Currently supported platforms and distributions:
+### Supported platforms and distributions
 * Debian
 * Ubuntu
 * Windows
 * Mac OS
 
-## ungoogled-chromium's design
+## Download pre-built packages
+
+[Downloads for the latest release](//github.com/Eloston/ungoogled-chromium/releases/latest)
+
+[List of all releases](//github.com/Eloston/ungoogled-chromium/releases)
+
+The release versioning scheme follows that of the tags. See the next section for more details.
+
+## Getting the source code
+
+Users are encouraged to use [one of the tags](//github.com/Eloston/ungoogled-chromium/tags). The `master` branch is not guaranteed to be in a working state.
+
+Tags are versioned in the following format: `{chromium_version}-{release_revision}` where
+
+* `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
+* `release_revision` is a number indicating the version of ungoogled-chromium for the corresponding Chromium version.
+
+## Design and implementation
 
 Features are implemented through a combination of build flags, patches, and a few configuration files for scripts. All of these settings are stored in the `resources` directory. The `resources` directory contains the `common` directory, which has such files that apply to all platforms. All other directories, named by platform, contain additional platform-specific data. Most of the features, however, are stored in the `common` directory.
 
