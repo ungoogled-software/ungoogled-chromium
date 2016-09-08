@@ -20,19 +20,26 @@ In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and 
 * Strip binaries from the source code (known as source cleaning)
     * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
     * However some data files (e.g. `icudtl.dat` for Unicode and Globalization support and `*_page_model.bin` that define page models for the DOM Distiller) are left in as they do not contain machine code and are needed for building.
-* Remove additional detection of and disable specific functionality for Google hosts
-* Disable searching in Omnibox
-* Disable automatic formatting of URL in Omnibox
-* Disable JavaScript dialog boxes from showing when a page closes (onbeforeunload dialog boxes)
+* Disable functionality specific to Google domains
+* Disable searching in the Omnibox
+    * Fixes minor annoyances when the input is a resolvable address, not a search query.
+    * Will be configurable from the UI in the future since this breaks many people's workflows
+* Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
+* Disable JavaScript dialog boxes from showing when a page closes (onbeforeunload events)
+    * Bypasses the annoying dialog boxes that spawn when a page is being closed
 * Added menu item under "More tools" to clear the HTTP authentication cache on-demand
 * Force all pop-ups into tabs
-* Disable intranet redirect detector (unnecessary invalid DNS requests)
+* Disable intranet redirect detector
+    * Prevents unnecessary invalid DNS requests to the DNS server.
+    * This breaks captive portal detection, but captive portals still work.
 * Add more URL schemes allowed for saving
+    * Note that this generally works only for the MHTML option, since an MHTML page is generated from the rendered page and not the original cached page like the HTML option.
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
     * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
 * (Iridium and Inox feature change) Prevent pinging of IPv6 address when detecting the availability of IPv6
 * Support for building Debian and Ubuntu packages
     * Creates a separate package `chrome-sandbox` for the SUID sandbox
+        * Not necessary to install if the kernel option `unprivileged_userns_clone` is enabled
 * Windows support with additional changes:
     * Build `wow_helper.exe` from source instead of using the pre-built version
     * Build `swapimport.exe` from source instead of downloading it from Google (requires [customized syzygy source code](//github.com/Eloston/syzygy))
