@@ -26,19 +26,16 @@ This script is hacky. Tested on Debian.
 
 import pathlib
 import os
-import logging
 import re
-import shutil
-import configparser
 import sys
 
-if not pathlib.Path("buildlib").is_dir():
+if not pathlib.Path("buildlib.py").is_file():
     print("ERROR: Run this in the same directory as 'buildlib'")
     exit(1)
 
 sys.path.insert(1, str(pathlib.Path.cwd().resolve()))
 
-import buildlib.debian
+import buildlib
 
 def generate_cleaning_list(sandbox_path, list_file):
     exclude_matches = [
@@ -189,52 +186,32 @@ def generate_domain_substitution_list(sandbox_path, list_file, regex_defs):
     with list_file.open("w") as f:
         f.write("\n".join(domain_substitution_list))
 
-def initialize_logger(logging_level):
-    logger = logging.getLogger("ungoogled_chromium")
-    logger.setLevel(logging_level)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging_level)
-
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s: %(message)s")
-    console_handler.setFormatter(formatter)
-
-    logger.addHandler(console_handler)
-
-    return logger
-
-def read_version_config(config_location):
-    config = configparser.ConfigParser()
-    config.read(config_location)
-    return (config["main"]["chromium_version"], config["main"]["release_revision"])
-
 def main():
-    logger = initialize_logger(logging.DEBUG)
-
-    chromium_version, release_revision = read_version_config("version.ini")
-
-    platform = buildlib.debian.DebianPlatform(chromium_version, release_revision, logger=logger)
+    builder = buildlib.Builder()
+    builder.run_source_cleaner = False
+    logger = builder.logger
+    builder.check_build_environment()
     logger.info("Setting up Chromium source in build sandbox...")
-    platform.setup_chromium_source(use_cleaning_list=False)
+    builder.setup_chromium_source()
 
     logger.info("Generating cleaning list...")
-    cleaning_list = generate_cleaning_list(platform.sandbox_root, (platform.COMMON_RESOURCES / platform.CLEANING_LIST))
+    cleaning_list = generate_cleaning_list(builder._sandbox_dir, (buildlib._COMMON_RESOURCES / buildlib._CLEANING_LIST))
 
     logger.info("Removing files in cleaning list...")
     for i in cleaning_list:
-        if (platform.sandbox_root / pathlib.Path(i)).exists():
-            (platform.sandbox_root / pathlib.Path(i)).unlink()
+        if (builder._sandbox_dir / pathlib.Path(i)).exists():
+            (builder._sandbox_dir / pathlib.Path(i)).unlink()
         else:
             logger.error("File does not exist: {}".format(str(i)))
 
     logger.info("Generating domain substitution list...")
-    generate_domain_substitution_list(platform.sandbox_root, (platform.COMMON_RESOURCES / platform.DOMAIN_SUBSTITUTION_LIST), (platform.COMMON_RESOURCES / platform.DOMAIN_REGEX_LIST)) # TODO: Autogenerate platform domain substutition list when platforms have their own domain substitutions
+    generate_domain_substitution_list(builder._sandbox_dir, (buildlib._COMMON_RESOURCES / buildlib._DOMAIN_SUBSTITUTION_LIST), (buildlib._COMMON_RESOURCES / buildlib._DOMAIN_REGEX_LIST)) # TODO: Autogenerate platform domain substutition list when platforms have their own domain substitutions
 
     logger.info("Running domain substitution...")
-    platform.setup_build_sandbox()
+    builder.setup_build_sandbox()
 
     logger.info("Applying patches...")
-    platform.apply_patches()
+    builder.apply_patches()
 
     logger.info("Patches applied cleanly!")
 

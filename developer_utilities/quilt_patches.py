@@ -21,7 +21,7 @@
 '''
 Simple script to manage patches in the quilt system.
 
-This script is a bit hacky for now
+This script is a bit hacky for now. Should work on all builders using quilt
 '''
 
 import argparse
@@ -30,21 +30,15 @@ import enum
 import pathlib
 import os
 import shutil
-import configparser
 import sys
 
-if not pathlib.Path("buildlib").is_dir():
+if not pathlib.Path("buildlib.py").is_file():
     print("ERROR: Run this in the same directory as 'buildlib'")
     exit(1)
 
 sys.path.insert(1, str(pathlib.Path.cwd().resolve()))
 
-import buildlib.debian
-
-def read_version_config(config_location):
-    config = configparser.ConfigParser()
-    config.read(config_location)
-    return (config["main"]["chromium_version"], config["main"]["release_revision"])
+import buildlib
 
 def print_help():
     print("Simple wrapper around quilt")
@@ -55,41 +49,47 @@ def main(action, patch_name=None):
         print_help()
         return 0
 
-    platform = buildlib.debian.DebianPlatform(*read_version_config("version.ini"))
-    platform._ran_domain_substitution = True # TODO: Make this configurable
+    builder = buildlib.Builder()
+
+    def _run_quilt(*args):
+        return builder._run_subprocess([builder.quilt_command, *args],
+                                      append_environ=builder.quilt_env_vars,
+                                      cwd=str(builder._sandbox_dir))
 
     if action == "recreate":
-        if platform.sandbox_patches.exists():
-            shutil.rmtree(str(platform.sandbox_patches))
-        platform.apply_patches()
+        if (builder.build_dir / buildlib._PATCHES).exists():
+            builder.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
+            result = _run_quilt("pop", "-a")
+            print(result)
+            if not result.returncode == 0 and not result.returncode == 2:
+                return 1
+            shutil.rmtree(str(builder.build_dir / buildlib._PATCHES))
+        builder.apply_patches()
         return 0
 
-    new_env = dict(os.environ)
-    new_env.update(platform.quilt_env_vars)
     if action == "top":
-        result = subprocess.run(["quilt", "top"], env=new_env, cwd=str(platform.sandbox_root))
-        print(result)
+        result = _run_quilt("top")
     elif action == "pushall":
-        result = subprocess.run(["quilt", "push", "-a"], env=new_env, cwd=str(platform.sandbox_root))
-        print(result)
+        result = _run_quilt("push", "-a")
     elif action == "popall":
-        result = subprocess.run(["quilt", "pop", "-a"], env=new_env, cwd=str(platform.sandbox_root))
-        print(result)
+        result = _run_quilt("pop" , "-a")
     elif action == "pushto":
         if patch_name is None:
-            print("ERROR: Patch name must be defined")
+            builder.logger.error("Patch name must be defined")
             return 1
-        result = subprocess.run(["quilt", "push", patch_name], env=new_env, cwd=str(platform.sandbox_root))
-        print(result)
+        result = _run_quilt("push", patch_name)
     elif action == "popto":
         if patch_name is None:
-            print("ERROR: Patch name must be defined")
+            builder.logger.error("Patch name must be defined")
             return 1
-        result = subprocess.run(["quilt", "pop", patch_name], env=new_env, cwd=str(platform.sandbox_root))
-        print(result)
+        result = _run_quilt("pop", patch_name)
     else:
-        print("ERROR: Unknown command")
+        builder.logger.error("Unknown command")
         print_help()
+        return 1
+
+    print(result)
+    if not result.returncode == 0:
         return 1
 
     return 0
