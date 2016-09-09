@@ -517,8 +517,12 @@ class Builder:
             self._extract_tar_file(source_archive, self._sandbox_dir, list(),
                                    "chromium-{}".format(self.chromium_version))
 
+        # https://groups.google.com/a/chromium.org/d/topic/chromium-packagers/9JX1N2nf4PU/discussion
+        pathlib.Path("chrome", "test", "data", "webui", "i18n_process_css_test.html").touch()
+
         extra_deps_dict = self._read_ini_resource(_EXTRA_DEPS)
         for section in extra_deps_dict:
+            self.logger.info("Downloading extra dependency '{}' ...".format(section))
             dep_commit = extra_deps_dict[section]["commit"]
             dep_url = extra_deps_dict[section]["url"].format(commit=dep_commit)
             dep_download_name = extra_deps_dict[section]["download_name"].format(commit=dep_commit)
@@ -682,10 +686,10 @@ class DebianBuilder(Builder):
             result = self._run_subprocess([self.quilt_command, "pop", "-a"],
                                           append_environ=self.quilt_env_vars,
                                           cwd=str(self._sandbox_dir))
-            if not result.returncode == 0:
+            if not result.returncode == 0 and not result.returncode == 2:
                 raise BuilderException("Quilt returned non-zero exit code: {}".format(
                     result.returncode))
-            shutil.rmtree(str(self.build_dir, _PATCHES))
+            shutil.rmtree(str(self.build_dir / _PATCHES))
 
         self._generate_patches()
 
@@ -895,10 +899,10 @@ class MacOSBuilder(Builder):
             result = self._run_subprocess([self.quilt_command, "pop", "-a"],
                                           append_environ=self.quilt_env_vars,
                                           cwd=str(self._sandbox_dir))
-            if not result.returncode == 0:
+            if not result.returncode == 0 and not result.returncode == 2:
                 raise BuilderException("Quilt returned non-zero exit code: {}".format(
                     result.returncode))
-            shutil.rmtree(str(self.build_dir, _PATCHES))
+            shutil.rmtree(str(self.build_dir / _PATCHES))
 
         self._generate_patches()
 
