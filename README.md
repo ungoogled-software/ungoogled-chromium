@@ -15,7 +15,7 @@
 
 ## Features
 
-In addition to features provided by [Iridium Browser](//iridiumbrowser.de/) and [Inox patchset](//github.com/gcarq/inox-patchset), the following is also included:
+In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser), [Inox patchset](//github.com/gcarq/inox-patchset), and [Iridium Browser](//iridiumbrowser.de/):
 * Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
 * Strip binaries from the source code (known as source cleaning)
     * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
@@ -80,7 +80,7 @@ There are currently two automated scripts that process the source code:
 * Source cleaner - Used to clean out binary files (i.e. do not seem to be human-readable text files, except a few required for building)
 * Domain substitution - Used to replace Google and other domains in the source code to eliminate communication not caught by the patches and build flags.
 
-These are the general steps that ungoogled-chromium takes to build:
+### General building steps
 
 1. Get the source code archive in `.tar.xz` format via `https://commondatastorage.googleapis.com/` and extract it into `build/sandbox/`
     * Also download any additional non-Linux dependencies for building on non-Linux platforms, since the `.tar.xz` is generated on a Linux system
@@ -94,7 +94,8 @@ These are the general steps that ungoogled-chromium takes to build:
 4. Build (via 'ninja')
 5. Generate binary packages and place them in `build/`
 
-Here's a breakdown of what is in a resources directory:
+### Contents of the `resources` directory
+
 * `cleaning_list` - (Used for source cleaning) A list of files to be excluded during the extraction of the Chromium source
 * `domain_regex_list` - (Used for domain substitution) A list of regular expressions that define how domains will be replaced in the source code
 * `domain_substitution_list` - (Used for domain substitution) A list of files that are processed by `domain_regex_list`
@@ -106,16 +107,21 @@ Here's a breakdown of what is in a resources directory:
 
 All of these files are human-readable, but they are usually processed by the Python building system. See the Building section below for more information.
 
-Here's a breakdown of the `common/patches` directory:
-* `ungoogled-chromium/` - Contains new patches for ungoogled-chromium. They implement the features described above.
-* `iridium-browser` - Contains a subset of patches from Iridium Browser.
+### Contents of the `resources/common/patches` directory
+
+* `debian/` - Contains patches from Debian's Chromium.
     * Patches are not touched unless they do not apply cleanly onto the version of Chromium being built
-    * Patches are from the `patchview` branch of Iridium's Git repository. [Git webview of the patchview branch](//git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
+    * These patches are not Debian-specific. For those, see the `resources/debian/patches` directory
 * `inox-patchset/` - Contains a modified subset of patches from Inox patchset.
+    * Some patches such as those that change branding are omitted
+    * Patches are not touched unless they conflict with Debian's patches
     * Patches are from [inox-patchset's GitHub](//github.com/gcarq/inox-patchset)
     * [Inox patchset's license](//github.com/gcarq/inox-patchset/blob/master/LICENSE)
-* `debian/` - Contains patches from Debian's Chromium.
-    * These patches are not Debian-specific. For those, see the `resources/debian/patches` directory
+* `iridium-browser` - Contains a modified subset of patches from Iridium Browser.
+    * Some patches such as those that change branding or URLs to point to Iridium's own servers are omitted
+    * Patches are not touched unless they conflict with Debian's or Inox's patches
+    * Patches are from the `patchview` branch of Iridium's Git repository. [Git webview of the patchview branch](//git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
+* `ungoogled-chromium/` - Contains new patches for ungoogled-chromium. They implement the features described above.
 
 ## Building
 
@@ -140,7 +146,7 @@ Pull requests are also welcome. Here are some guidelines:
 
 [Inox patchset](//github.com/gcarq/inox-patchset)
 
-[Debian for build scripts](//tracker.debian.org/pkg/chromium-browser)
+[Debian](//tracker.debian.org/pkg/chromium-browser)
 
 [The Chromium Project](//www.chromium.org/)
 
