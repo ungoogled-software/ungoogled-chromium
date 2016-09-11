@@ -21,9 +21,7 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
     * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
     * However some data files (e.g. `icudtl.dat` for Unicode and Globalization support and `*_page_model.bin` that define page models for the DOM Distiller) are left in as they do not contain machine code and are needed for building.
 * Disable functionality specific to Google domains
-* Disable searching in the Omnibox
-    * Fixes minor annoyances when the input is a resolvable address, not a search query.
-    * Will be configurable from the UI in the future since this breaks many people's workflows
+* Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
 * Disable JavaScript dialog boxes from showing when a page closes (onbeforeunload events)
     * Bypasses the annoying dialog boxes that spawn when a page is being closed
