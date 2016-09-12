@@ -58,11 +58,11 @@ def main(action, patch_name=None):
 
     if action == "recreate":
         if (builder.build_dir / buildlib._PATCHES).exists():
-            builder.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
-            result = _run_quilt("pop", "-a")
-            print(result)
-            if not result.returncode == 0 and not result.returncode == 2:
-                return 1
+            #builder.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
+            #result = _run_quilt("pop", "-a")
+            #print(result)
+            #if not result.returncode == 0 and not result.returncode == 2:
+            #    return 1
             shutil.rmtree(str(builder.build_dir / buildlib._PATCHES))
         builder.apply_patches()
         return 0
