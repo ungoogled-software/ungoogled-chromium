@@ -518,7 +518,8 @@ class Builder:
                                    "chromium-{}".format(self.chromium_version))
 
         # https://groups.google.com/a/chromium.org/d/topic/chromium-packagers/9JX1N2nf4PU/discussion
-        pathlib.Path("chrome", "test", "data", "webui", "i18n_process_css_test.html").touch()
+        (self._sandbox_dir / pathlib.Path("chrome", "test", "data", "webui",
+                                          "i18n_process_css_test.html")).touch()
 
         extra_deps_dict = self._read_ini_resource(_EXTRA_DEPS)
         for section in extra_deps_dict:
