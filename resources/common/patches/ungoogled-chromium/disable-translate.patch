@@ -12,34 +12,105 @@
    if (!language_state_.page_needs_translation() ||
 --- a/components/translate/content/renderer/translate_helper.cc
 +++ b/components/translate/content/renderer/translate_helper.cc
-@@ -83,6 +83,7 @@ scoped_ptr<translate::RendererCldDataProvider> CreateDataProvider(
+@@ -67,38 +67,6 @@ const char kContentSecurityPolicy[] = "script-src 'self' 'unsafe-eval'";
  // should not be translated.
  // TODO(dglazkov): This logic should be moved into Blink.
  bool HasNoTranslateMeta(WebDocument* document) {
-+  return false;
-   WebElement head = document->head();
-   if (head.isNull() || !head.hasChildNodes())
-     return false;
-@@ -140,7 +140,10 @@ TranslateHelper::TranslateHelper(content::RenderFrame* render_frame,
+-  WebElement head = document->head();
+-  if (head.isNull() || !head.hasChildNodes())
+-    return false;
+-
+-  const WebString meta(ASCIIToUTF16("meta"));
+-  const WebString name(ASCIIToUTF16("name"));
+-  const WebString google(ASCIIToUTF16("google"));
+-  const WebString value(ASCIIToUTF16("value"));
+-  const WebString content(ASCIIToUTF16("content"));
+-
+-  for (WebNode child = head.firstChild(); !child.isNull();
+-      child = child.nextSibling()) {
+-    if (!child.isElementNode())
+-      continue;
+-    WebElement element = child.to<WebElement>();
+-    // Check if a tag is <meta>.
+-    if (!element.hasHTMLTagName(meta))
+-      continue;
+-    // Check if the tag contains name="google".
+-    WebString attribute = element.getAttribute(name);
+-    if (attribute.isNull() || attribute != google)
+-      continue;
+-    // Check if the tag contains value="notranslate", or content="notranslate".
+-    attribute = element.getAttribute(value);
+-    if (attribute.isNull())
+-      attribute = element.getAttribute(content);
+-    if (attribute.isNull())
+-      continue;
+-    if (base::LowerCaseEqualsASCII(base::StringPiece16(attribute),
+-                                   "notranslate"))
+-      return true;
+-  }
+   return false;
+ }
+ 
+@@ -119,7 +87,9 @@ TranslateHelper::TranslateHelper(content::RenderFrame* render_frame,
        world_id_(world_id),
        extension_group_(extension_group),
        extension_scheme_(extension_scheme),
 -      weak_method_factory_(this) {}
 +      weak_method_factory_(this) {
 +  CancelPendingTranslation();
-+  CancelCldDataPolling();
 +}
-
+ 
  TranslateHelper::~TranslateHelper() {
-   CancelPendingTranslation();
-@@ -391,6 +394,7 @@ void TranslateHelper::OnTranslatePage(int page_seq_no,
+ }
+@@ -321,48 +291,6 @@ void TranslateHelper::OnTranslatePage(int page_seq_no,
                                        const std::string& translate_script,
                                        const std::string& source_lang,
                                        const std::string& target_lang) {
-+  return;
-   WebLocalFrame* main_frame = render_frame()->GetWebFrame();
-   if (!main_frame || page_seq_no_ != page_seq_no)
-     return;  // We navigated away, nothing to do.
+-  WebLocalFrame* main_frame = render_frame()->GetWebFrame();
+-  if (!main_frame || page_seq_no_ != page_seq_no)
+-    return;  // We navigated away, nothing to do.
+-
+-  // A similar translation is already under way, nothing to do.
+-  if (translation_pending_ && target_lang_ == target_lang)
+-    return;
+-
+-  // Any pending translation is now irrelevant.
+-  CancelPendingTranslation();
+-
+-  // Set our states.
+-  translation_pending_ = true;
+-
+-  // If the source language is undetermined, we'll let the translate element
+-  // detect it.
+-  source_lang_ = (source_lang != kUnknownLanguageCode) ? source_lang
+-                                                       : kAutoDetectionLanguage;
+-  target_lang_ = target_lang;
+-
+-  ReportUserActionDuration(language_determined_time_, base::TimeTicks::Now());
+-
+-  GURL url(main_frame->document().url());
+-  ReportPageScheme(url.scheme());
+-
+-  // Set up v8 isolated world with proper content-security-policy and
+-  // security-origin.
+-  main_frame->setIsolatedWorldContentSecurityPolicy(
+-      world_id_, WebString::fromUTF8(kContentSecurityPolicy));
+-
+-  GURL security_origin = GetTranslateSecurityOrigin();
+-  main_frame->setIsolatedWorldSecurityOrigin(
+-      world_id_, WebSecurityOrigin::create(security_origin));
+-
+-  if (!IsTranslateLibAvailable()) {
+-    // Evaluate the script to add the translation related method to the global
+-    // context of the page.
+-    ExecuteScript(translate_script);
+-    DCHECK(IsTranslateLibAvailable());
+-  }
+-
+-  TranslatePageImpl(page_seq_no, 0);
+ }
+ 
+ void TranslateHelper::OnRevertTranslation(int page_seq_no) {
 --- a/components/translate/core/browser/translate_script.cc
 +++ b/components/translate/core/browser/translate_script.cc
 @@ -132,9 +132,8 @@ void TranslateScript::OnScriptFetchComplete(
