@@ -6,9 +6,13 @@ There are currently two source-processing scripts:
 * Source cleaner - Used to clean out binary files (i.e. do not seem to be human-readable text files, except a few required for building)
 * Domain substitution - Used to replace Google and other domains in the source code to eliminate communication not caught by the patches and build flags.
 
-These processing scripts are a part of the build system `buildlib`. For more information on the build system, see [BUILDING.md](BUILDING.md).
+These processing scripts are a part of the build system.
 
-## General building steps
+## `buildlib`: The building system
+
+ungoogled-chromium provides a flexible and extensible Python library called [`buildlib`](buildlib.py) that does source code downloading, source cleaning, domain substitution, patching, building, and packaging. There's no documentation on `buildlib` yet, but it's pretty straight-forward to use. See `build.py` for an example on using `buildlib`.
+
+## General building steps used in `buildlib`
 
 1. Get the source code archive in `.tar.xz` format via `https://commondatastorage.googleapis.com/` and extract it into `build/sandbox/`
     * Also download any additional non-Linux dependencies for building on non-Linux platforms, since the `.tar.xz` is generated on a Linux system

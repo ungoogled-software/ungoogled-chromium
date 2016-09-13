@@ -7,8 +7,7 @@ A number of features or background services communicate with Google servers desp
 ungoogled-chromium is a set of configuration flags, patches, and custom scripts. These components altogether strive to accomplish the following:
 * Disable or remove offending services and features that communicate with Google or weaken privacy
 * Strip binaries from the source tree, and use those provided by the system or build them from source
-* Add, modify, or disable features that inhibit control and transparency
-    * These changes are minor and do not have significant impacts on the general user experience
+* Add, modify, or disable features that inhibit control and transparency (these changes are minor and do not have significant impacts on the general user experience)
 
 * [Features](#features)
     * [Supported platforms and distributions](#supported-platforms-and-distributions)

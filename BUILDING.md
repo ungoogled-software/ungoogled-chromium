@@ -2,12 +2,6 @@
 
 **Notice for master branch users**: The information in this document may not apply to the latest tag version. Please consult the documentation from the tag instead.
 
-## The building system
-
-ungoogled-chromium provides a flexible and extensible Python library called [`buildlib`](buildlib.py) that does source code downloading, source cleaning, domain substitution, patching, building, and packaging. There's no documentation on `buildlib` yet, but it's pretty straight-forward to use. See `build.py` for examples on using `buildlib`.
-
-Currently, there is no command-line-configurable build script. You must create a script or modify `build.py` to use `buildlib`.
-
 ## General building requirements
 
 The following is needed to fully use `buildlib`:
@@ -20,7 +14,11 @@ There are additional requirements for specific platforms. See the following sect
 
 ## How to build
 
-Building is done by simply invoking `build.py`. It will take care of the setup and building processes. See the following for more information.
+Building is done by simply invoking `build.py`. It will take care of the setup and building processes.
+
+Currently, there is no command-line-configurable build script. You must create a script or modify `build.py` to use `buildlib`.
+
+See the following for more information.
 
 ## Debian and derivatives
 
