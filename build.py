@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-# ungoogled-chromium: Google Chromium patches for removing Google integration, enhancing privacy, and adding features
+# ungoogled-chromium: A Google Chromium variant for removing Google integration and
+# enhancing privacy, control, and transparency
 # Copyright (C) 2016  Eloston
 #
 # This file is part of ungoogled-chromium.
