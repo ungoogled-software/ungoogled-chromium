@@ -38,7 +38,7 @@ import datetime
 import string
 import zipfile
 
-__all__ = ["Builder", "DebianBuilder", "WindowsBuilder", "MacOSBuilder"]
+__all__ = ["Builder"]
 
 _CLEANING_LIST = pathlib.Path("cleaning_list")
 _DOMAIN_REGEX_LIST = pathlib.Path("domain_regex_list")
@@ -100,8 +100,17 @@ class Builder:
             elif sys.platform == "darwin":
                 cls = MacOSBuilder
             elif sys.platform == "linux":
-                # TODO: Add finer granularity when non-Debian distributions are supported
-                cls = DebianBuilder
+                from ._external import distro
+                dist_id, dist_version, dist_codename = distro.linux_distribution(
+                    full_distribution_name=False)
+                if dist_id == "debian" and (dist_codename == "stretch" or
+                                            dist_codename == "sid" or dist_version == "testing"):
+                    cls = DebianStretchBuilder
+                elif dist_id == "ubuntu":
+                    cls = UbuntuXenialBuilder
+                else:
+                    # TODO: Implement a more distribution-independent Linux builder
+                    cls = DebianBuilder
             else:
                 raise BuilderException("Unsupported sys.platform value"
                                        "'{}'".format(sys.platform))
@@ -113,17 +122,18 @@ class Builder:
             self.logger = logging.getLogger("ungoogled_chromium")
             self.logger.setLevel(logging.DEBUG)
 
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(logging.DEBUG)
+            if not self.logger.hasHandlers():
+                console_handler = logging.StreamHandler()
+                console_handler.setLevel(logging.DEBUG)
 
-            formatter = logging.Formatter("%(asctime)s - %(levelname)s: %(message)s")
-            console_handler.setFormatter(formatter)
+                formatter = logging.Formatter("%(asctime)s - %(levelname)s: %(message)s")
+                console_handler.setFormatter(formatter)
 
-            self.logger.addHandler(console_handler)
-
-            self.logger.info("Initialized default logger")
+                self.logger.addHandler(console_handler)
+                self.logger.info("Initialized default console logging handler")
         else:
             self.logger = logger
+        self.logger.info("Using builder {!s}".format(type(self).__name__))
 
         if chromium_version is None or release_revision is None:
             version_config = configparser.ConfigParser()
