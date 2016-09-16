@@ -25,6 +25,8 @@ Build script for all platforms
 Will probably add a CLI in the future
 '''
 
+import logging
+
 import buildlib
 
 def main():
@@ -46,6 +48,8 @@ def main():
             import sys
             print("ERROR: {!s}".format(exc), file=sys.stderr)
         return 1
+    finally:
+        logging.shutdown()
 
     return 0
 

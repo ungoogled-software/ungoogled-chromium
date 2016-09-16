@@ -33,7 +33,7 @@ import os
 import shutil
 import sys
 
-if not pathlib.Path("buildlib.py").is_file():
+if not pathlib.Path("buildlib").is_dir():
     print("ERROR: Run this in the same directory as 'buildlib'")
     exit(1)
 

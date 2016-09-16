@@ -22,6 +22,7 @@
 if __name__ == "__main__":
     from pylint import epylint as lint
 
-    lint.lint(filename="buildlib.py",
+    lint.lint(filename="buildlib",
               options=["--disable=logging-format-interpolation",
-                       "--disable=fixme"])
+                       "--disable=fixme",
+                       "--ignore=_external"])
