@@ -40,7 +40,6 @@ import zipfile
 
 __all__ = ["Builder", "DebianBuilder", "WindowsBuilder", "MacOSBuilder"]
 
-_COMMON_RESOURCES = pathlib.Path("resources", "common")
 _CLEANING_LIST = pathlib.Path("cleaning_list")
 _DOMAIN_REGEX_LIST = pathlib.Path("domain_regex_list")
 _DOMAIN_SUBSTITUTION_LIST = pathlib.Path("domain_substitution_list")
@@ -59,7 +58,7 @@ class Builder:
     Generic builder class. Also a metaclass for specific Builder implementations
     '''
 
-    _platform_resources = None
+    _resources = pathlib.Path("resources", "common")
 
     # Force the downloading of dependencies instead of checking if they exist
     force_download = False
@@ -170,50 +169,44 @@ class Builder:
 
         self._domain_regex_cache = None
 
+    @classmethod
+    def _resource_path_generator(cls, file_path):
+        builder_order = list(cls.__mro__)
+        if not builder_order.pop() is object:
+            raise BuilderException("Last class of __mro__ is not object")
+        builder_order.reverse()
+        known_resources = set()
+        for builder_type in builder_order:
+            resource_path = builder_type._resources / file_path
+            if not builder_type._resources in known_resources:
+                known_resources.add(builder_type._resources)
+                if resource_path.exists():
+                    yield resource_path
+
     def _read_list_resource(self, file_name, is_binary=False):
         if is_binary:
             file_mode = "rb"
         else:
             file_mode = "r"
         tmp_list = list()
-        common_path = _COMMON_RESOURCES / file_name
-        if common_path.exists():
-            with common_path.open(file_mode) as file_obj:
+        for resource_path in self._resource_path_generator(file_name):
+            self.logger.debug("Appending {!s}".format(resource_path))
+            with resource_path.open(file_mode) as file_obj:
                 tmp_list.extend(file_obj.read().splitlines())
-        if not self._platform_resources is None:
-            platform_path = self._platform_resources / file_name
-            if platform_path.exists():
-                with platform_path.open(file_mode) as file_obj:
-                    tmp_list.extend(file_obj.read().splitlines())
-                    self.logger.debug("Successfully appended platform list")
         return [x for x in tmp_list if len(x) > 0]
 
     def _read_ini_resource(self, file_name):
         combined_dict = dict()
-        common_ini = _COMMON_RESOURCES / file_name
-        if common_ini.exists():
-            self.logger.debug("Found common ini")
-            common_config = configparser.ConfigParser()
-            common_config.read(str(common_ini))
-            for section in common_config:
+        for resource_ini in self._resource_path_generator(file_name):
+            self.logger.debug("Including {!s}".format(resource_ini))
+            resource_config = configparser.ConfigParser()
+            resource_config.read(str(resource_ini))
+            for section in resource_config:
                 if section == "DEFAULT":
                     continue
                 combined_dict[section] = dict()
-                for config_key in common_config[section]:
-                    combined_dict[section][config_key] = common_config[section][config_key]
-        if not self._platform_resources is None:
-            platform_ini = self._platform_resources / file_name
-            if platform_ini.exists():
-                self.logger.debug("Found platform ini")
-                platform_config = configparser.ConfigParser()
-                platform_config.read(str(platform_ini))
-                for section in platform_config:
-                    if section == "DEFAULT":
-                        continue
-                    if not section in combined_dict:
-                        combined_dict[section] = dict()
-                    for config_key in platform_config[section]:
-                        combined_dict[section][config_key] = platform_config[section][config_key]
+                for config_key in resource_config[section]:
+                    combined_dict[section][config_key] = resource_config[section][config_key]
         return combined_dict
 
     def _get_gyp_flags(self):
@@ -324,23 +317,13 @@ class Builder:
                 raise exc
 
     def _generate_patches(self):
-        platform_patches_exist = False
-        if not self._platform_resources is None:
-            platform_patch_order = self._platform_resources / _PATCHES / _PATCH_ORDER
-            if platform_patch_order.exists():
-                platform_patches_exist = True
-        with (_COMMON_RESOURCES / _PATCHES / _PATCH_ORDER).open() as file_obj:
-            new_patch_order = file_obj.read()
-        if platform_patches_exist:
-            self.logger.debug("Using platform patches")
-            with platform_patch_order.open() as file_obj:
+        new_patch_order = str()
+        for patch_order_path in self._resource_path_generator(_PATCHES / _PATCH_ORDER):
+            self.logger.debug("Appending {!s}".format(patch_order_path))
+            with patch_order_path.open() as file_obj:
                 new_patch_order += file_obj.read()
 
-        distutils.dir_util.copy_tree(str(_COMMON_RESOURCES / _PATCHES),
-                                     str(self.build_dir / _PATCHES))
-        (self.build_dir / _PATCHES / _PATCH_ORDER).unlink()
-        if platform_patches_exist:
-            distutils.dir_util.copy_tree(str(self._platform_resources / _PATCHES),
+            distutils.dir_util.copy_tree(str(patch_order_path.parent),
                                          str(self.build_dir / _PATCHES))
             (self.build_dir / _PATCHES / _PATCH_ORDER).unlink()
         with (self.build_dir / _PATCHES / _PATCH_ORDER).open("w") as file_obj:
@@ -604,10 +587,10 @@ class Builder:
         pass
 
 class DebianBuilder(Builder):
-    '''Builder for Debian and Ubuntu'''
+    '''Generic Builder for all Debian and derivative distributions'''
 
-    _platform_resources = pathlib.Path("resources", "debian")
-    _dpkg_dir = _platform_resources / pathlib.Path("dpkg_dir")
+    _resources = pathlib.Path("resources", "common_debian")
+    _dpkg_dir = _resources / pathlib.Path("dpkg_dir")
 
     quilt_command = "quilt"
     build_targets = ["chrome", "chrome_sandbox", "chromedriver"]
@@ -733,6 +716,7 @@ class DebianBuilder(Builder):
             build_output=str(self.build_output)
         )
         self.logger.info("Building Debian package...")
+        # TODO: Copy _dpkg_dir over each other in build/ similar to resource reading
         distutils.dir_util.copy_tree(str(self._dpkg_dir), str(self._sandbox_dpkg_dir))
         for old_path in self._sandbox_dpkg_dir.glob("*.in"):
             new_path = self._sandbox_dpkg_dir / old_path.stem
@@ -749,10 +733,20 @@ class DebianBuilder(Builder):
             raise BuilderException("dpkg-buildpackage returned non-zero exit code: {}".format(
                 result.returncode))
 
+class DebianStretchBuilder(DebianBuilder):
+    '''Builder for Debian Stretch'''
+
+    _resources = pathlib.Path("resources", "debian_stretch")
+
+class UbuntuXenialBuilder(DebianBuilder):
+    '''Builder for Ubuntu Xenial'''
+
+    _resources = pathlib.Path("resources", "ubuntu_xenial")
+
 class WindowsBuilder(Builder):
     '''Builder for Windows'''
 
-    _platform_resources = pathlib.Path("resources", "windows")
+    _resources = pathlib.Path("resources", "windows")
 
     patch_command = ["patch", "-p1"]
     python2_command = "python"
@@ -843,7 +837,7 @@ class WindowsBuilder(Builder):
 class MacOSBuilder(Builder):
     '''Builder for Mac OS'''
 
-    _platform_resources = pathlib.Path("resources", "macos")
+    _resources = pathlib.Path("resources", "macos")
 
     quilt_command = "quilt"
 
