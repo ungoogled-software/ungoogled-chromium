@@ -50,7 +50,7 @@ def main(action, patch_name=None):
         print_help()
         return 0
 
-    builder = buildlib.Builder()
+    builder = buildlib.get_builder()
 
     def _run_quilt(*args):
         return builder._run_subprocess([builder.quilt_command, *args],
