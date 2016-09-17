@@ -31,7 +31,7 @@ import buildlib
 
 def main():
     try:
-        builder = buildlib.Builder()
+        builder = buildlib.get_builder()
         # Modify builder's attributes as necessary. See the Builder class for options
         builder.check_build_environment()
         builder.setup_chromium_source()
