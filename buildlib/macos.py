@@ -69,8 +69,6 @@ class MacOSBuilder(Builder):
 
         self.logger.info("Checking compilers...")
         compiler_list = [ # TODO: Move these paths to another config file?
-            "/usr/local/Cellar/llvm/3.8.1/bin/clang",
-            "/usr/local/Cellar/llvm/3.8.1/bin/clang++",
             "/usr/local/Cellar/gcc49/4.9.3/bin/x86_64-apple-darwin15.4.0-c++-4.9"]
         for compiler in compiler_list:
             if not pathlib.Path(compiler).is_file():
