@@ -188,7 +188,7 @@ def generate_domain_substitution_list(sandbox_path, list_file, regex_defs):
         f.write("\n".join(domain_substitution_list))
 
 def main():
-    builder = buildlib.Builder()
+    builder = buildlib.get_builder()
     builder.run_source_cleaner = False
     logger = builder.logger
     builder.check_build_environment()
