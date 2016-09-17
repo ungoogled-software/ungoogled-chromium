@@ -62,12 +62,10 @@ class MacOSBuilder(Builder):
         self.logger.debug("Using svn command version '{!s}'".format(result.stdout.strip("\n")))
 
         self.logger.info("Checking libtool command...")
-        result = self._run_subprocess(["libtool", "--version"], stdout=subprocess.PIPE,
-                                      universal_newlines=True)
-        if not result.returncode is 0:
-            raise BuilderException("libtool command returned non-zero exit code {}".format(
-                result.returncode))
-        self.logger.debug("Using libtool command '{!s}'".format(result.stdout.split("\n")[0]))
+        libtool_path = shutil.which("libtool")
+        if libtool_path is None:
+            raise BuilderException("Could not find command 'libtool' in PATH variable")
+        self.logger.debug("Found libtool at '{!s}'".format(libtool_path))
 
         self.logger.info("Checking compilers...")
         compiler_list = [ # TODO: Move these paths to another config file?
