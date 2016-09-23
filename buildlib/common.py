@@ -351,12 +351,12 @@ class Builder:
         extra_deps_dict = self._read_ini_resource(EXTRA_DEPS)
         for section in extra_deps_dict:
             self.logger.info("Downloading extra dependency '{}' ...".format(section))
-            dep_commit = extra_deps_dict[section]["commit"]
-            dep_url = extra_deps_dict[section]["url"].format(commit=dep_commit)
-            dep_download_name = extra_deps_dict[section]["download_name"].format(commit=dep_commit)
+            dep_version = extra_deps_dict[section]["version"]
+            dep_url = extra_deps_dict[section]["url"].format(version=dep_version)
+            dep_download_name = extra_deps_dict[section]["download_name"].format(version=dep_version)
             if "strip_leading_dirs" in extra_deps_dict[section]:
                 dep_strip_dirs = pathlib.Path(
-                    extra_deps_dict[section]["strip_leading_dirs"].format(commit=dep_commit))
+                    extra_deps_dict[section]["strip_leading_dirs"].format(version=dep_version))
             else:
                 dep_strip_dirs = None
             self._setup_tar_dependency(dep_url, dep_download_name, dep_strip_dirs,

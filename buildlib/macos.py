@@ -127,7 +127,7 @@ class MacOSBuilder(Builder):
                 "--volname", "Chromium", # From chrome/app/theme/chromium/BRANDING
                 "--tempdir", tmpdirname,
                 "--copy", str(self._sandbox_dir.relative_to(self.build_dir) / self.build_output /
-                              "Chromium.app") + ":/Chromium.app",
+                              "Chromium.app") + "/:/Chromium.app/",
                 "--symlink", "/Applications:/Drag to here to install"
             ]
             result = self._run_subprocess(pkg_dmg_command, cwd=str(self.build_dir))
