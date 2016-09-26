@@ -9,6 +9,8 @@ ungoogled-chromium is a set of configuration flags, patches, and custom scripts.
 * Strip binaries from the source tree, and use those provided by the system or build them from source
 * Add, modify, or disable features that inhibit control and transparency (these changes are minor and do not have significant impacts on the general user experience)
 
+**ungoogled-chromium is looking for contributers**. See the [Contributing](#contributing) section for more information.
+
 Table of Contents
 * [Features](#features)
     * [Supported platforms and distributions](#supported-platforms-and-distributions)
@@ -36,6 +38,10 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
     * Bypasses the annoying dialog boxes that spawn when a page is being closed
 * Added menu item under "More tools" to clear the HTTP authentication cache on-demand
 * Force all pop-ups into tabs
+* Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
+    * See the [FAQ](FAQ.md#why-is-safe-browsing-disabled)
+* Disable WebRTC
+    * This will be configurable in the future.
 * Disable intranet redirect detector
     * Prevents unnecessary invalid DNS requests to the DNS server.
     * This breaks captive portal detection, but captive portals still work.
@@ -94,6 +100,9 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 ## Contributing
 
 Contributers are welcome!
+
+**Update as of September 2016**: I, Eloston, am in a period of time where I do not have as much time as I had before to work on this project. If you are interested in making a change, I encourage you to submit a pull request. Please read the Pull requests section below for submission guidelines.
+    * Additionally, issues marked with the `help wanted` tag are changes I need others to help with. Please read the issue's comment thread for more details on what needs to be done.
 
 Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions.
 
