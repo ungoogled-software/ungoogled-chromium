@@ -49,3 +49,9 @@ Yes. All plugins including PepperFlash and Widevine DRM should work.
 ## Does domain substitution break the HSTS preload list?
 
 No, the list (which is located in `net/http/transport_security_state_static.json`) is explicitely excluded when generating the domain substitution list. In `developer_utilities/update_helper.py`, see the  `generate_domain_substitution_list()` function for what files are excluded from domain substitution.
+
+## Why is Safe Browsing disabled?
+
+See [this Wikipedia article](//en.wikipedia.org/wiki/Google_Safe_Browsing) for info about Safe Browsing.
+
+Safe Browsing communicates with Google servers in order to download the blacklists. If you are looking for a feature like Safe Browsing, I recommend uBlock Origin or uMatrix.
