@@ -102,7 +102,7 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 Contributers are welcome!
 
 **Update as of September 2016**: I, Eloston, am in a period of time where I do not have as much time as I had before to work on this project. If you are interested in making a change, I encourage you to submit a pull request. Please read the Pull requests section below for submission guidelines.
-    * Additionally, issues marked with the `help wanted` tag are changes I need others to help with. Please read the issue's comment thread for more details on what needs to be done.
+* Additionally, issues marked with the `help wanted` tag are changes I need others to help with. Please read the issue's comment thread for more details on what needs to be done.
 
 Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions.
 
