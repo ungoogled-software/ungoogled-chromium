@@ -45,3 +45,7 @@ Yes. All plugins including PepperFlash and Widevine DRM should work.
 ## Why are there URLs with the `qjz9zk` domain in them? Why use domain substitution?
 
 `qjz9zk` is the common top-level domain name used by domain substitution. It is a relatively trivial way of disabling unwanted requests and notifying the user if any of these URLs attempt to connect without having to look through the many changes that happen to Chromium each version.
+
+## Does domain substitution break the HSTS preload list?
+
+No, the list (which is located in `net/http/transport_security_state_static.json`) is explicitely excluded when generating the domain substitution list. In `developer_utilities/update_helper.py`, see the  `generate_domain_substitution_list()` function for what files are excluded from domain substitution.
