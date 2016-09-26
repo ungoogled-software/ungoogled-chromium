@@ -14,6 +14,7 @@ Table of Contents
     * [Supported platforms and distributions](#supported-platforms-and-distributions)
 * [Download pre-built packages](#download-pre-built-packages)
 * [Getting the source code](#getting-the-source-code)
+* [Frequently-asked questions](#frequently-asked-questions)
 * [Design and implementation](#design-and-implementation)
 * [Building](#building)
 * [Contributing](#contributing)
@@ -77,6 +78,10 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 * `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
 * `release_revision` is a number indicating the version of ungoogled-chromium for the corresponding Chromium version.
+
+## Frequently-asked questions
+
+[See FAQ.md](FAQ.md)
 
 ## Design and implementation
 
