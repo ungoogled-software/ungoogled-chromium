@@ -25,4 +25,5 @@ if __name__ == "__main__":
     lint.lint(filename="buildlib",
               options=["--disable=logging-format-interpolation",
                        "--disable=fixme",
+                       "--disable=locally-disabled",
                        "--ignore=_external"])

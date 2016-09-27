@@ -26,6 +26,7 @@ import subprocess
 import configparser
 import distutils.dir_util
 import os
+import enum
 
 from . import _util
 from ._util import BuilderException
@@ -38,6 +39,13 @@ EXTRA_DEPS = pathlib.Path("extra_deps.ini")
 PATCH_ORDER = pathlib.Path("patch_order")
 GYP_FLAGS = pathlib.Path("gyp_flags")
 #GN_ARGS = pathlib.Path("gn_args.ini")
+
+class CPUArch(enum.Enum):
+    '''
+    Enum for CPU architectures
+    '''
+    x86 = "x86"
+    x64 = "x64"
 
 class Builder:
     '''
@@ -70,6 +78,9 @@ class Builder:
     # The ninja targets to build
     build_targets = ["chrome"]
 
+    # The CPU architecture to build for. Set to None to let the meta-build configuration decide
+    target_arch = None
+
     @staticmethod
     def _run_subprocess(*args, append_environ=None, **kwargs):
         if append_environ is None:
@@ -81,6 +92,7 @@ class Builder:
 
     def __init__(self, version_configfile=pathlib.Path("version.ini"), chromium_version=None,
                  release_revision=None, build_dir=pathlib.Path("build"), logger=None):
+        # pylint: disable=too-many-arguments
         if logger is None:
             self.logger = _util.get_default_logger()
         else:
@@ -105,9 +117,9 @@ class Builder:
         builder_order.reverse()
         known_resources = set()
         for builder_type in builder_order:
-            resource_path = builder_type._resources / file_path
-            if not builder_type._resources in known_resources:
-                known_resources.add(builder_type._resources)
+            resource_path = builder_type._resources / file_path # pylint: disable=protected-access
+            if not builder_type._resources in known_resources: # pylint: disable=protected-access
+                known_resources.add(builder_type._resources) # pylint: disable=protected-access
                 if resource_path.exists():
                     yield resource_path
 
@@ -142,6 +154,11 @@ class Builder:
         for i in self._read_list_resource(GYP_FLAGS):
             arg_key, arg_value = i.split("=", 1)
             args_dict[arg_key] = arg_value
+        if not self.target_arch is None:
+            if self.target_arch == CPUArch.x86:
+                args_dict["target_arch"] = "ia32"
+            else:
+                args_dict["target_arch"] = self.target_arch.value
         return args_dict
 
     def _setup_tar_dependency(self, tar_url, tar_filename, strip_tar_dirs, dep_destination):
@@ -353,7 +370,8 @@ class Builder:
             self.logger.info("Downloading extra dependency '{}' ...".format(section))
             dep_version = extra_deps_dict[section]["version"]
             dep_url = extra_deps_dict[section]["url"].format(version=dep_version)
-            dep_download_name = extra_deps_dict[section]["download_name"].format(version=dep_version)
+            dep_download_name = extra_deps_dict[section]["download_name"].format(
+                version=dep_version)
             if "strip_leading_dirs" in extra_deps_dict[section]:
                 dep_strip_dirs = pathlib.Path(
                     extra_deps_dict[section]["strip_leading_dirs"].format(version=dep_version))

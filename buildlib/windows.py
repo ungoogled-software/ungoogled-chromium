@@ -25,7 +25,7 @@ import subprocess
 import zipfile
 
 from ._util import BuilderException
-from .common import Builder, PATCHES, PATCH_ORDER
+from .common import Builder, PATCHES, PATCH_ORDER, CPUArch
 
 __all__ = ["WindowsBuilder"]
 
@@ -37,6 +37,7 @@ class WindowsBuilder(Builder):
     patch_command = ["patch", "-p1"]
     python2_command = "python"
     use_depot_tools_toolchain = False
+    target_arch = CPUArch.x86
 
     @staticmethod
     def _run_subprocess(*args, **kwargs):
@@ -105,7 +106,7 @@ class WindowsBuilder(Builder):
 
             exec_globals = {"__builtins__": None}
             with self._files_cfg.open() as cfg_file:
-                exec(cfg_file.read(), exec_globals)
+                exec(cfg_file.read(), exec_globals) # pylint: disable=exec-used
             for file_spec in exec_globals["FILES"]:
                 if "dev" in file_spec["buildtype"] and "official" in file_spec["buildtype"]:
                     if "arch" in file_spec and not "32bit" in file_spec["arch"]:

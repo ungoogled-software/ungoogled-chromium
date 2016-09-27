@@ -100,7 +100,7 @@ class DebianBuilder(Builder):
 
         # Symlink flot libraries
         for system_path in itertools.chain(pathlib.Path("/").glob(
-                                               "usr/share/javascript/jquery/*min.js"),
+                "usr/share/javascript/jquery/*min.js"),
                                            pathlib.Path("/").glob(
                                                "usr/share/javascript/jquery-flot/*min.js")):
             symlink_path = self._sandbox_dir / pathlib.Path("third_party", "flot", system_path.name)
