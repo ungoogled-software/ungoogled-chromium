@@ -103,7 +103,7 @@ def extract_tar_file(logger, tar_path, destination_dir, ignore_files, relative_t
                 if relative_to is None:
                     relative_path = pathlib.PurePosixPath(tarinfo.name)
                 else:
-                    relative_path = pathlib.PurePosixPath(tarinfo.name).relative_to(relative_to)
+                    relative_path = pathlib.PurePosixPath(tarinfo.name).relative_to(relative_to) # pylint: disable=redefined-variable-type
                 if str(relative_path) in ignore_files:
                     ignore_files.remove(str(relative_path))
                 else:
@@ -118,9 +118,9 @@ def extract_tar_file(logger, tar_path, destination_dir, ignore_files, relative_t
                         # Derived from TarFile.extract()
                         relative_target = pathlib.PurePosixPath(
                             tarinfo.linkname).relative_to(relative_to)
-                        tarinfo._link_target = str(
+                        tarinfo._link_target = str( # pylint: disable=protected-access
                             destination_dir / pathlib.Path(*relative_target.parts))
-                    tar_file_obj._extract_member(tarinfo, str(destination))
+                    tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
             except Exception as exc:
                 logger.error("Exception thrown for tar member {}".format(tarinfo.name))
                 raise exc

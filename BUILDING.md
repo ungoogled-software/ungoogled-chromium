@@ -110,6 +110,8 @@ See `build.py` for more on customizing the build environment or process.
 
 Please read the section in the README explaning ungoogled-chromium's design first.
 
+For other Linux distributions, consider using `LinuxStaticBuilder` in `buildlib.linux`.
+
 Consult the build instructions on the [Chromium homepage](//www.chromium.org/Home) for platform-specific building information.
 
 You can use `depot_tools` to setup the Chromium source tree in `build/sandbox` if `buildlib`'s source downloading system does not work on a platform. However, please note that this will involve executing Google binaries part of `depot_tools` and will run scripts that can download and run more Google binaries.

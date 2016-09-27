@@ -49,8 +49,8 @@ def get_builder(*args, **kwargs):
         elif dist_id == "ubuntu":
             cls = UbuntuXenialBuilder
         else:
-            # TODO: Implement a more distribution-independent Linux builder
-            cls = DebianBuilder
+            from .linux import LinuxStaticBuilder
+            cls = LinuxStaticBuilder
     else:
         raise BuilderException("Unsupported sys.platform value"
                                "'{}'".format(sys.platform))
