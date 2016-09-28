@@ -30,8 +30,7 @@ This may work on other Debian-based distributions and 32-bit systems
 Run these steps on the system you want to build packages for:
 
     # Change directory to ungoogled-chromium's root directory
-    dpkg-checkbuilddeps resources/debian/dpkg_dir/control # Use this to see the packages needed to build. This includes packages for "General building requirements"
-    ./build.py
+    ./build.py # This will check system packages first
 
 Debian packages will appear in the current working directory.
 
@@ -86,7 +85,6 @@ Credits to [9Morello](//github.com/9Morello) for most of the work done on this p
 * Homebrew
 * Subversion client
 * Perl (for creating a `.dmg` package)
-* LLVM with Clang (see next section)
 * GNU patch (see next section)
 
 ### Setting up the build environment
