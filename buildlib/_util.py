@@ -120,6 +120,8 @@ def extract_tar_file(logger, tar_path, destination_dir, ignore_files, relative_t
                             tarinfo.linkname).relative_to(relative_to)
                         tarinfo._link_target = str( # pylint: disable=protected-access
                             destination_dir / pathlib.Path(*relative_target.parts))
+                    if tarinfo.issym() and destination.exists():
+                        destination.unlink()
                     tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
             except Exception as exc:
                 logger.error("Exception thrown for tar member {}".format(tarinfo.name))
