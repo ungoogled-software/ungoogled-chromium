@@ -93,7 +93,8 @@ Credits to [9Morello](//github.com/9Morello) for most of the work done on this p
 2. Install GCC 4.9 via Homebrew: `brew install gcc49`
 3. Install GNU patch via Homebrew: `brew install homebrew/dupes/gpatch`
 4. Install Quilt via Homebrew: `brew install quilt`
-5. Try running `svn info https://llvm.org/svn/llvm-project`
+5. Install Ninja via Homebrew: `brew install ninja`
+6. Try running `svn info https://llvm.org/svn/llvm-project`
     * If asked to verify llvm.org's certificate fingerprint, accept it permanently and run this command again
         * If still asked to accept the fingerprint, try the solutions [on this page](http://stackoverflow.com/questions/6115170/svn-error-validating-server-certificate). Then try rerunning the command to verify the certificate is accepted.
 
