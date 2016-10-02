@@ -55,3 +55,10 @@ No, the list (which is located in `net/http/transport_security_state_static.json
 See [this Wikipedia article](//en.wikipedia.org/wiki/Google_Safe_Browsing) for info about Safe Browsing.
 
 Safe Browsing communicates with Google servers in order to download the blacklists. If you are looking for a feature like Safe Browsing, I recommend uBlock Origin or uMatrix.
+
+## How can I install Flash on OS X/MacOS
+
+1. Go to https://get.adobe.com/flashplayer/otherversions/
+2. Select "Mac OS X 10.6-10.12" on the step 1 dropdown.
+3. Select "FP 23 Mac for Opera and Chromium - PPAPI" on the step 2 dropdown.
+4. Click the "Download now" button, then install.
