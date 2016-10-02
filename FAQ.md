@@ -55,3 +55,17 @@ No, the list (which is located in `net/http/transport_security_state_static.json
 See [this Wikipedia article](//en.wikipedia.org/wiki/Google_Safe_Browsing) for info about Safe Browsing.
 
 Safe Browsing communicates with Google servers in order to download the blacklists. If you are looking for a feature like Safe Browsing, I recommend uBlock Origin or uMatrix.
+
+## How do I install Flash player?
+
+Adobe's version of Flash player (as opposed to Google's Flash player bundled with Chrome) on [Windows and macOS has an auto-update feature](https://helpx.adobe.com/flash-player/kb/flash-player-background-updates.html). Linux users will have to install updates manually, or use a PPAPI Flash player package available from their distribution. The following instructions are for installing Adobe's version of Flash player.
+
+1. Go to https://get.adobe.com/flashplayer/otherversions/
+2. Select the target platform for running Flash in Step 1.
+3. For Step 2, select one of the following:
+    * macOS: `FP 23 Mac for Opera and Chromium - PPAPI` (or the latest version)
+    * Windows: `FP 23 for Opera and Chromium - PPAPI` (or the latest version)
+    * Linux: `FP 23.0 for other Linux 64-bit (.tar.gz) - PPAPI` (or latest version and appropriate CPU architecture)
+4. Click the "Download now" button, then install.
+
+There are also ways to get Google's Flash player or other versions. See http://chromium.woolyss.com/#flash for more details.
