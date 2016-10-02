@@ -291,9 +291,9 @@ class Builder:
         else:
             python_test_command = self.python2_command
         result = self._run_subprocess([python_test_command, "-c",
-                                       ("import sys;print '{}.{}.{}'.format("
+                                       ("import sys;print('{}.{}.{}'.format("
                                         "sys.version_info.major, sys.version_info.minor, "
-                                        "sys.version_info.micro)")],
+                                        "sys.version_info.micro))")],
                                       stdout=subprocess.PIPE, universal_newlines=True)
         if not result.returncode is 0:
             raise BuilderException("Python 2 command returned non-zero exit code {}".format(
@@ -342,10 +342,10 @@ class Builder:
                     with source_archive.open("rb") as file_obj:
                         hasher.update(file_obj.read())
                         if not hasher.hexdigest() == hash_line[1]:
-                            self.logger.error(("Archive does not have matching '{algorithm}'"
-                                               "hash '{hashhex}'").format(algorithm=hash_line[0],
-                                                                          hashhex=hash_line[1]))
-                            return None
+                            raise BuilderException(("Archive does not have matching '{algorithm}'"
+                                                    "hash '{hashhex}'").format(
+                                                        algorithm=hash_line[0],
+                                                        hashhex=hash_line[1]))
                 else:
                     self.logger.warning("Hash algorithm '{}' not available. Skipping...".format(
                         hash_line[0]))
