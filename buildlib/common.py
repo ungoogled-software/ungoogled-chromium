@@ -106,6 +106,8 @@ class Builder:
         self._sandbox_dir = _util.safe_create_dir(self.logger, build_dir / pathlib.Path("sandbox"))
         self._downloads_dir = _util.safe_create_dir(self.logger,
                                                     build_dir / pathlib.Path("downloads"))
+        self._path_overrides = _util.safe_create_dir(self.logger,
+                                                     build_dir / pathlib.Path("path_overrides"))
 
         self._domain_regex_cache = None
 
@@ -244,7 +246,8 @@ class Builder:
     #            result.returncode))
 
     def _run_ninja(self, output, targets):
-        result = self._run_subprocess([self.ninja_command, "-C", str(output), *targets],
+        # TODO: Use iterable unpacking instead when requiring Python 3.5
+        result = self._run_subprocess([self.ninja_command, "-C", str(output)] + targets,
                                       cwd=str(self._sandbox_dir))
         if not result.returncode == 0:
             raise BuilderException("ninja returned non-zero exit code: {}".format(
