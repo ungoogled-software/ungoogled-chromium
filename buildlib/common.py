@@ -84,11 +84,11 @@ class Builder:
     @staticmethod
     def _run_subprocess(*args, append_environ=None, **kwargs):
         if append_environ is None:
-            return subprocess.run(*args, **kwargs)
+            return _util.subprocess_run(*args, **kwargs)
         else:
             new_env = dict(os.environ)
             new_env.update(append_environ)
-            return subprocess.run(*args, env=new_env, **kwargs)
+            return _util.subprocess_run(*args, env=new_env, **kwargs)
 
     def __init__(self, version_configfile=pathlib.Path("version.ini"), chromium_version=None,
                  release_revision=None, build_dir=pathlib.Path("build"), logger=None):

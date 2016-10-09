@@ -53,7 +53,7 @@ For maximum portability, the build configuration will generate x86 binaries.
         * These files are portable.
 * [gperf from GNUWin32](http://gnuwin32.sourceforge.net/packages/gperf.htm)
 * [bison from GNUWin32](http://gnuwin32.sourceforge.net/packages/bison.htm)
-    * Get the Binaries, Developer files, and Dependencies
+    * Get the Binaries, Developer files, Sources, and Dependencies
 
 ### Setting up the build environment
 
