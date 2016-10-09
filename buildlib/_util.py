@@ -163,6 +163,39 @@ def download_if_needed(logger, file_path, url, force_download):
     else:
         logger.info("{} already exists. Skipping download.".format(str(file_path)))
 
+# This is a port from https://hg.python.org/cpython/file/3.5/Lib/subprocess.py#l629
+# TODO: Delete this when Python 3.5 is required
+class _CompletedProcess(object):
+    """A process that has finished running.
+
+    This is returned by run().
+
+    Attributes:
+      args: The list or str args passed to run().
+      returncode: The exit code of the process, negative for signals.
+      stdout: The standard output (None if not captured).
+      stderr: The standard error (None if not captured).
+    """
+    def __init__(self, args, returncode, stdout=None, stderr=None):
+        self.args = args
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def __repr__(self):
+        args = ['args={!r}'.format(self.args),
+                'returncode={!r}'.format(self.returncode)]
+        if self.stdout is not None:
+            args.append('stdout={!r}'.format(self.stdout))
+        if self.stderr is not None:
+            args.append('stderr={!r}'.format(self.stderr))
+        return "{}({})".format(type(self).__name__, ', '.join(args))
+
+    def check_returncode(self):
+        """Raise CalledProcessError if the exit code is non-zero."""
+        if self.returncode:
+            raise subprocess.CalledProcessError(self.returncode, self.args, self.stdout)
+
 # This is a port of run() from https://hg.python.org/cpython/file/3.5/Lib/subprocess.py#l662
 # TODO: Delete this when Python 3.5 is required
 def subprocess_run(*popenargs, input=None, timeout=None, check=False, **kwargs):
@@ -211,5 +244,5 @@ def subprocess_run(*popenargs, input=None, timeout=None, check=False, **kwargs):
         retcode = process.poll()
         if check and retcode:
             raise subprocess.CalledProcessError(retcode, process.args,
-                                                output=stdout, stderr=stderr)
-    return subprocess.CompletedProcess(process.args, retcode, stdout, stderr)
+                                                output=stdout)
+    return _CompletedProcess(process.args, retcode, stdout, stderr)
