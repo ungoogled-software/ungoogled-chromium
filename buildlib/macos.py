@@ -68,12 +68,12 @@ class MacOSBuilder(Builder):
         self.logger.debug("Found libtool at '{!s}'".format(libtool_path))
 
         self.logger.info("Checking compilers...")
-        compiler_list = [ # TODO: Move these paths to another config file?
-            "/usr/local/Cellar/gcc49/4.9.3/bin/x86_64-apple-darwin15.4.0-c++-4.9"]
-        for compiler in compiler_list:
-            if not pathlib.Path(compiler).is_file():
-                raise BuilderException("Compiler '{}' does not exist or is not a file".format(
-                    compiler))
+        compiler = shutil.which('c++-4.9')
+        if not pathlib.Path(compiler).is_file():
+            raise BuilderException("Compiler '{}' does not exist or is not a file".format(
+                compiler))
+        else:
+            self.logger.debug("Using c++-4.9 at '{!s}'".format(compiler))
 
     def apply_patches(self):
         self.logger.debug("Copying patches to {}...".format(str(self.build_dir / PATCHES)))
