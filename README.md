@@ -1,6 +1,6 @@
 # ungoogled-chromium
 
-**A Google Chromium variant for removing Google integration and enhancing privacy, control, and transparency**
+**Modifications to Google Chromium for removing Google integration and enhancing privacy, control, and transparency**
 
 A number of features or background services communicate with Google servers despite the absence of an associated Google account or compiled-in Google API keys. Furthermore, the normal build process for Chromium involves running Google's own high-level commands that invoke many scripts and utilities, some of which download and use pre-built binaries provided by Google. Even the final build output includes some pre-built binaries. Fortunately, the source code is available for everything.
 
