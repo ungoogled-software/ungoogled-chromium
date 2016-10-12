@@ -25,12 +25,18 @@ See the following for more information.
 As of now, Debian Stretch 64-bit and Ubuntu Xenial 64-bit are tested.
 This may work on other Debian-based distributions and 32-bit systems
 
+### Additional Requirements
+
 **Note for Debian Jessie users**: ungoogled-chromium is configured to build against the system's [FFmpeg](//www.ffmpeg.org/) (available in Stretch and onwards); [Libav](//libav.org) (used in Jessie) will not work. However, FFmpeg is available in `jessie-backports`. To install it, add `jessie-backports` to the apt sources, and then install `libavutil-dev`, `libavcodec-dev`, and `libavformat-dev` from it. Note that this will replace Libav.
+
+Make sure to install the `quilt` and `build-essential` packages first, otherwise `buildlib` will not work properly.
+
+### Build
 
 Run these steps on the system you want to build packages for:
 
     # Change directory to ungoogled-chromium's root directory
-    ./build.py # This will check system packages first
+    ./build.py # This will check system packages and print out additional packages to install
 
 Debian packages will appear in the current working directory.
 
@@ -90,7 +96,9 @@ Credits to [9Morello](//github.com/9Morello) for most of the work done on this p
 ### Setting up the build environment
 
 1. Setup [Homebrew Versions](//github.com/Homebrew/homebrew-versions) if you haven't already: `brew tap homebrew/versions`
-2. Install GCC 4.9 via Homebrew: `brew install gcc49`
+2. Install GCC 4.9 via Homebrew:
+    * `brew install gcc49`
+    * `brew link gcc`
 3. Install GNU patch via Homebrew: `brew install homebrew/dupes/gpatch`
 4. Install Quilt via Homebrew: `brew install quilt`
 5. Install Ninja via Homebrew: `brew install ninja`
