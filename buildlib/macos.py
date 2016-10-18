@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''Code for Mac OS'''
+'''Code for macOS'''
 
 import tempfile
 import pathlib
@@ -28,7 +28,7 @@ from ._util import BuilderException
 from .common import Builder, PATCHES, PATCH_ORDER
 
 class MacOSBuilder(Builder):
-    '''Builder for Mac OS'''
+    '''Builder for macOS'''
 
     _resources = pathlib.Path("resources", "macos")
 
@@ -67,13 +67,11 @@ class MacOSBuilder(Builder):
             raise BuilderException("Could not find command 'libtool' in PATH variable")
         self.logger.debug("Found libtool at '{!s}'".format(libtool_path))
 
-        self.logger.info("Checking compilers...")
-        compiler_list = [ # TODO: Move these paths to another config file?
-            "/usr/local/Cellar/gcc49/4.9.3/bin/x86_64-apple-darwin15.4.0-c++-4.9"]
-        for compiler in compiler_list:
-            if not pathlib.Path(compiler).is_file():
-                raise BuilderException("Compiler '{}' does not exist or is not a file".format(
-                    compiler))
+        # TODO: Maybe add check for macOS SDK version
+        self.logger.info("Checking g++ compiler for building libc++...")
+        if not pathlib.Path(shutil.which("g++-4.9")).is_file():
+            raise BuilderException("GNU compiler '{}' does not exist or is not a file".format(
+                compiler))
 
     def apply_patches(self):
         self.logger.debug("Copying patches to {}...".format(str(self.build_dir / PATCHES)))

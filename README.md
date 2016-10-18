@@ -66,7 +66,7 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
 * Debian
 * Ubuntu
 * Windows
-* Mac OS
+* macOS
 
 ## Download pre-built packages
 
