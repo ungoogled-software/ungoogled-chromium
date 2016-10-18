@@ -36,15 +36,14 @@ class WindowsBuilder(GNUPatchComponent, GYPMetaBuildComponent):
     use_depot_tools_toolchain = False
     target_arch = CPUArch.x86
 
-    @staticmethod
-    def _run_subprocess(*args, **kwargs):
+    def _run_subprocess(self, *args, **kwargs):
         # On Windows for some reason, subprocess.run(['python']) will use the current interpreter's
         # executable even though it is not in the PATH or cwd
         # Also, subprocess calls CreateProcess on Windows, which has limitations as shown by
         # https://bugs.python.org/issue17023
         # Adding shell=True solves all of these problems
         kwargs["shell"] = True
-        return super(WindowsBuilder, WindowsBuilder)._run_subprocess(*args, **kwargs)
+        return super(WindowsBuilder, self)._run_subprocess(*args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         super(WindowsBuilder, self).__init__(*args, **kwargs)
