@@ -27,6 +27,7 @@ import configparser
 import distutils.dir_util
 import os
 import enum
+import shutil
 
 from . import _util
 from ._util import BuilderException
@@ -37,8 +38,9 @@ DOMAIN_SUBSTITUTION_LIST = pathlib.Path("domain_substitution_list")
 PATCHES = pathlib.Path("patches")
 EXTRA_DEPS = pathlib.Path("extra_deps.ini")
 PATCH_ORDER = pathlib.Path("patch_order")
+
 GYP_FLAGS = pathlib.Path("gyp_flags")
-#GN_ARGS = pathlib.Path("gn_args.ini")
+GN_ARGS = pathlib.Path("gn_args.ini")
 
 class CPUArch(enum.Enum):
     '''
@@ -52,6 +54,8 @@ class Builder:
     Generic builder class. Also a metaclass for specific Builder implementations
     '''
 
+    # pylint: disable=too-many-instance-attributes
+
     _resources = pathlib.Path("resources", "common")
 
     # Force the downloading of dependencies instead of checking if they exist
@@ -62,8 +66,6 @@ class Builder:
 
     # Switch for running domain substitution
     run_domain_substitution = True
-
-    #gn_command = None
 
     # The command to invoke Python 2
     # If set to none, the shebang line or file associations are used
@@ -151,18 +153,6 @@ class Builder:
                     combined_dict[section][config_key] = resource_config[section][config_key]
         return combined_dict
 
-    def _get_gyp_flags(self):
-        args_dict = dict()
-        for i in self._read_list_resource(GYP_FLAGS):
-            arg_key, arg_value = i.split("=", 1)
-            args_dict[arg_key] = arg_value
-        if not self.target_arch is None:
-            if self.target_arch == CPUArch.x86:
-                args_dict["target_arch"] = "ia32"
-            else:
-                args_dict["target_arch"] = self.target_arch.value
-        return args_dict
-
     def _setup_tar_dependency(self, tar_url, tar_filename, strip_tar_dirs, dep_destination):
         tar_destination = self._downloads_dir / pathlib.Path(tar_filename)
         _util.download_if_needed(self.logger, tar_destination, tar_url, self.force_download)
@@ -198,53 +188,6 @@ class Builder:
                                     (self.build_dir / PATCHES).rglob("*.patch"),
                                     log_warnings=False)
 
-    def _gyp_generate_ninja(self, args_dict, append_environ):
-        command_list = list()
-        if not self.python2_command is None:
-            command_list.append(self.python2_command)
-        command_list.append(str(pathlib.Path("build", "gyp_chromium")))
-        command_list += ["--depth=.", "--check"]
-        for arg_key, arg_value in args_dict.items():
-            command_list.append("-D{}={}".format(arg_key, arg_value))
-        self.logger.debug("GYP command: {}".format(" ".join(command_list)))
-        result = self._run_subprocess(command_list, append_environ=append_environ,
-                                      cwd=str(self._sandbox_dir))
-        if not result.returncode == 0:
-            raise BuilderException("GYP command returned non-zero exit code: {}".format(
-                result.returncode))
-
-    def _gn_write_args(self, args_map):
-        '''
-        `args_map` can be any object supporting the mapping interface
-        '''
-        gn_imports = list()
-        gn_flags = list()
-        for gn_path in args_map:
-            # Checking against DEFAULT for configparser mapping interface
-            if not gn_path == "DEFAULT" and not gn_path == "global":
-                if not gn_path.lower().endswith(".gn"):
-                    gn_imports.append('import("{}")'.format(gn_path))
-            for flag in args_map[gn_path]:
-                gn_flags.append("{}={}".format(flag, args_map[gn_path][flag]))
-        with (self._sandbox_dir / self.build_output /
-              pathlib.Path("args.gn")).open("w") as file_obj:
-            file_obj.write("\n".join(gn_imports))
-            file_obj.write("\n")
-            file_obj.write("\n".join(gn_flags))
-
-    #def _gn_generate_ninja(self, gn_override=None):
-    #    command_list = list()
-    #    if gn_override is None:
-    #        command_list.append(self.gn_command)
-    #    else:
-    #        command_list.append(gn_override)
-    #    command_list.append("gen")
-    #    command_list.append(str(self.build_output))
-    #    result = self._run_subprocess(command_list, cwd=str(self._sandbox_dir))
-    #    if not result.returncode == 0:
-    #        raise BuilderException("gn gen returned non-zero exit code: {}".format(
-    #            result.returncode))
-
     def _run_ninja(self, output, targets):
         # TODO: Use iterable unpacking instead when requiring Python 3.5
         result = self._run_subprocess([self.ninja_command, "-C", str(output)] + targets,
@@ -252,36 +195,6 @@ class Builder:
         if not result.returncode == 0:
             raise BuilderException("ninja returned non-zero exit code: {}".format(
                 result.returncode))
-
-    #def _build_gn(self):
-    #    '''
-    #    Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string.
-    #
-    #    Only works on Linux or Mac.
-    #    '''
-    #    self.logger.info("Building gn...")
-    #    temp_gn_executable = pathlib.Path("out", "temp_gn")
-    #    if (self._sandbox_dir / temp_gn_executable).exists():
-    #        self.logger.info("Bootstrap gn already exists")
-    #    else:
-    #        self.logger.info("Building bootstrap gn")
-    #        command_list = [str(pathlib.Path("tools", "gn", "bootstrap", "bootstrap.py")),
-    #                        "-v", "-s", "-o", str(temp_gn_executable),
-    #                        "--gn-gen-args= use_sysroot=false"]
-    #        if not self.python2_command is None:
-    #            command_list.insert(0, self.python2_command)
-    #        result = self._run_subprocess(command_list, cwd=str(self._sandbox_dir))
-    #        if not result.returncode == 0:
-    #            raise BuilderException("GN bootstrap command returned "
-    #                                   "non-zero exit code: {}".format(result.returncode))
-    #    self.logger.info("Building gn using bootstrap gn...")
-    #    build_output = pathlib.Path("out", "gn_release")
-    #    (self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
-    #    self._gn_write_args({"global": {"use_sysroot": "false", "is_debug": "false"}},
-    #                        build_output)
-    #    self._gn_generate_ninja(build_output, gn_override=str(temp_gn_executable))
-    #    self._run_ninja(build_output, ["gn"])
-    #    return str(build_output / pathlib.Path("gn"))
 
     def check_build_environment(self):
         '''Checks the build environment before building'''
@@ -402,6 +315,202 @@ class Builder:
         # TODO: Use Python to apply patches defined in `patch_order`
         pass
 
+    def setup_build_utilities(self):
+        '''Sets up additional build utilities not provided by the build environment'''
+        pass
+
+    def generate_build_configuration(self):
+        '''Generates build configuration'''
+        pass
+
+    def build(self):
+        '''Starts building'''
+        self.logger.info("Running build command...")
+        self._run_ninja(self.build_output, self.build_targets)
+
+    def generate_package(self):
+        '''Generates binary packages ready for distribution'''
+        # TODO: Create .tar.xz of binaries?
+        pass
+
+class QuiltPatchComponent(Builder):
+    '''Patching component implemented with quilt'''
+
+    quilt_command = "quilt"
+
+    def __init__(self, *args, **kwargs):
+        super(QuiltPatchComponent, self).__init__(*args, **kwargs)
+
+        self.quilt_env_vars = {
+            "QUILT_PATCHES": str(pathlib.Path("..") / PATCHES),
+            "QUILT_SERIES": str(PATCH_ORDER)
+        }
+
+    def apply_patches(self):
+        self.logger.debug("Copying patches to {}...".format(str(self.build_dir / PATCHES)))
+
+        if (self.build_dir / PATCHES).exists():
+            self.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
+            result = self._run_subprocess([self.quilt_command, "pop", "-a"],
+                                          append_environ=self.quilt_env_vars,
+                                          cwd=str(self._sandbox_dir))
+            if not result.returncode == 0 and not result.returncode == 2:
+                raise BuilderException("Quilt returned non-zero exit code: {}".format(
+                    result.returncode))
+            shutil.rmtree(str(self.build_dir / PATCHES))
+
+        self._generate_patches()
+
+        self.logger.info("Applying patches via quilt...")
+        result = self._run_subprocess([self.quilt_command, "push", "-a"],
+                                      append_environ=self.quilt_env_vars,
+                                      cwd=str(self._sandbox_dir))
+        if not result.returncode == 0:
+            raise BuilderException("Quilt returned non-zero exit code: {}".format(
+                result.returncode))
+
+    def check_build_environment(self):
+        super(QuiltPatchComponent, self).check_build_environment()
+
+        self.logger.info("Checking quilt command...")
+        result = self._run_subprocess([self.quilt_command, "--version"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("quilt command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using quilt command '{!s}'".format(result.stdout.strip("\n")))
+
+class GNUPatchComponent(Builder):
+    '''Patching component implemented with GNU patch'''
+
+    patch_command = ["patch", "-p1"]
+
+    def apply_patches(self):
+        self.logger.info("Applying patches via '{}' ...".format(" ".join(self.patch_command)))
+        self._generate_patches()
+        with (self.build_dir / PATCHES / PATCH_ORDER).open() as patch_order_file:
+            for i in [x for x in patch_order_file.read().splitlines() if len(x) > 0]:
+                self.logger.debug("Applying patch {} ...".format(i))
+                with (self.build_dir / PATCHES / i).open("rb") as patch_file:
+                    result = self._run_subprocess(self.patch_command, cwd=str(self._sandbox_dir),
+                                                  stdin=patch_file)
+                    if not result.returncode == 0:
+                        raise BuilderException("'{}' returned non-zero exit code {}".format(
+                            " ".join(self.patch_command), result.returncode))
+
+    def check_build_environment(self):
+        super(GNUPatchComponent, self).check_build_environment()
+
+        self.logger.info("Checking patch command...")
+        result = self._run_subprocess([self.patch_command[0], "--version"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("patch command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using patch command '{!s}'".format(result.stdout.split("\n")[0]))
+
+class GYPMetaBuildComponent(Builder):
+    '''Meta-build configuration component implemented with GYP'''
+
+    def _get_gyp_flags(self):
+        args_dict = dict()
+        for i in self._read_list_resource(GYP_FLAGS):
+            arg_key, arg_value = i.split("=", 1)
+            args_dict[arg_key] = arg_value
+        if not self.target_arch is None:
+            if self.target_arch == CPUArch.x86:
+                args_dict["target_arch"] = "ia32"
+            else:
+                args_dict["target_arch"] = self.target_arch.value
+        return args_dict
+
+    def _gyp_generate_ninja(self, args_dict, append_environ):
+        command_list = list()
+        if not self.python2_command is None:
+            command_list.append(self.python2_command)
+        command_list.append(str(pathlib.Path("build", "gyp_chromium")))
+        command_list += ["--depth=.", "--check"]
+        for arg_key, arg_value in args_dict.items():
+            command_list.append("-D{}={}".format(arg_key, arg_value))
+        self.logger.debug("GYP command: {}".format(" ".join(command_list)))
+        result = self._run_subprocess(command_list, append_environ=append_environ,
+                                      cwd=str(self._sandbox_dir))
+        if not result.returncode == 0:
+            raise BuilderException("GYP command returned non-zero exit code: {}".format(
+                result.returncode))
+
+    def generate_build_configuration(self):
+        '''Generates build configuration using GYP'''
+        self.logger.info("Running gyp command...")
+        self._gyp_generate_ninja(self._get_gyp_flags(), None)
+
+class GNMetaBuildComponent(Builder):
+    '''Meta-build configuration component implemented with GN'''
+
+    gn_command = None
+
+    def _gn_write_args(self, args_map):
+        '''
+        `args_map` can be any object supporting the mapping interface
+        '''
+        gn_imports = list()
+        gn_flags = list()
+        for gn_path in args_map:
+            # Checking against DEFAULT for configparser mapping interface
+            if not gn_path == "DEFAULT" and not gn_path == "global":
+                if not gn_path.lower().endswith(".gn"):
+                    gn_imports.append('import("{}")'.format(gn_path))
+            for flag in args_map[gn_path]:
+                gn_flags.append("{}={}".format(flag, args_map[gn_path][flag]))
+        with (self._sandbox_dir / self.build_output /
+              pathlib.Path("args.gn")).open("w") as file_obj:
+            file_obj.write("\n".join(gn_imports))
+            file_obj.write("\n")
+            file_obj.write("\n".join(gn_flags))
+
+    #def _gn_generate_ninja(self, gn_override=None):
+    #    command_list = list()
+    #    if gn_override is None:
+    #        command_list.append(self.gn_command)
+    #    else:
+    #        command_list.append(gn_override)
+    #    command_list.append("gen")
+    #    command_list.append(str(self.build_output))
+    #    result = self._run_subprocess(command_list, cwd=str(self._sandbox_dir))
+    #    if not result.returncode == 0:
+    #        raise BuilderException("gn gen returned non-zero exit code: {}".format(
+    #            result.returncode))
+
+    #def _build_gn(self):
+    #    '''
+    #    Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string.
+    #
+    #    Only works on Linux or Mac.
+    #    '''
+    #    self.logger.info("Building gn...")
+    #    temp_gn_executable = pathlib.Path("out", "temp_gn")
+    #    if (self._sandbox_dir / temp_gn_executable).exists():
+    #        self.logger.info("Bootstrap gn already exists")
+    #    else:
+    #        self.logger.info("Building bootstrap gn")
+    #        command_list = [str(pathlib.Path("tools", "gn", "bootstrap", "bootstrap.py")),
+    #                        "-v", "-s", "-o", str(temp_gn_executable),
+    #                        "--gn-gen-args= use_sysroot=false"]
+    #        if not self.python2_command is None:
+    #            command_list.insert(0, self.python2_command)
+    #        result = self._run_subprocess(command_list, cwd=str(self._sandbox_dir))
+    #        if not result.returncode == 0:
+    #            raise BuilderException("GN bootstrap command returned "
+    #                                   "non-zero exit code: {}".format(result.returncode))
+    #    self.logger.info("Building gn using bootstrap gn...")
+    #    build_output = pathlib.Path("out", "gn_release")
+    #    (self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
+    #    self._gn_write_args({"global": {"use_sysroot": "false", "is_debug": "false"}},
+    #                        build_output)
+    #    self._gn_generate_ninja(build_output, gn_override=str(temp_gn_executable))
+    #    self._run_ninja(build_output, ["gn"])
+    #    return str(build_output / pathlib.Path("gn"))
+
     #def setup_build_utilities(self, build_gn=True, gn_command=None, python2_command=None,
     #                          ninja_command="ninja"):
     #    '''
@@ -424,11 +533,6 @@ class Builder:
     #    else:
     #        self.gn_command = gn_command
 
-    def setup_build_utilities(self):
-        '''Sets up additional build utilities not provided by the build environment'''
-        # TODO: Implement this when switching to GN
-        pass
-
     #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"),
     #                                 build_output=pathlib.Path("out", "Default")):
     #    (self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
@@ -436,18 +540,3 @@ class Builder:
     #    config.read(str(gn_args))
     #    self._gn_write_args(config, build_output)
     #    self._gn_generate_ninja(build_output)
-
-    def generate_build_configuration(self):
-        '''Generates build configuration'''
-        self.logger.info("Running gyp command...")
-        self._gyp_generate_ninja(self._get_gyp_flags(), None)
-
-    def build(self):
-        '''Starts building'''
-        self.logger.info("Running build command...")
-        self._run_ninja(self.build_output, self.build_targets)
-
-    def generate_package(self):
-        '''Generates binary packages ready for distribution'''
-        # TODO: Create .tar.xz of binaries?
-        pass

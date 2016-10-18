@@ -165,7 +165,7 @@ def download_if_needed(logger, file_path, url, force_download):
 
 # This is a port from https://hg.python.org/cpython/file/3.5/Lib/subprocess.py#l629
 # TODO: Delete this when Python 3.5 is required
-class _CompletedProcess(object):
+class _CompletedProcess(object): # pylint: disable=too-few-public-methods
     """A process that has finished running.
 
     This is returned by run().
@@ -198,7 +198,7 @@ class _CompletedProcess(object):
 
 # This is a port of run() from https://hg.python.org/cpython/file/3.5/Lib/subprocess.py#l662
 # TODO: Delete this when Python 3.5 is required
-def subprocess_run(*popenargs, input=None, timeout=None, check=False, **kwargs):
+def subprocess_run(*popenargs, input=None, timeout=None, check=False, **kwargs): # pylint: disable=redefined-builtin
     """Run command with arguments and return a CompletedProcess instance.
 
     The returned instance will have attributes args, returncode, stdout and
