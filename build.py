@@ -33,6 +33,7 @@ def main():
     try:
         builder = buildlib.get_builder()
         # Modify builder's attributes as necessary. See the Builder class for options
+        builder.setup_environment_overrides()
         builder.check_build_environment()
         builder.setup_chromium_source()
         builder.setup_build_sandbox()

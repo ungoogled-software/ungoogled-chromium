@@ -28,6 +28,7 @@ import distutils.dir_util
 import os
 import enum
 import shutil
+import stat
 
 from . import _util
 from ._util import BuilderException
@@ -58,6 +59,9 @@ class Builder:
 
     _resources = pathlib.Path("resources", "common")
 
+    # Define command names to prepend to the PATH variable
+    path_overrides = dict()
+
     # Force the downloading of dependencies instead of checking if they exist
     force_download = False
 
@@ -83,15 +87,6 @@ class Builder:
     # The CPU architecture to build for. Set to None to let the meta-build configuration decide
     target_arch = None
 
-    @staticmethod
-    def _run_subprocess(*args, append_environ=None, **kwargs):
-        if append_environ is None:
-            return _util.subprocess_run(*args, **kwargs)
-        else:
-            new_env = dict(os.environ)
-            new_env.update(append_environ)
-            return _util.subprocess_run(*args, env=new_env, **kwargs)
-
     def __init__(self, version_configfile=pathlib.Path("version.ini"), chromium_version=None,
                  release_revision=None, build_dir=pathlib.Path("build"), logger=None):
         # pylint: disable=too-many-arguments
@@ -108,8 +103,8 @@ class Builder:
         self._sandbox_dir = _util.safe_create_dir(self.logger, build_dir / pathlib.Path("sandbox"))
         self._downloads_dir = _util.safe_create_dir(self.logger,
                                                     build_dir / pathlib.Path("downloads"))
-        self._path_overrides = _util.safe_create_dir(self.logger,
-                                                     build_dir / pathlib.Path("path_overrides"))
+        self._path_overrides_dir = _util.safe_create_dir(self.logger,
+                                                         build_dir / pathlib.Path("path_overrides"))
 
         self._domain_regex_cache = None
 
@@ -126,6 +121,41 @@ class Builder:
                 known_resources.add(builder_type._resources) # pylint: disable=protected-access
                 if resource_path.exists():
                     yield resource_path
+
+    def _run_subprocess(self, *args, append_environ=None, **kwargs):
+        new_env = dict(os.environ)
+        if "PATH" not in new_env:
+            new_env["PATH"] = os.defpath
+        if len(new_env["PATH"]) > 0 and not new_env["PATH"].startswith(os.pathsep):
+            new_env["PATH"] = os.pathsep + new_env["PATH"]
+        new_env["PATH"] = str(self._path_overrides_dir) + new_env["PATH"]
+        if not append_environ is None:
+            new_env.update(append_environ)
+        kwargs["env"] = new_env
+        return _util.subprocess_run(*args, **kwargs)
+
+    def _write_path_override(self, name, value):
+        # For platforms with Bash. Should be overridden by other platforms
+        # TODO: Use symlinks when value is an existing file?
+        path_override = self._path_overrides_dir / pathlib.Path(name)
+        if path_override.exists():
+            self.logger.warning("Overwriting existing PATH override '{}'".format(name))
+
+        # Simple hack to prevent simple case of recursive execution
+        if value.split(" ")[0] == name:
+            raise BuilderException("PATH override command '{}' can recursively execute".format(
+                name))
+
+        with path_override.open("w") as override_file:
+            override_file.write("#!/bin/bash\n")
+            override_file.write(value)
+            override_file.write(' "$@"')
+
+        new_mode = stat.S_IMODE(path_override.stat().st_mode)
+        new_mode |= stat.S_IXUSR
+        new_mode |= stat.S_IXGRP
+        new_mode |= stat.S_IXOTH
+        path_override.chmod(new_mode)
 
     def _read_list_resource(self, file_name, is_binary=False):
         if is_binary:
@@ -195,6 +225,12 @@ class Builder:
         if not result.returncode == 0:
             raise BuilderException("ninja returned non-zero exit code: {}".format(
                 result.returncode))
+
+    def setup_environment_overrides(self):
+        '''Sets up overrides of the build environment'''
+
+        for command_name in self.path_overrides:
+            self._write_path_override(command_name, self.path_overrides[command_name])
 
     def check_build_environment(self):
         '''Checks the build environment before building'''
