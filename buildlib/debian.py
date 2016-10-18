@@ -23,23 +23,21 @@ import pathlib
 import datetime
 import locale
 import string
-import shutil
 import itertools
 import distutils.dir_util
 import re
 
 from ._util import BuilderException
-from .common import Builder, PATCHES, PATCH_ORDER
+from .common import QuiltPatchComponent, GYPMetaBuildComponent
 
 __all__ = ["DebianBuilder", "DebianStretchBuilder", "UbuntuXenialBuilder"]
 
-class DebianBuilder(Builder):
+class DebianBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
     '''Generic Builder for all Debian and derivative distributions'''
 
     _resources = pathlib.Path("resources", "common_debian")
     _dpkg_dir = _resources / pathlib.Path("dpkg_dir")
 
-    quilt_command = "quilt"
     build_targets = ["chrome", "chrome_sandbox", "chromedriver"]
 
     class BuildFileStringTemplate(string.Template):
@@ -81,11 +79,6 @@ class DebianBuilder(Builder):
 
         self._sandbox_dpkg_dir = self._sandbox_dir / pathlib.Path("debian")
 
-        self.quilt_env_vars = {
-            "QUILT_PATCHES": str(pathlib.Path("..") / PATCHES),
-            "QUILT_SERIES": str(PATCH_ORDER)
-        }
-
     def check_build_environment(self):
         self.logger.info("Checking installed packages...")
         result = self._run_subprocess(["dpkg-checkbuilddeps",
@@ -108,53 +101,6 @@ class DebianBuilder(Builder):
             if symlink_path.exists():
                 symlink_path.unlink()
             symlink_path.symlink_to(system_path)
-
-    def apply_patches(self):
-        self.logger.debug("Copying patches to {}...".format(str(self.build_dir / PATCHES)))
-
-        if (self.build_dir / PATCHES).exists():
-            self.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
-            result = self._run_subprocess([self.quilt_command, "pop", "-a"],
-                                          append_environ=self.quilt_env_vars,
-                                          cwd=str(self._sandbox_dir))
-            if not result.returncode == 0 and not result.returncode == 2:
-                raise BuilderException("Quilt returned non-zero exit code: {}".format(
-                    result.returncode))
-            shutil.rmtree(str(self.build_dir / PATCHES))
-
-        self._generate_patches()
-
-        self.logger.info("Applying patches via quilt...")
-        result = self._run_subprocess([self.quilt_command, "push", "-a"],
-                                      append_environ=self.quilt_env_vars,
-                                      cwd=str(self._sandbox_dir))
-        if not result.returncode == 0:
-            raise BuilderException("Quilt returned non-zero exit code: {}".format(
-                result.returncode))
-
-    #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"),
-    #                                 build_output=pathlib.Path("out", "Default"),
-    #                                 debian_gn_args=(self.PLATFORM_RESOURCES /
-    #                                                 pathlib.Path("gn_args.ini")):
-    #    (self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
-    #    common_config = configparser.ConfigParser()
-    #    common_config.read(str(gn_args))
-    #    debian_config = configparser.ConfigParser()
-    #    debian_config.read(str(debian_gn_args))
-    #    combined_dict = dict()
-    #    for section in common_config:
-    #        if not section == "DEFAULT":
-    #            combined_dict[section] = dict()
-    #            for config_key in common_config[section]:
-    #                combined_dict[section][config_key] = common_config[section][config_key]
-    #    for section in debian_config:
-    #        if not section == "DEFAULT":
-    #            if not section in combined_dict:
-    #                combined_dict[section] = dict()
-    #            for config_key in debian_config[section]:
-    #                combined_dict[section][config_key] = debian_config[section][config_key]
-    #    self._gn_write_args(combined_dict, build_output)
-    #    self._gn_generate_ninja(build_output)
 
     def generate_package(self):
         build_file_subs = dict(

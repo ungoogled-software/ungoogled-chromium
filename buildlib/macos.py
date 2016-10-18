@@ -25,33 +25,15 @@ import subprocess
 import shutil
 
 from ._util import BuilderException
-from .common import Builder, PATCHES, PATCH_ORDER
+from .common import QuiltPatchComponent, GYPMetaBuildComponent
 
-class MacOSBuilder(Builder):
+class MacOSBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
     '''Builder for macOS'''
 
     _resources = pathlib.Path("resources", "macos")
 
-    quilt_command = "quilt"
-
-    def __init__(self, *args, **kwargs):
-        super(MacOSBuilder, self).__init__(*args, **kwargs)
-
-        self.quilt_env_vars = {
-            "QUILT_PATCHES": str(pathlib.Path("..") / PATCHES),
-            "QUILT_SERIES": str(PATCH_ORDER)
-        }
-
     def check_build_environment(self):
         super(MacOSBuilder, self).check_build_environment()
-
-        self.logger.info("Checking quilt command...")
-        result = self._run_subprocess([self.quilt_command, "--version"], stdout=subprocess.PIPE,
-                                      universal_newlines=True)
-        if not result.returncode is 0:
-            raise BuilderException("quilt command returned non-zero exit code {}".format(
-                result.returncode))
-        self.logger.debug("Using quilt command '{!s}'".format(result.stdout.strip("\n")))
 
         self.logger.info("Checking svn command...")
         result = self._run_subprocess(["svn", "--version", "--quiet"], stdout=subprocess.PIPE,
@@ -69,32 +51,10 @@ class MacOSBuilder(Builder):
 
         # TODO: Maybe add check for macOS SDK version
         self.logger.info("Checking g++ compiler for building libc++...")
-        if not pathlib.Path(shutil.which("g++-4.9")).is_file():
+        gxx_compiler = shutil.which("g++-4.9")
+        if not pathlib.Path(gxx_compiler).is_file():
             raise BuilderException("GNU compiler '{}' does not exist or is not a file".format(
-                compiler))
-
-    def apply_patches(self):
-        self.logger.debug("Copying patches to {}...".format(str(self.build_dir / PATCHES)))
-
-        if (self.build_dir / PATCHES).exists():
-            self.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
-            result = self._run_subprocess([self.quilt_command, "pop", "-a"],
-                                          append_environ=self.quilt_env_vars,
-                                          cwd=str(self._sandbox_dir))
-            if not result.returncode == 0 and not result.returncode == 2:
-                raise BuilderException("Quilt returned non-zero exit code: {}".format(
-                    result.returncode))
-            shutil.rmtree(str(self.build_dir / PATCHES))
-
-        self._generate_patches()
-
-        self.logger.info("Applying patches via quilt...")
-        result = self._run_subprocess([self.quilt_command, "push", "-a"],
-                                      append_environ=self.quilt_env_vars,
-                                      cwd=str(self._sandbox_dir))
-        if not result.returncode == 0:
-            raise BuilderException("Quilt returned non-zero exit code: {}".format(
-                result.returncode))
+                gxx_compiler))
 
     def build(self):
         if (self._sandbox_dir / pathlib.Path("third_party", "libc++-static", "libc++.a")).exists():

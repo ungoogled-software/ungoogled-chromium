@@ -21,20 +21,17 @@
 
 import pathlib
 import os
-import subprocess
 import zipfile
 
-from ._util import BuilderException
-from .common import Builder, PATCHES, PATCH_ORDER, CPUArch
+from .common import GNUPatchComponent, GYPMetaBuildComponent, CPUArch
 
 __all__ = ["WindowsBuilder"]
 
-class WindowsBuilder(Builder):
+class WindowsBuilder(GNUPatchComponent, GYPMetaBuildComponent):
     '''Builder for Windows'''
 
     _resources = pathlib.Path("resources", "windows")
 
-    patch_command = ["patch", "-p1"]
     python2_command = "python"
     use_depot_tools_toolchain = False
     target_arch = CPUArch.x86
@@ -54,30 +51,6 @@ class WindowsBuilder(Builder):
 
         self._files_cfg = (self._sandbox_dir /
                            pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg"))
-
-    def check_build_environment(self):
-        super(WindowsBuilder, self).check_build_environment()
-
-        self.logger.info("Checking patch command...")
-        result = self._run_subprocess([self.patch_command[0], "--version"], stdout=subprocess.PIPE,
-                                      universal_newlines=True)
-        if not result.returncode is 0:
-            raise BuilderException("patch command returned non-zero exit code {}".format(
-                result.returncode))
-        self.logger.debug("Using patch command '{!s}'".format(result.stdout.split("\n")[0]))
-
-    def apply_patches(self):
-        self.logger.info("Applying patches via '{}' ...".format(" ".join(self.patch_command)))
-        self._generate_patches()
-        with (self.build_dir / PATCHES / PATCH_ORDER).open() as patch_order_file:
-            for i in [x for x in patch_order_file.read().splitlines() if len(x) > 0]:
-                self.logger.debug("Applying patch {} ...".format(i))
-                with (self.build_dir / PATCHES / i).open("rb") as patch_file:
-                    result = self._run_subprocess(self.patch_command, cwd=str(self._sandbox_dir),
-                                                  stdin=patch_file)
-                    if not result.returncode == 0:
-                        raise BuilderException("'{}' returned non-zero exit code {}".format(
-                            " ".join(self.patch_command), result.returncode))
 
     def generate_build_configuration(self):
         self.logger.info("Running gyp command...")

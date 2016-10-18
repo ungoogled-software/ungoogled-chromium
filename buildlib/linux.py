@@ -19,48 +19,13 @@
 
 '''Code for generic Linux builders'''
 
-import shutil
 import pathlib
 
-from ._util import BuilderException
-from .common import Builder, PATCHES, PATCH_ORDER
+from .common import QuiltPatchComponent, GYPMetaBuildComponent
 
 __all__ = ["LinuxStaticBuilder"]
 
-class LinuxStaticBuilder(Builder):
+class LinuxStaticBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
     '''Builder for statically-linked Linux builds'''
 
     _resources = pathlib.Path("resources", "linux_static")
-
-    quilt_command = "quilt"
-
-    def __init__(self, *args, **kwargs):
-        super(LinuxStaticBuilder, self).__init__(*args, **kwargs)
-
-        self.quilt_env_vars = {
-            "QUILT_PATCHES": str(pathlib.Path("..") / PATCHES),
-            "QUILT_SERIES": str(PATCH_ORDER)
-        }
-
-    def apply_patches(self):
-        self.logger.debug("Copying patches to {}...".format(str(self.build_dir / PATCHES)))
-
-        if (self.build_dir / PATCHES).exists():
-            self.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
-            result = self._run_subprocess([self.quilt_command, "pop", "-a"],
-                                          append_environ=self.quilt_env_vars,
-                                          cwd=str(self._sandbox_dir))
-            if not result.returncode == 0 and not result.returncode == 2:
-                raise BuilderException("Quilt returned non-zero exit code: {}".format(
-                    result.returncode))
-            shutil.rmtree(str(self.build_dir / PATCHES))
-
-        self._generate_patches()
-
-        self.logger.info("Applying patches via quilt...")
-        result = self._run_subprocess([self.quilt_command, "push", "-a"],
-                                      append_environ=self.quilt_env_vars,
-                                      cwd=str(self._sandbox_dir))
-        if not result.returncode == 0:
-            raise BuilderException("Quilt returned non-zero exit code: {}".format(
-                result.returncode))
