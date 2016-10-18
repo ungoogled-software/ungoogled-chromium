@@ -77,11 +77,11 @@ See `build.py` for more on customizing the build environment or process.
     # Change directory to ungoogled-chromium's root directory
     path\to\python3 build.py
 
-## Mac OS
+## macOS
 
 **NOTE: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue**
 
-Tested on Mac OS 10.11.6
+Tested on macOS 10.11.6
 
 Credits to [9Morello](//github.com/9Morello) for most of the work done on this platform.
 
