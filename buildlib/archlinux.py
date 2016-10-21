@@ -35,6 +35,8 @@ class ArchLinuxBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
         "python": "python2"
     }
 
+    python2_command = "python2"
+
     def setup_build_sandbox(self):
         super(ArchLinuxBuilder, self).setup_build_sandbox()
 

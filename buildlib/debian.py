@@ -37,6 +37,7 @@ class DebianBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
 
     _resources = pathlib.Path("resources", "common_debian")
     _dpkg_dir = _resources / pathlib.Path("dpkg_dir")
+    _distro_version = "testing"
 
     build_targets = ["chrome", "chrome_sandbox", "chromedriver"]
 
@@ -106,7 +107,8 @@ class DebianBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
         build_file_subs = dict(
             changelog_version="{}-{}".format(self.chromium_version, self.release_revision),
             changelog_datetime=self._get_dpkg_changelog_datetime(),
-            build_output=str(self.build_output)
+            build_output=str(self.build_output),
+            distribution_version=self._distro_version
         )
         self.logger.info("Building Debian package...")
         # TODO: Copy _dpkg_dir over each other in build/ similar to resource reading
@@ -130,8 +132,10 @@ class DebianStretchBuilder(DebianBuilder):
     '''Builder for Debian Stretch'''
 
     _resources = pathlib.Path("resources", "debian_stretch")
+    _distro_version = "stretch"
 
 class UbuntuXenialBuilder(DebianBuilder):
     '''Builder for Ubuntu Xenial'''
 
     _resources = pathlib.Path("resources", "ubuntu_xenial")
+    _distro_version = "xenial"
