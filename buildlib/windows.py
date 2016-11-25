@@ -80,7 +80,7 @@ class WindowsBuilder(GNUPatchComponent, GYPMetaBuildComponent):
             with self._files_cfg.open() as cfg_file:
                 exec(cfg_file.read(), exec_globals) # pylint: disable=exec-used
             for file_spec in exec_globals["FILES"]:
-                if "dev" in file_spec["buildtype"] and "official" in file_spec["buildtype"]:
+                if "official" in file_spec["buildtype"]:
                     if "arch" in file_spec and not "32bit" in file_spec["arch"]:
                         continue
                     for file_path in (self._sandbox_dir /
