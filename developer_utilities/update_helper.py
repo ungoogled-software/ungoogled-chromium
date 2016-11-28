@@ -199,7 +199,6 @@ def main():
 
     logger.info("Generating cleaning list...")
     cleaning_list = generate_cleaning_list(builder._sandbox_dir, (buildlib.common.Builder._resources / buildlib.common.CLEANING_LIST))
-    cleaning_list = list()
 
     logger.info("Removing files in cleaning list...")
     for i in cleaning_list:
