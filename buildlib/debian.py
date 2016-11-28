@@ -93,9 +93,9 @@ class DebianBuilder(QuiltPatchComponent, GNMetaBuildComponent):
             raise BuilderException("dpkg-architecture returned non-zero exit code {}".format(
                 result.returncode))
         elif "amd64" in result.stdout:
-            gn_flags["host_cpu"] = CPUArch.x64.value
+            gn_flags["host_cpu"] = '"' + CPUArch.x64.value + '"'
         elif "i386" in result.stdout:
-            gn_flags["host_cpu"] = CPUArch.x86.value
+            gn_flags["host_cpu"] = '"' + CPUArch.x86.value + '"'
         else:
             raise BuilderException("Unsupported host CPU architecture: {}".format(result.stdout))
         return gn_flags

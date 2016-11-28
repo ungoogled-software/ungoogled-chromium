@@ -40,6 +40,7 @@ if not pathlib.Path("buildlib").is_dir():
 sys.path.insert(1, str(pathlib.Path.cwd().resolve()))
 
 import buildlib
+import buildlib.common
 
 def print_help():
     print("Simple wrapper around quilt")
@@ -58,13 +59,13 @@ def main(action, patch_name=None):
                                       cwd=str(builder._sandbox_dir))
 
     if action == "recreate":
-        if (builder.build_dir / buildlib._PATCHES).exists():
+        if (builder.build_dir / buildlib.common.PATCHES).exists():
             #builder.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
             #result = _run_quilt("pop", "-a")
             #print(result)
             #if not result.returncode == 0 and not result.returncode == 2:
             #    return 1
-            shutil.rmtree(str(builder.build_dir / buildlib._PATCHES))
+            shutil.rmtree(str(builder.build_dir / buildlib.common.PATCHES))
         builder.apply_patches()
         return 0
 

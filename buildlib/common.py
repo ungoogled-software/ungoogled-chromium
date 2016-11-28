@@ -508,7 +508,7 @@ class GNMetaBuildComponent(Builder):
             arg_key, arg_value = i.split("=", 1)
             args_dict[arg_key] = arg_value
         if not self.target_cpu is None:
-            args_dict["target_cpu"] = self.target_cpu.value
+            args_dict["target_cpu"] = '"' + self.target_cpu.value + '"'
         return args_dict
 
     def _gn_generate_ninja(self, args_dict, append_environ, gn_override=None, output_override=None):
@@ -552,15 +552,14 @@ class GNMetaBuildComponent(Builder):
             if not result.returncode == 0:
                 raise BuilderException("GN bootstrap command returned "
                                        "non-zero exit code: {}".format(result.returncode))
-        '''
-        self.logger.info("Building gn using bootstrap gn...")
-        build_output = pathlib.Path("out", "gn_release")
-        (self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
-        self._gn_generate_ninja(self._get_gn_flags(), None, gn_override=str(boostrap_gn_executable),
-                                output_override=build_output)
-        self._run_ninja(build_output, ["gn"])
-        return str(build_output / pathlib.Path("gn"))
-        '''
+        #self.logger.info("Building gn using bootstrap gn...")
+        #build_output = pathlib.Path("out", "gn_release")
+        #(self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
+        #self._gn_generate_ninja(self._get_gn_flags(), None,
+        #                        gn_override=str(boostrap_gn_executable),
+        #                        output_override=build_output)
+        #self._run_ninja(build_output, ["gn"])
+        #return str(build_output / pathlib.Path("gn"))
         return str(boostrap_gn_executable)
 
     def setup_build_utilities(self):
