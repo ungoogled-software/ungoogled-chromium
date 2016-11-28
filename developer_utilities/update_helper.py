@@ -37,6 +37,8 @@ if not pathlib.Path("buildlib").is_dir():
 sys.path.insert(1, str(pathlib.Path.cwd().resolve()))
 
 import buildlib
+import buildlib.common
+import buildlib.linux
 
 def generate_cleaning_list(sandbox_path, list_file):
     exclude_matches = [
@@ -188,7 +190,7 @@ def generate_domain_substitution_list(sandbox_path, list_file, regex_defs):
         f.write("\n".join(domain_substitution_list))
 
 def main():
-    builder = buildlib.get_builder()
+    builder = buildlib.linux.LinuxStaticBuilder()
     builder.run_source_cleaner = False
     logger = builder.logger
     builder.check_build_environment()
@@ -196,7 +198,8 @@ def main():
     builder.setup_chromium_source()
 
     logger.info("Generating cleaning list...")
-    cleaning_list = generate_cleaning_list(builder._sandbox_dir, (buildlib._COMMON_RESOURCES / buildlib._CLEANING_LIST))
+    cleaning_list = generate_cleaning_list(builder._sandbox_dir, (buildlib.common.Builder._resources / buildlib.common.CLEANING_LIST))
+    cleaning_list = list()
 
     logger.info("Removing files in cleaning list...")
     for i in cleaning_list:
@@ -206,15 +209,12 @@ def main():
             logger.error("File does not exist: {}".format(str(i)))
 
     logger.info("Generating domain substitution list...")
-    generate_domain_substitution_list(builder._sandbox_dir, (buildlib._COMMON_RESOURCES / buildlib._DOMAIN_SUBSTITUTION_LIST), (buildlib._COMMON_RESOURCES / buildlib._DOMAIN_REGEX_LIST)) # TODO: Autogenerate platform domain substutition list when platforms have their own domain substitutions
+    generate_domain_substitution_list(builder._sandbox_dir, (buildlib.common.Builder._resources / buildlib.common.DOMAIN_SUBSTITUTION_LIST), (buildlib.common.Builder._resources / buildlib.common.DOMAIN_REGEX_LIST)) # TODO: Autogenerate platform domain substutition list when platforms have their own domain substitutions
 
     logger.info("Running domain substitution...")
     builder.setup_build_sandbox()
 
-    logger.info("Applying patches...")
-    builder.apply_patches()
-
-    logger.info("Patches applied cleanly!")
+    logger.info("Done.")
 
     return 0
 

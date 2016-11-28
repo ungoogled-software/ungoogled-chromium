@@ -41,7 +41,7 @@ EXTRA_DEPS = pathlib.Path("extra_deps.ini")
 PATCH_ORDER = pathlib.Path("patch_order")
 
 GYP_FLAGS = pathlib.Path("gyp_flags")
-GN_ARGS = pathlib.Path("gn_args.ini")
+GN_FLAGS = pathlib.Path("gn_flags")
 
 class CPUArch(enum.Enum):
     '''
@@ -85,7 +85,7 @@ class Builder:
     build_targets = ["chrome"]
 
     # The CPU architecture to build for. Set to None to let the meta-build configuration decide
-    target_arch = None
+    target_cpu = None
 
     def __init__(self, version_configfile=pathlib.Path("version.ini"), chromium_version=None,
                  release_revision=None, build_dir=pathlib.Path("build"), logger=None):
@@ -457,11 +457,11 @@ class GYPMetaBuildComponent(Builder):
         for i in self._read_list_resource(GYP_FLAGS):
             arg_key, arg_value = i.split("=", 1)
             args_dict[arg_key] = arg_value
-        if not self.target_arch is None:
-            if self.target_arch == CPUArch.x86:
+        if not self.target_cpu is None:
+            if self.target_cpu == CPUArch.x86:
                 args_dict["target_arch"] = "ia32"
             else:
-                args_dict["target_arch"] = self.target_arch.value
+                args_dict["target_arch"] = self.target_cpu.value
         return args_dict
 
     def _gyp_generate_ninja(self, args_dict, append_environ):
@@ -487,96 +487,87 @@ class GYPMetaBuildComponent(Builder):
 class GNMetaBuildComponent(Builder):
     '''Meta-build configuration component implemented with GN'''
 
-    gn_command = None
+    _gn_command = None
 
-    def _gn_write_args(self, args_map):
+    @staticmethod
+    def _get_args_string(args_dict):
         '''
-        `args_map` can be any object supporting the mapping interface
+        Returns the string to be used in the `--args` argument to `gn gen`
         '''
-        gn_imports = list()
-        gn_flags = list()
-        for gn_path in args_map:
-            # Checking against DEFAULT for configparser mapping interface
-            if not gn_path == "DEFAULT" and not gn_path == "global":
-                if not gn_path.lower().endswith(".gn"):
-                    gn_imports.append('import("{}")'.format(gn_path))
-            for flag in args_map[gn_path]:
-                gn_flags.append("{}={}".format(flag, args_map[gn_path][flag]))
-        with (self._sandbox_dir / self.build_output /
-              pathlib.Path("args.gn")).open("w") as file_obj:
-            file_obj.write("\n".join(gn_imports))
-            file_obj.write("\n")
-            file_obj.write("\n".join(gn_flags))
+        args_list = list()
+        for arg_key, arg_value in args_dict.items():
+            args_list.append("{}={}".format(arg_key, arg_value))
+        return " ".join(args_list)
 
-    #def _gn_generate_ninja(self, gn_override=None):
-    #    command_list = list()
-    #    if gn_override is None:
-    #        command_list.append(self.gn_command)
-    #    else:
-    #        command_list.append(gn_override)
-    #    command_list.append("gen")
-    #    command_list.append(str(self.build_output))
-    #    result = self._run_subprocess(command_list, cwd=str(self._sandbox_dir))
-    #    if not result.returncode == 0:
-    #        raise BuilderException("gn gen returned non-zero exit code: {}".format(
-    #            result.returncode))
+    def _get_gn_flags(self):
+        '''
+        Returns a dictionary of all GN flags
+        '''
+        args_dict = dict()
+        for i in self._read_list_resource(GN_FLAGS):
+            arg_key, arg_value = i.split("=", 1)
+            args_dict[arg_key] = arg_value
+        if not self.target_cpu is None:
+            args_dict["target_cpu"] = self.target_cpu.value
+        return args_dict
 
-    #def _build_gn(self):
-    #    '''
-    #    Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string.
-    #
-    #    Only works on Linux or Mac.
-    #    '''
-    #    self.logger.info("Building gn...")
-    #    temp_gn_executable = pathlib.Path("out", "temp_gn")
-    #    if (self._sandbox_dir / temp_gn_executable).exists():
-    #        self.logger.info("Bootstrap gn already exists")
-    #    else:
-    #        self.logger.info("Building bootstrap gn")
-    #        command_list = [str(pathlib.Path("tools", "gn", "bootstrap", "bootstrap.py")),
-    #                        "-v", "-s", "-o", str(temp_gn_executable),
-    #                        "--gn-gen-args= use_sysroot=false"]
-    #        if not self.python2_command is None:
-    #            command_list.insert(0, self.python2_command)
-    #        result = self._run_subprocess(command_list, cwd=str(self._sandbox_dir))
-    #        if not result.returncode == 0:
-    #            raise BuilderException("GN bootstrap command returned "
-    #                                   "non-zero exit code: {}".format(result.returncode))
-    #    self.logger.info("Building gn using bootstrap gn...")
-    #    build_output = pathlib.Path("out", "gn_release")
-    #    (self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
-    #    self._gn_write_args({"global": {"use_sysroot": "false", "is_debug": "false"}},
-    #                        build_output)
-    #    self._gn_generate_ninja(build_output, gn_override=str(temp_gn_executable))
-    #    self._run_ninja(build_output, ["gn"])
-    #    return str(build_output / pathlib.Path("gn"))
+    def _gn_generate_ninja(self, args_dict, append_environ, gn_override=None, output_override=None):
+        '''
+        Generates ninja files with GN
+        '''
+        command_list = list()
+        if gn_override is None:
+            command_list.append(self._gn_command)
+        else:
+            command_list.append(gn_override)
+        command_list.append("gen")
+        if output_override is None:
+            command_list.append(str(self.build_output))
+        else:
+            command_list.append(str(output_override))
+        command_list.append("--args=" + self._get_args_string(args_dict))
+        self.logger.debug("GN command: {}".format(" ".join(command_list)))
+        result = self._run_subprocess(command_list, append_environ=append_environ,
+                                      cwd=str(self._sandbox_dir))
+        if not result.returncode == 0:
+            raise BuilderException("gn gen returned non-zero exit code: {}".format(
+                result.returncode))
 
-    #def setup_build_utilities(self, build_gn=True, gn_command=None, python2_command=None,
-    #                          ninja_command="ninja"):
-    #    '''
-    #    Sets up the utilities required for building. For now, this is just the "gn" tool.
-    #
-    #    If `build_gn` is True, then the `tools/gn/bootstrap/bootstrap.py` script is invoked
-    #    in the build directory to build gn.
-    #    If `python2_command` is set, it must be a string of a command to invoke Python 2 for
-    #    running bootstrap.py. Otherwise, the bootstrap.py path will be the executable path.
-    #
-    #    If `gn_command` is set, it must be a string of a command to invoke gn.
-    #
-    #    `build_gn` and `gn_command` are mutually exclusive.
-    #    '''
-    #    if build_gn and not gn_command is None:
-    #        raise BuilderException("Conflicting arguments: build_gn and gn_path")
-    #    self.ninja_command = ninja_command
-    #    if build_gn:
-    #        self.gn_command = self._build_gn(python2_command)
-    #    else:
-    #        self.gn_command = gn_command
+    def _build_gn(self):
+        '''
+        Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string.
+        '''
+        self.logger.info("Building gn...")
+        temp_gn_executable = pathlib.Path("out", "temp_gn")
+        if (self._sandbox_dir / temp_gn_executable).exists():
+            self.logger.info("Bootstrap gn already exists")
+        else:
+            self.logger.info("Building bootstrap gn")
+            command_list = [str(pathlib.Path("tools", "gn", "bootstrap", "bootstrap.py")),
+                            "-v", "-s", "-o", str(temp_gn_executable),
+                            "--gn-gen-args=" + self._get_args_string(self._get_gn_flags())]
+            if not self.python2_command is None:
+                command_list.insert(0, self.python2_command)
+            result = self._run_subprocess(command_list, cwd=str(self._sandbox_dir))
+            if not result.returncode == 0:
+                raise BuilderException("GN bootstrap command returned "
+                                       "non-zero exit code: {}".format(result.returncode))
+        self.logger.info("Building gn using bootstrap gn...")
+        build_output = pathlib.Path("out", "gn_release")
+        (self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
+        self._gn_generate_ninja(self._get_gn_flags(), None, gn_override=str(temp_gn_executable),
+                                output_override=build_output)
+        self._run_ninja(build_output, ["gn"])
+        return str(build_output / pathlib.Path("gn"))
 
-    #def generate_build_configuration(self, gn_args=pathlib.Path("gn_args.ini"),
-    #                                 build_output=pathlib.Path("out", "Default")):
-    #    (self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
-    #    config = configparser.ConfigParser()
-    #    config.read(str(gn_args))
-    #    self._gn_write_args(config, build_output)
-    #    self._gn_generate_ninja(build_output)
+    def setup_build_utilities(self):
+        '''
+        Sets up the "gn" tool
+        '''
+        super(GNMetaBuildComponent, self).setup_build_utilities()
+        self._gn_command = self._build_gn()
+
+    def generate_build_configuration(self):
+        '''Generates build configuration using GYP'''
+        self.logger.info("Running gn command...")
+        self._gn_generate_ninja(self._get_gn_flags(), None)

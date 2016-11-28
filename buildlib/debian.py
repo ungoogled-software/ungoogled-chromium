@@ -28,11 +28,11 @@ import distutils.dir_util
 import re
 
 from ._util import BuilderException
-from .common import QuiltPatchComponent, GYPMetaBuildComponent
+from .common import QuiltPatchComponent, GNMetaBuildComponent
 
 __all__ = ["DebianBuilder", "DebianStretchBuilder", "UbuntuXenialBuilder"]
 
-class DebianBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
+class DebianBuilder(QuiltPatchComponent, GNMetaBuildComponent):
     '''Generic Builder for all Debian and derivative distributions'''
 
     _resources = pathlib.Path("resources", "common_debian")

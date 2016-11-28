@@ -23,18 +23,18 @@ import pathlib
 import os
 import zipfile
 
-from .common import GNUPatchComponent, GYPMetaBuildComponent, CPUArch
+from .common import GNUPatchComponent, GNMetaBuildComponent, CPUArch
 
 __all__ = ["WindowsBuilder"]
 
-class WindowsBuilder(GNUPatchComponent, GYPMetaBuildComponent):
+class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
     '''Builder for Windows'''
 
     _resources = pathlib.Path("resources", "windows")
 
     python2_command = "python"
     use_depot_tools_toolchain = False
-    target_arch = CPUArch.x86
+    target_cpu = CPUArch.x86
 
     def _run_subprocess(self, *args, **kwargs):
         # On Windows for some reason, subprocess.run(['python']) will use the current interpreter's
@@ -52,12 +52,12 @@ class WindowsBuilder(GNUPatchComponent, GYPMetaBuildComponent):
                            pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg"))
 
     def generate_build_configuration(self):
-        self.logger.info("Running gyp command...")
+        self.logger.info("Running gn command...")
         if self.use_depot_tools_toolchain:
             append_environ = None
         else:
             append_environ = {"DEPOT_TOOLS_WIN_TOOLCHAIN": "0"}
-        self._gyp_generate_ninja(self._get_gyp_flags(), append_environ)
+        self._gn_generate_ninja(self._get_gn_flags(), append_environ)
 
     def build(self):
         # Try to make temporary directories so ninja won't fail

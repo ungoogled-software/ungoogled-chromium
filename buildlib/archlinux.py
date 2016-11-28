@@ -22,11 +22,11 @@
 import pathlib
 import re
 
-from .common import QuiltPatchComponent, GYPMetaBuildComponent
+from .common import QuiltPatchComponent, GNMetaBuildComponent
 
 __all__ = ["ArchLinuxBuilder"]
 
-class ArchLinuxBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
+class ArchLinuxBuilder(QuiltPatchComponent, GNMetaBuildComponent):
     '''Builder for Arch Linux'''
 
     _resources = pathlib.Path("resources", "archlinux")

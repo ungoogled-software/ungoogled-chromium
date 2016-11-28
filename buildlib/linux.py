@@ -21,11 +21,11 @@
 
 import pathlib
 
-from .common import QuiltPatchComponent, GYPMetaBuildComponent
+from .common import QuiltPatchComponent, GNMetaBuildComponent
 
 __all__ = ["LinuxStaticBuilder"]
 
-class LinuxStaticBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
+class LinuxStaticBuilder(QuiltPatchComponent, GNMetaBuildComponent):
     '''Builder for statically-linked Linux builds'''
 
     _resources = pathlib.Path("resources", "linux_static")

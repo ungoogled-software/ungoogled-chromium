@@ -25,9 +25,9 @@ import subprocess
 import shutil
 
 from ._util import BuilderException
-from .common import QuiltPatchComponent, GYPMetaBuildComponent
+from .common import QuiltPatchComponent, GNMetaBuildComponent
 
-class MacOSBuilder(QuiltPatchComponent, GYPMetaBuildComponent):
+class MacOSBuilder(QuiltPatchComponent, GNMetaBuildComponent):
     '''Builder for macOS'''
 
     _resources = pathlib.Path("resources", "macos")
