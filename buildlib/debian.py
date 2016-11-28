@@ -26,9 +26,10 @@ import string
 import itertools
 import distutils.dir_util
 import re
+import subprocess
 
 from ._util import BuilderException
-from .common import QuiltPatchComponent, GNMetaBuildComponent
+from .common import QuiltPatchComponent, GNMetaBuildComponent, CPUArch
 
 __all__ = ["DebianBuilder", "DebianStretchBuilder", "UbuntuXenialBuilder"]
 
@@ -37,6 +38,7 @@ class DebianBuilder(QuiltPatchComponent, GNMetaBuildComponent):
 
     _resources = pathlib.Path("resources", "common_debian")
     _dpkg_dir = _resources / pathlib.Path("dpkg_dir")
+    _scripts_dir = _resources / pathlib.Path("scripts")
     _distro_version = "testing"
 
     build_targets = ["chrome", "chrome_sandbox", "chromedriver"]
@@ -80,6 +82,24 @@ class DebianBuilder(QuiltPatchComponent, GNMetaBuildComponent):
 
         self._sandbox_dpkg_dir = self._sandbox_dir / pathlib.Path("debian")
 
+    def _get_gn_flags(self):
+        '''
+        Override that also adds the host CPU that is being used
+        '''
+        gn_flags = super(DebianBuilder, self)._get_gn_flags()
+        result = self._run_subprocess(["dpkg-architecture", "-qDEB_HOST_ARCH"],
+                                      stdout=subprocess.PIPE, universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("dpkg-architecture returned non-zero exit code {}".format(
+                result.returncode))
+        elif "amd64" in result.stdout:
+            gn_flags["host_cpu"] = CPUArch.x64.value
+        elif "i386" in result.stdout:
+            gn_flags["host_cpu"] = CPUArch.x86.value
+        else:
+            raise BuilderException("Unsupported host CPU architecture: {}".format(result.stdout))
+        return gn_flags
+
     def check_build_environment(self):
         self.logger.info("Checking installed packages...")
         result = self._run_subprocess(["dpkg-checkbuilddeps",
@@ -102,6 +122,13 @@ class DebianBuilder(QuiltPatchComponent, GNMetaBuildComponent):
             if symlink_path.exists():
                 symlink_path.unlink()
             symlink_path.symlink_to(system_path)
+
+        # Run library unbundler
+        result = self._run_subprocess(str(self._scripts_dir / "unbundle"),
+                                      cwd=str(self._sandbox_dir))
+        if not result.returncode is 0:
+            raise BuilderException("Library unbundler returned non-zero exit code: {}".format(
+                result.returncode))
 
     def generate_package(self):
         build_file_subs = dict(
