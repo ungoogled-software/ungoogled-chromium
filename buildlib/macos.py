@@ -49,7 +49,17 @@ class MacOSBuilder(QuiltPatchComponent, GNMetaBuildComponent):
             raise BuilderException("Could not find command 'libtool' in PATH variable")
         self.logger.debug("Found libtool at '{!s}'".format(libtool_path))
 
-        # TODO: Maybe add check for macOS SDK version
+        self.logger.info("Checking macOS SDK version...")
+        result = self._run_subprocess(["xcrun", "--show-sdk-version"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("xcrun command returned non-zero exit code {}".format(
+                result.returncode))
+        if not result.stdout.strip() in ["10.10", "10.11"]: # TODO: Verify this is correct
+            raise BuilderException("Unsupported macOS SDK version '{!s}'".format(
+                result.stdout.strip()))
+        self.logger.debug("Using macOS SDK version '{!s}'".format(result.stdout.strip()))
+
         self.logger.info("Checking g++ compiler for building libc++...")
         gxx_compiler = shutil.which("g++-4.9")
         if not pathlib.Path(gxx_compiler).is_file():
