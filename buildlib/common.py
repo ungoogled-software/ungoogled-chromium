@@ -538,13 +538,13 @@ class GNMetaBuildComponent(Builder):
         Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string.
         '''
         self.logger.info("Building gn...")
-        boostrap_gn_executable = pathlib.Path("out", "boostrap_gn")
-        if (self._sandbox_dir / boostrap_gn_executable).exists():
+        bootstrap_gn_executable = pathlib.Path("out", "bootstrap_gn")
+        if (self._sandbox_dir / bootstrap_gn_executable).exists():
             self.logger.info("Bootstrap gn already exists")
         else:
             self.logger.info("Building bootstrap gn")
             command_list = [str(pathlib.Path("tools", "gn", "bootstrap", "bootstrap.py")),
-                            "-v", "-s", "-o", str(boostrap_gn_executable),
+                            "-v", "-s", "-o", str(bootstrap_gn_executable),
                             "--gn-gen-args=" + self._get_args_string(self._get_gn_flags())]
             if not self.python2_command is None:
                 command_list.insert(0, self.python2_command)
@@ -556,11 +556,11 @@ class GNMetaBuildComponent(Builder):
         #build_output = pathlib.Path("out", "gn_release")
         #(self._sandbox_dir / build_output).mkdir(parents=True, exist_ok=True)
         #self._gn_generate_ninja(self._get_gn_flags(), None,
-        #                        gn_override=str(boostrap_gn_executable),
+        #                        gn_override=str(bootstrap_gn_executable),
         #                        output_override=build_output)
         #self._run_ninja(build_output, ["gn"])
         #return str(build_output / pathlib.Path("gn"))
-        return str(boostrap_gn_executable)
+        return str(bootstrap_gn_executable)
 
     def setup_build_utilities(self):
         '''

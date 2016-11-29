@@ -124,7 +124,7 @@ class DebianBuilder(QuiltPatchComponent, GNMetaBuildComponent):
             symlink_path.symlink_to(system_path)
 
         # Run library unbundler
-        result = self._run_subprocess(str(self._scripts_dir / "unbundle"),
+        result = self._run_subprocess(str((self._scripts_dir / "unbundle").resolve()),
                                       cwd=str(self._sandbox_dir))
         if not result.returncode is 0:
             raise BuilderException("Library unbundler returned non-zero exit code: {}".format(
