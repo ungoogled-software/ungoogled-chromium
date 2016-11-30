@@ -1,0 +1,126 @@
+# Disables Gaia code
+# Somehow it is still activated even without being signed-in: https://github.com/Eloston/ungoogled-chromium/issues/104
+
+--- a/google_apis/gaia/gaia_auth_fetcher.cc
++++ b/google_apis/gaia/gaia_auth_fetcher.cc
+@@ -222,34 +222,6 @@ void GaiaAuthFetcher::CreateAndStartGaiaFetcher(const std::string& body,
+                                                 const GURL& gaia_gurl,
+                                                 int load_flags) {
+   DCHECK(!fetch_pending_) << "Tried to fetch two things at once!";
+-  fetcher_ = net::URLFetcher::Create(
+-      0, gaia_gurl, body.empty() ? net::URLFetcher::GET : net::URLFetcher::POST,
+-      this);
+-  fetcher_->SetRequestContext(getter_);
+-  fetcher_->SetUploadData("application/x-www-form-urlencoded", body);
+-
+-  VLOG(2) << "Gaia fetcher URL: " << gaia_gurl.spec();
+-  VLOG(2) << "Gaia fetcher headers: " << headers;
+-  VLOG(2) << "Gaia fetcher body: " << body;
+-
+-  // The Gaia token exchange requests do not require any cookie-based
+-  // identification as part of requests.  We suppress sending any cookies to
+-  // maintain a separation between the user's browsing and Chrome's internal
+-  // services.  Where such mixing is desired (MergeSession or OAuthLogin), it
+-  // will be done explicitly.
+-  fetcher_->SetLoadFlags(load_flags);
+-
+-  // Fetchers are sometimes cancelled because a network change was detected,
+-  // especially at startup and after sign-in on ChromeOS. Retrying once should
+-  // be enough in those cases; let the fetcher retry up to 3 times just in case.
+-  // http://crbug.com/163710
+-  fetcher_->SetAutomaticallyRetryOnNetworkChanges(3);
+-
+-  if (!headers.empty())
+-    fetcher_->SetExtraRequestHeaders(headers);
+-
+-  fetch_pending_ = true;
+-  fetcher_->Start();
+ }
+ 
+ // static
+--- a/chrome/browser/resources/component_extension_resources.grd
++++ b/chrome/browser/resources/component_extension_resources.grd
+@@ -39,18 +39,6 @@
+       <include name="IDR_BOOKMARK_MANAGER_BOOKMARK_BMM_TREE_JS" file="bookmark_manager/js/bmm/bookmark_tree.js" type="BINDATA" />
+       <include name="IDR_BOOKMARK_MANAGER_BOOKMARK_DND_JS" file="bookmark_manager/js/dnd.js" type="BINDATA" />
+       <include name="IDR_BOOKMARK_MANAGER_BOOKMARK_BMM_JS" file="bookmark_manager/js/bmm.js" type="BINDATA" />
+-      <!-- Gaia auth extension -->
+-      <include name="IDR_GAIA_AUTH_MAIN" file="gaia_auth/main.html" allowexternalscript="true" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_MAIN_JS" file="gaia_auth/main.js" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_MAIN_CSS" file="gaia_auth/main.css" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_OFFLINE" file="gaia_auth/offline.html" allowexternalscript="true" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_OFFLINE_JS" file="gaia_auth/offline.js" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_OFFLINE_CSS" file="gaia_auth/offline.css" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_SUCCESS" file="gaia_auth/success.html" allowexternalscript="true" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_UTIL_JS" file="gaia_auth/util.js" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_BACKGROUND_JS" file="gaia_auth/background.js" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_SAML_INJECTED_JS" file="gaia_auth/saml_injected.js" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_CHANNEL_JS" file="gaia_auth/channel.js" type="BINDATA" />
+       <!-- Hangout Services extension, included in Google Chrome builds only. -->
+       <if expr="_google_chrome or enable_hangout_services_extension">
+         <include name="IDR_HANGOUT_SERVICES_BACKGROUND_HTML" file="hangout_services/background.html" type="BINDATA" />
+--- a/chrome/browser/extensions/signin/gaia_auth_extension_loader.cc
++++ b/chrome/browser/extensions/signin/gaia_auth_extension_loader.cc
+@@ -42,18 +42,11 @@ extensions::ComponentLoader* GetComponentLoader(BrowserContext* context) {
+ void LoadGaiaAuthExtension(BrowserContext* context) {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+ 
+-  extensions::ComponentLoader* component_loader = GetComponentLoader(context);
+   const base::CommandLine* command_line =
+       base::CommandLine::ForCurrentProcess();
+   if (command_line->HasSwitch(switches::kAuthExtensionPath)) {
+-    base::FilePath auth_extension_path =
+-        command_line->GetSwitchValuePath(switches::kAuthExtensionPath);
+-    component_loader->Add(IDR_GAIA_AUTH_MANIFEST, auth_extension_path);
+     return;
+   }
+-
+-  component_loader->Add(IDR_GAIA_AUTH_MANIFEST,
+-                        base::FilePath(FILE_PATH_LITERAL("gaia_auth")));
+ }
+ 
+ void UnloadGaiaAuthExtension(BrowserContext* context) {
+--- a/chrome/browser/extensions/component_extensions_whitelist/whitelist.cc
++++ b/chrome/browser/extensions/component_extensions_whitelist/whitelist.cc
+@@ -76,7 +76,6 @@ bool IsComponentExtensionWhitelisted(int manifest_resource_id) {
+     case IDR_CLOUDPRINT_MANIFEST:
+     case IDR_CRYPTOTOKEN_MANIFEST:
+     case IDR_FEEDBACK_MANIFEST:
+-    case IDR_GAIA_AUTH_MANIFEST:
+ #if defined(ENABLE_GOOGLE_NOW)
+     case IDR_GOOGLE_NOW_MANIFEST:
+ #endif
+--- a/chrome/browser/ui/webui/signin/inline_login_ui.cc
++++ b/chrome/browser/ui/webui/signin/inline_login_ui.cc
+@@ -43,7 +43,6 @@ content::WebUIDataSource* CreateWebUIDataSource() {
+ 
+   source->AddResourcePath("inline_login.css", IDR_INLINE_LOGIN_CSS);
+   source->AddResourcePath("inline_login.js", IDR_INLINE_LOGIN_JS);
+-  source->AddResourcePath("gaia_auth_host.js", IDR_GAIA_AUTH_AUTHENTICATOR_JS);
+ 
+   source->AddLocalizedString("title", IDS_CHROME_SIGNIN_TITLE);
+   source->AddLocalizedString(
+--- a/chrome/browser/ui/webui/chromeos/login/oobe_ui.cc
++++ b/chrome/browser/ui/webui/chromeos/login/oobe_ui.cc
+@@ -156,10 +156,6 @@ content::WebUIDataSource* CreateOobeUIDataSource(
+           extensions::kGaiaAuthExtensionOrigin));
+   source->OverrideContentSecurityPolicyObjectSrc(
+       "object-src chrome:;");
+-  source->AddResourcePath("gaia_auth_host.js",
+-                          StartupUtils::IsWebviewSigninEnabled()
+-                              ? IDR_GAIA_AUTH_AUTHENTICATOR_JS
+-                              : IDR_GAIA_AUTH_HOST_JS);
+ 
+   // Serve deferred resources.
+   source->AddResourcePath(kEnrollmentHTMLPath, IDR_OOBE_ENROLLMENT_HTML);
+--- a/chrome/browser/browser_resources.grd
++++ b/chrome/browser/browser_resources.grd
+@@ -266,8 +266,6 @@
+       <include name="IDR_INLINE_LOGIN_HTML" file="resources\inline_login\inline_login.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
+       <include name="IDR_INLINE_LOGIN_CSS" file="resources\inline_login\inline_login.css" flattenhtml="true" type="BINDATA" />
+       <include name="IDR_INLINE_LOGIN_JS" file="resources\inline_login\inline_login.js" flattenhtml="true" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_AUTHENTICATOR_JS" file="resources\gaia_auth_host\authenticator.js" flattenhtml="true" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_HOST_JS" file="resources\gaia_auth_host\gaia_auth_host.js" flattenhtml="true" type="BINDATA" />
+       <include name="IDR_INSPECT_CSS" file="resources\inspect\inspect.css" flattenhtml="true" type="BINDATA" />
+       <include name="IDR_INSPECT_HTML" file="resources\inspect\inspect.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
+       <include name="IDR_INSPECT_JS" file="resources\inspect\inspect.js" flattenhtml="true" type="BINDATA" />
