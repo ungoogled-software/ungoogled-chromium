@@ -151,18 +151,32 @@ index cbb66d4..d69e58c 100644
        url.SchemeIs(dom_distiller::kDomDistillerScheme))
 diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
 index 6da32e1..ef2bd35 100644
---- a/chrome/browser/ui/browser_command_controller.cc
-+++ b/chrome/browser/ui/browser_command_controller.cc
-@@ -106,7 +106,8 @@ bool HasInternalURL(const NavigationEntry* entry) {
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -21,6 +21,9 @@
+ #include "url/third_party/mozilla/url_parse.h"
+ #include "url/url_file.h"
+ #include "url/url_util.h"
++#if !defined(CHROME_MULTIPLE_DLL_CHILD)
++#  include "iridium/trknotify.h"
++#endif
  
-   // If the |virtual_url()| isn't a chrome:// URL, check if it's actually
-   // view-source: of a chrome:// URL.
--  if (entry->GetVirtualURL().SchemeIs(content::kViewSourceScheme))
-+  if (entry->GetVirtualURL().SchemeIs(content::kViewSourceScheme) ||
-+      entry->GetVirtualURL().SchemeIs(url::kTraceScheme))
-     return entry->GetURL().SchemeIs(content::kChromeUIScheme);
+ #if defined(OS_POSIX)
+ #include "base/path_service.h"
+@@ -543,6 +546,13 @@ GURL FixupURL(const std::string& text, const std::string& desired_tld) {
+                       .possibly_invalid_spec());
+     }
+   }
++  
++  if (scheme == url::kTraceScheme) {
++#if !defined(CHROME_MULTIPLE_DLL_CHILD)
++    iridium::trace_url_request("url_fixer", text);
++#endif
++    return GURL();
++  }
  
-   return false;
+   // We handle the file scheme separately.
+   if (scheme == url::kFileScheme)
 diff --git a/chrome/browser/ui/browser_navigator.cc b/chrome/browser/ui/browser_navigator.cc
 index 7c75a33..67aacb6 100644
 --- a/chrome/browser/ui/browser_navigator.cc
@@ -196,38 +210,14 @@ index 870e8df..bdea535 100644
        continue;
  
      GURL rewritten_tab_url = tab_url;
-diff --git a/chrome/chrome_dll.gypi b/chrome/chrome_dll.gypi
-index 8d15478..ea53243 100644
---- a/chrome/chrome_dll.gypi
-+++ b/chrome/chrome_dll.gypi
-@@ -118,6 +118,7 @@
-             'app/chrome_main_mac.mm',
-           ],
-           'dependencies': [
-+            '../iridium/iridium.gyp:trknotify',
-             '<@(chromium_browser_dependencies)',
-             'chrome_features.gyp:chrome_common_features',
-             'policy_path_parser',
-diff --git a/chrome/chrome_exe.gypi b/chrome/chrome_exe.gypi
-index 7c7a8e8..e3663f9 100644
---- a/chrome/chrome_exe.gypi
-+++ b/chrome/chrome_exe.gypi
-@@ -177,6 +177,7 @@
-             'app/chrome_main_delegate.h',
-           ],
-           'dependencies': [
-+            '../iridium/iridium.gyp:trknotify',
-             # On Linux, link the dependencies (libraries) that make up actual
-             # Chromium functionality directly into the executable.
-             '<@(chromium_browser_dependencies)',
 diff --git a/components/infobars/core/infobar_delegate.h b/components/infobars/core/infobar_delegate.h
 index ced38d3..2e723b8 100644
 --- a/components/infobars/core/infobar_delegate.h
 +++ b/components/infobars/core/infobar_delegate.h
-@@ -135,6 +135,7 @@ class InfoBarDelegate {
-     AUTOFILL_CREDIT_CARD_FILLING_INFOBAR_DELEGATE_ANDROID = 65,
-     SUBRESOURCE_FILTER_INFOBAR_DELEGATE_ANDROID = 66,
-     INSTANT_APPS_INFOBAR_DELEGATE_ANDROID = 67,
+@@ -143,6 +143,7 @@ class InfoBarDelegate {
+     SCREEN_CAPTURE_INFOBAR_DELEGATE_ANDROID = 69,
+     GROUPED_PERMISSION_INFOBAR_DELEGATE_ANDROID = 70,
+     OFFLINE_PAGE_INFOBAR_DELEGATE = 71,
 +    TRACKING_ALERT_INFOBAR_DELEGATE = 9001,
    };
  
@@ -304,14 +294,14 @@ diff --git a/content/browser/child_process_security_policy_impl.cc b/content/bro
 index a43de17..a94b4c2 100644
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -339,6 +339,7 @@ ChildProcessSecurityPolicyImpl::ChildProcessSecurityPolicyImpl() {
+@@ -343,6 +343,7 @@ ChildProcessSecurityPolicyImpl::ChildProcessSecurityPolicyImpl() {
    RegisterPseudoScheme(url::kAboutScheme);
    RegisterPseudoScheme(url::kJavaScriptScheme);
    RegisterPseudoScheme(kViewSourceScheme);
 +  RegisterPseudoScheme(url::kTraceScheme);
+   RegisterPseudoScheme(kHttpSuboriginScheme);
+   RegisterPseudoScheme(kHttpsSuboriginScheme);
  }
- 
- ChildProcessSecurityPolicyImpl::~ChildProcessSecurityPolicyImpl() {
 diff --git a/iridium/BUILD.gn b/iridium/BUILD.gn
 new file mode 100644
 index 0000000..913b266
@@ -550,10 +540,10 @@ diff --git a/tools/metrics/histograms/histograms.xml b/tools/metrics/histograms/
 index e5578f1..9e99693 100644
 --- a/tools/metrics/histograms/histograms.xml
 +++ b/tools/metrics/histograms/histograms.xml
-@@ -83119,6 +83119,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
-   <int value="65" label="AUTOFILL_CC_ASSIST_INFOBAR_DELEGATE"/>
-   <int value="66" label="SUBRESOURCE_FILTER_INFOBAR_DELEGATE_ANDROID"/>
-   <int value="67" label="INSTANT_APPS_INFOBAR_DELEGATE_ANDROID"/>
+@@ -86479,6 +86479,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
+   <int value="69" label="SCREEN_CAPTURE_INFOBAR_DELEGATE_ANDROID"/>
+   <int value="70" label="GROUPED_PERMISSION_INFOBAR_DELEGATE_ANDROID"/>
+   <int value="71" label="OFFLINE_PAGE_INFOBAR_DELEGATE"/>
 +  <int value="9001" label="TRACKING_ALERT_INFOBAR_DELEGATE"/>
  </enum>
  
