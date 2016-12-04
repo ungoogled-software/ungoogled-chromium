@@ -29,16 +29,16 @@ import re
 import subprocess
 
 from ._util import BuilderException
-from .common import QuiltPatchComponent, GNMetaBuildComponent, CPUArch
+from .common import CPUArch
+from .linux import LinuxDynamicBuilder
 
 __all__ = ["DebianBuilder", "DebianStretchBuilder", "UbuntuXenialBuilder"]
 
-class DebianBuilder(QuiltPatchComponent, GNMetaBuildComponent):
+class DebianBuilder(LinuxDynamicBuilder):
     '''Generic Builder for all Debian and derivative distributions'''
 
     _resources = pathlib.Path("resources", "common_debian")
     _dpkg_dir = _resources / pathlib.Path("dpkg_dir")
-    _scripts_dir = _resources / pathlib.Path("scripts")
     _distro_version = "testing"
 
     build_targets = ["chrome", "chrome_sandbox", "chromedriver"]
@@ -122,13 +122,6 @@ class DebianBuilder(QuiltPatchComponent, GNMetaBuildComponent):
             if symlink_path.exists():
                 symlink_path.unlink()
             symlink_path.symlink_to(system_path)
-
-        # Run library unbundler
-        result = self._run_subprocess(str((self._scripts_dir / "unbundle").resolve()),
-                                      cwd=str(self._sandbox_dir))
-        if not result.returncode is 0:
-            raise BuilderException("Library unbundler returned non-zero exit code: {}".format(
-                result.returncode))
 
     def generate_package(self):
         build_file_subs = dict(

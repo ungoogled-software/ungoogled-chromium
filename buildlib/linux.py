@@ -22,19 +22,18 @@
 import pathlib
 import tarfile
 
+from ._util import BuilderException
 from .common import QuiltPatchComponent, GNMetaBuildComponent
 
 __all__ = ["LinuxStaticBuilder"]
 
-class LinuxStaticBuilder(QuiltPatchComponent, GNMetaBuildComponent):
-    '''Builder for statically-linked Linux builds'''
-
-    _resources = pathlib.Path("resources", "linux_static")
+class LinuxBuilder(QuiltPatchComponent, GNMetaBuildComponent):
+    '''Generic Builder for Linux builds'''
 
     build_targets = ["chrome", "chrome_sandbox"]
 
     def __init__(self, *args, **kwargs):
-        super(LinuxStaticBuilder, self).__init__(*args, **kwargs)
+        super(LinuxBuilder, self).__init__(*args, **kwargs)
 
         self._files_cfg = (self._sandbox_dir /
                            pathlib.Path("chrome", "tools", "build", "linux", "FILES.cfg"))
@@ -64,3 +63,25 @@ class LinuxStaticBuilder(QuiltPatchComponent, GNMetaBuildComponent):
         with tarfile.open(output_filename, mode="w:xz") as tar_obj:
             for arcname, real_path in file_list_generator():
                 tar_obj.add(real_path, arcname=arcname)
+
+class LinuxStaticBuilder(LinuxBuilder):
+    '''Builder for statically-linked Linux builds'''
+
+    _resources = pathlib.Path("resources", "linux_static")
+
+class LinuxDynamicBuilder(LinuxBuilder):
+    '''Generic Builder for Linux builds linked against system libraries (dynamically-linked)'''
+
+    _resources = pathlib.Path("resources", "linux_dynamic")
+    _scripts_dir = _resources / pathlib.Path("scripts")
+
+    def setup_build_sandbox(self):
+        super(LinuxDynamicBuilder, self).setup_build_sandbox()
+
+        # Run library unbundler
+        result = self._run_subprocess(str(
+            (LinuxDynamicBuilder._scripts_dir / "unbundle").resolve()),
+                                      cwd=str(self._sandbox_dir))
+        if not result.returncode is 0:
+            raise BuilderException("Library unbundler returned non-zero exit code: {}".format(
+                result.returncode))

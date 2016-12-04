@@ -22,15 +22,14 @@
 import pathlib
 import re
 
-from .common import QuiltPatchComponent, GNMetaBuildComponent, BuilderException
+from .linux import LinuxDynamicBuilder
 
 __all__ = ["ArchLinuxBuilder"]
 
-class ArchLinuxBuilder(QuiltPatchComponent, GNMetaBuildComponent):
+class ArchLinuxBuilder(LinuxDynamicBuilder):
     '''Builder for Arch Linux'''
 
     _resources = pathlib.Path("resources", "archlinux")
-    _scripts_dir = _resources / pathlib.Path("scripts")
 
     build_targets = ["chrome", "chrome_sandbox", "chromedriver"]
 
@@ -42,13 +41,6 @@ class ArchLinuxBuilder(QuiltPatchComponent, GNMetaBuildComponent):
 
     def setup_build_sandbox(self):
         super(ArchLinuxBuilder, self).setup_build_sandbox()
-
-        # Run library unbundler
-        result = self._run_subprocess(str((self._scripts_dir / "unbundle").resolve()),
-                                      cwd=str(self._sandbox_dir))
-        if not result.returncode is 0:
-            raise BuilderException("Library unbundler returned non-zero exit code: {}".format(
-                result.returncode))
 
         # Point Python to the right location
         # Inspired by inox-patchset's PKGBUILD file

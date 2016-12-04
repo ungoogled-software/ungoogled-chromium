@@ -40,7 +40,6 @@ PATCHES = pathlib.Path("patches")
 EXTRA_DEPS = pathlib.Path("extra_deps.ini")
 PATCH_ORDER = pathlib.Path("patch_order")
 
-GYP_FLAGS = pathlib.Path("gyp_flags")
 GN_FLAGS = pathlib.Path("gn_flags")
 
 class CPUArch(enum.Enum):
@@ -449,41 +448,6 @@ class GNUPatchComponent(Builder):
                 result.returncode))
         self.logger.debug("Using patch command '{!s}'".format(result.stdout.split("\n")[0]))
 
-class GYPMetaBuildComponent(Builder):
-    '''Meta-build configuration component implemented with GYP'''
-
-    def _get_gyp_flags(self):
-        args_dict = dict()
-        for i in self._read_list_resource(GYP_FLAGS):
-            arg_key, arg_value = i.split("=", 1)
-            args_dict[arg_key] = arg_value
-        if not self.target_cpu is None:
-            if self.target_cpu == CPUArch.x86:
-                args_dict["target_arch"] = "ia32"
-            else:
-                args_dict["target_arch"] = self.target_cpu.value
-        return args_dict
-
-    def _gyp_generate_ninja(self, args_dict, append_environ):
-        command_list = list()
-        if not self.python2_command is None:
-            command_list.append(self.python2_command)
-        command_list.append(str(pathlib.Path("build", "gyp_chromium")))
-        command_list += ["--depth=.", "--check"]
-        for arg_key, arg_value in args_dict.items():
-            command_list.append("-D{}={}".format(arg_key, arg_value))
-        self.logger.debug("GYP command: {}".format(" ".join(command_list)))
-        result = self._run_subprocess(command_list, append_environ=append_environ,
-                                      cwd=str(self._sandbox_dir))
-        if not result.returncode == 0:
-            raise BuilderException("GYP command returned non-zero exit code: {}".format(
-                result.returncode))
-
-    def generate_build_configuration(self):
-        '''Generates build configuration using GYP'''
-        self.logger.info("Running gyp command...")
-        self._gyp_generate_ninja(self._get_gyp_flags(), None)
-
 class GNMetaBuildComponent(Builder):
     '''Meta-build configuration component implemented with GN'''
 
@@ -570,6 +534,6 @@ class GNMetaBuildComponent(Builder):
         self._gn_command = self._build_gn()
 
     def generate_build_configuration(self):
-        '''Generates build configuration using GYP'''
+        '''Generates build configuration using GN'''
         self.logger.info("Running gn command...")
         self._gn_generate_ninja(self._get_gn_flags(), None)
