@@ -68,7 +68,7 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
 
     def generate_package(self):
         # Derived from chrome/tools/build/make_zip.py
-        # Hardcoded to only include files with buildtype "dev" and "official", and files for 32bit
+        # Hardcoded to only include files with buildtype "official"
         output_filename = str(self.build_dir / pathlib.Path(
             "ungoogled-chromium_{}-{}_win32.zip".format(self.chromium_version,
                                                         self.release_revision)))
@@ -81,8 +81,11 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
                 exec(cfg_file.read(), exec_globals) # pylint: disable=exec-used
             for file_spec in exec_globals["FILES"]:
                 if "official" in file_spec["buildtype"]:
-                    if "arch" in file_spec and not "32bit" in file_spec["arch"]:
-                        continue
+                    if "arch" in file_spec:
+                        if self.target_cpu == CPUArch.x86 and not "32bit" in file_spec["arch"]:
+                            continue
+                        elif self.target_cpu == CPUArch.x64 and not "64bit" in file_spec["arch"]:
+                            continue
                     for file_path in (self._sandbox_dir /
                                       self.build_output).glob(file_spec["filename"]):
                         if not file_path.suffix.lower() == ".pdb":

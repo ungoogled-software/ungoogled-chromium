@@ -22,7 +22,7 @@
 import pathlib
 import re
 
-from .common import QuiltPatchComponent, GNMetaBuildComponent
+from .common import QuiltPatchComponent, GNMetaBuildComponent, BuilderException
 
 __all__ = ["ArchLinuxBuilder"]
 
