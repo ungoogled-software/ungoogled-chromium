@@ -51,6 +51,11 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
         self._files_cfg = (self._sandbox_dir /
                            pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg"))
 
+        # Fix build output directory based on user-specified target_cpu
+        # If it cannot be determined, assume 32-bit. This uses the default directory
+        if self.target_cpu == CPUArch.x64:
+            self.build_output = pathlib.Path("out", "Release_x64")
+
     def generate_build_configuration(self):
         self.logger.info("Running gn command...")
         if self.use_depot_tools_toolchain:
