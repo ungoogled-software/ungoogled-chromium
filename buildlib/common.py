@@ -78,7 +78,7 @@ class Builder:
     ninja_command = "ninja"
 
     # The build directory relative to the build sandbox
-    build_output = pathlib.Path("out", "Release")
+    build_output = pathlib.Path("out", "Default")
 
     # The ninja targets to build
     build_targets = ["chrome"]

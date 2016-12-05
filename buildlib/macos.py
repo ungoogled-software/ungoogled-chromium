@@ -35,20 +35,6 @@ class MacOSBuilder(QuiltPatchComponent, GNMetaBuildComponent):
     def check_build_environment(self):
         super(MacOSBuilder, self).check_build_environment()
 
-        self.logger.info("Checking svn command...")
-        result = self._run_subprocess(["svn", "--version", "--quiet"], stdout=subprocess.PIPE,
-                                      universal_newlines=True)
-        if not result.returncode is 0:
-            raise BuilderException("svn command returned non-zero exit code {}".format(
-                result.returncode))
-        self.logger.debug("Using svn command version '{!s}'".format(result.stdout.strip("\n")))
-
-        self.logger.info("Checking libtool command...")
-        libtool_path = shutil.which("libtool")
-        if libtool_path is None:
-            raise BuilderException("Could not find command 'libtool' in PATH variable")
-        self.logger.debug("Found libtool at '{!s}'".format(libtool_path))
-
         self.logger.info("Checking macOS SDK version...")
         result = self._run_subprocess(["xcrun", "--show-sdk-version"], stdout=subprocess.PIPE,
                                       universal_newlines=True)
@@ -59,26 +45,6 @@ class MacOSBuilder(QuiltPatchComponent, GNMetaBuildComponent):
             raise BuilderException("Unsupported macOS SDK version '{!s}'".format(
                 result.stdout.strip()))
         self.logger.debug("Using macOS SDK version '{!s}'".format(result.stdout.strip()))
-
-        self.logger.info("Checking g++ compiler for building libc++...")
-        gxx_compiler = shutil.which("g++-4.9")
-        if not pathlib.Path(gxx_compiler).is_file():
-            raise BuilderException("GNU compiler '{}' does not exist or is not a file".format(
-                gxx_compiler))
-
-    def build(self):
-        if (self._sandbox_dir / pathlib.Path("third_party", "libc++-static", "libc++.a")).exists():
-            self.logger.info("libc++.a already exists. Skipping its building")
-        else:
-            self.logger.info("Building libc++.a ...")
-            result = self._run_subprocess("./build.sh",
-                                          cwd=str(self._sandbox_dir /
-                                                  pathlib.Path("third_party", "libc++-static")),
-                                          shell=True)
-            if not result.returncode == 0:
-                raise BuilderException("libc++.a build script returned non-zero exit code")
-
-        super(MacOSBuilder, self).build()
 
     def generate_package(self):
         # Based off of chrome/tools/build/mac/build_app_dmg
