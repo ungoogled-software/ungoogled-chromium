@@ -10,8 +10,13 @@ Since there is no Webstore plugin, you cannot install extensions directly from t
 
 To download a extension just replace [EXTENSION_ID] with the extension-id from the WebStore
 (For example cjpalhdlnbpafiamejdnhcphjbkeiagm is the extension id of uBlock Origin).
-You have 3 options to install an extension:
+You have 4 options to install an extension:
 
+* **User script**
+
+    You can use [this user script](http://chromium-crx.stuff.admicos.cf/get.user.js), which will add a button to the Chrome Webstore so the CRX file can be downloaded and installed.
+
+    Script written and provided by Admicos in [#134](//github.com/Eloston/ungoogled-chromium/issues/134)
 
 * **Drag and drop**
 

@@ -10,6 +10,6 @@ This directory contains third party libraries needed by buildlib. These are gene
 
 ## List of dependencies
 
-* [`distro`](https://github.com/nir0s/distro) v0.6.0 
+* [`distro`](https://github.com/nir0s/distro) v1.0.1
     * [License](https://github.com/nir0s/distro/blob/master/LICENSE)
     * No modifications
