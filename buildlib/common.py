@@ -489,6 +489,7 @@ class GNMetaBuildComponent(Builder):
             command_list.append(str(self.build_output))
         else:
             command_list.append(str(output_override))
+        command_list.append("--fail-on-unused-args")
         command_list.append("--args=" + self._get_args_string(args_dict))
         self.logger.debug("GN command: {}".format(" ".join(command_list)))
         result = self._run_subprocess(command_list, append_environ=append_environ,
