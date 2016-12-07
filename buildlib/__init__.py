@@ -46,7 +46,8 @@ def get_builder(*args, **kwargs):
                                     dist_codename == "sid" or dist_version == "testing"):
             from .debian import DebianStretchBuilder
             cls = DebianStretchBuilder
-        elif dist_id == "ubuntu":
+        elif dist_id == "ubuntu" and (dist_codename == "xenial" or dist_codename == "yakkety" or
+                                      dist_codename == "zesty"):
             from .debian import UbuntuXenialBuilder
             cls = UbuntuXenialBuilder
         elif dist_id == "arch":

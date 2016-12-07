@@ -22,7 +22,6 @@
 import tempfile
 import pathlib
 import subprocess
-import shutil
 
 from ._util import BuilderException
 from .common import QuiltPatchComponent, GNMetaBuildComponent
