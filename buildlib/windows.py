@@ -22,7 +22,9 @@
 import pathlib
 import os
 import zipfile
+import subprocess
 
+from ._util import BuilderException
 from .common import GNUPatchComponent, GNMetaBuildComponent, CPUArch
 
 __all__ = ["WindowsBuilder"]
