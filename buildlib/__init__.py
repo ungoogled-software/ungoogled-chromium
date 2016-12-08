@@ -42,7 +42,7 @@ def get_builder(*args, **kwargs):
         from ._external import distro
         dist_id, dist_version, dist_codename = distro.linux_distribution(
             full_distribution_name=False)
-        if dist_id == "debian" and (dist_codename == "stretch" or
+        if dist_id == "debian" and (dist_codename == "stretch" or dist_codename == "jessie" or
                                     dist_codename == "sid" or dist_version == "testing"):
             from .debian import DebianStretchBuilder
             cls = DebianStretchBuilder

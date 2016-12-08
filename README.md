@@ -30,7 +30,7 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
 * Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
 * Strip binaries from the source code (known as source cleaning)
     * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
-    * However some data files (e.g. `icudtl.dat` for Unicode and Globalization support and `*_page_model.bin` that define page models for the DOM Distiller) are left in as they do not contain machine code and are needed for building.
+    * However a few data files (e.g. `*_page_model.bin` that define page models for the DOM Distiller) are left in as they do not contain machine code and are needed for building.
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
@@ -63,8 +63,12 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
 **DISCLAIMER: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
 
 ### Supported platforms and distributions
-* Debian
-* Ubuntu
+* Linux
+    * Debian
+    * Ubuntu
+    * Arch Linux (no packages yet)
+    * Other distributions: semi-statically-linked builds
+        * This build statically links the libraries provided by Google with source code available. It is not a full statically-linked binary. Done via `is_official_build=true` GN flag
 * Windows
 * macOS
 

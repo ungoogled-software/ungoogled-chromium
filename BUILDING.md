@@ -6,8 +6,8 @@
 
 The following is needed to fully use `buildlib`:
 * Python 3 (tested on 3.5) for running `buildlib`
-* The below can be provided by [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools)
-    * Python 2 (tested on 2.7) for running gyp
+* The following can be provided by [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools) (but it is recommended to obtain these from their respective websites)
+    * Python 2 (tested on 2.7) for building GN and running other scripts
     * [Ninja](//ninja-build.org/) for running the build command
 
 There are additional requirements for specific platforms. See the following sections for more information.
@@ -97,6 +97,29 @@ Credits to [9Morello](//github.com/9Morello) for most of the work done on this p
 2. Install Ninja via Homebrew: `brew install ninja`
 
 See `build.py` for more on customizing the build environment or process.
+
+### Build
+
+    # Change directory to ungoogled-chromium's root directory
+    python3 build.py
+
+## Arch Linux
+
+**This is a WIP**
+
+For now, see the instructions for Other Linux distributions. The resulting binary will still use system libraries.
+
+## Other Linux distributions (semi-statically-linked builds)
+
+### Setting up the build environment
+
+* Install the following through your package manager or elsewhere:
+    * `clang`, preferrably the latest version
+    * Python 3.5 or newer (or 3.4 if necessary)
+    * Python 2
+    * `quilt`
+    * `ninja`
+* Follow [these instructions](//chromium.googlesource.com/chromium/src/+/55.0.2883.75/docs/linux_build_instructions.md#Install-additional-build-dependencies) to install additional dependencies for building
 
 ### Build
 
