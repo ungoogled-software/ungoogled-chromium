@@ -74,3 +74,7 @@ Adobe's version of Flash player (as opposed to Google's Flash player bundled wit
 4. Click the "Download now" button, then install.
 
 There are also ways to get Google's Flash player or other versions. See http://chromium.woolyss.com/#flash for more details.
+
+## FIDO U2F security keys are not working in Google sign in
+
+Google sign in uses a specific extension to access the security key's information. You'll need to install [this extension](https://chrome.google.com/webstore/detail/gnubbyd/beknehfpfkghjoafdifaflglpjkojoco) to make this function. After installation you might need to restart your computer to make it work.
