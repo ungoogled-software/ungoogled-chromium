@@ -45,8 +45,6 @@ def generate_cleaning_list(sandbox_path, list_file):
         "components/dom_distiller/core/data/distillable_page_model.bin",
         "components/dom_distiller/core/data/distillable_page_model_new.bin",
         "components/dom_distiller/core/data/long_page_model.bin",
-        "third_party/icu/common/icudtl.dat",
-        "third_party/icu/android/icudtl.dat",
         "*.ttf",
         "*.png",
         "*.jpg",
