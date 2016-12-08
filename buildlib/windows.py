@@ -51,6 +51,25 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
         self._files_cfg = (self._sandbox_dir /
                            pathlib.Path("chrome", "tools", "build", "win", "FILES.cfg"))
 
+    def check_build_environment(self):
+        super(WindowsBuilder, self).check_build_environment()
+
+        self.logger.info("Checking bison command...")
+        result = self._run_subprocess(["bison", "--version"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("bison command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using bison command '{!s}'".format(result.stdout.split("\n")[0]))
+
+        self.logger.info("Checking gperf command...")
+        result = self._run_subprocess(["gperf", "--version"], stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+        if not result.returncode is 0:
+            raise BuilderException("gperf command returned non-zero exit code {}".format(
+                result.returncode))
+        self.logger.debug("Using gperf command '{!s}'".format(result.stdout.split("\n")[0]))
+
     def generate_build_configuration(self):
         self.logger.info("Running gn command...")
         if self.use_depot_tools_toolchain:
@@ -69,9 +88,14 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
     def generate_package(self):
         # Derived from chrome/tools/build/make_zip.py
         # Hardcoded to only include files with buildtype "official"
+        if self.target_cpu is None:
+            cpu_arch = "defaultcpu"
+        else:
+            cpu_arch = str(self.target_cpu.value)
         output_filename = str(self.build_dir / pathlib.Path(
-            "ungoogled-chromium_{}-{}_win32.zip".format(self.chromium_version,
-                                                        self.release_revision)))
+            "ungoogled-chromium_{}-{}_windows_{}.zip".format(self.chromium_version,
+                                                             self.release_revision,
+                                                             cpu_arch)))
         self.logger.info("Creating build output archive {} ...".format(output_filename))
         def file_list_generator():
             '''Generator for files to be included in package'''

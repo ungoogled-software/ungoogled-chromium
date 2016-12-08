@@ -41,9 +41,14 @@ class LinuxBuilder(QuiltPatchComponent, GNMetaBuildComponent):
     def generate_package(self):
         # Derived from chrome/tools/build/make_zip.py
         # Hardcoded to only include files with buildtype "official"
+        if self.target_cpu is None:
+            cpu_arch = "defaultcpu"
+        else:
+            cpu_arch = str(self.target_cpu.value)
         output_filename = str(self.build_dir / pathlib.Path(
-            "ungoogled-chromium_{}-{}_linuxstatic.tar.xz".format(self.chromium_version,
-                                                                 self.release_revision)))
+            "ungoogled-chromium_{}-{}_linux_{}.tar.xz".format(self.chromium_version,
+                                                              self.release_revision,
+                                                              cpu_arch)))
         self.logger.info("Creating build output archive {} ...".format(output_filename))
         def file_list_generator():
             '''Generator for files to be included in package'''
