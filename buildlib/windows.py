@@ -64,8 +64,9 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
                 name))
 
         with path_override.open("w") as override_file:
+            override_file.write("@echo off\n")
             override_file.write(value)
-            override_file.write(' "%*"')
+            override_file.write(' %*')
 
     def check_build_environment(self):
         super(WindowsBuilder, self).check_build_environment()

@@ -1,0 +1,136 @@
+From 424584b4984bde7c831f42e9fb47f1ad583a1c46 Mon Sep 17 00:00:00 2001
+From: jshin <jshin@chromium.org>
+Date: Fri, 21 Oct 2016 01:15:50 -0700
+Subject: [PATCH] Update aspirational_scripts per Unicode 9
+
+This is a preparation to update ICU to 58.1.
+Without this change, ICU update CL cannot be tested on
+trybots because a compile will fail due to '#error' checking
+if ICU version is less than 58.
+
+BUG=637001
+TEST=None
+TBR=pkasting@chromium.org
+
+Review-Url: https://chromiumcodereview.appspot.com/2436113003
+Cr-Commit-Position: refs/heads/master@{#426749}
+---
+ components/url_formatter/url_formatter.cc | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/components/url_formatter/url_formatter.cc b/components/url_formatter/url_formatter.cc
+index 4455db3..2b82c0c 100644
+--- a/components/url_formatter/url_formatter.cc
++++ b/components/url_formatter/url_formatter.cc
+@@ -428,9 +428,9 @@ void IDNSpoofChecker::SetAllowedUnicodeSet(UErrorCode* status) {
+   // section at
+   // http://www.unicode.org/Public/security/latest/xidmodifications.txt) are
+   // are added to the allowed set. The list has to be updated when a new
+-  // version of Unicode is released. The current version is 8.0.0 and ICU 58
+-  // will have Unicode 9.0 data.
+-#if U_ICU_VERSION_MAJOR_NUM < 58
++  // version of Unicode is released. The current version is 9.0.0 and ICU 60
++  // will have Unicode 10.0 data.
++#if U_ICU_VERSION_MAJOR_NUM < 60
+   const icu::UnicodeSet aspirational_scripts(
+       icu::UnicodeString(
+           // Unified Canadian Syllabics
+@@ -444,13 +444,13 @@ void IDNSpoofChecker::SetAllowedUnicodeSet(UErrorCode* status) {
+           // Yi
+           "\\uA000-\\uA48C"
+           // Miao
+-          "\\U00016F00-\\U00016F44\\U00016F50-\\U00016F7F"
++          "\\U00016F00-\\U00016F44\\U00016F50-\\U00016F7E"
+           "\\U00016F8F-\\U00016F9F]",
+           -1, US_INV),
+       *status);
+   allowed_set.addAll(aspirational_scripts);
+ #else
+-#error "Update aspirational_scripts per Unicode 9.0"
++#error "Update aspirational_scripts per Unicode 10.0"
+ #endif
+ 
+   // U+0338 is included in the recommended set, while U+05F4 and U+2027 are in
+-- 
+2.10.2
+
+From e60b571faa3f14dd9119a6792dccf12f8bf80192 Mon Sep 17 00:00:00 2001
+From: jshin <jshin@chromium.org>
+Date: Fri, 21 Oct 2016 12:20:05 -0700
+Subject: [PATCH] Prepare to upgrade ICU to 58 part 2
+
+U_LB_COUNT is assumed to be 40 in Blink line breaking code, but it's
+43 in ICU 58/Unicode 9.
+
+Three new classes (Emoji Base, Emoji Modifier, and ZWJ) should behave
+identically whether or not 'word-break: break-all' is in effect.
+
+BUG=637001
+TEST=TextBreakIterator.cpp is compiled without an error with ICU 58.
+R=kojii@chromium.org
+CQ_INCLUDE_TRYBOTS=master.tryserver.blink:linux_precise_blink_rel
+
+Review-Url: https://chromiumcodereview.appspot.com/2440923002
+Cr-Commit-Position: refs/heads/master@{#426860}
+---
+ .../WebKit/Source/platform/text/TextBreakIterator.cpp    | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/third_party/WebKit/Source/platform/text/TextBreakIterator.cpp b/third_party/WebKit/Source/platform/text/TextBreakIterator.cpp
+index 568dc0a..36121eb 100644
+--- a/third_party/WebKit/Source/platform/text/TextBreakIterator.cpp
++++ b/third_party/WebKit/Source/platform/text/TextBreakIterator.cpp
+@@ -28,6 +28,9 @@
+ #include "wtf/StdLibExtras.h"
+ #include "wtf/text/CharacterNames.h"
+ 
++#include <unicode/uchar.h>
++#include <unicode/uvernum.h>
++
+ namespace blink {
+ 
+ unsigned numGraphemeClusters(const String& string) {
+@@ -129,6 +132,11 @@ static const unsigned char asciiLineBreakTable[][(asciiLineBreakTableLastChar -
+ };
+ // clang-format on
+ 
++#if U_ICU_VERSION_MAJOR_NUM >= 58
++#define BA_LB_COUNT (U_LB_COUNT - 3)
++#else
++#define BA_LB_COUNT U_LB_COUNT
++#endif
+ // Line breaking table for CSS word-break: break-all. This table differs from
+ // asciiLineBreakTable in:
+ // - Indices are Line Breaking Classes defined in UAX#14 Unicode Line Breaking
+@@ -136,7 +144,7 @@ static const unsigned char asciiLineBreakTable[][(asciiLineBreakTableLastChar -
+ // - 1 indicates additional break opportunities. 0 indicates to fallback to
+ //   normal line break, not "prohibit break."
+ // clang-format off
+-static const unsigned char breakAllLineBreakClassTable[][U_LB_COUNT / 8 + 1] = {
++static const unsigned char breakAllLineBreakClassTable[][BA_LB_COUNT / 8 + 1] = {
+     // XX AI AL B2 BA BB BK CB    CL CM CR EX GL HY ID IN    IS LF NS NU OP PO PR QU    SA SG SP SY ZW NL WJ H2    H3 JL JT JV CP CJ HL RI
+     { B(0, 0, 0, 0, 0, 0, 0, 0), B(0, 0, 0, 0, 0, 0, 0, 0), B(0, 0, 0, 0, 0, 0, 0, 0), B(0, 0, 0, 0, 0, 0, 0, 0), B(0, 0, 0, 0, 0, 0, 0, 0) }, // XX
+     { B(0, 1, 1, 0, 1, 0, 0, 0), B(0, 0, 0, 0, 0, 1, 0, 0), B(0, 0, 0, 1, 1, 0, 1, 0), B(1, 0, 0, 0, 0, 0, 0, 0), B(0, 0, 0, 0, 0, 0, 1, 0) }, // AI
+@@ -190,7 +198,7 @@ static_assert(WTF_ARRAY_LENGTH(asciiLineBreakTable) ==
+                   asciiLineBreakTableLastChar - asciiLineBreakTableFirstChar +
+                       1,
+               "asciiLineBreakTable should be consistent");
+-static_assert(WTF_ARRAY_LENGTH(breakAllLineBreakClassTable) == U_LB_COUNT,
++static_assert(WTF_ARRAY_LENGTH(breakAllLineBreakClassTable) == BA_LB_COUNT,
+               "breakAllLineBreakClassTable should be consistent");
+ 
+ static inline bool shouldBreakAfter(UChar lastCh, UChar ch, UChar nextCh) {
+@@ -226,8 +234,8 @@ static inline ULineBreak lineBreakPropertyValue(UChar lastCh, UChar ch) {
+ 
+ static inline bool shouldBreakAfterBreakAll(ULineBreak lastLineBreak,
+                                             ULineBreak lineBreak) {
+-  if (lineBreak >= 0 && lineBreak < U_LB_COUNT && lastLineBreak >= 0 &&
+-      lastLineBreak < U_LB_COUNT) {
++  if (lineBreak >= 0 && lineBreak < BA_LB_COUNT && lastLineBreak >= 0 &&
++      lastLineBreak < BA_LB_COUNT) {
+     const unsigned char* tableRow = breakAllLineBreakClassTable[lastLineBreak];
+     return tableRow[lineBreak / 8] & (1 << (lineBreak % 8));
+   }
+-- 
+2.10.2
+
