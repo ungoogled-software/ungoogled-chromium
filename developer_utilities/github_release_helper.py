@@ -149,6 +149,8 @@ def main(args):
     if args[0] == "--help" or args[0] == "-h" or args[0] == "help":
         print_usage_info()
         return 0
+    print("**NOTE FOR LINUX USERS: Make sure to download packages for the correct system**")
+    print()
     args_parser = statement_generator(args)
     current_version = next(args_parser)[0]
     DownloadsManager.set_params(USERNAME, PROJECT, current_version)
