@@ -42,14 +42,14 @@ def get_builder(*args, **kwargs):
         from ._external import distro
         dist_id, dist_version, dist_codename = distro.linux_distribution(
             full_distribution_name=False)
-        if dist_id == "debian" and (dist_codename == "stretch" or dist_codename == "jessie" or
+        if dist_id == "debian" and (dist_codename == "stretch" or
                                     dist_codename == "sid" or dist_version == "testing"):
-            from .debian import DebianStretchBuilder
-            cls = DebianStretchBuilder
-        elif dist_id == "ubuntu" and (dist_codename == "Xenial Xerus" or dist_codename == "Yakkety Yak" or
+            from .debian import DebianSystemBuilder
+            cls = DebianSystemBuilder
+        elif dist_id == "ubuntu" and (dist_codename == "Yakkety Yak" or
                                       dist_codename == "Zesty Zapus"):
-            from .debian import UbuntuXenialBuilder
-            cls = UbuntuXenialBuilder
+            from .debian import UbuntuSystemBuilder
+            cls = UbuntuSystemBuilder
         elif dist_id == "arch":
             from .archlinux import ArchLinuxBuilder
             cls = ArchLinuxBuilder

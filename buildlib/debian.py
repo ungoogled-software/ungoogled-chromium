@@ -32,7 +32,7 @@ from ._util import BuilderException
 from .common import CPUArch
 from .linux import LinuxDynamicBuilder
 
-__all__ = ["DebianBuilder", "DebianStretchBuilder", "UbuntuXenialBuilder"]
+__all__ = ["DebianSystemBuilder", "UbuntuSystemBuilder"]
 
 class DebianBuilder(LinuxDynamicBuilder):
     '''Generic Builder for all Debian and derivative distributions'''
@@ -148,14 +148,12 @@ class DebianBuilder(LinuxDynamicBuilder):
             raise BuilderException("dpkg-buildpackage returned non-zero exit code: {}".format(
                 result.returncode))
 
-class DebianStretchBuilder(DebianBuilder):
-    '''Builder for Debian Stretch'''
+class DebianSystemBuilder(DebianBuilder):
+    '''Builder for Debian using system libraries'''
 
-    _resources = pathlib.Path("resources", "debian_stretch")
-    _distro_version = "stretch"
+    _resources = pathlib.Path("resources", "debian_system")
 
-class UbuntuXenialBuilder(DebianBuilder):
-    '''Builder for Ubuntu Xenial'''
+class UbuntuSystemBuilder(DebianBuilder):
+    '''Builder for Ubuntu using system libraries'''
 
-    _resources = pathlib.Path("resources", "ubuntu_xenial")
-    _distro_version = "xenial"
+    _resources = pathlib.Path("resources", "ubuntu_system")
