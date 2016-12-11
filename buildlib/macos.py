@@ -40,7 +40,7 @@ class MacOSBuilder(QuiltPatchComponent, GNMetaBuildComponent):
         if not result.returncode is 0:
             raise BuilderException("xcrun command returned non-zero exit code {}".format(
                 result.returncode))
-        if not result.stdout.strip() in ["10.10", "10.11"]: # TODO: Verify this is correct
+        if not result.stdout.strip() in ["10.10", "10.11", "10.12"]:
             raise BuilderException("Unsupported macOS SDK version '{!s}'".format(
                 result.stdout.strip()))
         self.logger.debug("Using macOS SDK version '{!s}'".format(result.stdout.strip()))

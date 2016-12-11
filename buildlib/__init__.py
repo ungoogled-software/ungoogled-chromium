@@ -46,7 +46,8 @@ def get_builder(*args, **kwargs):
                                     dist_codename == "sid" or dist_version == "testing"):
             from .debian import DebianSystemBuilder
             cls = DebianSystemBuilder
-        elif dist_id == "ubuntu" and (dist_codename == "Yakkety Yak" or
+        elif dist_id == "ubuntu" and (dist_codename == "Xenial Xerus" or
+                                      dist_codename == "Yakkety Yak" or
                                       dist_codename == "Zesty Zapus"):
             from .debian import UbuntuSystemBuilder
             cls = UbuntuSystemBuilder
