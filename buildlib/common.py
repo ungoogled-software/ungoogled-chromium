@@ -422,7 +422,7 @@ class QuiltPatchComponent(Builder):
 class GNUPatchComponent(Builder):
     '''Patching component implemented with GNU patch'''
 
-    patch_command = ["patch", "-p1", "-i"]
+    patch_command = ["patch", "-p1"]
 
     def apply_patches(self):
         self.logger.info("Applying patches via '{}' ...".format(" ".join(self.patch_command)))
@@ -430,12 +430,12 @@ class GNUPatchComponent(Builder):
         with (self.build_dir / PATCHES / PATCH_ORDER).open() as patch_order_file:
             for i in [x for x in patch_order_file.read().splitlines() if len(x) > 0]:
                 self.logger.debug("Applying patch {} ...".format(i))
-                cmd = list(self.patch_command)
-                cmd.append(str((self.build_dir / PATCHES / i).resolve()))
-                result = self._run_subprocess(cmd, cwd=str(self._sandbox_dir))
-                if not result.returncode == 0:
-                    raise BuilderException("'{}' returned non-zero exit code {}".format(
-                        " ".join(self.patch_command), result.returncode))
+                with (self.build_dir / PATCHES / i).open("rb") as patch_file:
+                    result = self._run_subprocess(self.patch_command, cwd=str(self._sandbox_dir),
+                                                  stdin=patch_file)
+                    if not result.returncode == 0:
+                        raise BuilderException("'{}' returned non-zero exit code {}".format(
+                            " ".join(self.patch_command), result.returncode))
 
     def check_build_environment(self):
         super(GNUPatchComponent, self).check_build_environment()
