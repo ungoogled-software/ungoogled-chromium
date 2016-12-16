@@ -498,12 +498,18 @@ class GNMetaBuildComponent(Builder):
             raise BuilderException("gn gen returned non-zero exit code: {}".format(
                 result.returncode))
 
+    def _build_bootstrap_gn_path(self):
+        if os.name == 'nt':
+            return pathlib.Path("out", "bootstrap_gn.exe")
+        else:
+            return pathlib.Path("out", "bootstrap_gn")
+
     def _build_gn(self):
         '''
         Build the GN tool to out/gn_tool in the build sandbox. Returns the gn command string.
         '''
         self.logger.info("Building gn...")
-        bootstrap_gn_executable = pathlib.Path("out", "bootstrap_gn")
+        bootstrap_gn_executable = self._build_bootstrap_gn_path()
         if (self._sandbox_dir / bootstrap_gn_executable).exists():
             self.logger.info("Bootstrap gn already exists")
         else:
