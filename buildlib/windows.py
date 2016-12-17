@@ -54,19 +54,7 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
         return super(WindowsBuilder, self)._run_subprocess(*args, **kwargs)
 
     def _write_path_override(self, name, value):
-        path_override = self._path_overrides_dir / pathlib.Path(name + ".cmd")
-        if path_override.exists():
-            self.logger.warning("Overwriting existing PATH override '{}'".format(name))
-
-        # Simple hack to prevent simple case of recursive execution
-        if value.split(" ")[0] == name:
-            raise BuilderException("PATH override command '{}' can recursively execute".format(
-                name))
-
-        with path_override.open("w") as override_file:
-            override_file.write("@echo off\n")
-            override_file.write(value)
-            override_file.write(' %*')
+        raise BuilderException("File-based PATH overrides are not supported on Windows")
 
     def check_build_environment(self):
         super(WindowsBuilder, self).check_build_environment()

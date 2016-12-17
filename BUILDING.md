@@ -44,7 +44,7 @@ Debian packages will appear in the current working directory.
 
 Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md#Setting-up-the-environment-for-Visual-Studio). These instructions are tested on Windows 10 Home x64.
 
-For maximum portability, the build configuration will generate x86 binaries.
+For maximum portability, the build configuration will generate x86 binaries by default. This can be changed to x64 by setting `builder.target_cpu = CPUArch.x64` in `build.py`.
 
 ### Additional Requirements
 * Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md) for Google's requirements

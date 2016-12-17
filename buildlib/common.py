@@ -104,6 +104,8 @@ class Builder:
                                                     build_dir / pathlib.Path("downloads"))
         self._path_overrides_dir = _util.safe_create_dir(self.logger,
                                                          build_dir / pathlib.Path("path_overrides"))
+        self._path_prepends = list()
+        self._path_prepends.append(self._path_overrides_dir.absolute())
 
         self._domain_regex_cache = None
 
@@ -127,7 +129,7 @@ class Builder:
             new_env["PATH"] = os.defpath
         if len(new_env["PATH"]) > 0 and not new_env["PATH"].startswith(os.pathsep):
             new_env["PATH"] = os.pathsep + new_env["PATH"]
-        new_env["PATH"] = str(self._path_overrides_dir.absolute()) + new_env["PATH"]
+        new_env["PATH"] = os.pathsep.join(self._path_prepends) + new_env["PATH"]
         if not append_environ is None:
             new_env.update(append_environ)
         kwargs["env"] = new_env
@@ -231,9 +233,14 @@ class Builder:
         self.logger.info("Setting up environment overrides...")
 
         for command_name in self.path_overrides:
-            self.logger.debug("Setting command '{}' as '{}'".format(
-                command_name, self.path_overrides[command_name]))
-            self._write_path_override(command_name, self.path_overrides[command_name])
+            command_path = self.path_overrides[command_name]
+            if pathlib.Path(command_path).is_dir():
+                self.logger.debug("Prepending PATH directory {}".format(command_path))
+                self._path_prepends.append(str(pathlib.Path(command_path).absolute()))
+            else:
+                self.logger.debug("Setting command '{}' as '{}'".format(
+                    command_name, command_path))
+                self._write_path_override(command_name, self.path_overrides[command_name])
 
     def check_build_environment(self):
         '''Checks the build environment before building'''
@@ -463,6 +470,13 @@ class GNMetaBuildComponent(Builder):
             args_list.append("{}={}".format(arg_key, arg_value))
         return " ".join(args_list)
 
+    @staticmethod
+    def _build_bootstrap_gn_path():
+        if os.name == 'nt':
+            return pathlib.Path("out", "bootstrap_gn.exe")
+        else:
+            return pathlib.Path("out", "bootstrap_gn")
+
     def _get_gn_flags(self):
         '''
         Returns a dictionary of all GN flags
@@ -497,12 +511,6 @@ class GNMetaBuildComponent(Builder):
         if not result.returncode == 0:
             raise BuilderException("gn gen returned non-zero exit code: {}".format(
                 result.returncode))
-
-    def _build_bootstrap_gn_path(self):
-        if os.name == 'nt':
-            return pathlib.Path("out", "bootstrap_gn.exe")
-        else:
-            return pathlib.Path("out", "bootstrap_gn")
 
     def _build_gn(self):
         '''
