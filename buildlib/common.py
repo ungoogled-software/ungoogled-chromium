@@ -105,7 +105,7 @@ class Builder:
         self._path_overrides_dir = _util.safe_create_dir(self.logger,
                                                          build_dir / pathlib.Path("path_overrides"))
         self._path_prepends = list()
-        self._path_prepends.append(self._path_overrides_dir.absolute())
+        self._path_prepends.append(str(self._path_overrides_dir.absolute()))
 
         self._domain_regex_cache = None
 
