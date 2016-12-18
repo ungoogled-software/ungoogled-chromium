@@ -63,7 +63,7 @@ For maximum portability, the build configuration will generate x86 binaries by d
 
 ### Setting up the build environment
 
-Make sure all of the following are in the `PATH`:
+Make sure the following are accessible in `PATH` (the PATH overrides feature can be used on the directories containing the actual executable):
 * Python 2 as `python`
 * Ninja as `ninja`
 * GNU patch as `patch`
@@ -73,6 +73,12 @@ Make sure all of the following are in the `PATH`:
 See `build.py` for more on customizing the build environment or process.
 
 ### Build
+
+To make sure that the GN tool builds correctly, make sure you run `vcvarsall` in the build command-line with the correct arguments:
+* `vcvarsall amd64_x86` for building x86 binaries
+* `vcvarsall amd64` for building x64 binaries
+
+Then do the following:
 
     # Change directory to ungoogled-chromium's root directory
     path\to\python3 build.py
