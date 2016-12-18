@@ -30,6 +30,8 @@ __all__ = ["LinuxStaticBuilder"]
 class LinuxBuilder(QuiltPatchComponent, GNMetaBuildComponent):
     '''Generic Builder for Linux builds'''
 
+    _extra_packaging_files = dict()
+
     build_targets = ["chrome", "chrome_sandbox"]
 
     def __init__(self, *args, **kwargs):
@@ -65,6 +67,10 @@ class LinuxBuilder(QuiltPatchComponent, GNMetaBuildComponent):
                         arcname = tar_root_dir / file_path.relative_to(self._sandbox_dir /
                                                                        self.build_output)
                         yield (str(arcname), str(file_path))
+            for target_rel_path, input_rel_path in self._extra_packaging_files:
+                target_path = self._sandbox_dir / self.build_output / target_rel_path
+                input_path = self._resources / input_rel_path
+                target_path.write_bytes(input_path.read_bytes())
         with tarfile.open(output_filename, mode="w:xz") as tar_obj:
             for arcname, real_path in file_list_generator():
                 tar_obj.add(real_path, arcname=arcname)
@@ -73,6 +79,10 @@ class LinuxStaticBuilder(LinuxBuilder):
     '''Builder for statically-linked Linux builds'''
 
     _resources = pathlib.Path("resources", "linux_static")
+
+    _extra_packaging_files = {
+        "README": "template_readme"
+    }
 
 class LinuxDynamicBuilder(LinuxBuilder):
     '''Generic Builder for Linux builds linked against system libraries (dynamically-linked)'''
