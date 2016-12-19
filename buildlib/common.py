@@ -323,10 +323,6 @@ class Builder:
             _util.extract_tar_file(self.logger, source_archive, self._sandbox_dir, list(),
                                    "chromium-{}".format(self.chromium_version))
 
-        # https://groups.google.com/a/chromium.org/d/topic/chromium-packagers/9JX1N2nf4PU/discussion
-        (self._sandbox_dir / pathlib.Path("chrome", "test", "data", "webui",
-                                          "i18n_process_css_test.html")).touch()
-
         extra_deps_dict = self._read_ini_resource(EXTRA_DEPS)
         for section in extra_deps_dict:
             self.logger.info("Downloading extra dependency '{}' ...".format(section))
