@@ -23,6 +23,7 @@ import pathlib
 import os
 import zipfile
 import subprocess
+import shutil
 
 from ._util import BuilderException
 from .common import GNUPatchComponent, GNMetaBuildComponent, CPUArch
@@ -65,6 +66,14 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
         if not result.returncode is 0:
             raise BuilderException("bison command returned non-zero exit code {}".format(
                 result.returncode))
+        result_which = shutil.which("bison")
+        if result_which:
+            if " " in result_which:
+                raise BuilderException("Spaces are not allowed in the path to bison: {}".format(
+                    result_which))
+        else:
+            raise BuilderException("shutil.which returned unexpected value: {}".format(
+                result_which))
         self.logger.debug("Using bison command '{!s}'".format(result.stdout.split("\n")[0]))
 
         self.logger.info("Checking gperf command...")
@@ -73,6 +82,14 @@ class WindowsBuilder(GNUPatchComponent, GNMetaBuildComponent):
         if not result.returncode is 0:
             raise BuilderException("gperf command returned non-zero exit code {}".format(
                 result.returncode))
+        result_which = shutil.which("gperf")
+        if result_which:
+            if " " in result_which:
+                raise BuilderException("Spaces are not allowed in the path to gperf: {}".format(
+                    result_which))
+        else:
+            raise BuilderException("shutil.which returned unexpected value: {}".format(
+                result_which))
         self.logger.debug("Using gperf command '{!s}'".format(result.stdout.split("\n")[0]))
 
     def generate_build_configuration(self):

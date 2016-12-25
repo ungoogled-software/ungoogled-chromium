@@ -123,13 +123,18 @@ class Builder:
                 if resource_path.exists():
                     yield resource_path
 
+    def _get_path_envvar(self):
+        if "PATH" in os.environ:
+            new_path = os.environ["PATH"]
+        else:
+            new_path = os.defpath
+        if len(new_path) > 0 and not new_path.startswith(os.pathsep):
+            new_path = os.pathsep + new_path
+        return os.pathsep.join(self._path_prepends) + new_path
+
     def _run_subprocess(self, *args, append_environ=None, **kwargs):
         new_env = dict(os.environ)
-        if "PATH" not in new_env:
-            new_env["PATH"] = os.defpath
-        if len(new_env["PATH"]) > 0 and not new_env["PATH"].startswith(os.pathsep):
-            new_env["PATH"] = os.pathsep + new_env["PATH"]
-        new_env["PATH"] = os.pathsep.join(self._path_prepends) + new_env["PATH"]
+        new_env["PATH"] = self._get_path_envvar()
         if not append_environ is None:
             new_env.update(append_environ)
         kwargs["env"] = new_env
