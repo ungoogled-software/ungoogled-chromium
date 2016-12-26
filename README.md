@@ -9,7 +9,7 @@ ungoogled-chromium is a set of configuration flags, patches, and custom scripts.
 * Strip binaries from the source tree, and use those provided by the system or build them from source
 * Add, modify, or disable features that inhibit control and transparency (these changes are minor and do not have significant impacts on the general user experience)
 
-**ungoogled-chromium is looking for contributors**. See the [Contributing](#contributing) section for more information.
+**ungoogled-chromium is looking for contributors**. See the [Contributing, Reporting, Contacting](#contributing-reporting-contacting) section for more information.
 
 Table of Contents
 * [Features](#features)
@@ -19,7 +19,7 @@ Table of Contents
 * [Frequently-asked questions](#frequently-asked-questions)
 * [Design and implementation](#design-and-implementation)
 * [Building](#building)
-* [Contributing](#contributing)
+* [Contributing, Reporting, Contacting](#contributing-reporting-contacting)
     * [Pull requests](#pull-requests)
 * [Credits](#credits)
 * [License](#license)
