@@ -101,6 +101,7 @@ TODO
 ### macOS
 
 This applies to version `55.0.2883.95`. In case you're using a different version, make sure to edit the command accordingly.
+
 1. [Download the latest Google Chrome for macOS (.dmg file)](https://dl.google.com/chrome/mac/stable/GGRO/googlechrome.dmg)
 2. Put the downloaded `Google Chrome.app` and ungoogled-chromium's `Chromium.app` in the same folder
 3. Run the following command in the Terminal:
