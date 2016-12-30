@@ -1,5 +1,14 @@
 # Frequently Asked Questions
 
+* [Can I install extensions from the Chrome Webstore?](#can-i-install-extensions-from-the-chrome-webstore)
+* [Do plugins work?](#do-plugins-work)
+* [Why are there URLs with the `qjz9zk` domain in them? Why use domain substitution?](#why-are-there-urls-with-the--qjz9zk--domain-in-them--why-use-domain-substitution)
+* [Does domain substitution break the HSTS preload list?](#does-domain-substitution-break-the-hsts-preload-list)
+* [Why is Safe Browsing disabled?](#why-is-safe-browsing-disabled)
+* [How do I install Flash player?](#how-do-i-install-flash-player)
+* [How do I install Widevine CDM?](#how-do-i-install-widevine-cdm)
+* [FIDO U2F security keys are not working in Google sign in](#fido-u2f-security-keys-are-not-working-in-google-sign-in)
+
 ## Can I install extensions from the Chrome Webstore?
 
 Yes, but not via the web interface. Adapted from [inox-patchset](https://raw.githubusercontent.com/gcarq/inox-patchset/master/README.md):
@@ -45,7 +54,7 @@ Keep in mind extensions are not updated automatically, so make sure you update t
 
 ## Do plugins work?
 
-Yes. All plugins including PepperFlash and Widevine DRM should work.
+Yes. All plugins including PepperFlash and Widevine DRM should work. See the relevant question for specific installation instructions.
 
 ## Why are there URLs with the `qjz9zk` domain in them? Why use domain substitution?
 
@@ -74,6 +83,24 @@ Adobe's version of Flash player (as opposed to Google's Flash player bundled wit
 4. Click the "Download now" button, then install.
 
 There are also ways to get Google's Flash player or other versions. See http://chromium.woolyss.com/#flash for more details.
+
+## How do I install Widevine CDM?
+
+These instructions are platform-specific.
+
+### Linux
+
+1. [Download the latest Google Chrome for Linux (.deb file)](https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb)
+2. Inside `data.tar.xz`, extract `./opt/google/chrome/libwidevinecdm.so`
+3. Using the extracted `libwidevinecdm.so`, replace the existing file of the same name bundled with ungoogled-chromium
+
+### Windows
+
+TODO
+
+### macOS
+
+TODO
 
 ## FIDO U2F security keys are not working in Google sign in
 
