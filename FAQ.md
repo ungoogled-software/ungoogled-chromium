@@ -100,7 +100,14 @@ TODO
 
 ### macOS
 
-TODO
+This applies to version `55.0.2883.95`. In case you're using a different version, make sure to edit the command accordingly.
+
+1. [Download the latest Google Chrome for macOS (.dmg file)](https://dl.google.com/chrome/mac/stable/GGRO/googlechrome.dmg)
+2. Put the downloaded `Google Chrome.app` and ungoogled-chromium's `Chromium.app` in the same folder
+3. Run the following command in the Terminal:
+
+`cp -R Google\ Chrome.app/Contents/Versions/55.0.2883.95/Google\ Chrome\ Framework.framework/Libraries/WidevineCdm Chromium.app/Contents/Versions/55.0.2883.95/Chromium\ Framework.framework/Libraries/`
+
 
 ## FIDO U2F security keys are not working in Google sign in
 
