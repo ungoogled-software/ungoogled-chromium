@@ -21,8 +21,9 @@
 
 if __name__ == "__main__":
     from pylint import epylint as lint
+    import pathlib
 
-    lint.lint(filename="buildlib",
+    lint.lint(filename=str(pathlib.Path(__file__).parent.parent / "utilities"),
               options=["--disable=logging-format-interpolation",
                        "--disable=fixme",
                        "--disable=locally-disabled",
