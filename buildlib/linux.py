@@ -67,7 +67,7 @@ class LinuxBuilder(QuiltPatchComponent, GNMetaBuildComponent):
                         arcname = tar_root_dir / file_path.relative_to(self._sandbox_dir /
                                                                        self.build_output)
                         yield (str(arcname), str(file_path))
-            for target_rel_path, input_rel_path in self._extra_packaging_files:
+            for target_rel_path, input_rel_path in self._extra_packaging_files.items():
                 target_path = self._sandbox_dir / self.build_output / target_rel_path
                 input_path = self._resources / input_rel_path
                 target_path.write_bytes(input_path.read_bytes())
