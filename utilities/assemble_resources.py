@@ -26,7 +26,10 @@ import pathlib
 import configparser
 import sys
 
-RESOURCES = pathlib.Path(__file__).absolute().parent.parent / "resources"
+# TODO: Should probably be customizable via an environment variable
+ROOT_DIR = pathlib.Path(__file__).absolute().parent.parent
+VERSION = ROOT_DIR / "version.ini"
+RESOURCES = ROOT_DIR / "resources"
 CONFIGS = RESOURCES / "configs"
 PACKAGING = RESOURCES / "packaging"
 PATCHES = RESOURCES / "patches"
@@ -220,6 +223,8 @@ def main(args): #pylint: disable=too-many-locals
     _write_ini(output_dir / EXTRA_DEPS, extra_deps)
     _write_dict_list(output_dir / GN_FLAGS, gn_flags)
     _write_list(output_dir / PATCH_ORDER, patch_order)
+
+    (output_dir / VERSION.name).write_bytes(VERSION.read_bytes())
 
     output_patches_dir = output_dir / "patches"
     output_patches_dir.mkdir(exist_ok=True)

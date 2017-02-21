@@ -27,4 +27,5 @@ if __name__ == "__main__":
               options=["--disable=logging-format-interpolation",
                        "--disable=fixme",
                        "--disable=locally-disabled",
+                       "--disable=duplicate-code",
                        "--ignore=_external"])
