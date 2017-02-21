@@ -34,8 +34,6 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
-* Disable JavaScript dialog boxes from showing when a page closes (onbeforeunload events)
-    * Bypasses the annoying dialog boxes that spawn when a page is being closed
 * Added menu item under "More tools" to clear the HTTP authentication cache on-demand
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
