@@ -72,9 +72,7 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
 
 ## Download pre-built packages
 
-[Downloads for the latest release](//github.com/Eloston/ungoogled-chromium/releases/latest)
-
-[List of all releases](//github.com/Eloston/ungoogled-chromium/releases)
+[All downloads](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
 
 The release versioning scheme follows that of the tags. See the next section for more details.
 
