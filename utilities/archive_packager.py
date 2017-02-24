@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
 # ungoogled-chromium: Modifications to Google Chromium for removing Google integration
@@ -19,19 +20,20 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''Builds a release archive using FILES.cfg'''
+"""Builds a release archive using FILES.cfg"""
 
 import sys
 import pathlib
 import tarfile
 import zipfile
+import argparse
 
 def file_list_generator(root_dir_name, files_cfg_path, build_output_dir, include_files, target_cpu):
-    '''
+    """
     Generator for files to be included in the archive
 
     Yields file paths in the format (archive_path_str, current_file_path)
-    '''
+    """
     exec_globals = {"__builtins__": None}
     with files_cfg_path.open() as cfg_file:
         exec(cfg_file.read(), exec_globals) # pylint: disable=exec-used
@@ -44,39 +46,69 @@ def file_list_generator(root_dir_name, files_cfg_path, build_output_dir, include
                     continue
             for file_path in build_output_dir.glob(file_spec["filename"]):
                 if not file_path.suffix.lower() == ".pdb":
-                    arcname = root_dir_name / file_path.relative_to(build_output_dir)
+                    arcname = file_path.relative_to(build_output_dir)
+                    if root_dir_name:
+                        arcname = root_dir_name / arcname
                     yield (str(arcname), file_path)
     for include_path in include_files:
         yield (str(root_dir_name / pathlib.Path(include_path.name)), include_path)
 
 def write_tar(output_filename, path_generator, mode="w:xz"):
-    '''Writes out a .tar.xz package'''
+    """Writes out a .tar.xz package"""
     with tarfile.open(output_filename, mode=mode) as tar_obj:
         for arcname, real_path in path_generator:
             print("Including '{}'".format(arcname))
             tar_obj.add(str(real_path), arcname=arcname)
 
 def write_zip(output_filename, path_generator):
-    '''Writes out a .zip package'''
+    """Writes out a .zip package"""
     with zipfile.ZipFile(output_filename, mode="w",
                          compression=zipfile.ZIP_DEFLATED) as zip_file:
         for arcname, real_path in path_generator:
             print("Including '{}'".format(arcname))
             zip_file.write(str(real_path), arcname)
 
-def main(args):
-    '''Entry point'''
-    (root_dir_name, archive_file_path, archive_format, files_cfg_path, build_output_dir,
-     target_cpu) = args[:6]
+def _parse_args(args_list):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--files-cfg", metavar="FILE", required=True,
+                        help="The path to FILES.cfg")
+    parser.add_argument("--archive-root-dir", metavar="DIRECTORY",
+                        help="The name of the archive's root directory. Default is no directory")
+    parser.add_argument("--output-file", required=True, metavar="FILE",
+                        help="The archive file path to output")
+    parser.add_argument("--archive-format", required=True, choices=["tar_xz", "zip"],
+                        help="The type of archive to generate")
+    parser.add_argument("--build-output-dir", required=True, metavar="DIRECTORY",
+                        help="The directory containing build outputs")
+    parser.add_argument("--target-cpu", required=True,
+                        help=("The target CPU of the build outputs. "
+                              "This is the same as the value of the GN flag 'target_cpu"))
+    parser.add_argument("--include-file", action="append",
+                        help=("An additional file to include in the archive. "
+                              "This can be repeated for multiple different files"))
+    args = parser.parse_args(args_list)
+    build_output_dir = pathlib.Path(args.build_output_dir)
+    if not build_output_dir.is_dir():
+        parser.error("--build-output-dir is not a directory: " + args.build_output_dir)
+    files_cfg = pathlib.Path(args.files_cfg)
+    if not files_cfg.is_file():
+        parser.error("--files-cfg is not a file: " + args.files_cfg)
     include_files = list()
-    for i in args[6:]:
-        tmp_path = pathlib.Path(i)
-        if not tmp_path.is_file():
-            raise FileNotFoundError("'{}' is not a file".format(i))
-        include_files.append(pathlib.Path(i))
+    for pathstring in args.include_file:
+        filepath = pathlib.Path(pathstring)
+        if not filepath.is_file():
+            parser.error("--include-file is not a file: " + pathstring)
+        include_files.append(filepath)
+    return (args.archive_root_dir, args.output_file, args.archive_format, files_cfg,
+            build_output_dir, args.target_cpu, include_files)
+
+def main(args):
+    """Entry point"""
+    (root_dir_name, archive_file_path, archive_format, files_cfg_path, build_output_dir,
+     target_cpu, include_files) = _parse_args(args)
     print("Creating package...")
-    path_generator = file_list_generator(pathlib.Path(root_dir_name), pathlib.Path(files_cfg_path),
-                                         pathlib.Path(build_output_dir), include_files, target_cpu)
+    path_generator = file_list_generator(pathlib.Path(root_dir_name), files_cfg_path,
+                                         build_output_dir, include_files, target_cpu)
     if archive_format.lower() == "tar_xz":
         write_tar(archive_file_path, path_generator)
     elif archive_format.lower() == "zip":

@@ -19,76 +19,48 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''
-Simple script to manage patches in the quilt system.
-
-This script is a bit hacky for now. Should work on all builders using quilt
-'''
+"""Simple script to manage patches using the quilt system."""
 
 import argparse
 import subprocess
-import enum
 import pathlib
 import os
-import shutil
 import sys
 
-if not pathlib.Path("buildlib").is_dir():
-    print("ERROR: Run this in the same directory as 'buildlib'")
-    exit(1)
+def main(args_list):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=["top", "pushall", "popall", "pushto", "popto"])
+    parser.add_argument("--patch-name", help="The patch name for 'pushto' and 'popto'")
+    parser.add_argument("--quilt-patches", help="Corresponds to the QUILT_PATCHES environment variable")
+    parser.add_argument("--quilt-series", help="Corresponds to the QUILT_SERIES environment variable")
+    parser.add_argument("--cwd", help="Current working directory for quilt")
+    args = parser.parse_args(args_list)
 
-sys.path.insert(1, str(pathlib.Path.cwd().resolve()))
+    quilt_env_vars = dict()
+    if args.quilt_patches:
+        quilt_env_vars["QUILT_PATCHES"] = args.quilt_patches
+    if args.quilt_series:
+        quilt_env_vars["QUILT_SERIES"] = args.quilt_series
 
-import buildlib
-import buildlib.common
+    def _run_quilt(*quilt_args):
+        new_env = dict(os.environ)
+        new_env.update(quilt_env_vars)
+        return subprocess.run(["quilt", *quilt_args], env=new_env, cwd=args.cwd)
 
-def print_help():
-    print("Simple wrapper around quilt")
-    print("Useage: recreate | top | pushall | popall | pushto <patch_name> | popto <patch_name>")
-
-def main(action, patch_name=None):
-    if action == "help" or action == "-h" or action == "--help":
-        print_help()
-        return 0
-
-    builder = buildlib.get_builder()
-
-    def _run_quilt(*args):
-        return builder._run_subprocess([builder.quilt_command, *args],
-                                      append_environ=builder.quilt_env_vars,
-                                      cwd=str(builder._sandbox_dir))
-
-    if action == "recreate":
-        if (builder.build_dir / buildlib.common.PATCHES).exists():
-            #builder.logger.warning("Sandbox patches directory already exists. Trying to unapply...")
-            #result = _run_quilt("pop", "-a")
-            #print(result)
-            #if not result.returncode == 0 and not result.returncode == 2:
-            #    return 1
-            shutil.rmtree(str(builder.build_dir / buildlib.common.PATCHES))
-        builder.apply_patches()
-        return 0
-
-    if action == "top":
+    if args.action == "top":
         result = _run_quilt("top")
-    elif action == "pushall":
+    elif args.action == "pushall":
         result = _run_quilt("push", "-a")
-    elif action == "popall":
+    elif args.action == "popall":
         result = _run_quilt("pop" , "-a")
-    elif action == "pushto":
-        if patch_name is None:
-            builder.logger.error("Patch name must be defined")
-            return 1
-        result = _run_quilt("push", patch_name)
-    elif action == "popto":
-        if patch_name is None:
-            builder.logger.error("Patch name must be defined")
-            return 1
-        result = _run_quilt("pop", patch_name)
-    else:
-        builder.logger.error("Unknown command")
-        print_help()
-        return 1
+    elif args.action == "pushto":
+        if args.patch_name is None:
+            parser.error("patch_name must be defined")
+        result = _run_quilt("push", args.patch_name)
+    elif args.action == "popto":
+        if args.patch_name is None:
+            parser.error("patch_name must be defined")
+        result = _run_quilt("pop", args.patch_name)
 
     print(result)
     if not result.returncode == 0:
@@ -97,4 +69,4 @@ def main(action, patch_name=None):
     return 0
 
 if __name__ == "__main__":
-    exit(main(*sys.argv[1:]))
+    exit(main(sys.argv[1:]))

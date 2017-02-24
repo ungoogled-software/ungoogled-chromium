@@ -20,7 +20,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''Downloads and extracts the main source or extra dependencies'''
+"""Downloads and extracts the main source or extra dependencies"""
 
 import pathlib
 import sys
@@ -30,19 +30,20 @@ import os
 import tarfile
 import urllib.request
 import hashlib
+import argparse
 
 def read_extra_deps(deps_path):
-    '''Reads extra_deps.ini'''
+    """Reads extra_deps.ini"""
     config = configparser.ConfigParser()
     config.read(str(deps_path))
     return config
 
 def _read_list(list_path):
-    '''
+    """
     Reads a text document that is a simple new-line delimited list
 
     Blank lines are ignored
-    '''
+    """
     if not list_path.exists():
         return list()
     with list_path.open() as file_obj:
@@ -50,10 +51,10 @@ def _read_list(list_path):
         return [x for x in tmp_list if len(x) > 0]
 
 def _extract_tar_file(tar_path, destination_dir, ignore_files, relative_to):
-    '''Improved one-time tar extraction function'''
+    """Improved one-time tar extraction function"""
 
     class NoAppendList(list):
-        '''Hack to workaround memory issues with large tar files'''
+        """Hack to workaround memory issues with large tar files"""
 
         def append(self, obj):
             pass
@@ -104,7 +105,7 @@ def _extract_tar_file(tar_path, destination_dir, ignore_files, relative_to):
                 raise exc
 
 def _download_if_needed(file_path, url):
-    '''Downloads a file if necessary'''
+    """Downloads a file if necessary"""
     if file_path.exists() and not file_path.is_file():
         raise Exception("{} is an existing non-file".format(str(file_path)))
     elif not file_path.is_file():
@@ -123,7 +124,7 @@ def _setup_tar_dependency(tar_url, tar_filename, strip_tar_dirs, dep_destination
     _extract_tar_file(tar_destination, dep_destination, list(), strip_tar_dirs)
 
 def download_extra_deps(extra_deps_dict, root_dir, downloads_dir):
-    '''Downloads extra dependencies defined in deps_dict to paths relative to root_dir'''
+    """Downloads extra dependencies defined in deps_dict to paths relative to root_dir"""
     for section in extra_deps_dict:
         print("Downloading extra dependency '{}' ...".format(section))
         dep_version = extra_deps_dict[section]["version"]
@@ -139,7 +140,7 @@ def download_extra_deps(extra_deps_dict, root_dir, downloads_dir):
                               root_dir / pathlib.Path(section), downloads_dir)
 
 def download_main_source(version, downloads_dir, root_dir, source_cleaning_list):
-    '''Downloads the main source code'''
+    """Downloads the main source code"""
     source_archive = (downloads_dir /
                       pathlib.Path("chromium-{version}.tar.xz".format(
                           version=version)))
@@ -181,27 +182,48 @@ def download_main_source(version, downloads_dir, root_dir, source_cleaning_list)
     for i in source_cleaning_list:
         print("File does not exist in tar file: {}".format(i))
 
-def main(args):
-    '''Entry point'''
-    # TODO: use argparse
-    downloads_dir = pathlib.Path(args[0])
+def main(args_list):
+    """Entry point"""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--mode", choices=["main_source", "extra_deps"],
+                        help="The dependency to download and unpack")
+    parser.add_argument("--downloads-dir", required=True, metavar="DIRECTORY",
+                        help="The directory to store downloaded archive files")
+    parser.add_argument("--root-dir", required=True, metavar="DIRECTORY",
+                        help="The root directory of the source tree")
+    parser.add_argument("--chromium-version", metavar="X.X.X.X",
+                        help=("The Chromium version to download. Required if"
+                              "mode is 'main_source'"))
+    parser.add_argument("--source-cleaning-list", metavar="FILE",
+                        help=("The path to the source cleaning list. If not"
+                              "specified, the source is not cleaned during"
+                              " unpacking. Used only when mode is"
+                              " 'main_source'"))
+    parser.add_argument("--extra-deps-path", metavar="INI_FILE",
+                        help=("The path to the extra deps ini file. Required if"
+                              " mode is 'extra_deps'"))
+    args = parser.parse_args(args_list)
+    downloads_dir = pathlib.Path(args.downloads_dir)
     if not downloads_dir.is_dir():
-        raise NotADirectoryError(args[0])
-    root_dir = pathlib.Path(args[1])
+        parser.error("--downloads-dir value '{}' is not a directory".format(args.downloads_dir))
+    root_dir = pathlib.Path(args.root_dir)
     if not root_dir.is_dir():
-        raise NotADirectoryError(args[1])
-    mode = args[2]
-    if mode == "main_source":
-        version = args[2]
+        parser.error("--root-dir value '{}' is not a directory".format(args.root_dir))
+    if args.mode == "main_source":
+        if not args.chromium_version:
+            parser.error("--chromium-version required when --mode is 'main_source'")
         source_cleaning_list = list()
-        if len(args) > 3:
-            source_cleaning_list = _read_list(pathlib.Path(args[3]))
-        download_main_source(version, downloads_dir, root_dir, source_cleaning_list)
-    elif mode == "extra_deps":
-        extra_deps_path = pathlib.Path(args[2])
+        if args.source_cleaning_list:
+            source_cleaning_list = _read_list(pathlib.Path(args.source_cleaning_list))
+            print("Parsed source cleaning list")
+        else:
+            print("Disabling source cleaning because no source cleaning list was provided.")
+        download_main_source(args.chromium_version, downloads_dir, root_dir, source_cleaning_list)
+    elif args.mode == "extra_deps":
+        if not args.extra_deps_path:
+            parser.error("--extra-deps-path required when --mode is 'extra_deps'")
+        extra_deps_path = pathlib.Path(args.extra_deps_path)
         download_extra_deps(read_extra_deps(extra_deps_path), root_dir, downloads_dir)
-    else:
-        raise ValueError("Unknown mode: " + mode)
 
     return 0
 

@@ -20,14 +20,15 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''Checks build requirements'''
+"""Checks build requirements"""
 
 import subprocess
 import sys
 import shutil
+import argparse
 
 def check_common_requirements(python2_command="python", ninja_command="ninja"):
-    '''Checks common requirements'''
+    """Checks common requirements"""
     print("Checking common requirements...")
     print("Checking Python 2 command...")
     result = subprocess.run([python2_command, "-c",
@@ -52,7 +53,7 @@ def check_common_requirements(python2_command="python", ninja_command="ninja"):
     print("Using ninja version '{!s}'".format(result.stdout.strip("\n")))
 
 def check_gnu_patch(patch_command="patch"):
-    '''Checks the GNU patch command'''
+    """Checks the GNU patch command"""
     print("Checking GNU patch command...")
     result = subprocess.run([patch_command, "--version"], stdout=subprocess.PIPE,
                             universal_newlines=True)
@@ -62,7 +63,7 @@ def check_gnu_patch(patch_command="patch"):
     print("Using patch command '{!s}'".format(result.stdout.split("\n")[0]))
 
 def check_quilt(quilt_command="quilt"):
-    '''Checks the quilt command'''
+    """Checks the quilt command"""
     print("Checking quilt command...")
     result = subprocess.run([quilt_command, "--version"], stdout=subprocess.PIPE,
                             universal_newlines=True)
@@ -72,7 +73,7 @@ def check_quilt(quilt_command="quilt"):
     print("Using quilt command '{!s}'".format(result.stdout.strip("\n")))
 
 def check_windows():
-    '''Checks Windows-specific requirements'''
+    """Checks Windows-specific requirements"""
     print("Checking bison command...")
     result = subprocess.run(["bison", "--version"], stdout=subprocess.PIPE,
                             universal_newlines=True)
@@ -106,7 +107,7 @@ def check_windows():
     print("Using gperf command '{!s}'".format(result.stdout.split("\n")[0]))
 
 def check_macos():
-    '''Checks macOS-specific requirements'''
+    """Checks macOS-specific requirements"""
     print("Checking macOS SDK version...")
     result = subprocess.run(["xcrun", "--show-sdk-version"], stdout=subprocess.PIPE,
                             universal_newlines=True)
@@ -118,22 +119,22 @@ def check_macos():
             result.stdout.strip()))
     print("Using macOS SDK version '{!s}'".format(result.stdout.strip()))
 
-def main(args):
-    '''Entry point'''
-    # TODO: Consider using argparse to allow for custom commands
-    check_common_requirements()
-    for check_type in args:
-        if check_type == "gnu_patch":
-            check_gnu_patch()
-        elif check_type == "quilt":
-            check_quilt()
-        elif check_type == "windows":
-            check_windows()
-        elif check_type == "macos":
-            check_macos()
-        else:
-            print("Unknown check type " + check_type)
-            return 1
+def main(args_list):
+    """Entry point"""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--common", action="append_const", dest="check_methods",
+                        const=check_common_requirements, help="Checks common requirements")
+    parser.add_argument("--gnu-patch", action="append_const", dest="check_methods",
+                        const=check_gnu_patch, help="Checks for GNU patch")
+    parser.add_argument("--quilt", action="append_const", dest="check_methods",
+                        const=check_quilt, help="Checks for quilt")
+    parser.add_argument("--windows", action="append_const", dest="check_methods",
+                        const=check_windows, help="Checks Windows-specific utilities")
+    parser.add_argument("--macos", action="append_const", dest="check_methods",
+                        const=check_macos, help="Checks macOS-specific utilities")
+    args = parser.parse_args(args_list)
+    for method in args.check_methods:
+        method()
 
     print("All checks passed")
     return 0

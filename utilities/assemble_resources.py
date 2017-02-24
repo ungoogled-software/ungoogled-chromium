@@ -20,11 +20,12 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''Assembles resources for a specific configuration'''
+"""Assembles resources for a specific configuration"""
 
 import pathlib
 import configparser
 import sys
+import argparse
 
 # TODO: Should probably be customizable via an environment variable
 ROOT_DIR = pathlib.Path(__file__).absolute().parent.parent
@@ -43,11 +44,11 @@ METADATA = "metadata.ini"
 PATCH_ORDER = "patch_order"
 
 class ConfigurationReader:
-    '''A reader for a configuration directory'''
+    """A reader for a configuration directory"""
 
     @staticmethod
     def _read_ini(ini_path):
-        '''Returns a configparser object'''
+        """Returns a configparser object"""
         if not ini_path.exists():
             return dict()
         config = configparser.ConfigParser()
@@ -56,11 +57,11 @@ class ConfigurationReader:
 
     @staticmethod
     def _read_list(list_path, is_binary=False):
-        '''
+        """
         Reads a text document that is a simple new-line delimited list
 
         Blank lines are ignored
-        '''
+        """
         if not list_path.exists():
             return list()
         if is_binary:
@@ -80,11 +81,11 @@ class ConfigurationReader:
         self.display_name = self.name
 
     def _read_dict_list(self, dict_list_path, is_binary=False):
-        '''
+        """
         Reads a text document that is a list of key-value pairs delimited by an equals sign
 
         Blank lines are ignored
-        '''
+        """
         if not dict_list_path.exists():
             return dict()
         if is_binary:
@@ -98,7 +99,7 @@ class ConfigurationReader:
         return tmp_dict
 
     def read_metadata(self, config_dict):
-        '''Reads metadata.ini'''
+        """Reads metadata.ini"""
         metadata_config = self._read_ini(self.path / METADATA)
         for section in metadata_config:
             if section == "DEFAULT":
@@ -119,19 +120,19 @@ class ConfigurationReader:
                     section, self.path.name))
 
     def read_cleaning_list(self):
-        '''Reads cleaning_list'''
+        """Reads cleaning_list"""
         return self._read_list(self.path / CLEANING_LIST)
 
     def read_domain_regex_list(self):
-        '''Reads domain_regex_list'''
+        """Reads domain_regex_list"""
         return self._read_list(self.path / DOMAIN_REGEX_LIST)
 
     def read_domain_substitution_list(self):
-        '''Reads domain_substitution_list'''
+        """Reads domain_substitution_list"""
         return self._read_list(self.path / DOMAIN_SUBSTITUTION_LIST)
 
     def read_extra_deps(self):
-        '''Reads extra_deps.ini'''
+        """Reads extra_deps.ini"""
         extra_deps_config = self._read_ini(self.path / EXTRA_DEPS)
         tmp_dict = dict()
         for section in extra_deps_config:
@@ -146,23 +147,24 @@ class ConfigurationReader:
         return tmp_dict
 
     def read_gn_flags(self):
-        '''Reads gn_flags'''
+        """Reads gn_flags"""
         return self._read_dict_list(self.path / GN_FLAGS)
 
     def read_patch_order(self):
-        '''Reads patch_order'''
+        """Reads patch_order"""
         return self._read_list(self.path / PATCH_ORDER)
 
-def _parse_args(args):
-    # TODO: Use argparse
-    target_config = args[0]
-    if len(args) > 1:
-        output_dir = pathlib.Path(args[1])
-        if not output_dir.is_dir():
-            raise NotADirectoryError(args[1])
-    else:
-        output_dir = pathlib.Path(".")
-    return target_config, output_dir
+def _parse_args(args_list):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("target_config", help="The target configuration to assemble")
+    parser.add_argument("--output-dir", metavar="DIRECTORY", default=".",
+                        help=("The directory to output resources to. "
+                              "Default: The current directory"))
+    args = parser.parse_args(args_list)
+    output_dir = pathlib.Path(args.output_dir)
+    if not output_dir.is_dir():
+        raise NotADirectoryError(args.output_dir)
+    return args.target_config, output_dir
 
 def _get_config_dict():
     config_dict = dict()
@@ -198,7 +200,7 @@ def _write_ini(path, dict_obj):
         config.write(file_obj)
 
 def main(args): #pylint: disable=too-many-locals
-    '''Entry point'''
+    """Entry point"""
     target_config, output_dir = _parse_args(args)
 
     cleaning_list = list()

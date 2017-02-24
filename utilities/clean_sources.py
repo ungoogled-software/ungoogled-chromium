@@ -20,13 +20,14 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''Runs source cleaner'''
+"""Runs source cleaner"""
 
 import pathlib
 import sys
+import argparse
 
 def read_cleaning_list(list_path):
-    '''Reads cleaning_list'''
+    """Reads cleaning_list"""
     if not list_path.exists():
         return list()
     with list_path.open() as file_obj:
@@ -34,7 +35,7 @@ def read_cleaning_list(list_path):
         return [x for x in tmp_list if len(x) > 0]
 
 def clean_sources(cleaning_list_iter, root_dir):
-    '''Delete files given by iterable cleaning_list_iter relative to root_dir'''
+    """Delete files given by iterable cleaning_list_iter relative to root_dir"""
     for entry in cleaning_list_iter:
         tmp_path = root_dir / entry
         try:
@@ -42,20 +43,20 @@ def clean_sources(cleaning_list_iter, root_dir):
         except FileNotFoundError:
             print("No such file: " + str(tmp_path))
 
-def _parse_args(args):
-    # TODO: use argparse
-    cleaning_list_path = pathlib.Path(args[0])
-    if len(args) > 1:
-        root_dir = pathlib.Path(args[1])
-        if not root_dir.is_dir():
-            raise NotADirectoryError(args[1])
-    else:
-        root_dir = pathlib.Path(".")
-    return cleaning_list_path, root_dir
-
-def main(args):
-    '''Entry point'''
-    cleaning_list_path, root_dir = _parse_args(args)
+def main(args_list):
+    """Entry point"""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cleaning-list", required=True, metavar="FILE",
+                        help="The cleaning list file")
+    parser.add_argument("--root-dir", metavar="DIRECTORY", default=".",
+                        help="The root directory. Default: the current directory")
+    args = parser.parse_args(args_list)
+    cleaning_list_path = pathlib.Path(args.cleaning_list)
+    if not cleaning_list_path.exists():
+        parser.error("Specified list does not exist: " + args.cleaning_list)
+    root_dir = pathlib.Path(args.root_dir)
+    if not root_dir.is_dir():
+        parser.error("Specified root directory does not exist: " + args.root_dir)
 
     clean_sources(read_cleaning_list(cleaning_list_path), root_dir)
 

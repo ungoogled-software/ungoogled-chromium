@@ -20,26 +20,31 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''Entry point for the build files generator'''
+"""Entry point for the build files generator"""
 
-# TODO: Use argparse
-
-import sys
 import pathlib
+import argparse
 
 from . import ResourcesParser
 
-RESOURCES_DIR, FILES_TYPE, OUTPUT_DIR = sys.argv[1:]
+def _parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--files-type", required=True, choices=["debian"],
+                        help="The type of build files to generate")
+    parser.add_argument("--resources-dir", required=True, metavar="DIRECTORY",
+                        help="The assembled resources directory")
+    parser.add_argument("--output-dir", metavar="DIRECTORY", default=".",
+                        help="The directory to output build files to")
+    args = parser.parse_args()
+    resources_dir = pathlib.Path(args.resources_dir)
+    if not resources_dir.is_dir():
+        parser.error("--resources-dir value is not a directory: " + args.resources_dir)
+    output_dir = pathlib.Path(args.output_dir)
+    if not output_dir.is_dir():
+        parser.error("--output-dir value is not a directory: " + args.output_dir)
+    return resources_dir, args.files_type, output_dir
 
-RESOURCES_DIR = pathlib.Path(RESOURCES_DIR)
-OUTPUT_DIR = pathlib.Path(OUTPUT_DIR)
-
-if not RESOURCES_DIR.is_dir():
-    raise NotADirectoryError("Resources path is not a directory: {}".format(
-        str(RESOURCES_DIR)))
-if not OUTPUT_DIR.is_dir():
-    raise NotADirectoryError("Output path is not a directory: {}".format(
-        str(OUTPUT_DIR)))
+RESOURCES_DIR, FILES_TYPE, OUTPUT_DIR = _parse_args()
 
 RESOURCES_PARSER = ResourcesParser(RESOURCES_DIR)
 
@@ -47,5 +52,3 @@ if FILES_TYPE == "debian":
     from . import debian
     print("Generating Debian directory...")
     debian.generate_build_files(RESOURCES_PARSER, OUTPUT_DIR)
-else:
-    raise ValueError("Not a valid type: '{}'".format(FILES_TYPE))

@@ -20,34 +20,40 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-'''Runs domain substitution'''
+"""Runs domain substitution"""
 
 import pathlib
 import sys
 import re
+import argparse
 
-def read_list(list_path, binary=False):
-    '''Reads binary lists'''
+def _line_generator(file_obj):
+    for line in file_obj.read().splitlines():
+        if len(line) > 0:
+            yield line
+
+def _read_list(list_path, binary=False):
+    """Reads a list. Ignores `binary` if reading from stdin"""
     if binary:
         mode = "rb"
     else:
         mode = "r"
-    if not list_path.exists():
-        return list()
-    with list_path.open(mode) as file_obj:
-        tmp_list = file_obj.read().splitlines()
-        return [x for x in tmp_list if len(x) > 0]
+    if str(list_path) == "-":
+        yield from _line_generator(sys.stdin)
+    else:
+        with list_path.open(mode) as file_obj:
+            yield from _line_generator(file_obj)
 
 def get_parsed_domain_regexes(domain_regex_list_path):
-    '''Parses and compiles domain regular expressions'''
+    """Parses and compiles domain regular expressions"""
     domain_regexes = list()
-    for expression in read_list(domain_regex_list_path, binary=True):
+    for expression in _read_list(domain_regex_list_path, binary=True):
         expression = expression.split(b'#')
         domain_regexes.append((re.compile(expression[0]), expression[1]))
     return domain_regexes
 
 def substitute_domains(regex_list, file_list, root_dir, log_warnings=True):
-    '''Runs domain substitution with regex_list over files file_list'''
+    """Runs domain substitution with regex_list over files file_list"""
 
     for path in file_list:
         try:
@@ -68,24 +74,34 @@ def substitute_domains(regex_list, file_list, root_dir, log_warnings=True):
             print("Exception thrown for path {}".format(path))
             raise exc
 
-def _parse_args(args):
-    # TODO: use argparse
-    domain_regex_list_path = pathlib.Path(args[0])
-    domain_substitution_list_path = pathlib.Path(args[1])
-    if len(args) > 1:
-        root_dir = pathlib.Path(args[2])
-        if not root_dir.is_dir():
-            raise NotADirectoryError(args[2])
-    else:
-        root_dir = pathlib.Path(".")
+def _parse_args(args_list):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--domain-regex-list", required=True, metavar="FILE",
+                        help="Path to the domain regular expression list")
+    parser.add_argument("--domain-substitution-list", metavar="FILE", default="-",
+                        help="Path to the domain substitution list. Default is to read from stdin")
+    parser.add_argument("--root-dir", metavar="DIRECTORY", default=".",
+                        help=("The directory to operate relative to. "
+                              "If not specified, the current working directory"))
+    args = parser.parse_args(args_list)
+    domain_regex_list_path = pathlib.Path(args.domain_regex_list)
+    if not domain_regex_list_path.exists():
+        parser.error("--domain-regex-list path does not exist: " + args.domain_regex_list)
+    domain_substitution_list_path = pathlib.Path(args.domain_substitution_list)
+    if not args.domain_substitution_list == "-" and not domain_substitution_list_path.exists():
+        parser.error("--domain-substitution-list path does not exist: " +
+                     args.domain_substitution_list)
+    root_dir = pathlib.Path(args.root_dir)
+    if not root_dir.is_dir():
+        parser.error("--root-dir is not a directory: " + args.root_dir)
     return domain_regex_list_path, domain_substitution_list_path, root_dir
 
 def main(args):
-    '''Entry point'''
+    """Entry point"""
 
     domain_regex_list_path, domain_substitution_list_path, root_dir = _parse_args(args)
     substitute_domains(get_parsed_domain_regexes(domain_regex_list_path),
-                       read_list(domain_substitution_list_path),
+                       _read_list(domain_substitution_list_path),
                        root_dir)
 
     return 0
