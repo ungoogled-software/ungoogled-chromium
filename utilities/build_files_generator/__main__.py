@@ -27,28 +27,41 @@ import argparse
 
 from . import ResourcesParser
 
-def _parse_args():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--files-type", required=True, choices=["debian"],
-                        help="The type of build files to generate")
+def _add_subparsers(subparsers):
+    """Adds argument subparsers"""
+    def _debian_callback(resources_parser, output_dir, args):
+        from . import debian
+        debian.generate_build_files(resources_parser, output_dir, args.build_output,
+                                    args.distro_version)
+    debian_subparser = subparsers.add_parser("debian", help="Generator for Debian and derivatives")
+    debian_subparser.add_argument("--build-output", metavar="DIRECTORY", default="out/Release",
+                                  help="The Chromium build output directory")
+    debian_subparser.add_argument("--distro-version", default="stable",
+                                  help=("The target distribution version (for use in "
+                                        "'debian/changelog'"))
+    debian_subparser.set_defaults(callback=_debian_callback)
+
+def _main():
+    parser = argparse.ArgumentParser(
+        description="Simple build files generator using assembled resources")
     parser.add_argument("--resources-dir", required=True, metavar="DIRECTORY",
                         help="The assembled resources directory")
     parser.add_argument("--output-dir", metavar="DIRECTORY", default=".",
                         help="The directory to output build files to")
+
+    _add_subparsers(parser.add_subparsers(title="Build file types"))
+
     args = parser.parse_args()
+
     resources_dir = pathlib.Path(args.resources_dir)
     if not resources_dir.is_dir():
         parser.error("--resources-dir value is not a directory: " + args.resources_dir)
+
     output_dir = pathlib.Path(args.output_dir)
     if not output_dir.is_dir():
         parser.error("--output-dir value is not a directory: " + args.output_dir)
-    return resources_dir, args.files_type, output_dir
 
-RESOURCES_DIR, FILES_TYPE, OUTPUT_DIR = _parse_args()
+    resources_parser = ResourcesParser(resources_dir)
+    args.callback(resources_parser, output_dir, args)
 
-RESOURCES_PARSER = ResourcesParser(RESOURCES_DIR)
-
-if FILES_TYPE == "debian":
-    from . import debian
-    print("Generating Debian directory...")
-    debian.generate_build_files(RESOURCES_PARSER, OUTPUT_DIR)
+_main()

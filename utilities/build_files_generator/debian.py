@@ -32,6 +32,8 @@ import os
 
 from . import ROOT_DIR
 
+# Private definitions
+
 _DPKG_DIR = ROOT_DIR / pathlib.Path("resources", "packaging", "debian")
 
 class _BuildFileStringTemplate(string.Template):
@@ -74,7 +76,10 @@ def _get_parsed_gn_flags(gn_flags):
             yield "defines+=" + shlex.quote(key) + "=" + shlex.quote(value)
     return os.linesep.join(_shell_line_generator(gn_flags))
 
-def generate_build_files(resources_parser, output_dir):
+# Public definitions
+
+def generate_build_files(resources_parser, output_dir, build_output,
+                         distribution_version):
     """
     Generates the `debian` directory in `output_dir` using resources from
     `resources_parser`
@@ -82,8 +87,8 @@ def generate_build_files(resources_parser, output_dir):
     build_file_subs = dict(
         changelog_version="{}-{}".format(*resources_parser.get_version()),
         changelog_datetime=_get_dpkg_changelog_datetime(),
-        build_output="out/Release",
-        distribution_version="stable",
+        build_output=build_output,
+        distribution_version=distribution_version,
         gn_flags=_get_parsed_gn_flags(resources_parser.get_gn_flags())
     )
 
