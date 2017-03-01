@@ -29,12 +29,13 @@ from . import ResourcesParser
 
 def _add_subparsers(subparsers):
     """Adds argument subparsers"""
+    subparsers.required = True # Workaround: http://bugs.python.org/issue9253#msg186387
     def _debian_callback(resources_parser, output_dir, args):
         from . import debian
         debian.generate_build_files(resources_parser, output_dir, args.build_output,
                                     args.distro_version)
     debian_subparser = subparsers.add_parser("debian", help="Generator for Debian and derivatives")
-    debian_subparser.add_argument("--build-output", metavar="DIRECTORY", default="out/Release",
+    debian_subparser.add_argument("--build-output", metavar="DIRECTORY", default="out/Default",
                                   help="The Chromium build output directory")
     debian_subparser.add_argument("--distro-version", default="stable",
                                   help=("The target distribution version (for use in "
@@ -49,7 +50,7 @@ def _main():
     parser.add_argument("--output-dir", metavar="DIRECTORY", default=".",
                         help="The directory to output build files to")
 
-    _add_subparsers(parser.add_subparsers(title="Build file types"))
+    _add_subparsers(parser.add_subparsers(title="Build file types", dest="files_type"))
 
     args = parser.parse_args()
 
