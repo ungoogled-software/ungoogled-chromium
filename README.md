@@ -58,7 +58,7 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
     * Use user-provided building utilities instead of the ones bundled with Chromium (currently `gperf` and `bison`)
     * Do not set the Zone Identifier on downloaded files (which is a hassle to unset)
 
-**DISCLAIMER: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
+**NOTE: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
 
 ### Supported platforms and distributions
 * Linux
@@ -72,9 +72,15 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
 
 ## Download pre-built packages
 
+### Contributor binaries
+
 [All downloads](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
 
 The release versioning scheme follows that of the tags. See the next section for more details.
+
+### Alternative installation methods
+
+macOS cask: Available as `eloston-chromium`
 
 ## Getting the source code
 
