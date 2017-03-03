@@ -1,4 +1,5 @@
 # Sets quilt variables for updating the patches
+# Make sure to run this with the shell command "source" in order to inherit the variables into the interactive environment
 
 export QUILT_PATCHES="ungoogled_patches/patches"
 export QUILT_SERIES="../patch_order"

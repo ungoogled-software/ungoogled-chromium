@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Simple script to assemble patches into the sandbox for updating with quilt
-# Takes one argument: Specify the configuration type to assemble patches for
+# Takes two arguments: The config type, followed by the sandbox directory
 # (Should be run multiple times with different configurations to update all of the patches)
 # Used in conjunction with set_quilt_vars.sh
 
@@ -9,9 +9,9 @@ set -e -u -x
 
 patches_type=$1
 ungoogled_chromium_dir="$(dirname $(dirname $(readlink -f $0)))"
-build_sandbox="$ungoogled_chromium_dir/build/sandbox"
+build_sandbox=$2
 patches_dir="$build_sandbox/ungoogled_patches"
-assembled_resources=/tmp/tmp_assembled_resources
+assembled_resources=/tmp/tmp_ungoogled_assembled_resources
 
 rm -r "$assembled_resources" || true
 rm -r "$patches_dir" || true
