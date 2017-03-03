@@ -63,7 +63,6 @@ def generate_cleaning_list(sandbox_path, list_file):
         "*.icns",
         "*.woff",
         "*.woff2",
-        "*Makefile",
         "*makefile",
         "*.xcf",
         "*.cur",
@@ -81,7 +80,6 @@ def generate_cleaning_list(sandbox_path, list_file):
         "*.js",
         "*.json",
         "*.txt",
-        "*.TXT",
         "*.xtb"
     ]
     include_matches = [
@@ -102,11 +100,12 @@ def generate_cleaning_list(sandbox_path, list_file):
             for pattern in include_matches:
                 if i.match(pattern):
                     cleaning_list.add(str(i))
+                    found_match = True
                     break
             if found_match:
                 continue
             for pattern in exclude_matches:
-                if i.match(pattern):
+                if i.lower().match(pattern):
                     found_match = True
                     break
             if not found_match:

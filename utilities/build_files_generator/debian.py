@@ -27,7 +27,6 @@ import locale
 import datetime
 import re
 import distutils.dir_util
-import shlex
 import os
 
 from . import ROOT_DIR
@@ -70,10 +69,13 @@ def _get_dpkg_changelog_datetime(override_datetime=None):
     finally:
         locale.setlocale(locale.LC_TIME, current_lc)
 
+def _escape_string(value):
+    return value.replace('"', '\\"')
+
 def _get_parsed_gn_flags(gn_flags):
     def _shell_line_generator(gn_flags):
         for key, value in gn_flags.items():
-            yield "defines+=" + shlex.quote(key) + "=" + shlex.quote(value)
+            yield "defines+=" + _escape_string(key) + "=" + _escape_string(value)
     return os.linesep.join(_shell_line_generator(gn_flags))
 
 # Public definitions
