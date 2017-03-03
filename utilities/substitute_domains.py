@@ -80,9 +80,8 @@ def _parse_args(args_list):
                         help="Path to the domain regular expression list")
     parser.add_argument("--domain-substitution-list", metavar="FILE", default="-",
                         help="Path to the domain substitution list. Default is to read from stdin")
-    parser.add_argument("--root-dir", metavar="DIRECTORY", default=".",
-                        help=("The directory to operate relative to. "
-                              "If not specified, the current working directory"))
+    parser.add_argument("--root-dir", metavar="DIRECTORY", required=True,
+                        help="The directory to operate relative to.")
     args = parser.parse_args(args_list)
     domain_regex_list_path = pathlib.Path(args.domain_regex_list)
     if not domain_regex_list_path.exists():

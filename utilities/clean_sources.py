@@ -48,8 +48,8 @@ def main(args_list):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cleaning-list", required=True, metavar="FILE",
                         help="The cleaning list file")
-    parser.add_argument("--root-dir", metavar="DIRECTORY", default=".",
-                        help="The root directory. Default: the current directory")
+    parser.add_argument("--root-dir", metavar="DIRECTORY", required=True,
+                        help="The root directory.")
     args = parser.parse_args(args_list)
     cleaning_list_path = pathlib.Path(args.cleaning_list)
     if not cleaning_list_path.exists():

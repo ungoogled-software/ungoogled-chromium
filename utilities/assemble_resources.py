@@ -157,9 +157,8 @@ class ConfigurationReader:
 def _parse_args(args_list):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target_config", help="The target configuration to assemble")
-    parser.add_argument("--output-dir", metavar="DIRECTORY", default=".",
-                        help=("The directory to output resources to. "
-                              "Default: The current directory"))
+    parser.add_argument("--output-dir", metavar="DIRECTORY", required=True,
+                        help="The directory to output resources to. ")
     args = parser.parse_args(args_list)
     output_dir = pathlib.Path(args.output_dir)
     if not output_dir.is_dir():
