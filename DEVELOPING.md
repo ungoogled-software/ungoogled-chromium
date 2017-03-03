@@ -6,8 +6,9 @@ Tested on Debian 9.0 (stretch). Exact instructions should work on any other Linu
 
 ### Dependencies
 
-* `quilt`
-    * This utility is what drives most of the updating process, so it is important to learn this relatively well. The manpage for quilt (as of early 2017) has a general overview of how its text-user-interface and internals work together, but it lacks a clear example of a workflow. There are multiple guides online, but [this guide from Debian](https://wiki.debian.org/UsingQuilt) and [the referenced guide on that page](https://raphaelhertzog.com/2012/08/08/how-to-use-quilt-to-manage-patches-in-debian-packages/) are decent.
+* [`quilt`](http://savannah.nongnu.org/projects/quilt)
+    * This is available in most (if not all) Linux distributions, and also Homebrew on macOS.
+    * This utility facilitates most of the updating process, so it is important to learn how to use this. The manpage for quilt (as of early 2017) lacks an example of a workflow. There are multiple guides online, but [this guide from Debian](https://wiki.debian.org/UsingQuilt) and [the referenced guide on that page](https://raphaelhertzog.com/2012/08/08/how-to-use-quilt-to-manage-patches-in-debian-packages/) are the ones referenced in developing the current workflow.
 * Python 3.5 or newer
 
 ### Steps
