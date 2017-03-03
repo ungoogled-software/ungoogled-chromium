@@ -13,11 +13,9 @@ the URL so we get notified if this happens again in the future).
  chrome/browser/safe_browsing/safe_browsing_service.cc               | 2 ++
  4 files changed, 10 insertions(+), 3 deletions(-)
 
-diff --git a/chrome/browser/safe_browsing/incident_reporting/incident_report_uploader_impl.cc b/chrome/browser/safe_browsing/incident_reporting/incident_report_uploader_impl.cc
-index 004793d..4666f4a 100644
 --- a/chrome/browser/safe_browsing/incident_reporting/incident_report_uploader_impl.cc
 +++ b/chrome/browser/safe_browsing/incident_reporting/incident_report_uploader_impl.cc
-@@ -19,7 +19,7 @@ namespace safe_browsing {
+@@ -20,7 +20,7 @@ namespace safe_browsing {
  namespace {
  
  const char kSbIncidentReportUrl[] =
@@ -26,11 +24,9 @@ index 004793d..4666f4a 100644
  
  }  // namespace
  
-diff --git a/chrome/browser/safe_browsing/incident_reporting/incident_reporting_service.cc b/chrome/browser/safe_browsing/incident_reporting/incident_reporting_service.cc
-index d510557..f65cf5a 100644
 --- a/chrome/browser/safe_browsing/incident_reporting/incident_reporting_service.cc
 +++ b/chrome/browser/safe_browsing/incident_reporting/incident_reporting_service.cc
-@@ -322,6 +322,8 @@ IncidentReportingService::UploadContext::~UploadContext() {
+@@ -321,6 +321,8 @@ IncidentReportingService::UploadContext:
  
  // static
  bool IncidentReportingService::IsEnabledForProfile(Profile* profile) {
@@ -39,16 +35,14 @@ index d510557..f65cf5a 100644
    if (profile->IsOffTheRecord())
      return false;
    if (!profile->GetPrefs()->GetBoolean(prefs::kSafeBrowsingEnabled))
-@@ -330,6 +332,7 @@ bool IncidentReportingService::IsEnabledForProfile(Profile* profile) {
+@@ -328,6 +330,7 @@ bool IncidentReportingService::IsEnabled
+   if (IsFieldTrialEnabled())
      return true;
-   return profile->GetPrefs()->GetBoolean(
-       prefs::kSafeBrowsingExtendedReportingEnabled);
+   return IsExtendedReportingEnabled(*profile->GetPrefs());
 +#endif
  }
  
  IncidentReportingService::IncidentReportingService(
-diff --git a/chrome/browser/safe_browsing/safe_browsing_blocking_page.cc b/chrome/browser/safe_browsing/safe_browsing_blocking_page.cc
-index 00d9522..462d545 100644
 --- a/chrome/browser/safe_browsing/safe_browsing_blocking_page.cc
 +++ b/chrome/browser/safe_browsing/safe_browsing_blocking_page.cc
 @@ -62,10 +62,10 @@ namespace {
@@ -64,40 +58,133 @@ index 00d9522..462d545 100644
  #endif
  
  // URL for the Help Center article on Safe Browsing warnings.
-@@ -645,6 +645,7 @@ void SafeBrowsingBlockingPage::PopulateInterstitialStrings(
- 
- void SafeBrowsingBlockingPage::PopulateExtendedReportingOption(
+@@ -648,129 +648,6 @@ void SafeBrowsingBlockingPage::PopulateI
      base::DictionaryValue* load_time_data) {
-+#if 0
-   // Only show checkbox if !(HTTPS || incognito-mode).
-   const bool show = CanShowThreatDetailsOption();
-   load_time_data->SetBoolean(security_interstitials::kDisplayCheckBox, show);
-@@ -662,6 +663,7 @@ void SafeBrowsingBlockingPage::PopulateExtendedReportingOption(
-   load_time_data->SetBoolean(
-       security_interstitials::kBoxChecked,
-       IsPrefEnabled(prefs::kSafeBrowsingExtendedReportingEnabled));
-+#endif
+   CHECK(load_time_data);
+   CHECK(!unsafe_resources_.empty());
+-
+-  load_time_data->SetString("type", "SAFEBROWSING");
+-  load_time_data->SetString(
+-      "tabTitle", l10n_util::GetStringUTF16(IDS_SAFEBROWSING_V3_TITLE));
+-  load_time_data->SetString(
+-      "openDetails",
+-      l10n_util::GetStringUTF16(IDS_SAFEBROWSING_V3_OPEN_DETAILS_BUTTON));
+-  load_time_data->SetString(
+-      "closeDetails",
+-      l10n_util::GetStringUTF16(IDS_SAFEBROWSING_V3_CLOSE_DETAILS_BUTTON));
+-  load_time_data->SetString(
+-      "primaryButtonText",
+-      l10n_util::GetStringUTF16(IDS_SAFEBROWSING_OVERRIDABLE_SAFETY_BUTTON));
+-  load_time_data->SetBoolean(
+-      "overridable",
+-      !IsPrefEnabled(prefs::kSafeBrowsingProceedAnywayDisabled));
+-  security_interstitials::common_string_util::PopulateNewIconStrings(
+-      load_time_data);
+-
+-  switch (interstitial_reason_) {
+-    case SB_REASON_MALWARE:
+-      PopulateMalwareLoadTimeData(load_time_data);
+-      break;
+-    case SB_REASON_HARMFUL:
+-      PopulateHarmfulLoadTimeData(load_time_data);
+-      break;
+-    case SB_REASON_PHISHING:
+-      PopulatePhishingLoadTimeData(load_time_data);
+-      break;
+-  }
+-}
+-
+-void SafeBrowsingBlockingPage::PopulateExtendedReportingOption(
+-    base::DictionaryValue* load_time_data) {
+-  // Only show checkbox if !(HTTPS || incognito-mode).
+-  const bool show = CanShowThreatDetailsOption();
+-  load_time_data->SetBoolean(security_interstitials::kDisplayCheckBox, show);
+-  if (!show)
+-    return;
+-
+-  const std::string privacy_link = base::StringPrintf(
+-      security_interstitials::kPrivacyLinkHtml,
+-      security_interstitials::CMD_OPEN_REPORTING_PRIVACY,
+-      l10n_util::GetStringUTF8(IDS_SAFE_BROWSING_PRIVACY_POLICY_PAGE).c_str());
+-  load_time_data->SetString(
+-      security_interstitials::kOptInLink,
+-      l10n_util::GetStringFUTF16(
+-          ChooseOptInTextResource(*profile()->GetPrefs(),
+-                                  IDS_SAFE_BROWSING_MALWARE_REPORTING_AGREE,
+-                                  IDS_SAFE_BROWSING_SCOUT_REPORTING_AGREE),
+-          base::UTF8ToUTF16(privacy_link)));
+-  load_time_data->SetBoolean(
+-      security_interstitials::kBoxChecked,
+-      IsExtendedReportingEnabled(*profile()->GetPrefs()));
+-}
+-
+-void SafeBrowsingBlockingPage::PopulateMalwareLoadTimeData(
+-    base::DictionaryValue* load_time_data) {
+-  load_time_data->SetBoolean("phishing", false);
+-  load_time_data->SetString(
+-      "heading", l10n_util::GetStringUTF16(IDS_MALWARE_V3_HEADING));
+-  load_time_data->SetString(
+-      "primaryParagraph",
+-      l10n_util::GetStringFUTF16(
+-          IDS_MALWARE_V3_PRIMARY_PARAGRAPH,
+-          GetFormattedHostName()));
+-  load_time_data->SetString(
+-      "explanationParagraph",
+-      is_main_frame_load_blocked_ ?
+-          l10n_util::GetStringFUTF16(
+-              IDS_MALWARE_V3_EXPLANATION_PARAGRAPH,
+-              GetFormattedHostName()) :
+-          l10n_util::GetStringFUTF16(
+-              IDS_MALWARE_V3_EXPLANATION_PARAGRAPH_SUBRESOURCE,
+-              base::UTF8ToUTF16(main_frame_url_.host()),
+-              GetFormattedHostName()));
+-  load_time_data->SetString(
+-      "finalParagraph",
+-      l10n_util::GetStringUTF16(IDS_MALWARE_V3_PROCEED_PARAGRAPH));
+-
+-  PopulateExtendedReportingOption(load_time_data);
+-}
+-
+-void SafeBrowsingBlockingPage::PopulateHarmfulLoadTimeData(
+-    base::DictionaryValue* load_time_data) {
+-  load_time_data->SetBoolean("phishing", false);
+-  load_time_data->SetString(
+-      "heading", l10n_util::GetStringUTF16(IDS_HARMFUL_V3_HEADING));
+-  load_time_data->SetString(
+-      "primaryParagraph",
+-      l10n_util::GetStringFUTF16(
+-          IDS_HARMFUL_V3_PRIMARY_PARAGRAPH,
+-          GetFormattedHostName()));
+-  load_time_data->SetString(
+-      "explanationParagraph",
+-      l10n_util::GetStringFUTF16(
+-          IDS_HARMFUL_V3_EXPLANATION_PARAGRAPH,
+-          GetFormattedHostName()));
+-  load_time_data->SetString(
+-      "finalParagraph",
+-      l10n_util::GetStringUTF16(IDS_HARMFUL_V3_PROCEED_PARAGRAPH));
+-
+-  PopulateExtendedReportingOption(load_time_data);
+-}
+-
+-void SafeBrowsingBlockingPage::PopulatePhishingLoadTimeData(
+-    base::DictionaryValue* load_time_data) {
+-  load_time_data->SetBoolean("phishing", true);
+-  load_time_data->SetString("heading",
+-                            l10n_util::GetStringUTF16(IDS_PHISHING_V4_HEADING));
+-  load_time_data->SetString(
+-      "primaryParagraph",
+-      l10n_util::GetStringFUTF16(IDS_PHISHING_V4_PRIMARY_PARAGRAPH,
+-                                 GetFormattedHostName()));
+-  load_time_data->SetString(
+-      "explanationParagraph",
+-      l10n_util::GetStringFUTF16(IDS_PHISHING_V4_EXPLANATION_PARAGRAPH,
+-                                 GetFormattedHostName()));
+-  load_time_data->SetString(
+-      "finalParagraph",
+-      l10n_util::GetStringUTF16(IDS_PHISHING_V4_PROCEED_AND_REPORT_PARAGRAPH));
+-
+-  PopulateExtendedReportingOption(load_time_data);
  }
  
- void SafeBrowsingBlockingPage::PopulateMalwareLoadTimeData(
-diff --git a/chrome/browser/safe_browsing/safe_browsing_service.cc b/chrome/browser/safe_browsing/safe_browsing_service.cc
-index 4083537..6952564 100644
---- a/chrome/browser/safe_browsing/safe_browsing_service.cc
-+++ b/chrome/browser/safe_browsing/safe_browsing_service.cc
-@@ -451,11 +451,13 @@ SafeBrowsingDatabaseManager* SafeBrowsingService::CreateDatabaseManager() {
- 
- void SafeBrowsingService::RegisterAllDelayedAnalysis() {
- #if defined(FULL_SAFE_BROWSING)
-+#if 0
-   RegisterBinaryIntegrityAnalysis();
-   RegisterBlacklistLoadAnalysis();
-   RegisterModuleLoadAnalysis(database_manager_);
-   RegisterVariationsSeedSignatureAnalysis();
- #endif
-+#endif
- }
- 
- SafeBrowsingProtocolConfig SafeBrowsingService::GetProtocolConfig() const {
--- 
-2.6.6
-
+ }  // namespace safe_browsing
