@@ -9,6 +9,10 @@ ungoogled-chromium is a set of configuration flags, patches, and custom scripts.
 * Strip binaries from the source tree, and use those provided by the system or build them from source
 * Add, modify, or disable features that inhibit control and transparency (these changes are minor and do not have significant impacts on the general user experience)
 
+**ungoogled-chromium should not be considered a fork of Chromium**. The main reason for this is that a fork is associated with more significant deviations from the Chromium, such as branding, configuration formats, file locations, and other interface changes. ungoogled-chromium will not modify the Chromium browser outside of the project's goals.
+
+Since these goals and requirements are not precise, unclear situations are discussed and decided on a case-by-case basis.
+
 **ungoogled-chromium is looking for contributors**. See the [Contributing, Reporting, Contacting](#contributing-reporting-contacting) section for more information.
 
 Table of Contents
@@ -20,7 +24,7 @@ Table of Contents
 * [Design and implementation](#design-and-implementation)
 * [Building](#building)
 * [Contributing, Reporting, Contacting](#contributing-reporting-contacting)
-    * [Pull requests](#pull-requests)
+    * [Pull request guidelines](#pull-request-guidelines)
 * [Credits](#credits)
 * [License](#license)
 
@@ -53,7 +57,7 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
         * Not necessary to install if the kernel option `unprivileged_userns_clone` is enabled
 * Windows support with these changes:
     * Build `wow_helper.exe` from source instead of using the pre-built version
-    * Build `swapimport.exe` from source instead of downloading it from Google (requires [customized syzygy source code](//github.com/Eloston/syzygy))
+    * Skip swapping DLL imports (requires `swapimport.exe`, which is usually obtained from Google)
     * Build `yasm.exe` from source instead of using the pre-built version
     * Use user-provided building utilities instead of the ones bundled with Chromium (currently `gperf` and `bison`)
     * Do not set the Zone Identifier on downloaded files (which is a hassle to unset)
@@ -105,19 +109,15 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 ## Contributing, Reporting, Contacting
 
-Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions. There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) that serves the same purpose.
+Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions. There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for those who want a real-time discussion.
 
-Contributors are welcome!
+Contributions of many kinds are welcome! For pull requests, please read the guidelines below first. Additionally, issues marked with the `help wanted` tag are changes that needs discussion or assistance.
 
-If you are interested in making a change, I, Eloston, encourage you to submit a pull request. Please read the Pull requests section below for submission guidelines.
-* Additionally, issues marked with the `help wanted` tag are changes I need others to help with. Please read the issue's comment thread for more details on what needs to be done.
+### Pull request guidelines
 
-### Pull requests
-
-Pull requests are also welcome. Here are some guidelines:
-* Changes that fix certain configurations or add small features and do not break compatibility are generally okay
-* Larger changes, such as those that change `buildlib`, should be proposed through an issue first before submitting a pull request.
-* When in doubt, propose the idea through an issue first.
+* Minor changes, such as bug fixes, documentation fixes, or small feature additions, will generally not need prior approval.
+* More significant changes should be proposed through an issue first, where it can be discussed publically and then approved.
+* When in doubt, create an issue first.
 
 ## Credits
 
