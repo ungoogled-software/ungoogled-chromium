@@ -2,7 +2,7 @@
 
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -391,28 +391,6 @@ void GetIdentityFromURL(const GURL& url,
+@@ -394,28 +394,6 @@ void GetIdentityFromURL(const GURL& url,
  }
  
  bool HasGoogleHost(const GURL& url) {
@@ -141,7 +141,7 @@
  
 --- a/chrome/browser/page_load_metrics/observers/from_gws_page_load_metrics_observer.cc
 +++ b/chrome/browser/page_load_metrics/observers/from_gws_page_load_metrics_observer.cc
-@@ -277,6 +277,7 @@ bool WasAbortedBeforeInteraction(
+@@ -283,6 +283,7 @@ bool WasAbortedBeforeInteraction(
  // static
  bool FromGWSPageLoadMetricsLogger::IsGoogleSearchHostname(
      base::StringPiece host) {
@@ -151,7 +151,7 @@
    // Hostname must start with 'www.' Hostnames are not case sensitive.
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -464,11 +464,6 @@ base::string16 TemplateURLRef::SearchTer
+@@ -440,11 +440,6 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -165,7 +165,7 @@
  
 --- a/components/google/core/browser/google_util.cc
 +++ b/components/google/core/browser/google_util.cc
-@@ -40,74 +40,11 @@ namespace {
+@@ -41,87 +41,11 @@ namespace {
  
  bool gUseMockLinkDoctorBaseURLForTesting = false;
  
@@ -175,13 +175,16 @@
 -
 -// True if the given canonical |host| is "[www.]<domain_in_lower_case>.<TLD>"
 -// with a valid TLD. If |subdomain_permission| is ALLOW_SUBDOMAIN, we check
--// against host "*.<domain_in_lower_case>.<TLD>" instead.
+-// against host "*.<domain_in_lower_case>.<TLD>" instead. Will return the TLD
+-// string in |tld|, if specified and the |host| can be parsed.
 -bool IsValidHostName(base::StringPiece host,
 -                     base::StringPiece domain_in_lower_case,
--                     SubdomainPermission subdomain_permission) {
+-                     SubdomainPermission subdomain_permission,
+-                     base::StringPiece* tld) {
 -  // Fast path to avoid searching the registry set.
 -  if (host.find(domain_in_lower_case) == base::StringPiece::npos)
 -    return false;
+-
 -  size_t tld_length =
 -      net::registry_controlled_domains::GetCanonicalHostRegistryLength(
 -          host, net::registry_controlled_domains::EXCLUDE_UNKNOWN_REGISTRIES,
@@ -192,6 +195,10 @@
 -  // Removes the tld and the preceding dot.
 -  base::StringPiece host_minus_tld =
 -      host.substr(0, host.length() - tld_length - 1);
+-
+-  if (tld)
+-    *tld = host.substr(host.length() - tld_length);
+-
 -  if (base::LowerCaseEqualsASCII(host_minus_tld, domain_in_lower_case))
 -    return true;
 -
@@ -221,7 +228,13 @@
 -  if (base_url.is_valid() && (canonical_host == base_url.host_piece()))
 -    return true;
 -
--  return IsValidHostName(canonical_host, "google", subdomain_permission);
+-  base::StringPiece tld;
+-  if (!IsValidHostName(canonical_host, "google", subdomain_permission, &tld))
+-    return false;
+-
+-  CR_DEFINE_STATIC_LOCAL(std::set<std::string>, google_tlds,
+-                         ({GOOGLE_TLD_LIST}));
+-  return base::ContainsKey(google_tlds, tld.as_string());
 -}
 -
  }  // namespace
@@ -240,7 +253,7 @@
    return false;
  }
  
-@@ -128,112 +65,54 @@ std::string GetGoogleLocale(const std::s
+@@ -142,38 +66,15 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -282,11 +295,7 @@
  }
  
  const GURL& CommandLineGoogleBaseURL() {
--  // Unit tests may add command-line flags after the first call to this
--  // function, so we don't simply initialize a static |base_url| directly and
--  // then unconditionally return it.
-   CR_DEFINE_STATIC_LOCAL(std::string, switch_value, ());
-   CR_DEFINE_STATIC_LOCAL(GURL, base_url, ());
+@@ -185,70 +86,37 @@ const GURL& CommandLineGoogleBaseURL() {
    std::string current_switch_value(
        base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
            switches::kGoogleBaseURL));
@@ -358,7 +367,8 @@
                          SubdomainPermission subdomain_permission,
                          PortPermission port_permission) {
 -  return IsValidURL(url, port_permission) &&
--      IsValidHostName(url.host_piece(), "youtube", subdomain_permission);
+-      IsValidHostName(url.host_piece(), "youtube", subdomain_permission,
+-                      nullptr);
 +  return false;
  }
  
