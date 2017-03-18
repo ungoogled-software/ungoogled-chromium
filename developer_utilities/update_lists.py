@@ -146,6 +146,7 @@ def generate_domain_substitution_list(sandbox_path, list_file, regex_defs):
         "*.js",
         "*.html",
         "*.htm",
+        "*.css",
         "*.py*",
         "*.grd",
         "*.sql",

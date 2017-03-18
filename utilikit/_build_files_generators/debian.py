@@ -95,7 +95,7 @@ def generate_build_files(resources, output_dir, build_output,
     debian_dir = output_dir / "debian"
     dpkg_dir = _common.get_resources_dir() / "packaging" / "debian"
     distutils.dir_util.copy_tree(str(dpkg_dir), str(debian_dir))
-    distutils.dir_util.copy_tree(str(_common.PATCHES_DIR),
+    distutils.dir_util.copy_tree(str(resources.get_patches_dir()),
                                  str(debian_dir / _common.PATCHES_DIR))
     patch_order = resources.read_patch_order()
     if apply_domain_substitution:

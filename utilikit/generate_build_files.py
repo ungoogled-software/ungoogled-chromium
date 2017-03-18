@@ -81,6 +81,7 @@ def _main():
             parser.error(error_template.format("output-dir"))
     else:
         resources = _common.get_resource_obj()
+        output_dir = _common.get_sandbox_dir()
 
     if args.resources:
         resources_path = pathlib.Path(args.resources)
