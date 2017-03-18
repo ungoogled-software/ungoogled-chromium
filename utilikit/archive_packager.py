@@ -3,7 +3,7 @@
 
 # ungoogled-chromium: Modifications to Google Chromium for removing Google integration
 # and enhancing privacy, control, and transparency
-# Copyright (C) 2016  Eloston
+# Copyright (C) 2017  Eloston
 #
 # This file is part of ungoogled-chromium.
 #
@@ -24,9 +24,22 @@
 
 import sys
 import pathlib
-import tarfile
-import zipfile
 import argparse
+
+def fix_relative_import():
+    """Allow relative imports to work from anywhere"""
+    import os.path
+    parent_path = os.path.dirname(os.path.realpath(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.dirname(parent_path))
+    global __package__ #pylint: disable=global-variable-undefined
+    __package__ = os.path.basename(parent_path) #pylint: disable=redefined-builtin
+    __import__(__package__)
+    sys.path.pop(0)
+
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    fix_relative_import()
+
+from ._common import write_tar, write_zip #pylint: disable=wrong-import-position
 
 def file_list_generator(root_dir_name, files_cfg_path, build_output_dir, include_files, target_cpu):
     """
@@ -52,21 +65,6 @@ def file_list_generator(root_dir_name, files_cfg_path, build_output_dir, include
                     yield (str(arcname), file_path)
     for include_path in include_files:
         yield (str(root_dir_name / pathlib.Path(include_path.name)), include_path)
-
-def write_tar(output_filename, path_generator, mode="w:xz"):
-    """Writes out a .tar.xz package"""
-    with tarfile.open(output_filename, mode=mode) as tar_obj:
-        for arcname, real_path in path_generator:
-            print("Including '{}'".format(arcname))
-            tar_obj.add(str(real_path), arcname=arcname)
-
-def write_zip(output_filename, path_generator):
-    """Writes out a .zip package"""
-    with zipfile.ZipFile(output_filename, mode="w",
-                         compression=zipfile.ZIP_DEFLATED) as zip_file:
-        for arcname, real_path in path_generator:
-            print("Including '{}'".format(arcname))
-            zip_file.write(str(real_path), arcname)
 
 def _parse_args(args_list):
     parser = argparse.ArgumentParser(description=__doc__)

@@ -3,7 +3,7 @@
 
 # ungoogled-chromium: Modifications to Google Chromium for removing Google integration
 # and enhancing privacy, control, and transparency
-# Copyright (C) 2016  Eloston
+# Copyright (C) 2017  Eloston
 #
 # This file is part of ungoogled-chromium.
 #
@@ -27,12 +27,27 @@ import sys
 import pathlib
 import argparse
 
-def build_gn(output_path, gn_flags_path, src_root, python2_command):
+def fix_relative_import():
+    """Allow relative imports to work from anywhere"""
+    import os.path
+    parent_path = os.path.dirname(os.path.realpath(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.dirname(parent_path))
+    global __package__ #pylint: disable=global-variable-undefined
+    __package__ = os.path.basename(parent_path) #pylint: disable=redefined-builtin
+    __import__(__package__)
+    sys.path.pop(0)
+
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    fix_relative_import()
+
+from . import _common #pylint: disable=wrong-import-position
+
+def build_gn(output_path, gn_flags, src_root, python2_command):
     """
     Build the GN tool to out/gn_tool in the build sandbox
     """
-    with gn_flags_path.open() as file_obj:
-        gn_args_string = file_obj.read().replace("\n", " ")
+    gn_args_string = " ".join(
+        [flag + "=" + value for flag, value in gn_flags.items()])
     if output_path.exists():
         print("gn already exists in " + str(output_path))
     else:
@@ -49,28 +64,45 @@ def build_gn(output_path, gn_flags_path, src_root, python2_command):
 def main(args_list):
     """Entry point"""
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--ignore-environment", action="store_true",
+                        help="Ignore all 'UTILIKIT_*' environment variables.")
     parser.add_argument("--output-path", required=True, metavar="DIRECTORY",
                         help="The directory to output the GN binary")
-    parser.add_argument("--gn-flags-path", required=True, metavar="FILE",
-                        help="The GN flags to bootstrap GN with")
-    parser.add_argument("--sandbox-root", metavar="DIRECTORY", default=".",
+    parser.add_argument("--gn-flags-path", metavar="FILE",
+                        help=("The GN flags to bootstrap GN with. "
+                              "Required if --ignore-environment is set"))
+    parser.add_argument("--sandbox-root", metavar="DIRECTORY",
                         help=("The build sandbox root directory. "
-                              "Defaults to the current directory"))
+                              "Required if --ignore-environment is set"))
     parser.add_argument("--python2-command", metavar="COMMAND",
                         help="The Python 2 command to use. Defaults to the file's shebang")
     args = parser.parse_args(args_list)
+    gn_flags = dict()
+    if args.ignore_environment:
+        error_template = "--{} required since --ignore-environment is set"
+        if not args.gn_flags_path:
+            parser.error(error_template.format("gn-flags-path"))
+        if not args.sandbox_root:
+            parser.error(error_template.format("sandbox-root"))
+    else:
+        resources = _common.get_resource_obj()
+        gn_flags = resources.read_gn_flags()
+        sandbox_root = _common.get_sandbox_dir()
     output_path = pathlib.Path(args.output_path)
-    gn_flags_path = pathlib.Path(args.gn_flags_path)
-    if not gn_flags_path.is_file():
-        parser.error("--gn-flags-path is not a file: " + args.gn_flags_path)
-    src_root = pathlib.Path(args.sandbox_root)
-    if not src_root.is_dir():
-        parser.error("--sandbox-root is not a directory: " + args.sandbox_root)
+    if args.gn_flags_path:
+        gn_flags_path = pathlib.Path(args.gn_flags_path)
+        if not gn_flags_path.is_file():
+            parser.error("--gn-flags-path is not a file: " + args.gn_flags_path)
+        gn_flags = _common.read_dict_list(gn_flags_path)
+    if args.sandbox_root:
+        sandbox_root = pathlib.Path(args.sandbox_root)
+        if not sandbox_root.is_dir():
+            parser.error("--sandbox-root is not a directory: " + args.sandbox_root)
     python2_command = None
     if args.python2_command:
         python2_command = pathlib.Path(args.python2_command)
 
-    build_gn(output_path, gn_flags_path, src_root, python2_command)
+    build_gn(output_path, gn_flags, sandbox_root, python2_command)
 
     return 0
 

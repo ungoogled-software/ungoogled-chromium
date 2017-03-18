@@ -3,7 +3,7 @@
 
 # ungoogled-chromium: Modifications to Google Chromium for removing Google integration
 # and enhancing privacy, control, and transparency
-# Copyright (C) 2016  Eloston
+# Copyright (C) 2017  Eloston
 #
 # This file is part of ungoogled-chromium.
 #

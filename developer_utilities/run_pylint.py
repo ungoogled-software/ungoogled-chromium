@@ -23,9 +23,6 @@ if __name__ == "__main__":
     from pylint import epylint as lint
     import pathlib
 
-    lint.lint(filename=str(pathlib.Path(__file__).parent.parent / "utilities"),
+    lint.lint(filename=str(pathlib.Path(__file__).parent.parent / "utilikit"),
               options=["--disable=logging-format-interpolation",
-                       "--disable=fixme",
-                       "--disable=locally-disabled",
-                       "--disable=duplicate-code",
-                       "--ignore=_external"])
+                       "--disable=locally-disabled"])

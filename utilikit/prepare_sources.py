@@ -20,11 +20,10 @@
 # You should have received a copy of the GNU General Public License
 # along with ungoogled-chromium.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Downloads and extracts the main source or extra dependencies"""
+"""Downloads the main source and extra dependencies"""
 
 import pathlib
 import sys
-import configparser
 import shutil
 import os
 import tarfile
@@ -32,23 +31,20 @@ import urllib.request
 import hashlib
 import argparse
 
-def read_extra_deps(deps_path):
-    """Reads extra_deps.ini"""
-    config = configparser.ConfigParser()
-    config.read(str(deps_path))
-    return config
+def fix_relative_import():
+    """Allow relative imports to work from anywhere"""
+    import os.path #pylint: disable=redefined-outer-name
+    parent_path = os.path.dirname(os.path.realpath(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.dirname(parent_path))
+    global __package__ #pylint: disable=global-variable-undefined
+    __package__ = os.path.basename(parent_path) #pylint: disable=redefined-builtin
+    __import__(__package__)
+    sys.path.pop(0)
 
-def _read_list(list_path):
-    """
-    Reads a text document that is a simple new-line delimited list
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    fix_relative_import()
 
-    Blank lines are ignored
-    """
-    if not list_path.exists():
-        return list()
-    with list_path.open() as file_obj:
-        tmp_list = file_obj.read().splitlines()
-        return [x for x in tmp_list if len(x) > 0]
+from . import _common #pylint: disable=wrong-import-position
 
 def _extract_tar_file(tar_path, destination_dir, ignore_files, relative_to):
     """Improved one-time tar extraction function"""
@@ -185,45 +181,57 @@ def download_main_source(version, downloads_dir, root_dir, source_cleaning_list)
 def main(args_list):
     """Entry point"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=["main_source", "extra_deps"],
-                        help="The dependency to download and unpack")
-    parser.add_argument("--downloads-dir", required=True, metavar="DIRECTORY",
-                        help="The directory to store downloaded archive files")
-    parser.add_argument("--root-dir", required=True, metavar="DIRECTORY",
-                        help="The root directory of the source tree")
+    parser.add_argument("--ignore-environment", action="store_true",
+                        help="Ignore all 'UTILIKIT_*' environment variables.")
+    parser.add_argument("--downloads-dir", metavar="DIRECTORY",
+                        help=("The directory to store downloaded archive files. "
+                              "Required if --ignore-environment is set"))
+    parser.add_argument("--root-dir", metavar="DIRECTORY",
+                        help=("The root directory of the source tree. "
+                              "Required if --ignore-environment is set"))
     parser.add_argument("--chromium-version", metavar="X.X.X.X",
-                        help=("The Chromium version to download. Required if"
-                              "mode is 'main_source'"))
+                        help=("The Chromium version to download. "
+                              "Required if --ignore-environment is set"))
     parser.add_argument("--source-cleaning-list", metavar="FILE",
-                        help=("The path to the source cleaning list. If not"
-                              "specified, the source is not cleaned during"
-                              " unpacking. Used only when mode is"
-                              " 'main_source'"))
+                        help=("The path to the source cleaning list. If not "
+                              "specified, the source is not cleaned during "
+                              "unpacking. Use '-' to read stdin."))
     parser.add_argument("--extra-deps-path", metavar="INI_FILE",
-                        help=("The path to the extra deps ini file. Required if"
-                              " mode is 'extra_deps'"))
+                        help="The path to the extra deps ini file.")
     args = parser.parse_args(args_list)
-    downloads_dir = pathlib.Path(args.downloads_dir)
-    if not downloads_dir.is_dir():
-        parser.error("--downloads-dir value '{}' is not a directory".format(args.downloads_dir))
-    root_dir = pathlib.Path(args.root_dir)
-    if not root_dir.is_dir():
-        parser.error("--root-dir value '{}' is not a directory".format(args.root_dir))
-    if args.mode == "main_source":
+    source_cleaning_list = list()
+    extra_deps = dict()
+    if args.ignore_environment:
+        error_template = "--{} required since --ignore-environment is set"
+        if not args.downloads_dir:
+            parser.error(error_template.format("downloads-dir"))
+        if not args.root_dir:
+            parser.error(error_template.format("root-dir"))
         if not args.chromium_version:
-            parser.error("--chromium-version required when --mode is 'main_source'")
-        source_cleaning_list = list()
-        if args.source_cleaning_list:
-            source_cleaning_list = _read_list(pathlib.Path(args.source_cleaning_list))
-            print("Parsed source cleaning list")
-        else:
-            print("Disabling source cleaning because no source cleaning list was provided.")
-        download_main_source(args.chromium_version, downloads_dir, root_dir, source_cleaning_list)
-    elif args.mode == "extra_deps":
-        if not args.extra_deps_path:
-            parser.error("--extra-deps-path required when --mode is 'extra_deps'")
-        extra_deps_path = pathlib.Path(args.extra_deps_path)
-        download_extra_deps(read_extra_deps(extra_deps_path), root_dir, downloads_dir)
+            parser.error(error_template.format("chromium-version"))
+    else:
+        resources = _common.get_resource_obj()
+        source_cleaning_list = resources.read_cleaning_list() #pylint: disable=redefined-variable-type
+        chromium_version = resources.read_version()[0]
+        extra_deps = resources.read_extra_deps()
+        root_dir = _common.get_sandbox_dir()
+        downloads_dir = _common.get_downloads_dir()
+    if args.downloads_dir:
+        downloads_dir = pathlib.Path(args.downloads_dir)
+        if not downloads_dir.is_dir():
+            parser.error("--downloads-dir value '{}' is not a directory".format(args.downloads_dir))
+    if args.root_dir:
+        root_dir = pathlib.Path(args.root_dir)
+        if not root_dir.is_dir():
+            parser.error("--root-dir value '{}' is not a directory".format(args.root_dir))
+    if args.chromium_version:
+        chromium_version = args.chromium_version
+    if args.source_cleaning_list:
+        source_cleaning_list = _common.read_list(pathlib.Path(args.source_cleaning_list))
+    if args.extra_deps_path:
+        extra_deps = _common.read_ini(pathlib.Path(args.extra_deps_path))
+    download_main_source(chromium_version, downloads_dir, root_dir, source_cleaning_list)
+    download_extra_deps(extra_deps, root_dir, downloads_dir)
 
     return 0
 

@@ -2,7 +2,7 @@
 
 # ungoogled-chromium: Modifications to Google Chromium for removing Google
 # integration and enhancing privacy, control, and transparency
-# Copyright (C) 2016  Eloston
+# Copyright (C) 2017  Eloston
 #
 # This file is part of ungoogled-chromium.
 #
@@ -21,7 +21,6 @@
 
 """Debian-specific build files generation code"""
 
-import pathlib
 import string
 import locale
 import datetime
@@ -29,11 +28,10 @@ import re
 import distutils.dir_util
 import os
 
-from . import ROOT_DIR
+from .. import _common
+from .. import substitute_domains as _substitute_domains
 
 # Private definitions
-
-_DPKG_DIR = ROOT_DIR / pathlib.Path("resources", "packaging", "debian")
 
 class _BuildFileStringTemplate(string.Template):
     """
@@ -80,26 +78,32 @@ def _get_parsed_gn_flags(gn_flags):
 
 # Public definitions
 
-def generate_build_files(resources_parser, output_dir, build_output,
-                         distribution_version):
+def generate_build_files(resources, output_dir, build_output,
+                         distribution_version, disable_domain_substitution):
     """
     Generates the `debian` directory in `output_dir` using resources from
-    `resources_parser`
+    `resources`
     """
     build_file_subs = dict(
-        changelog_version="{}-{}".format(*resources_parser.get_version()),
+        changelog_version="{}-{}".format(*resources.read_version()),
         changelog_datetime=_get_dpkg_changelog_datetime(),
         build_output=build_output,
         distribution_version=distribution_version,
-        gn_flags=_get_parsed_gn_flags(resources_parser.get_gn_flags())
+        gn_flags=_get_parsed_gn_flags(resources.read_gn_flags())
     )
 
     debian_dir = output_dir / "debian"
-    distutils.dir_util.copy_tree(str(_DPKG_DIR), str(debian_dir))
-    distutils.dir_util.copy_tree(str(resources_parser.PATCHES),
-                                 str(debian_dir / resources_parser.PATCHES.name))
-    (debian_dir / resources_parser.PATCHES.name / "series").write_bytes(
-        resources_parser.PATCH_ORDER.read_bytes())
+    dpkg_dir = _common.get_resources_dir() / "packaging" / "debian"
+    distutils.dir_util.copy_tree(str(dpkg_dir), str(debian_dir))
+    distutils.dir_util.copy_tree(str(_common.PATCHES_DIR),
+                                 str(debian_dir / _common.PATCHES_DIR))
+    patch_order = resources.read_patch_order()
+    if not disable_domain_substitution:
+        _substitute_domains.substitute_domains(
+            _substitute_domains.get_parsed_domain_regexes(resources.read_domain_regex_list()),
+            patch_order, debian_dir / _common.PATCHES_DIR, log_warnings=False)
+    _common.write_list(debian_dir / _common.PATCHES_DIR / "series",
+                       patch_order)
 
     for old_path in debian_dir.glob("*.in"):
         new_path = debian_dir / old_path.stem
