@@ -3,37 +3,17 @@ author: Michael Gilbert <mgilbert@debian.org>
 
 --- a/third_party/webrtc/modules/video_coding/BUILD.gn
 +++ b/third_party/webrtc/modules/video_coding/BUILD.gn
-@@ -89,7 +89,6 @@ rtc_static_library("video_coding") {
+@@ -91,7 +91,6 @@ rtc_static_library("video_coding") {
      ":webrtc_h264",
      ":webrtc_i420",
      ":webrtc_vp8",
 -    ":webrtc_vp9",
      "../..:webrtc_common",
-     "../../common_video",
-     "../../system_wrappers",
---- a/third_party/webrtc/video/video_encoder.cc
-+++ b/third_party/webrtc/video/video_encoder.cc
-@@ -24,8 +24,6 @@ VideoEncoder* VideoEncoder::Create(Video
-       return H264Encoder::Create();
-     case kVp8:
-       return VP8Encoder::Create();
--    case kVp9:
--      return VP9Encoder::Create();
-     case kUnsupportedCodec:
-       RTC_NOTREACHED();
-       return nullptr;
-@@ -40,8 +38,6 @@ bool VideoEncoder::IsSupportedSoftware(E
-       return H264Encoder::IsSupported();
-     case kVp8:
-       return true;
--    case kVp9:
--      return VP9Encoder::IsSupported();
-     case kUnsupportedCodec:
-       RTC_NOTREACHED();
-       return false;
+     "../../base:rtc_base",
+     "../../base:rtc_base_approved",
 --- a/third_party/webrtc/modules/video_coding/codec_database.cc
 +++ b/third_party/webrtc/modules/video_coding/codec_database.cc
-@@ -573,8 +573,6 @@ VCMGenericDecoder* VCMCodecDataBase::Cre
+@@ -574,8 +574,6 @@ VCMGenericDecoder* VCMCodecDataBase::Cre
    switch (type) {
      case kVideoCodecVP8:
        return new VCMGenericDecoder(VP8Decoder::Create());
@@ -42,29 +22,35 @@ author: Michael Gilbert <mgilbert@debian.org>
      case kVideoCodecI420:
        return new VCMGenericDecoder(new I420Decoder());
      case kVideoCodecH264:
---- a/third_party/webrtc/video/video_decoder.cc
-+++ b/third_party/webrtc/video/video_decoder.cc
-@@ -32,9 +32,6 @@ VideoDecoder* VideoDecoder::Create(Video
-       return H264Decoder::Create();
-     case kVp8:
-       return VP8Decoder::Create();
--    case kVp9:
--      RTC_DCHECK(VP9Decoder::IsSupported());
--      return VP9Decoder::Create();
-     case kUnsupportedCodec:
+--- a/third_party/webrtc/media/engine/internaldecoderfactory.cc
++++ b/third_party/webrtc/media/engine/internaldecoderfactory.cc
+@@ -73,9 +73,6 @@ webrtc::VideoDecoder* InternalDecoderFac
+       return new NullVideoDecoder();
+     case webrtc::kVideoCodecVP8:
+       return webrtc::VP8Decoder::Create();
+-    case webrtc::kVideoCodecVP9:
+-      RTC_DCHECK(webrtc::VP9Decoder::IsSupported());
+-      return webrtc::VP9Decoder::Create();
+     default:
        LOG(LS_ERROR) << "Creating NullVideoDecoder for unsupported codec.";
        return new NullVideoDecoder();
---- a/third_party/webrtc/media/engine/webrtcvideoengine2.cc
-+++ b/third_party/webrtc/media/engine/webrtcvideoengine2.cc
-@@ -433,11 +433,6 @@ std::vector<VideoCodec> DefaultVideoCode
-   AddCodecAndMaybeRtxCodec(
-       MakeVideoCodecWithDefaultFeedbackParams(kDefaultVp8PlType, kVp8CodecName),
-       &codecs);
--  if (webrtc::VP9Encoder::IsSupported() && webrtc::VP9Decoder::IsSupported()) {
--    AddCodecAndMaybeRtxCodec(MakeVideoCodecWithDefaultFeedbackParams(
--                                 kDefaultVp9PlType, kVp9CodecName),
--                             &codecs);
--  }
-   if (webrtc::H264Encoder::IsSupported() &&
-       webrtc::H264Decoder::IsSupported()) {
-     VideoCodec codec = MakeVideoCodecWithDefaultFeedbackParams(
+--- a/third_party/webrtc/media/engine/internalencoderfactory.cc
++++ b/third_party/webrtc/media/engine/internalencoderfactory.cc
+@@ -31,8 +31,6 @@ bool IsFlexfecFieldTrialEnabled() {
+ 
+ InternalEncoderFactory::InternalEncoderFactory() {
+   supported_codecs_.push_back(cricket::VideoCodec(kVp8CodecName));
+-  if (webrtc::VP9Encoder::IsSupported())
+-    supported_codecs_.push_back(cricket::VideoCodec(kVp9CodecName));
+   if (webrtc::H264Encoder::IsSupported()) {
+     cricket::VideoCodec codec(kH264CodecName);
+     // TODO(magjed): Move setting these parameters into webrtc::H264Encoder
+@@ -74,8 +72,6 @@ webrtc::VideoEncoder* InternalEncoderFac
+       return webrtc::H264Encoder::Create(codec);
+     case webrtc::kVideoCodecVP8:
+       return webrtc::VP8Encoder::Create();
+-    case webrtc::kVideoCodecVP9:
+-      return webrtc::VP9Encoder::Create();
+     default:
+       return nullptr;
+   }
