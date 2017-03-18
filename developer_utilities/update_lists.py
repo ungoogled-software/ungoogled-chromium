@@ -60,6 +60,7 @@ def generate_cleaning_list(sandbox_path, list_file):
         "*.ico",
         "*.mp3",
         "*.wav",
+        "*.flac",
         "*.icns",
         "*.woff",
         "*.woff2",
