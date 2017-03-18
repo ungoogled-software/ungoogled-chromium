@@ -105,7 +105,7 @@ def generate_cleaning_list(sandbox_path, list_file):
             if found_match:
                 continue
             for pattern in exclude_matches:
-                if i.lower().match(pattern):
+                if pathlib.Path(str(i).lower()).match(pattern):
                     found_match = True
                     break
             if not found_match:

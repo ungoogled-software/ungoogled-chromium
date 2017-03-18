@@ -79,7 +79,7 @@ def _get_parsed_gn_flags(gn_flags):
 # Public definitions
 
 def generate_build_files(resources, output_dir, build_output,
-                         distribution_version, disable_domain_substitution):
+                         distribution_version, apply_domain_substitution):
     """
     Generates the `debian` directory in `output_dir` using resources from
     `resources`
@@ -98,7 +98,7 @@ def generate_build_files(resources, output_dir, build_output,
     distutils.dir_util.copy_tree(str(_common.PATCHES_DIR),
                                  str(debian_dir / _common.PATCHES_DIR))
     patch_order = resources.read_patch_order()
-    if not disable_domain_substitution:
+    if apply_domain_substitution:
         _substitute_domains.substitute_domains(
             _substitute_domains.get_parsed_domain_regexes(resources.read_domain_regex_list()),
             patch_order, debian_dir / _common.PATCHES_DIR, log_warnings=False)

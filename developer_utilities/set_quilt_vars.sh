@@ -1,8 +1,9 @@
 # Sets quilt variables for updating the patches
 # Make sure to run this with the shell command "source" in order to inherit the variables into the interactive environment
+# Requires the absolute path to the repository root directory as the argument
 
-export QUILT_PATCHES="ungoogled_patches/patches"
-export QUILT_SERIES="../patch_order"
+export QUILT_PATCHES="$1/resources/patches"
+export QUILT_SERIES="$1/build/updating_patch_order"
 export QUILT_PATCH_OPTS="--reject-format=unified"
 #export QUILT_DIFF_ARGS="-p ab --no-timestamps --no-index --color=auto"
 #export QUILT_REFRESH_ARGS="-p ab --no-timestamps --no-index"

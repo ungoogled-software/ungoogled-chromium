@@ -72,6 +72,11 @@ class ResourceABC(metaclass=abc.ABCMeta):
         """Returns the directory containing patches"""
         pass
 
+    @abc.abstractmethod
+    def read_version(self):
+        """Reads version.ini and returns a tuple"""
+        pass
+
     def read_cleaning_list(self, use_generator=False):
         """Reads cleaning_list"""
         if use_generator:
@@ -113,11 +118,6 @@ class ResourceABC(metaclass=abc.ABCMeta):
         """Returns patch_order as a list"""
         return self._read_list(PATCH_ORDER)
 
-    def read_version(self):
-        """Reads version.ini and returns a tuple"""
-        result = self._read_ini(VERSION_INI)["main"]
-        return (result["chromium_version"], result["release_revision"])
-
 class StandaloneResourceDirectory(ResourceABC):
     """Represents a standalone resource directory (i.e. without metadata, e.g. exported)"""
 
@@ -142,6 +142,10 @@ class StandaloneResourceDirectory(ResourceABC):
     def get_patches_dir(self):
         """Returns the directory containing patches"""
         return self.path / PATCHES_DIR
+
+    def read_version(self):
+        """Reads version.ini and returns a tuple"""
+        return get_version_tuple(self.path / VERSION_INI)
 
 class LinkedResourceDirectory(StandaloneResourceDirectory):
     """Represents a single directory in resources/configs"""
@@ -181,6 +185,10 @@ class LinkedResourceDirectory(StandaloneResourceDirectory):
     def get_patches_dir(self):
         """Returns the directory containing patches"""
         return get_resources_dir() / PATCHES_DIR
+
+    def read_version(self):
+        """Reads version.ini and returns a tuple"""
+        return get_version_tuple(get_resources_dir() / VERSION_INI)
 
 class ResourceConfig(ResourceABC):
     """Represents a complete configuration in resources/configs"""
@@ -232,6 +240,10 @@ class ResourceConfig(ResourceABC):
     def get_patches_dir(self):
         """Returns the directory containing patches"""
         return get_resources_dir() / PATCHES_DIR
+
+    def read_version(self):
+        """Reads version.ini and returns a tuple"""
+        return get_version_tuple(get_resources_dir() / VERSION_INI)
 
 # Methods
 
@@ -337,6 +349,11 @@ def read_dict_list(dict_list_path, binary=False, allow_nonexistant=True):
         key, value = entry.split(delimiter)
         tmp_dict[key] = value
     return tmp_dict
+
+def get_version_tuple(path):
+    """Returns a tuple of the version: (chromium_version, release_revision)"""
+    result = read_ini(path)["main"]
+    return (result["chromium_version"], result["release_revision"])
 
 def write_list(path, list_obj):
     """Writes a list to `path`"""

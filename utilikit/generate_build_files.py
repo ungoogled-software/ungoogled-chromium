@@ -47,15 +47,15 @@ def _add_subparsers(subparsers):
     def _debian_callback(resources, output_dir, args):
         from ._build_files_generators import debian
         debian.generate_build_files(resources, output_dir, args.build_output,
-                                    args.distro_version, args.disable_domain_substitution)
+                                    args.distro_version, args.apply_domain_substitution)
     debian_subparser = subparsers.add_parser("debian", help="Generator for Debian and derivatives")
     debian_subparser.add_argument("--build-output", metavar="DIRECTORY", default="out/Default",
                                   help="The Chromium build output directory")
     debian_subparser.add_argument("--distro-version", default="stable",
                                   help=("The target distribution version (for use in "
                                         "'debian/changelog'"))
-    debian_subparser.add_argument("--disable-domain-substitution", action="store_true",
-                                  help="Disable use of domain substitution")
+    debian_subparser.add_argument("--apply-domain-substitution", action="store_true",
+                                  help="Use domain substitution")
     debian_subparser.set_defaults(callback=_debian_callback)
 
 def _main():
