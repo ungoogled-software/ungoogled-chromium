@@ -1,8 +1,7 @@
-From e2272116ba8ec766ed19a1d8c4399f3a6ab7b9b6 Mon Sep 17 00:00:00 2001
+From 494ffdcbb0cc82213e0ea83140675a459fd3eb87 Mon Sep 17 00:00:00 2001
 From: Jan Engelhardt <jengelh@inai.de>
 Date: Wed, 20 May 2015 01:34:50 +0200
-Subject: [PATCH 34/52] net: add "trk:" scheme and help identify URLs being
- retrieved
+Subject: net: add "trk:" scheme and help identify URLs being retrieved
 
 The Chromium codebase has left us with a number of suspect URLs, and
 we want to know if the browser attempts to contact those sites.
@@ -27,15 +26,12 @@ We hack up the URLFetcher class which sits in the network stack, and
 most of the URL that get loaded pass through here. The trk: prefix is
 stripped and processing continues with the inner URL.
 ---
- chrome/BUILD.gn                                    |  3 +-
+ chrome/BUILD.gn                                    |  2 +
  chrome/app/chrome_main.cc                          | 20 ++++++++
  .../chrome_autocomplete_scheme_classifier.cc       |  1 +
  chrome/browser/history/history_utils.cc            |  1 +
- chrome/browser/ui/browser_command_controller.cc    |  3 +-
  chrome/browser/ui/browser_navigator.cc             |  8 +++
  chrome/browser/ui/singleton_tabs.cc                |  3 +-
- chrome/chrome_dll.gypi                             |  1 +
- chrome/chrome_exe.gypi                             |  1 +
  components/infobars/core/infobar_delegate.h        |  1 +
  components/omnibox/browser/autocomplete_input.cc   |  8 +--
  content/browser/browser_url_handler_impl.cc        | 20 ++++++++
@@ -52,24 +48,18 @@ stripped and processing continues with the inner URL.
  url/gurl.h                                         |  5 ++
  url/url_constants.cc                               |  1 +
  url/url_constants.h                                |  1 +
- 25 files changed, 283 insertions(+), 6 deletions(-)
+ 22 files changed, 279 insertions(+), 4 deletions(-)
  create mode 100644 iridium/BUILD.gn
  create mode 100644 iridium/trkbar.cpp
  create mode 100644 iridium/trkbar.h
  create mode 100644 iridium/trknotify.cpp
  create mode 100644 iridium/trknotify.h
 
+diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
+index 7a92deb..394d1a3 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -177,6 +177,7 @@ if (!is_android && !is_mac) {
-         "//chrome/installer/util:with_no_strings",
-         "//chrome_elf",
-         "//components/browser_watcher:browser_watcher_client",
-+        "//iridium:trknotify",
-         "//components/crash/content/app:run_as_crashpad_handler",
-         "//components/flags_ui:switches",
-         "//content:sandbox_helper_win",
-@@ -223,6 +224,7 @@ if (!is_android && !is_mac) {
+@@ -233,6 +233,7 @@ if (!is_android && !is_mac) {
        deps += [
          # On Linux, link the dependencies (libraries) that make up actual
          # Chromium functionality directly into the executable.
@@ -77,20 +67,30 @@ stripped and processing continues with the inner URL.
          ":browser_dependencies",
          ":child_dependencies",
          ":manpage",
+@@ -419,6 +420,7 @@ if (is_win) {
+         "//components/browser_watcher:browser_watcher_client",
+         "//components/crash/content/app",
+         "//content/public/app:child",
++        "//iridium:trknotify",
+         "//pdf",
+       ]
+ 
+diff --git a/chrome/app/chrome_main.cc b/chrome/app/chrome_main.cc
+index c35dd61..7f70727 100644
 --- a/chrome/app/chrome_main.cc
 +++ b/chrome/app/chrome_main.cc
-@@ -9,6 +9,10 @@
- #include "chrome/app/chrome_main_delegate.h"
- #include "chrome/common/features.h"
- #include "content/public/app/content_main.h"
+@@ -13,6 +13,10 @@
+ #include "content/public/common/content_switches.h"
+ #include "headless/public/headless_shell.h"
+ #include "ui/gfx/switches.h"
 +#if !defined(CHROME_MULTIPLE_DLL_CHILD)
 +#	include "net/url_request/url_request.h"
 +#	include "iridium/trknotify.h"
 +#endif
  
  #if BUILDFLAG(ENABLE_PACKAGE_MASH_SERVICES)
- #include "base/command_line.h"
-@@ -39,6 +43,19 @@ int ChromeMain(int argc, const char** ar
+ #include "chrome/app/mash/mash_runner.h"
+@@ -43,6 +47,19 @@ int ChromeMain(int argc, const char** argv);
  }
  #endif
  
@@ -110,7 +110,7 @@ stripped and processing continues with the inner URL.
  #if defined(OS_WIN)
  DLLEXPORT int __cdecl ChromeMain(HINSTANCE instance,
                                   sandbox::SandboxInterfaceInfo* sandbox_info,
-@@ -105,6 +122,9 @@ int ChromeMain(int argc, const char** ar
+@@ -109,6 +126,9 @@ int ChromeMain(int argc, const char** argv) {
    }
  #endif  // BUILDFLAG(ENABLE_PACKAGE_MASH_SERVICES)
  
@@ -120,9 +120,11 @@ stripped and processing continues with the inner URL.
    int rv = content::ContentMain(params);
  
  #if defined(OS_WIN)
+diff --git a/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc b/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
+index bf15ceb..67edd9d 100644
 --- a/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
 +++ b/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
-@@ -25,6 +25,7 @@ ChromeAutocompleteSchemeClassifier::GetI
+@@ -25,6 +25,7 @@ ChromeAutocompleteSchemeClassifier::GetInputTypeForScheme(
    if (base::IsStringASCII(scheme) &&
        (ProfileIOData::IsHandledProtocol(scheme) ||
         base::LowerCaseEqualsASCII(scheme, content::kViewSourceScheme) ||
@@ -130,9 +132,11 @@ stripped and processing continues with the inner URL.
         base::LowerCaseEqualsASCII(scheme, url::kJavaScriptScheme) ||
         base::LowerCaseEqualsASCII(scheme, url::kDataScheme))) {
      return metrics::OmniboxInputType::URL;
+diff --git a/chrome/browser/history/history_utils.cc b/chrome/browser/history/history_utils.cc
+index 8bf6a91..57dd5e1 100644
 --- a/chrome/browser/history/history_utils.cc
 +++ b/chrome/browser/history/history_utils.cc
-@@ -20,6 +20,7 @@ bool CanAddURLToHistory(const GURL& url)
+@@ -21,6 +21,7 @@ bool CanAddURLToHistory(const GURL& url) {
        url.SchemeIs(content::kChromeDevToolsScheme) ||
        url.SchemeIs(content::kChromeUIScheme) ||
        url.SchemeIs(content::kViewSourceScheme) ||
@@ -140,22 +144,11 @@ stripped and processing continues with the inner URL.
        url.SchemeIs(chrome::kChromeNativeScheme) ||
        url.SchemeIs(chrome::kChromeSearchScheme) ||
        url.SchemeIs(dom_distiller::kDomDistillerScheme))
---- a/components/url_formatter/url_fixer.cc
-+++ b/components/url_formatter/url_fixer.cc
-@@ -539,6 +539,10 @@ GURL FixupURL(const std::string& text, c
-     }
-   }
- 
-+  if (scheme == url::kTraceScheme) {
-+    return GURL();
-+  }
-+
-   // We handle the file scheme separately.
-   if (scheme == url::kFileScheme)
-     return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
+diff --git a/chrome/browser/ui/browser_navigator.cc b/chrome/browser/ui/browser_navigator.cc
+index f7714d4..848a0d3 100644
 --- a/chrome/browser/ui/browser_navigator.cc
 +++ b/chrome/browser/ui/browser_navigator.cc
-@@ -630,6 +630,14 @@ bool IsURLAllowedInIncognito(const GURL&
+@@ -629,6 +629,14 @@ bool IsURLAllowedInIncognito(const GURL& url,
      return stripped_url.is_valid() &&
          IsURLAllowedInIncognito(stripped_url, browser_context);
    }
@@ -170,9 +163,11 @@ stripped and processing continues with the inner URL.
    // Most URLs are allowed in incognito; the following are exceptions.
    // chrome://extensions is on the list because it redirects to
    // chrome://settings.
+diff --git a/chrome/browser/ui/singleton_tabs.cc b/chrome/browser/ui/singleton_tabs.cc
+index d956fdb..ceb3da7 100644
 --- a/chrome/browser/ui/singleton_tabs.cc
 +++ b/chrome/browser/ui/singleton_tabs.cc
-@@ -99,7 +99,8 @@ int GetIndexOfSingletonTab(NavigateParam
+@@ -99,7 +99,8 @@ int GetIndexOfSingletonTab(NavigateParams* params) {
  
      // Skip view-source tabs. This is needed because RewriteURLIfNecessary
      // removes the "view-source:" scheme which leads to incorrect matching.
@@ -182,9 +177,11 @@ stripped and processing continues with the inner URL.
        continue;
  
      GURL rewritten_tab_url = tab_url;
+diff --git a/components/infobars/core/infobar_delegate.h b/components/infobars/core/infobar_delegate.h
+index 03fdf1e..8482ab5 100644
 --- a/components/infobars/core/infobar_delegate.h
 +++ b/components/infobars/core/infobar_delegate.h
-@@ -146,6 +146,7 @@ class InfoBarDelegate {
+@@ -144,6 +144,7 @@ class InfoBarDelegate {
      GROUPED_PERMISSION_INFOBAR_DELEGATE_ANDROID = 70,
      OFFLINE_PAGE_INFOBAR_DELEGATE = 71,
      SEARCH_GEOLOCATION_DISCLOSURE_INFOBAR_DELEGATE = 72,
@@ -192,9 +189,11 @@ stripped and processing continues with the inner URL.
    };
  
    // Describes navigation events, used to decide whether infobars should be
+diff --git a/components/omnibox/browser/autocomplete_input.cc b/components/omnibox/browser/autocomplete_input.cc
+index a39d823..04b899c 100644
 --- a/components/omnibox/browser/autocomplete_input.cc
 +++ b/components/omnibox/browser/autocomplete_input.cc
-@@ -426,7 +426,8 @@ void AutocompleteInput::ParseForEmphasiz
+@@ -426,7 +426,8 @@ void AutocompleteInput::ParseForEmphasizeComponents(
    int after_scheme_and_colon = parts.scheme.end() + 1;
    // For the view-source scheme, we should emphasize the scheme and host of the
    // URL qualified by the view-source prefix.
@@ -204,7 +203,7 @@ stripped and processing continues with the inner URL.
        (static_cast<int>(text.length()) > after_scheme_and_colon)) {
      // Obtain the URL prefixed by view-source and parse it.
      base::string16 real_url(text.substr(after_scheme_and_colon));
-@@ -493,9 +494,10 @@ int AutocompleteInput::NumNonHostCompone
+@@ -493,9 +494,10 @@ int AutocompleteInput::NumNonHostComponents(const url::Parsed& parts) {
  bool AutocompleteInput::HasHTTPScheme(const base::string16& input) {
    std::string utf8_input(base::UTF16ToUTF8(input));
    url::Component scheme;
@@ -217,6 +216,8 @@ stripped and processing continues with the inner URL.
    return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, NULL);
  }
  
+diff --git a/content/browser/browser_url_handler_impl.cc b/content/browser/browser_url_handler_impl.cc
+index a79b89d..ab808cc 100644
 --- a/content/browser/browser_url_handler_impl.cc
 +++ b/content/browser/browser_url_handler_impl.cc
 @@ -13,9 +13,28 @@
@@ -248,7 +249,7 @@ stripped and processing continues with the inner URL.
  // Handles rewriting view-source URLs for what we'll actually load.
  static bool HandleViewSource(GURL* url, BrowserContext* browser_context) {
    if (url->SchemeIs(kViewSourceScheme)) {
-@@ -99,6 +118,7 @@ BrowserURLHandlerImpl::BrowserURLHandler
+@@ -99,6 +118,7 @@ BrowserURLHandlerImpl::BrowserURLHandlerImpl() :
  
    // view-source:
    AddHandlerPair(&HandleViewSource, &ReverseViewSource);
@@ -256,16 +257,21 @@ stripped and processing continues with the inner URL.
  }
  
  BrowserURLHandlerImpl::~BrowserURLHandlerImpl() {
+diff --git a/content/browser/child_process_security_policy_impl.cc b/content/browser/child_process_security_policy_impl.cc
+index 3c207c2..31212ca 100644
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -343,6 +343,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
-   RegisterPseudoScheme(url::kAboutScheme);
-   RegisterPseudoScheme(url::kJavaScriptScheme);
+@@ -346,6 +346,7 @@ ChildProcessSecurityPolicyImpl::ChildProcessSecurityPolicyImpl() {
    RegisterPseudoScheme(kViewSourceScheme);
-+  RegisterPseudoScheme(url::kTraceScheme);
    RegisterPseudoScheme(url::kHttpSuboriginScheme);
    RegisterPseudoScheme(url::kHttpsSuboriginScheme);
++  RegisterPseudoScheme(url::kTraceScheme);
  }
+ 
+ ChildProcessSecurityPolicyImpl::~ChildProcessSecurityPolicyImpl() {
+diff --git a/iridium/BUILD.gn b/iridium/BUILD.gn
+new file mode 100644
+index 0000000..913b266
 --- /dev/null
 +++ b/iridium/BUILD.gn
 @@ -0,0 +1,9 @@
@@ -278,6 +284,9 @@ stripped and processing continues with the inner URL.
 +        public_configs = [":trknotify_c"]
 +        deps = ["//chrome/browser/ui"]
 +}
+diff --git a/iridium/trkbar.cpp b/iridium/trkbar.cpp
+new file mode 100644
+index 0000000..16013ab
 --- /dev/null
 +++ b/iridium/trkbar.cpp
 @@ -0,0 +1,45 @@
@@ -326,6 +335,9 @@ stripped and processing continues with the inner URL.
 +}
 +
 +}; /* namespace content */
+diff --git a/iridium/trkbar.h b/iridium/trkbar.h
+new file mode 100644
+index 0000000..b251fec
 --- /dev/null
 +++ b/iridium/trkbar.h
 @@ -0,0 +1,33 @@
@@ -362,6 +374,9 @@ stripped and processing continues with the inner URL.
 +}; /* namespace content */
 +
 +#endif /* IRIDIUM_TRKBAR_H */
+diff --git a/iridium/trknotify.cpp b/iridium/trknotify.cpp
+new file mode 100644
+index 0000000..f01fd02
 --- /dev/null
 +++ b/iridium/trknotify.cpp
 @@ -0,0 +1,59 @@
@@ -424,6 +439,9 @@ stripped and processing continues with the inner URL.
 +}
 +
 +}; /* namespace iridium */
+diff --git a/iridium/trknotify.h b/iridium/trknotify.h
+new file mode 100644
+index 0000000..3c58d22
 --- /dev/null
 +++ b/iridium/trknotify.h
 @@ -0,0 +1,20 @@
@@ -447,6 +465,8 @@ stripped and processing continues with the inner URL.
 +}; /* namespace iridium */
 +
 +#endif /* IRIDIUM_TRKNOTIFY_H */
+diff --git a/net/url_request/url_request.cc b/net/url_request/url_request.cc
+index ec9d001..0910b61 100644
 --- a/net/url_request/url_request.cc
 +++ b/net/url_request/url_request.cc
 @@ -48,6 +48,8 @@ using std::string;
@@ -458,7 +478,7 @@ stripped and processing continues with the inner URL.
  namespace {
  
  // Max number of http redirects to follow.  Same number as gecko.
-@@ -583,6 +585,11 @@ URLRequest::URLRequest(const GURL& url,
+@@ -585,6 +587,11 @@ URLRequest::URLRequest(const GURL& url,
    // Sanity check out environment.
    DCHECK(base::ThreadTaskRunnerHandle::IsSet());
  
@@ -468,11 +488,13 @@ stripped and processing continues with the inner URL.
 +		url_chain_[0] = url.strip_trk();
 +
    context->url_requests()->insert(this);
-   net_log_.BeginEvent(NetLogEventType::REQUEST_ALIVE);
- }
+   net_log_.BeginEvent(
+       NetLogEventType::REQUEST_ALIVE,
+diff --git a/net/url_request/url_request.h b/net/url_request/url_request.h
+index e1406f3..e809e2d 100644
 --- a/net/url_request/url_request.h
 +++ b/net/url_request/url_request.h
-@@ -860,6 +860,8 @@ class NET_EXPORT URLRequest : NON_EXPORT
+@@ -856,6 +856,8 @@ class NET_EXPORT URLRequest : NON_EXPORTED_BASE(public base::NonThreadSafe),
    DISALLOW_COPY_AND_ASSIGN(URLRequest);
  };
  
@@ -481,9 +503,11 @@ stripped and processing continues with the inner URL.
  }  // namespace net
  
  #endif  // NET_URL_REQUEST_URL_REQUEST_H_
+diff --git a/tools/metrics/histograms/histograms.xml b/tools/metrics/histograms/histograms.xml
+index 2737b23..9cc986c 100644
 --- a/tools/metrics/histograms/histograms.xml
 +++ b/tools/metrics/histograms/histograms.xml
-@@ -89725,6 +89725,7 @@ http://cs/file:chrome/histograms.xml - b
+@@ -93078,6 +93078,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
    <int value="70" label="GROUPED_PERMISSION_INFOBAR_DELEGATE_ANDROID"/>
    <int value="71" label="OFFLINE_PAGE_INFOBAR_DELEGATE"/>
    <int value="72" label="SEARCH_GEOLOCATION_DISCLOSURE_INFOBAR_DELEGATE"/>
@@ -491,9 +515,11 @@ stripped and processing continues with the inner URL.
  </enum>
  
  <enum name="InfoBarResponse" type="int">
+diff --git a/url/gurl.cc b/url/gurl.cc
+index 43f3052..42c1601 100644
 --- a/url/gurl.cc
 +++ b/url/gurl.cc
-@@ -499,6 +499,41 @@ void GURL::Swap(GURL* other) {
+@@ -474,6 +474,41 @@ void GURL::Swap(GURL* other) {
    inner_url_.swap(other->inner_url_);
  }
  
@@ -535,6 +561,8 @@ stripped and processing continues with the inner URL.
  std::ostream& operator<<(std::ostream& out, const GURL& url) {
    return out << url.possibly_invalid_spec();
  }
+diff --git a/url/gurl.h b/url/gurl.h
+index 5753230..f82e2f8 100644
 --- a/url/gurl.h
 +++ b/url/gurl.h
 @@ -405,6 +405,9 @@ class URL_EXPORT GURL {
@@ -556,6 +584,8 @@ stripped and processing continues with the inner URL.
  
  URL_EXPORT bool operator==(const GURL& x, const GURL& y);
  URL_EXPORT bool operator!=(const GURL& x, const GURL& y);
+diff --git a/url/url_constants.cc b/url/url_constants.cc
+index 73c9a767..1f8a32f 100644
 --- a/url/url_constants.cc
 +++ b/url/url_constants.cc
 @@ -21,6 +21,7 @@ const char kHttpScheme[] = "http";
@@ -566,9 +596,11 @@ stripped and processing continues with the inner URL.
  const char kWsScheme[] = "ws";
  const char kWssScheme[] = "wss";
  
+diff --git a/url/url_constants.h b/url/url_constants.h
+index c110589..e814d8c 100644
 --- a/url/url_constants.h
 +++ b/url/url_constants.h
-@@ -27,6 +27,7 @@ URL_EXPORT extern const char kHttpScheme
+@@ -27,6 +27,7 @@ URL_EXPORT extern const char kHttpScheme[];
  URL_EXPORT extern const char kHttpsScheme[];
  URL_EXPORT extern const char kJavaScriptScheme[];
  URL_EXPORT extern const char kMailToScheme[];
@@ -576,3 +608,6 @@ stripped and processing continues with the inner URL.
  URL_EXPORT extern const char kWsScheme[];
  URL_EXPORT extern const char kWssScheme[];
  
+-- 
+cgit v0.12
+
