@@ -1,17 +1,6 @@
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -670,10 +670,6 @@ class SafeBrowsingSSLCertReporter : publ
-   // SSLCertReporter implementation
-   void ReportInvalidCertificateChain(
-       const std::string& serialized_report) override {
--    if (safe_browsing_ui_manager_) {
--      safe_browsing_ui_manager_->ReportInvalidCertificateChain(
--          serialized_report, base::Bind(&base::DoNothing));
--    }
-   }
- 
-  private:
-@@ -1625,7 +1621,7 @@ void ChromeContentBrowserClient::AppendE
+@@ -1646,7 +1646,7 @@ void ChromeContentBrowserClient::AppendE
        // Disable client-side phishing detection in the renderer if it is
        // disabled in the Profile preferences or the browser process.
        if (!prefs->GetBoolean(prefs::kSafeBrowsingEnabled) ||
@@ -20,23 +9,9 @@
          command_line->AppendSwitch(
              switches::kDisableClientSidePhishingDetection);
        }
-@@ -2189,11 +2185,9 @@ void ChromeContentBrowserClient::AllowCe
-   if (expired_previous_decision)
-     options_mask |= SSLErrorUI::EXPIRED_BUT_PREVIOUSLY_ALLOWED;
- 
--  safe_browsing::SafeBrowsingService* safe_browsing_service =
--      g_browser_process->safe_browsing_service();
-   std::unique_ptr<SafeBrowsingSSLCertReporter> cert_reporter(
--      new SafeBrowsingSSLCertReporter(safe_browsing_service
--                                          ? safe_browsing_service->ui_manager()
-+      new SafeBrowsingSSLCertReporter(false
-+                                          ? nullptr
-                                           : nullptr));
-   SSLErrorHandler::HandleSSLError(web_contents, cert_error, ssl_info,
-                                   request_url, options_mask,
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -469,12 +469,12 @@ ProfileImpl::ProfileImpl(
+@@ -470,12 +470,12 @@ ProfileImpl::ProfileImpl(
        path_, sequenced_task_runner, create_mode == CREATE_MODE_SYNCHRONOUS);
  #endif
  
@@ -57,7 +32,7 @@
  
 --- a/chrome/browser/loader/chrome_resource_dispatcher_host_delegate.cc
 +++ b/chrome/browser/loader/chrome_resource_dispatcher_host_delegate.cc
-@@ -376,8 +376,7 @@ void NotifyUIThreadOfRequestComplete(
+@@ -387,8 +387,7 @@ void NotifyUIThreadOfRequestComplete(
  }  // namespace
  
  ChromeResourceDispatcherHostDelegate::ChromeResourceDispatcherHostDelegate()
@@ -67,16 +42,17 @@
  #if BUILDFLAG(ENABLE_EXTENSIONS)
        , user_script_listener_(new extensions::UserScriptListener())
  #endif
-@@ -426,8 +425,6 @@ void ChromeResourceDispatcherHostDelegat
+@@ -437,9 +436,6 @@ void ChromeResourceDispatcherHostDelegat
      content::AppCacheService* appcache_service,
      ResourceType resource_type,
-     ScopedVector<content::ResourceThrottle>* throttles) {
+     std::vector<std::unique_ptr<content::ResourceThrottle>>* throttles) {
 -  if (safe_browsing_.get())
 -    safe_browsing_->OnResourceRequest(request);
- 
+-
    const ResourceRequestInfo* info = ResourceRequestInfo::ForRequest(request);
  
-@@ -609,13 +606,13 @@ void ChromeResourceDispatcherHostDelegat
+ // The lowering of request priority causes issues with scheduling, since
+@@ -629,13 +625,13 @@ void ChromeResourceDispatcherHostDelegat
    content::ResourceThrottle* first_throttle = NULL;
  #if defined(OS_ANDROID)
    first_throttle = DataReductionProxyResourceThrottle::MaybeCreate(
@@ -111,7 +87,7 @@
  
  #if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
  CaptivePortalBlockingPage* CreateCaptivePortalBlockingPage(
-@@ -346,9 +347,11 @@ void InterstitialHTMLSource::StartDataRe
+@@ -351,9 +352,11 @@ void InterstitialHTMLSource::StartDataRe
    std::unique_ptr<content::InterstitialPageDelegate> interstitial_delegate;
    if (base::StartsWith(path, "ssl", base::CompareCase::SENSITIVE)) {
      interstitial_delegate.reset(CreateSSLBlockingPage(web_contents));
@@ -215,47 +191,6 @@
    scoped_refptr<net::URLRequestContextGetter> url_request_context_getter_;
    scoped_refptr<net::URLRequestContextGetter> parent_request_context_for_test_;
  
---- a/chrome/browser/browsing_data/browsing_data_remover.cc
-+++ b/chrome/browser/browsing_data/browsing_data_remover.cc
-@@ -770,38 +770,6 @@ void BrowsingDataRemover::RemoveImpl(
-     storage_partition_remove_mask |=
-         content::StoragePartition::REMOVE_DATA_MASK_COOKIES;
- 
--    // Clear the safebrowsing cookies only if time period is for "all time".  It
--    // doesn't make sense to apply the time period of deleting in the last X
--    // hours/days to the safebrowsing cookies since they aren't the result of
--    // any user action.
--    if (delete_begin_ == base::Time()) {
--      safe_browsing::SafeBrowsingService* sb_service =
--          g_browser_process->safe_browsing_service();
--      if (sb_service) {
--        scoped_refptr<net::URLRequestContextGetter> sb_context =
--            sb_service->url_request_context();
--        ++waiting_for_clear_cookies_count_;
--        if (filter_builder.IsEmptyBlacklist()) {
--          BrowserThread::PostTask(
--              BrowserThread::IO, FROM_HERE,
--              base::Bind(&ClearCookiesOnIOThread, delete_begin_, delete_end_,
--                         base::RetainedRef(std::move(sb_context)),
--                         UIThreadTrampoline(
--                             base::Bind(&BrowsingDataRemover::OnClearedCookies,
--                                        weak_ptr_factory_.GetWeakPtr()))));
--        } else {
--          BrowserThread::PostTask(
--              BrowserThread::IO, FROM_HERE,
--              base::Bind(&ClearCookiesWithPredicateOnIOThread, delete_begin_,
--                         delete_end_, filter_builder.BuildCookieFilter(),
--                         base::RetainedRef(std::move(sb_context)),
--                         UIThreadTrampoline(
--                             base::Bind(&BrowsingDataRemover::OnClearedCookies,
--                                        weak_ptr_factory_.GetWeakPtr()))));
--        }
--      }
--    }
--
-     MediaDeviceIDSalt::Reset(profile_->GetPrefs());
-   }
- 
 --- a/chrome/browser/download/chrome_download_manager_delegate.cc
 +++ b/chrome/browser/download/chrome_download_manager_delegate.cc
 @@ -209,13 +209,6 @@ ChromeDownloadManagerDelegate::~ChromeDo
@@ -299,7 +234,7 @@
  #include "chrome/browser/shell_integration.h"
  #include "chrome/browser/status_icons/status_tray.h"
  #include "chrome/browser/ui/browser_dialogs.h"
-@@ -206,7 +205,6 @@ BrowserProcessImpl::BrowserProcessImpl(
+@@ -217,7 +216,6 @@ BrowserProcessImpl::BrowserProcessImpl(
        created_icon_manager_(false),
        created_notification_ui_manager_(false),
        created_notification_bridge_(false),
@@ -307,7 +242,7 @@
        created_subresource_filter_ruleset_service_(false),
        shutting_down_(false),
        tearing_down_(false),
-@@ -290,8 +288,6 @@ void BrowserProcessImpl::StartTearDown()
+@@ -302,8 +300,6 @@ void BrowserProcessImpl::StartTearDown()
    // that URLFetcher operation before going away.)
    metrics_services_manager_.reset();
    intranet_redirect_detector_.reset();
@@ -316,7 +251,7 @@
    network_time_tracker_.reset();
  #if BUILDFLAG(ENABLE_PLUGIN_INSTALLATION)
    plugins_resource_service_.reset();
-@@ -868,22 +864,6 @@ StatusTray* BrowserProcessImpl::status_t
+@@ -881,22 +877,6 @@ StatusTray* BrowserProcessImpl::status_t
    return status_tray_.get();
  }
  
@@ -339,7 +274,7 @@
  subresource_filter::RulesetService*
  BrowserProcessImpl::subresource_filter_ruleset_service() {
    DCHECK(CalledOnValidThread());
-@@ -1179,16 +1159,6 @@ void BrowserProcessImpl::CreateBackgroun
+@@ -1187,16 +1167,6 @@ void BrowserProcessImpl::CreateBackgroun
  #endif
  }
  
@@ -358,7 +293,7 @@
    created_subresource_filter_ruleset_service_ = true;
 --- a/chrome/browser/browser_process_impl.h
 +++ b/chrome/browser/browser_process_impl.h
-@@ -128,9 +128,6 @@ class BrowserProcessImpl : public Browse
+@@ -129,9 +129,6 @@ class BrowserProcessImpl : public Browse
    void set_background_mode_manager_for_test(
        std::unique_ptr<BackgroundModeManager> manager) override;
    StatusTray* status_tray() override;
@@ -368,7 +303,7 @@
    subresource_filter::RulesetService* subresource_filter_ruleset_service()
        override;
  
-@@ -257,9 +254,6 @@ class BrowserProcessImpl : public Browse
+@@ -258,9 +255,6 @@ class BrowserProcessImpl : public Browse
    std::unique_ptr<BackgroundModeManager> background_mode_manager_;
  #endif
  
@@ -380,7 +315,7 @@
        subresource_filter_ruleset_service_;
 --- a/chrome/browser/metrics/chrome_metrics_services_manager_client.cc
 +++ b/chrome/browser/metrics/chrome_metrics_services_manager_client.cc
-@@ -222,21 +222,7 @@ ChromeMetricsServicesManagerClient::GetU
+@@ -232,21 +232,7 @@ ChromeMetricsServicesManagerClient::GetU
  
  bool ChromeMetricsServicesManagerClient::IsSafeBrowsingEnabled(
      const base::Closure& on_update_callback) {
@@ -405,7 +340,7 @@
  bool ChromeMetricsServicesManagerClient::IsMetricsReportingEnabled() {
 --- a/chrome/browser/browser_process.h
 +++ b/chrome/browser/browser_process.h
-@@ -43,10 +43,6 @@ class WatchDogThread;
+@@ -41,10 +41,6 @@ class WatchDogThread;
  class WebRtcLogUploader;
  #endif
  
@@ -416,8 +351,8 @@
  namespace subresource_filter {
  class RulesetService;
  }
-@@ -112,10 +108,6 @@ namespace rappor {
- class RapporService;
+@@ -114,10 +110,6 @@ namespace rappor {
+ class RapporServiceImpl;
  }
  
 -namespace safe_browsing {
@@ -427,7 +362,7 @@
  // NOT THREAD SAFE, call only from the main thread.
  // These functions shouldn't return NULL unless otherwise noted.
  class BrowserProcess {
-@@ -222,14 +214,6 @@ class BrowserProcess {
+@@ -224,14 +216,6 @@ class BrowserProcess {
    // on this platform (or this is a unit test).
    virtual StatusTray* status_tray() = 0;
  
@@ -492,7 +427,7 @@
  #include "chrome/browser/download/download_history.h"
  #include "chrome/browser/download/download_item_model.h"
  #include "chrome/browser/download/download_prefs.h"
-@@ -193,34 +192,6 @@ void MdDownloadsDOMHandler::HandleDrag(c
+@@ -196,34 +195,6 @@ void MdDownloadsDOMHandler::HandleDrag(c
  
  void MdDownloadsDOMHandler::HandleSaveDangerous(const base::ListValue* args) {
    CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS);
@@ -527,7 +462,7 @@
  }
  
  void MdDownloadsDOMHandler::HandleDiscardDangerous(
-@@ -322,12 +293,6 @@ void MdDownloadsDOMHandler::RemoveDownlo
+@@ -325,12 +296,6 @@ void MdDownloadsDOMHandler::RemoveDownlo
    IdSet ids;
  
    for (auto* download : to_remove) {
@@ -540,7 +475,7 @@
      DownloadItemModel item_model(download);
      if (!item_model.ShouldShowInShelf() ||
          download->GetState() == content::DownloadItem::IN_PROGRESS) {
-@@ -380,33 +345,6 @@ void MdDownloadsDOMHandler::FinalizeRemo
+@@ -383,33 +348,6 @@ void MdDownloadsDOMHandler::FinalizeRemo
    }
  }
  
@@ -584,7 +519,7 @@
  #include "chrome/browser/download/download_file_icon_extractor.h"
  #include "chrome/browser/download/download_prefs.h"
  #include "chrome/browser/download/download_query.h"
-@@ -1248,9 +1247,6 @@ DownloadsAcceptDangerFunction::Downloads
+@@ -1250,9 +1249,6 @@ DownloadsAcceptDangerFunction::Downloads
  
  DownloadsAcceptDangerFunction::~DownloadsAcceptDangerFunction() {}
  
@@ -594,7 +529,7 @@
  bool DownloadsAcceptDangerFunction::RunAsync() {
    std::unique_ptr<downloads::AcceptDanger::Params> params(
        downloads::AcceptDanger::Params::Create(*args_));
-@@ -1285,40 +1281,7 @@ void DownloadsAcceptDangerFunction::Prom
+@@ -1287,40 +1283,7 @@ void DownloadsAcceptDangerFunction::Prom
      return;
    }
    RecordApiFunctions(DOWNLOADS_FUNCTION_ACCEPT_DANGER);
@@ -646,7 +581,7 @@
  #include "chrome/browser/download/download_path_reservation_tracker.h"
  #include "chrome/browser/extensions/chrome_extension_function.h"
  #include "chrome/common/extensions/api/downloads.h"
-@@ -194,25 +193,16 @@ class DownloadsRemoveFileFunction : publ
+@@ -188,25 +187,16 @@ class DownloadsRemoveFileFunction : publ
  
  class DownloadsAcceptDangerFunction : public ChromeAsyncExtensionFunction {
   public:
@@ -682,7 +617,7 @@
  
  namespace {
  
-@@ -186,13 +185,7 @@ DownloadPrefs::DownloadPrefs(Profile* pr
+@@ -184,13 +183,7 @@ DownloadPrefs::DownloadPrefs(Profile* pr
          base::FilePath::StringType(1, base::FilePath::kExtensionSeparator) +
          extension);
  
@@ -697,7 +632,7 @@
    }
  }
  
-@@ -317,9 +310,6 @@ bool DownloadPrefs::IsAutoOpenEnabledBas
+@@ -315,9 +308,6 @@ bool DownloadPrefs::IsAutoOpenEnabledBas
  bool DownloadPrefs::EnableAutoOpenBasedOnExtension(
      const base::FilePath& file_name) {
    base::FilePath::StringType extension = file_name.Extension();
@@ -732,7 +667,7 @@
  }  // namespace
 --- a/chrome/browser/download/download_target_determiner.cc
 +++ b/chrome/browser/download/download_target_determiner.cc
-@@ -892,29 +892,7 @@ DownloadFileType::DangerLevel DownloadTa
+@@ -901,29 +901,7 @@ DownloadFileType::DangerLevel DownloadTa
        download_->HasUserGesture())
      return DownloadFileType::NOT_DANGEROUS;
  
@@ -788,7 +723,7 @@
        return !download_item_->IsDone();
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2627,8 +2627,6 @@ split_static_library("browser") {
+@@ -3088,8 +3088,6 @@ split_static_library("browser") {
        "download/download_commands.h",
        "download/download_crx_util.cc",
        "download/download_crx_util.h",
@@ -799,16 +734,16 @@
        "download/download_permission_request.cc",
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -1654,7 +1654,6 @@ split_static_library("ui") {
-         "views/constrained_web_dialog_delegate_views.cc",
-         "views/create_application_shortcut_view.cc",
+@@ -1668,7 +1668,6 @@ split_static_library("ui") {
          "views/create_application_shortcut_view.h",
+         "views/desktop_ios_promotion/desktop_ios_promotion_view.cc",
+         "views/desktop_ios_promotion/desktop_ios_promotion_view.h",
 -        "views/download/download_danger_prompt_views.cc",
          "views/download/download_feedback_dialog_view.cc",
          "views/download/download_feedback_dialog_view.h",
          "views/download/download_in_progress_dialog_view.cc",
-@@ -2598,7 +2597,6 @@ split_static_library("ui") {
-         "cocoa/dev_tools_controller.mm",
+@@ -2633,7 +2632,6 @@ split_static_library("ui") {
+         "cocoa/device_chooser_content_view_cocoa.mm",
          "cocoa/download/background_theme.h",
          "cocoa/download/background_theme.mm",
 -        "cocoa/download/download_danger_prompt_impl.cc",
@@ -857,4 +792,49 @@
 -  }
    return security_state::MALICIOUS_CONTENT_STATUS_NONE;
  }
+ 
+--- a/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
++++ b/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
+@@ -591,42 +591,6 @@ void ChromeBrowsingDataRemoverDelegate::
+       origin_type_mask & BrowsingDataHelper::UNPROTECTED_WEB) {
+     content::RecordAction(UserMetricsAction("ClearBrowsingData_Cookies"));
+ 
+-    // Clear the safebrowsing cookies only if time period is for "all time".  It
+-    // doesn't make sense to apply the time period of deleting in the last X
+-    // hours/days to the safebrowsing cookies since they aren't the result of
+-    // any user action.
+-    if (delete_begin_ == base::Time()) {
+-      safe_browsing::SafeBrowsingService* sb_service =
+-          g_browser_process->safe_browsing_service();
+-      if (sb_service) {
+-        scoped_refptr<net::URLRequestContextGetter> sb_context =
+-            sb_service->url_request_context();
+-        ++clear_cookies_count_;
+-        if (filter_builder.IsEmptyBlacklist()) {
+-          BrowserThread::PostTask(
+-              BrowserThread::IO, FROM_HERE,
+-              base::Bind(
+-                  &ClearCookiesOnIOThread, delete_begin_, delete_end_,
+-                  base::RetainedRef(std::move(sb_context)),
+-                  UIThreadTrampoline(
+-                      base::Bind(
+-                          &ChromeBrowsingDataRemoverDelegate::OnClearedCookies,
+-                          weak_ptr_factory_.GetWeakPtr()))));
+-        } else {
+-          BrowserThread::PostTask(
+-              BrowserThread::IO, FROM_HERE,
+-              base::Bind(
+-                  &ClearCookiesWithPredicateOnIOThread, delete_begin_,
+-                  delete_end_, filter_builder.BuildCookieFilter(),
+-                  base::RetainedRef(std::move(sb_context)),
+-                  UIThreadTrampoline(
+-                      base::Bind(
+-                          &ChromeBrowsingDataRemoverDelegate::OnClearedCookies,
+-                          weak_ptr_factory_.GetWeakPtr()))));
+-        }
+-      }
+-    }
+-
+     MediaDeviceIDSalt::Reset(profile_->GetPrefs());
+   }
  
