@@ -78,7 +78,7 @@ def _get_parsed_gn_flags(gn_flags):
 
 # Public definitions
 
-def generate_build_files(resources, output_dir, build_output,
+def generate_build_files(resources, output_dir, build_output, target_version, #pylint: disable=too-many-arguments
                          distribution_version, apply_domain_substitution):
     """
     Generates the `debian` directory in `output_dir` using resources from
@@ -114,3 +114,7 @@ def generate_build_files(resources, output_dir, build_output,
             new_file.seek(0)
             new_file.write(content)
             new_file.truncate()
+
+    for version_specific_path in debian_dir.glob("*." + target_version):
+        new_path = debian_dir / version_specific_path.stem
+        version_specific_path.replace(new_path)
