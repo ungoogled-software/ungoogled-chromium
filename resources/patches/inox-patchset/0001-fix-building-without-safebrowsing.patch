@@ -1,6 +1,14 @@
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -1646,7 +1646,7 @@ void ChromeContentBrowserClient::AppendE
+@@ -691,7 +691,6 @@ class CertificateReportingServiceCertRep
+   // SSLCertReporter implementation
+   void ReportInvalidCertificateChain(
+       const std::string& serialized_report) override {
+-    service_->Send(serialized_report);
+   }
+ 
+  private:
+@@ -1646,7 +1645,7 @@ void ChromeContentBrowserClient::AppendE
        // Disable client-side phishing detection in the renderer if it is
        // disabled in the Profile preferences or the browser process.
        if (!prefs->GetBoolean(prefs::kSafeBrowsingEnabled) ||
@@ -9,6 +17,23 @@
          command_line->AppendSwitch(
              switches::kDisableClientSidePhishingDetection);
        }
+@@ -2201,15 +2200,9 @@ void ChromeContentBrowserClient::AllowCe
+   if (expired_previous_decision)
+     options_mask |= SSLErrorUI::EXPIRED_BUT_PREVIOUSLY_ALLOWED;
+ 
+-  CertificateReportingService* cert_reporting_service =
+-      CertificateReportingServiceFactory::GetForBrowserContext(
+-          web_contents->GetBrowserContext());
+-  std::unique_ptr<CertificateReportingServiceCertReporter> cert_reporter(
+-      new CertificateReportingServiceCertReporter(cert_reporting_service));
+-
+   SSLErrorHandler::HandleSSLError(web_contents, cert_error, ssl_info,
+                                   request_url, options_mask,
+-                                  std::move(cert_reporter), callback);
++                                  nullptr, callback);
+ }
+ 
+ void ChromeContentBrowserClient::SelectClientCertificate(
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
 @@ -470,12 +470,12 @@ ProfileImpl::ProfileImpl(
@@ -838,3 +863,286 @@
      MediaDeviceIDSalt::Reset(profile_->GetPrefs());
    }
  
+--- a/chrome/browser/notifications/platform_notification_service_impl.cc
++++ b/chrome/browser/notifications/platform_notification_service_impl.cc
+@@ -21,8 +21,6 @@
+ #include "chrome/browser/profiles/profile_attributes_storage.h"
+ #include "chrome/browser/profiles/profile_io_data.h"
+ #include "chrome/browser/profiles/profile_manager.h"
+-#include "chrome/browser/safe_browsing/ping_manager.h"
+-#include "chrome/browser/safe_browsing/safe_browsing_service.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/grit/generated_resources.h"
+@@ -90,18 +88,6 @@ void CancelNotification(const std::strin
+                  notification_id));
+ }
+ 
+-void ReportNotificationImageOnIOThread(
+-    scoped_refptr<safe_browsing::SafeBrowsingService> safe_browsing_service,
+-    Profile* profile,
+-    const GURL& origin,
+-    const SkBitmap& image) {
+-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+-  if (!safe_browsing_service || !safe_browsing_service->enabled())
+-    return;
+-  safe_browsing_service->ping_manager()->ReportNotificationImage(
+-      profile, safe_browsing_service->database_manager(), origin, image);
+-}
+-
+ }  // namespace
+ 
+ // static
+@@ -444,12 +430,6 @@ Notification PlatformNotificationService
+     notification.set_image(
+         gfx::Image::CreateFrom1xBitmap(notification_resources.image));
+     // n.b. this should only be posted once per notification.
+-    BrowserThread::PostTask(
+-        BrowserThread::IO, FROM_HERE,
+-        base::Bind(
+-            &ReportNotificationImageOnIOThread,
+-            make_scoped_refptr(g_browser_process->safe_browsing_service()),
+-            profile, origin, notification_resources.image));
+   }
+ 
+   // Badges are only supported on Android, primarily because it's the only
+--- a/chrome/browser/permissions/permission_blacklist_client.cc
++++ b/chrome/browser/permissions/permission_blacklist_client.cc
+@@ -9,7 +9,6 @@
+ 
+ #include "base/logging.h"
+ #include "base/memory/ptr_util.h"
+-#include "base/timer/timer.h"
+ #include "content/public/browser/browser_thread.h"
+ #include "content/public/browser/web_contents.h"
+ #include "url/gurl.h"
+@@ -53,38 +52,10 @@ PermissionBlacklistClient::~PermissionBl
+ void PermissionBlacklistClient::StartCheck(const GURL& request_origin) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
+ 
+-  // Start the timer to interrupt into the client callback method with an
+-  // empty response if Safe Browsing times out.
+-  safe_browsing::ThreatMetadata empty_metadata;
+-  timer_ = base::MakeUnique<base::OneShotTimer>();
+-  timer_->Start(
+-      FROM_HERE, base::TimeDelta::FromMilliseconds(timeout_),
+-      base::Bind(&PermissionBlacklistClient::OnCheckApiBlacklistUrlResult, this,
+-                 request_origin, empty_metadata));
+-  db_manager_->CheckApiBlacklistUrl(request_origin, this);
+-}
+-
+-void PermissionBlacklistClient::OnCheckApiBlacklistUrlResult(
+-    const GURL& url,
+-    const safe_browsing::ThreatMetadata& metadata) {
+-  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
+-
+-  if (timer_->IsRunning())
+-    timer_->Stop();
+-  else
+-    db_manager_->CancelApiCheck(this);
+-  timer_.reset(nullptr);
+-
+-  // TODO(meredithl): Convert the strings returned from Safe Browsing to the
+-  // ones used by PermissionUtil for comparison.
+-  bool permission_blocked =
+-      metadata.api_permissions.find(PermissionUtil::GetPermissionString(
+-          permission_type_)) != metadata.api_permissions.end();
+-
+   content::BrowserThread::PostTask(
+       content::BrowserThread::UI, FROM_HERE,
+       base::Bind(&PermissionBlacklistClient::EvaluateBlacklistResultOnUiThread,
+-                 this, permission_blocked));
++                 this, false));
+ }
+ 
+ void PermissionBlacklistClient::EvaluateBlacklistResultOnUiThread(
+--- a/chrome/browser/permissions/permission_context_base.cc
++++ b/chrome/browser/permissions/permission_context_base.cc
+@@ -130,19 +130,12 @@ void PermissionContextBase::RequestPermi
+     return;
+   }
+ 
+-  if (!db_manager_) {
+-    safe_browsing::SafeBrowsingService* sb_service =
+-        g_browser_process->safe_browsing_service();
+-    if (sb_service)
+-      db_manager_ = sb_service->database_manager();
+-  }
+-
+   // Asynchronously check whether the origin should be blocked from making this
+   // permission request. It may be on the Safe Browsing API blacklist, or it may
+   // have been dismissed too many times in a row. If the origin is allowed to
+   // request, that request will be made to ContinueRequestPermission().
+   PermissionDecisionAutoBlocker::UpdateEmbargoedStatus(
+-      db_manager_, permission_type_, requesting_origin, web_contents,
++      nullptr, permission_type_, requesting_origin, web_contents,
+       safe_browsing_timeout_, profile_, base::Time::Now(),
+       base::Bind(&PermissionContextBase::ContinueRequestPermission,
+                  weak_factory_.GetWeakPtr(), web_contents, id,
+--- a/chrome/browser/profiles/net_http_session_params_observer.cc
++++ b/chrome/browser/profiles/net_http_session_params_observer.cc
+@@ -10,7 +10,6 @@
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/io_thread.h"
+ #include "chrome/browser/profiles/profile_manager.h"
+-#include "chrome/browser/safe_browsing/safe_browsing_service.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+@@ -19,28 +18,6 @@
+ 
+ using content::BrowserThread;
+ 
+-namespace {
+-
+-// Called on IOThread to disable QUIC for globally-owned HttpNetworkSessions
+-// and for the profile (thrpugh |disable_quic_callback|). Note that re-enabling
+-// QUIC dynamically is not supported for simpliciy and requires a browser
+-// restart.
+-void DisableQuicOnIOThread(
+-    NetHttpSessionParamsObserver::DisableQuicCallback disable_quic_callback,
+-    IOThread* io_thread,
+-    safe_browsing::SafeBrowsingService* safe_browsing_service) {
+-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+-
+-  // Disable QUIC for globally-owned objects.
+-  io_thread->DisableQuic();
+-  safe_browsing_service->DisableQuicOnIOThread();
+-
+-  // Call profile's disable QUIC callback.
+-  disable_quic_callback.Run();
+-}
+-
+-}  // namespace
+-
+ NetHttpSessionParamsObserver::NetHttpSessionParamsObserver(
+     PrefService* prefs,
+     DisableQuicCallback disable_quic_callback)
+@@ -75,18 +52,6 @@ void NetHttpSessionParamsObserver::Apply
+   // We only support disabling QUIC.
+   if (quic_allowed_for_profile)
+     return;
+-
+-  // Disabling QUIC for a profile also disables QUIC for globally-owned
+-  // HttpNetworkSessions. As a side effect, new Profiles will also have QUIC
+-  // disabled (because they inherit IOThread's HttpNetworkSession Params).
+-  IOThread* io_thread = g_browser_process->io_thread();
+-  safe_browsing::SafeBrowsingService* safe_browsing_service =
+-      g_browser_process->safe_browsing_service();
+-
+-  BrowserThread::PostTask(
+-      BrowserThread::IO, FROM_HERE,
+-      base::Bind(&DisableQuicOnIOThread, disable_quic_callback_, io_thread,
+-                 base::Unretained(safe_browsing_service)));
+ }
+ 
+ // static
+--- a/chrome/browser/metrics/chrome_metrics_service_client.cc
++++ b/chrome/browser/metrics/chrome_metrics_service_client.cc
+@@ -35,7 +35,6 @@
+ #include "chrome/browser/metrics/network_quality_estimator_provider_impl.h"
+ #include "chrome/browser/metrics/sampling_metrics_provider.h"
+ #include "chrome/browser/metrics/subprocess_metrics_provider.h"
+-#include "chrome/browser/safe_browsing/certificate_reporting_metrics_provider.h"
+ #include "chrome/browser/sync/chrome_sync_client.h"
+ #include "chrome/browser/ui/browser_otr_state.h"
+ #include "chrome/common/channel_info.h"
+@@ -692,10 +691,6 @@ void ChromeMetricsServiceClient::Initial
+   metrics_service_->RegisterMetricsProvider(
+       std::unique_ptr<metrics::MetricsProvider>(
+           new HttpsEngagementMetricsProvider()));
+-
+-  metrics_service_->RegisterMetricsProvider(
+-      std::unique_ptr<metrics::MetricsProvider>(
+-          new CertificateReportingMetricsProvider()));
+ }
+ 
+ bool ChromeMetricsServiceClient::ShouldIncludeProfilerDataInLog() {
+--- a/chrome/browser/permissions/permission_blacklist_client.h
++++ b/chrome/browser/permissions/permission_blacklist_client.h
+@@ -54,11 +54,6 @@ class PermissionBlacklistClient
+ 
+   void StartCheck(const GURL& request_origin);
+ 
+-  // SafeBrowsingDatabaseManager::Client implementation.
+-  void OnCheckApiBlacklistUrlResult(
+-      const GURL& url,
+-      const safe_browsing::ThreatMetadata& metadata) override;
+-
+   void EvaluateBlacklistResultOnUiThread(bool permission_blocked);
+ 
+   // WebContentsObserver implementation. Sets a flag so that when the database
+--- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
++++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
+@@ -206,7 +206,6 @@ EnsureBrowserContextKeyedServiceFactorie
+ #if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
+   CaptivePortalServiceFactory::GetInstance();
+ #endif
+-  CertificateReportingServiceFactory::GetInstance();
+ #if defined(OS_ANDROID)
+   chrome::android::DataUseUITabModelFactory::GetInstance();
+ #endif
+--- a/chrome/browser/ssl/captive_portal_blocking_page.cc
++++ b/chrome/browser/ssl/captive_portal_blocking_page.cc
+@@ -89,13 +89,6 @@ CaptivePortalBlockingPage::CaptivePortal
+       callback_(callback) {
+   DCHECK(login_url_.is_valid());
+ 
+-  if (ssl_cert_reporter) {
+-    cert_report_helper_.reset(new CertReportHelper(
+-        std::move(ssl_cert_reporter), web_contents, request_url, ssl_info,
+-        certificate_reporting::ErrorReport::INTERSTITIAL_CAPTIVE_PORTAL, false,
+-        base::Time::Now(), nullptr));
+-  }
+-
+   RecordUMA(SHOW_ALL);
+ }
+ 
+@@ -206,10 +199,7 @@ void CaptivePortalBlockingPage::Populate
+   load_time_data->SetString("explanationParagraph", base::string16());
+   load_time_data->SetString("finalParagraph", base::string16());
+ 
+-  if (cert_report_helper_)
+-    cert_report_helper_->PopulateExtendedReportingOption(load_time_data);
+-  else
+-    load_time_data->SetBoolean(security_interstitials::kDisplayCheckBox, false);
++  load_time_data->SetBoolean(security_interstitials::kDisplayCheckBox, false);
+ }
+ 
+ void CaptivePortalBlockingPage::CommandReceived(const std::string& command) {
+@@ -269,12 +259,6 @@ void CaptivePortalBlockingPage::OnProcee
+ 
+ void CaptivePortalBlockingPage::OnDontProceed() {
+   UpdateMetricsAfterSecurityInterstitial();
+-  if (cert_report_helper_) {
+-    // Finish collecting information about invalid certificates, if the
+-    // user opted in to.
+-    cert_report_helper_->FinishCertCollection(
+-        certificate_reporting::ErrorReport::USER_DID_NOT_PROCEED);
+-  }
+ 
+   // Need to explicity deny the certificate via the callback, otherwise memory
+   // is leaked.
+--- a/chrome/browser/ssl/cert_report_helper.cc
++++ b/chrome/browser/ssl/cert_report_helper.cc
+@@ -127,8 +127,6 @@ void CertReportHelper::FinishCertCollect
+     LOG(ERROR) << "Failed to serialize certificate report.";
+     return;
+   }
+-
+-  ssl_cert_reporter_->ReportInvalidCertificateChain(serialized_report);
+ }
+ 
+ void CertReportHelper::SetSSLCertReporterForTesting(
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -228,9 +228,6 @@ void TabHelpers::AttachTabHelpers(WebCon
+                         new ChromePDFWebContentsHelperClient()));
+   PluginObserver::CreateForWebContents(web_contents);
+   SadTabHelper::CreateForWebContents(web_contents);
+-  safe_browsing::SafeBrowsingTabObserver::CreateForWebContents(web_contents);
+-  safe_browsing::SafeBrowsingNavigationObserver::MaybeCreateForWebContents(
+-      web_contents);
+   TabContentsSyncedTabDelegate::CreateForWebContents(web_contents);
+   TabDialogs::CreateForWebContents(web_contents);
+   ThumbnailTabHelper::CreateForWebContents(web_contents);
