@@ -27,11 +27,99 @@ import datetime
 import re
 import distutils.dir_util
 import os
+import shutil
 
 from .. import _common
 from .. import substitute_domains as _substitute_domains
 
 # Private definitions
+
+def _get_packaging_resources():
+    return _common.get_resources_dir() / _common.PACKAGING_DIR / "debian"
+
+def _traverse_directory(directory):
+    """Traversal of an entire directory tree in random order"""
+    iterator_stack = list()
+    iterator_stack.append(directory.iterdir())
+    while iterator_stack:
+        current_iter = iterator_stack.pop()
+        for path in current_iter:
+            yield path
+            if path.is_dir():
+                iterator_stack.append(current_iter)
+                iterator_stack.append(path.iterdir())
+                break
+
+class _Flavor:
+    """
+    Represents a certain flavor
+    """
+
+    _loaded_flavors = dict()
+    _flavor_tree = None
+
+    def __new__(cls, name):
+        if name in cls._loaded_flavors:
+            return cls._loaded_flavors[name]
+        return super().__new__(cls)
+
+    def __init__(self, name):
+        if name not in self._loaded_flavors:
+            self._loaded_flavors[name] = self
+            self.name = name
+            self.path = _get_packaging_resources() / name
+            if not self.path.is_dir():
+                raise ValueError("Not an existing flavor: '{}'".format(name))
+
+    def __str__(self):
+        return "<Flavor: {}>".format(str(self.path))
+
+    def __repr__(self):
+        return str(self)
+
+    @classmethod
+    def _get_parent_name(cls, child):
+        if not cls._flavor_tree:
+            cls._flavor_tree = _common.read_ini(_get_packaging_resources() / "dependencies.ini")
+        if child in cls._flavor_tree and "parent" in cls._flavor_tree[child]:
+            return cls._flavor_tree[child]["parent"]
+        return None
+
+    @property
+    def parent(self):
+        """
+        Returns the Flavor object that this inherits from.
+        Returns None if there is no parent
+        """
+        parent_name = self._get_parent_name(self.name)
+        if parent_name:
+            return _Flavor(parent_name)
+        else:
+            return None
+
+    def _resolve_file_flavors(self):
+        file_flavor_resolutions = dict()
+        current_flavor = self
+        while current_flavor:
+            for path in _traverse_directory(current_flavor.path):
+                rel_path = path.relative_to(current_flavor.path)
+                if rel_path not in file_flavor_resolutions:
+                    file_flavor_resolutions[rel_path] = current_flavor
+            current_flavor = current_flavor.parent
+        return sorted(file_flavor_resolutions.items())
+
+    def assemble_files(self, destination):
+        """
+        Copies all files associated with this flavor to `destination`
+        """
+        for rel_path, flavor in self._resolve_file_flavors():
+            source_path = flavor.path / rel_path
+            dest_path = destination / rel_path
+            if source_path.is_dir():
+                dest_path.mkdir()
+                shutil.copymode(str(source_path), str(dest_path), follow_symlinks=False)
+            else:
+                shutil.copy(str(source_path), str(dest_path), follow_symlinks=False)
 
 class _BuildFileStringTemplate(string.Template):
     """
@@ -78,7 +166,7 @@ def _get_parsed_gn_flags(gn_flags):
 
 # Public definitions
 
-def generate_build_files(resources, output_dir, build_output, target_version, #pylint: disable=too-many-arguments
+def generate_build_files(resources, output_dir, build_output, flavor, #pylint: disable=too-many-arguments
                          distribution_version, apply_domain_substitution):
     """
     Generates the `debian` directory in `output_dir` using resources from
@@ -93,8 +181,8 @@ def generate_build_files(resources, output_dir, build_output, target_version, #p
     )
 
     debian_dir = output_dir / "debian"
-    dpkg_dir = _common.get_resources_dir() / "packaging" / "debian"
-    distutils.dir_util.copy_tree(str(dpkg_dir), str(debian_dir))
+    debian_dir.mkdir(exist_ok=True)
+    _Flavor(flavor).assemble_files(debian_dir)
     distutils.dir_util.copy_tree(str(resources.get_patches_dir()),
                                  str(debian_dir / _common.PATCHES_DIR))
     patch_order = resources.read_patch_order()
@@ -114,7 +202,3 @@ def generate_build_files(resources, output_dir, build_output, target_version, #p
             new_file.seek(0)
             new_file.write(content)
             new_file.truncate()
-
-    for version_specific_path in debian_dir.glob("*." + target_version):
-        new_path = debian_dir / version_specific_path.stem
-        version_specific_path.replace(new_path)

@@ -46,12 +46,11 @@ def _add_subparsers(subparsers):
     subparsers.required = True # Workaround: http://bugs.python.org/issue9253#msg186387
     def _debian_callback(resources, output_dir, args):
         from ._build_files_generators import debian
-        debian.generate_build_files(resources, output_dir, args.build_output, args.target_version,
+        debian.generate_build_files(resources, output_dir, args.build_output, args.flavor,
                                     args.distro_version, args.apply_domain_substitution)
     debian_subparser = subparsers.add_parser("debian", help="Generator for Debian and derivatives")
-    debian_subparser.add_argument("--target-version", choices=["debian_stretch", "ubuntu_xenial"],
-                                  required=True,
-                                  help="The target version of the build scripts")
+    debian_subparser.add_argument("--flavor", required=True,
+                                  help="The flavor of the build scripts")
     debian_subparser.add_argument("--build-output", metavar="DIRECTORY", default="out/Default",
                                   help="The Chromium build output directory")
     debian_subparser.add_argument("--distro-version", default="stable",
