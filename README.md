@@ -30,11 +30,18 @@ Table of Contents
 
 ## Features
 
-In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser), [Inox patchset](//github.com/gcarq/inox-patchset), and [Iridium Browser](//iridiumbrowser.de/):
+This list is not exhaustive. For more details, consult the source code.
+
+ungoogled-chromium borrows features from the following:
+* [Debian](//tracker.debian.org/pkg/chromium-browser)
+* [Inox patchset](//github.com/gcarq/inox-patchset)
+* [Iridium Browser](//iridiumbrowser.de/)
+
+Most of the additional features are as follows:
 * Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
 * Strip binaries from the source code (known as source cleaning)
     * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
-    * However a few data files (e.g. `*_page_model.bin` that define page models for the DOM Distiller) are left in as they do not contain machine code and are needed for building.
+    * However a few data files are left in as they do not contain machine code and are needed for building.
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
@@ -42,35 +49,21 @@ In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser)
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
     * See the [FAQ](FAQ.md#why-is-safe-browsing-disabled)
-* Disable WebRTC
-    * This will be configurable in the future.
-* Disable intranet redirect detector
-    * Prevents unnecessary invalid DNS requests to the DNS server.
+* Disable WebRTC (will be configurable in the future [#179](//github.com/Eloston/ungoogled-chromium/issues/179))
+* Disable intranet redirect detector (extraneous DNS requests)
     * This breaks captive portal detection, but captive portals still work.
 * Add more URL schemes allowed for saving
-    * Note that this generally works only for the MHTML option, since an MHTML page is generated from the rendered page and not the original cached page like the HTML option.
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
     * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
 * (Iridium and Inox feature change) Prevent pinging of IPv6 address when detecting the availability of IPv6
-* Support for building Debian and Ubuntu packages
-    * Creates a separate package `chrome-sandbox` for the SUID sandbox
-        * Not necessary to install if the kernel option `unprivileged_userns_clone` is enabled
-* Windows support with these changes:
-    * Build `wow_helper.exe` from source instead of using the pre-built version
-    * Skip swapping DLL imports (requires `swapimport.exe`, which is usually obtained from Google)
-    * Build `yasm.exe` from source instead of using the pre-built version
-    * Use user-provided building utilities instead of the ones bundled with Chromium (currently `gperf` and `bison`)
-    * Do not set the Zone Identifier on downloaded files (which is a hassle to unset)
+* Support for building Linux packages for multiple distributions (work in progress)
+* Windows support
+    * Does not set the Zone Identifier on downloaded files
 
 **NOTE: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
 
 ### Supported platforms and distributions
 * Linux
-    * Debian
-    * Ubuntu
-    * Arch Linux (no packages yet)
-    * Other distributions: semi-statically-linked builds
-        * This build statically links the libraries provided by Google with source code available. It is not a full statically-linked binary. Done via `is_official_build=true` GN flag
 * Windows
 * macOS
 
