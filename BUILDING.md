@@ -24,6 +24,13 @@ Here are the general steps for building a package of ungoogled-chromium:
 * Generate a build script: `utilikit/generate_build_files.py`
 * Invoke the build script
 
+All build scripts follow the general pattern:
+* Setup some or all of the source tree (as necessary)
+* Apply patches
+* Build GN via `tools/gn/bootstrap/bootstrap.py`
+* Run `gn gen` with the GN flags
+* Build Chromium via `ninja`
+
 All utilities in `utilikit` have built-in command-line help. Pass in `-h` or `--help` for details.
 
 If you just want the build flags and patches without going through `utilikit`, you can use `utilikit/export_resources.py` to export them.
