@@ -7,7 +7,8 @@
 * [Why is Safe Browsing disabled?](#why-is-safe-browsing-disabled)
 * [How do I install Flash player?](#how-do-i-install-flash-player)
 * [How do I install Widevine CDM?](#how-do-i-install-widevine-cdm)
-* [FIDO U2F security keys are not working in Google sign in](#fido-u2f-security-keys-are-not-working-in-google-sign-in)
+* [How do I get the Namespace Sandbox to work on Linux?](#how-do-i-get-the-namespace-sandbox-to-work-on-linux)
+* [How to get FIDO U2F security keys to work in Google sign in?](#how-to-get-fido-u2f-security-keys-to-work-in-google-sign-in)
 
 ## Can I install extensions from the Chrome Webstore?
 
@@ -108,7 +109,10 @@ This applies to version `55.0.2883.95`. In case you're using a different version
 
 `cp -R Google\ Chrome.app/Contents/Versions/55.0.2883.95/Google\ Chrome\ Framework.framework/Libraries/WidevineCdm Chromium.app/Contents/Versions/55.0.2883.95/Chromium\ Framework.framework/Libraries/`
 
+## How do I get the Namespace Sandbox to work on Linux?
 
-## FIDO U2F security keys are not working in Google sign in
+Enable the kernel option `unprivileged_userns_clone`
+
+## How to get FIDO U2F security keys to work in Google sign in?
 
 Google sign in uses a specific extension to access the security key's information. You'll need to install [this extension](https://chrome.google.com/webstore/detail/gnubbyd/beknehfpfkghjoafdifaflglpjkojoco) to make this function. After installation you might need to restart your computer to make it work.

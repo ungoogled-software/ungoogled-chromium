@@ -1,0 +1,63 @@
+# Disable log_url_request, which logs URLs to stderr
+
+--- a/iridium/trknotify.cpp
++++ b/iridium/trknotify.cpp
+@@ -4,10 +4,6 @@
+  * Use of this source code is governed by a BSD-style license that can be
+  * found in the LICENSE file.
+  */
+-#include <cstdio>
+-#ifdef __linux__
+-#	include <unistd.h>
+-#endif
+ #include "chrome/browser/infobars/infobar_service.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_finder.h"
+@@ -19,27 +15,6 @@
+ 
+ namespace iridium {
+ 
+-void log_url_request(const std::string &caller, const GURL &url)
+-{
+-#ifdef __linux__
+-	bool tty = isatty(fileno(stderr));
+-#else
+-	bool tty = false;
+-#endif
+-	const char *xred   = tty ? "\033[1;37;41m" : ""; // ]
+-	const char *xfruit = tty ? "\033[33m"      : ""; // ]
+-	const char *xdark  = tty ? "\033[1;30m"    : ""; // ]
+-	const char *xreset = tty ? "\033[0m"       : ""; // ]
+-
+-	if (url.scheme() == url::kTraceScheme)
+-		fprintf(stderr, "%s*** %s(%s)%s\n", xred, caller.c_str(),
+-		        url.possibly_invalid_spec().c_str(), xreset);
+-	else
+-		fprintf(stderr, "%s***%s %s(%s)%s\n", xfruit, xdark,
+-		        caller.c_str(), url.possibly_invalid_spec().c_str(),
+-		        xreset);
+-}
+-
+ static void __trace_url_request(const std::string &caller, const GURL &url)
+ {
+ 	auto browser = chrome::FindLastActive();
+--- a/iridium/trknotify.h
++++ b/iridium/trknotify.h
+@@ -12,7 +12,6 @@
+ 
+ namespace iridium {
+ 
+-extern void log_url_request(const std::string &, const GURL &);
+ extern void trace_url_request(const std::string &, const GURL &);
+ 
+ }; /* namespace iridium */
+--- a/chrome/app/chrome_main.cc
++++ b/chrome/app/chrome_main.cc
+@@ -50,7 +50,6 @@ int ChromeMain(int argc, const char** ar
+ #if !defined(CHROME_MULTIPLE_DLL_CHILD)
+ static void trace_url_request(const std::string &caller, const GURL &url)
+ {
+-	iridium::log_url_request(caller, url);
+ 	if (url.scheme() != url::kTraceScheme)
+ 		/* Do not show infobar for non-trk URLs */
+ 		return;

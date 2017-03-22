@@ -1,0 +1,122 @@
+#!/usr/bin/make -f
+
+# enable verbose build messages
+export DH_VERBOSE=1
+
+# enable all build hardening flags
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+
+# more verbose linker output
+defines+=target_extra_ldflags=\"-Wl,--stats\"
+
+# avoid error in v8's garbage collector (see http://gcc.gnu.org/bugzilla/show_bug.cgi?id=68853)
+defines+=target_extra_cxxflags=\"-fno-delete-null-pointer-checks\"
+
+DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+
+# set the appropriate cpu architecture
+ifeq (i386,$(DEB_HOST_ARCH))
+defines+=host_cpu=\"x86\"
+endif
+ifeq (amd64,$(DEB_HOST_ARCH))
+defines+=host_cpu=\"x64\"
+endif
+ifeq (arm64,$(DEB_HOST_ARCH))
+defines+=host_cpu=\"arm64\"
+endif
+ifeq (armhf,$(DEB_HOST_ARCH))
+defines+=host_cpu=\"arm\" \
+	 arm_use_neon=false
+endif
+
+# auto-inserted gn flags
+$ungoog{gn_flags}
+
+# some notes about embedded libraries
+#  can't use system nss since net/third_party/nss is heavily patched
+#  can't use system ots (open text *summarizer*) since that's not google's ots (open text *sanitizer*)
+
+# handle parallel build options
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+njobs=-j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+# paths to files needed by flot
+flotpaths=/usr/share/javascript/jquery/*min.js \
+          /usr/share/javascript/jquery-flot/*min.js \
+
+%:
+	dh $@ --parallel
+
+override_dh_auto_configure:
+	# output compiler information
+	$(CXX) --version
+	# use system flot
+	for file in $(flotpaths); do ln -sf $$file third_party/flot; done
+	# strip out system third_party libraries
+	./debian/scripts/unbundle
+	# build gn
+	mkdir -p $ungoog{build_output} || true
+	./tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s $(njobs)
+	# configure
+	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
+
+override_dh_auto_build-arch:
+	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
+	ninja $(njobs) -C $ungoog{build_output} chrome chrome_sandbox content_shell chromedriver
+	mv $ungoog{build_output}/chrome $ungoog{build_output}/chromium || true
+	mv $ungoog{build_output}/chrome.1 $ungoog{build_output}/chromium.1 || true
+	mv $ungoog{build_output}/content_shell $ungoog{build_output}/chromium-shell || true
+	mv $ungoog{build_output}/chrome_sandbox $ungoog{build_output}/chrome-sandbox || true
+	mv $ungoog{build_output}/locales/en-US.pak $ungoog{build_output}/resources || true
+	chmod 4755 $ungoog{build_output}/chrome-sandbox # suid sandbox
+
+override_dh_auto_build-indep:
+	ninja $(njobs) -C $ungoog{build_output} packed_resources
+	rm -f $ungoog{build_output}/locales/en-US.pak
+
+override_dh_auto_install-arch:
+	dh_auto_install
+	# create /etc/chromium.d README file
+	echo "Any files placed in this directory will be sourced prior to executing chromium." \
+	    > debian/chromium/etc/chromium.d/README
+	# update launcher script with build information
+	sed 's|@BUILD_DIST@|$(shell printf "%s %s/%s" $(shell lsb_release -si) $(shell lsb_release -sc) $(shell lsb_release -sr))|' \
+	    < debian/scripts/chromium > debian/chromium/usr/bin/chromium
+	# move icons into /usr/share
+	for file in $(shell find chrome/app/theme/chromium -name product_logo_[0-9]* -a ! -name *mono*); do \
+	    ext=$$(echo $$file | cut -d\. -f2); \
+	    siz=$$(echo $$file | cut -d_ -f3 | sed s/\.$$ext//); \
+	    dst=debian/chromium/usr/share/icons/hicolor/$$siz\x$$siz/apps; \
+	    mkdir -p $$dst; \
+	    cp $$file $$dst/chromium.$$ext; \
+	    done
+
+override_dh_fixperms:
+	dh_fixperms --exclude chrome-sandbox
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym # Do not build any debug packages
+
+override_dh_gencontrol:
+	dh_gencontrol -- -VBuilt-Using="$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W libjs-jquery libjs-jquery-flot)"
+
+override_dh_auto_clean:
+	rm -rf out
+	find . -name \*.pyc -execdir rm -f {} \;
+	dh_auto_clean
+
+###################### upstream source downloading ############################
+
+url=https://gsdview.appspot.com/chromium-browser-official
+version=$(shell dpkg-parsechangelog -S Version | sed s/-.*//)
+tarball=chromium-$(version).tar.xz
+removed=chromium-browser_$(version).files-removed
+
+get-orig-source:
+	wget -nv --show-progress -c $(url)/$(tarball) -O ../$(tarball)
+	mk-origtargz ../$(tarball) | tee ../$(removed)
+	echo >> ../$(removed)
+	tar tf ../$(tarball) | sort > ../chromium.upstream
+	tar tf ../chromium-browser_$(version).orig.tar.xz | sort > ../chromium.orig
+	diff -u ../chromium.upstream ../chromium.orig >> ../$(removed) || true

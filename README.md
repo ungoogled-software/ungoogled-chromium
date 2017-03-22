@@ -9,6 +9,10 @@ ungoogled-chromium is a set of configuration flags, patches, and custom scripts.
 * Strip binaries from the source tree, and use those provided by the system or build them from source
 * Add, modify, or disable features that inhibit control and transparency (these changes are minor and do not have significant impacts on the general user experience)
 
+**ungoogled-chromium should not be considered a fork of Chromium**. The main reason for this is that a fork is associated with more significant deviations from the Chromium, such as branding, configuration formats, file locations, and other interface changes. ungoogled-chromium will not modify the Chromium browser outside of the project's goals.
+
+Since these goals and requirements are not precise, unclear situations are discussed and decided on a case-by-case basis.
+
 **ungoogled-chromium is looking for contributors**. See the [Contributing, Reporting, Contacting](#contributing-reporting-contacting) section for more information.
 
 Table of Contents
@@ -20,65 +24,60 @@ Table of Contents
 * [Design and implementation](#design-and-implementation)
 * [Building](#building)
 * [Contributing, Reporting, Contacting](#contributing-reporting-contacting)
-    * [Pull requests](#pull-requests)
+    * [Pull request guidelines](#pull-request-guidelines)
 * [Credits](#credits)
 * [License](#license)
 
 ## Features
 
-In addition to features from [Debian](//tracker.debian.org/pkg/chromium-browser), [Inox patchset](//github.com/gcarq/inox-patchset), and [Iridium Browser](//iridiumbrowser.de/):
+This list is not exhaustive. For more details, consult the source code.
+
+ungoogled-chromium borrows features from the following:
+* [Debian](//tracker.debian.org/pkg/chromium-browser)
+* [Inox patchset](//github.com/gcarq/inox-patchset)
+* [Iridium Browser](//iridiumbrowser.de/)
+
+Most of the additional features are as follows:
 * Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
 * Strip binaries from the source code (known as source cleaning)
     * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
-    * However a few data files (e.g. `*_page_model.bin` that define page models for the DOM Distiller) are left in as they do not contain machine code and are needed for building.
+    * However a few data files are left in as they do not contain machine code and are needed for building.
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
-* Disable JavaScript dialog boxes from showing when a page closes (onbeforeunload events)
-    * Bypasses the annoying dialog boxes that spawn when a page is being closed
 * Added menu item under "More tools" to clear the HTTP authentication cache on-demand
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
     * See the [FAQ](FAQ.md#why-is-safe-browsing-disabled)
-* Disable WebRTC
-    * This will be configurable in the future.
-* Disable intranet redirect detector
-    * Prevents unnecessary invalid DNS requests to the DNS server.
+* Disable WebRTC (will be configurable in the future [#179](//github.com/Eloston/ungoogled-chromium/issues/179))
+* Disable intranet redirect detector (extraneous DNS requests)
     * This breaks captive portal detection, but captive portals still work.
 * Add more URL schemes allowed for saving
-    * Note that this generally works only for the MHTML option, since an MHTML page is generated from the rendered page and not the original cached page like the HTML option.
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
     * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
 * (Iridium and Inox feature change) Prevent pinging of IPv6 address when detecting the availability of IPv6
-* Support for building Debian and Ubuntu packages
-    * Creates a separate package `chrome-sandbox` for the SUID sandbox
-        * Not necessary to install if the kernel option `unprivileged_userns_clone` is enabled
-* Windows support with these changes:
-    * Build `wow_helper.exe` from source instead of using the pre-built version
-    * Build `swapimport.exe` from source instead of downloading it from Google (requires [customized syzygy source code](//github.com/Eloston/syzygy))
-    * Build `yasm.exe` from source instead of using the pre-built version
-    * Use user-provided building utilities instead of the ones bundled with Chromium (currently `gperf` and `bison`)
-    * Do not set the Zone Identifier on downloaded files (which is a hassle to unset)
+* Support for building Linux packages for multiple distributions (work in progress)
+* Windows support
+    * Does not set the Zone Identifier on downloaded files
 
-**DISCLAIMER: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
+**NOTE: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
 
 ### Supported platforms and distributions
 * Linux
-    * Debian
-    * Ubuntu
-    * Arch Linux (no packages yet)
-    * Other distributions: semi-statically-linked builds
-        * This build statically links the libraries provided by Google with source code available. It is not a full statically-linked binary. Done via `is_official_build=true` GN flag
 * Windows
 * macOS
 
 ## Download pre-built packages
 
-[Downloads for the latest release](//github.com/Eloston/ungoogled-chromium/releases/latest)
+### Contributor binaries
 
-[List of all releases](//github.com/Eloston/ungoogled-chromium/releases)
+[All downloads](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
 
 The release versioning scheme follows that of the tags. See the next section for more details.
+
+### Alternative installation methods
+
+macOS cask: Available as `eloston-chromium`
 
 ## Getting the source code
 
@@ -103,19 +102,15 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 ## Contributing, Reporting, Contacting
 
-Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions. There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) that serves the same purpose.
+Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions. There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for those who want a real-time discussion.
 
-Contributors are welcome!
+Contributions of many kinds are welcome! For pull requests, please read the guidelines below first. Additionally, issues marked with the `help wanted` tag are changes that needs discussion or assistance.
 
-If you are interested in making a change, I, Eloston, encourage you to submit a pull request. Please read the Pull requests section below for submission guidelines.
-* Additionally, issues marked with the `help wanted` tag are changes I need others to help with. Please read the issue's comment thread for more details on what needs to be done.
+### Pull request guidelines
 
-### Pull requests
-
-Pull requests are also welcome. Here are some guidelines:
-* Changes that fix certain configurations or add small features and do not break compatibility are generally okay
-* Larger changes, such as those that change `buildlib`, should be proposed through an issue first before submitting a pull request.
-* When in doubt, propose the idea through an issue first.
+* Minor changes, such as bug fixes, documentation fixes, or small feature additions, will generally not need prior approval.
+* More significant changes should be proposed through an issue first, where it can be discussed publically and then approved.
+* When in doubt, create an issue first.
 
 ## Credits
 

@@ -1,0 +1,118 @@
+--- a/chrome/app/chrome_main.cc
++++ b/chrome/app/chrome_main.cc
+@@ -13,11 +13,6 @@
+ #include "content/public/common/content_switches.h"
+ #include "headless/public/headless_shell.h"
+ #include "ui/gfx/switches.h"
+-#if !defined(CHROME_MULTIPLE_DLL_CHILD)
+-#	include "net/url_request/url_request.h"
+-#	include "iridium/trknotify.h"
+-#	include "base/strings/string_util.h"
+-#endif
+ 
+ #if BUILDFLAG(ENABLE_PACKAGE_MASH_SERVICES)
+ #include "chrome/app/mash/mash_runner.h"
+@@ -48,20 +43,6 @@ int ChromeMain(int argc, const char** ar
+ }
+ #endif
+ 
+-#if !defined(CHROME_MULTIPLE_DLL_CHILD)
+-static void trace_url_request(const std::string &caller, const GURL &url)
+-{
+-	if (!base::EndsWith(url.host(), "qjz9zk", base::CompareCase::INSENSITIVE_ASCII)) {
+-		if (url.scheme() != url::kTraceScheme)
+-			/* Do not show infobar for non-trk URLs */
+-			return;
+-		if (url.is_trq())
+-			return;
+-	}
+-	iridium::trace_url_request(caller, url);
+-}
+-#endif
+-
+ #if defined(OS_WIN)
+ DLLEXPORT int __cdecl ChromeMain(HINSTANCE instance,
+                                  sandbox::SandboxInterfaceInfo* sandbox_info,
+@@ -128,9 +109,6 @@ int ChromeMain(int argc, const char** ar
+   }
+ #endif  // BUILDFLAG(ENABLE_PACKAGE_MASH_SERVICES)
+ 
+-#if !defined(CHROME_MULTIPLE_DLL_CHILD)
+-  net::trace_urlreq_cb = &trace_url_request;
+-#endif
+   int rv = content::ContentMain(params);
+ 
+ #if defined(OS_WIN)
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -5499,6 +5499,12 @@ Keep your key file in a safe place. You
+       <message name="IDS_FLAGS_DEBUG_SHORTCUTS_NAME" desc="Name of the 'Debugging keyboard shortcuts' lab.">
+         Debugging keyboard shortcuts
+       </message>
++      <message name="IDS_FLAGS_DISABLE_TRKBAR_NAME" desc="Name of the 'Disable 'Blocked request to ...' infobars' setting.">
++        Disable 'Blocked request to ...' infobars
++      </message>
++      <message name="IDS_FLAGS_DISABLE_TRKBAR_DESCRIPTION" desc="Description of the 'Disable 'Blocked request to ...' infobars' setting.">
++        Disables the 'Blocked request to ...' infobars that show for blocked connection attempts to trk: schemes or the substituted domain qjz9zk.
++      </message>
+       <message name="IDS_FLAGS_IGNORE_GPU_BLACKLIST_NAME" desc="Name of the 'Ignore GPU blacklist' lab.">
+         Override software rendering list
+       </message>
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -704,6 +704,11 @@ kAutofillCreditCardPopupLayoutFeatureVar
+ //
+ // When adding a new choice, add it to the end of the list.
+ const FeatureEntry kFeatureEntries[] = {
++#if !defined(CHROME_MULTIPLE_DLL_CHILD)
++    {"disable-trkbar", IDS_FLAGS_DISABLE_TRKBAR_NAME,
++     IDS_FLAGS_DISABLE_TRKBAR_DESCRIPTION, kOsDesktop,
++     SINGLE_VALUE_TYPE("disable-trkbar")},
++#endif
+     {"ignore-gpu-blacklist", IDS_FLAGS_IGNORE_GPU_BLACKLIST_NAME,
+      IDS_FLAGS_IGNORE_GPU_BLACKLIST_DESCRIPTION, kOsAll,
+      SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -276,8 +276,27 @@
+ #include "chrome/browser/metrics/desktop_session_duration/desktop_session_duration_tracker.h"
+ #endif
+ 
++#if !defined(CHROME_MULTIPLE_DLL_CHILD)
++#	include "iridium/trknotify.h"
++#	include "base/strings/string_util.h"
++#endif
++
+ using content::BrowserThread;
+ 
++#if !defined(CHROME_MULTIPLE_DLL_CHILD)
++static void trace_url_request(const std::string &caller, const GURL &url)
++{
++	if (!base::EndsWith(url.host(), "qjz9zk", base::CompareCase::INSENSITIVE_ASCII)) {
++		if (url.scheme() != url::kTraceScheme)
++			/* Do not show infobar for non-trk URLs */
++			return;
++		if (url.is_trq())
++			return;
++	}
++	iridium::trace_url_request(caller, url);
++}
++#endif
++
+ namespace {
+ 
+ // A provider of Geolocation services to override AccessTokenStore.
+@@ -1036,6 +1055,13 @@ int ChromeBrowserMainParts::PreCreateThr
+     about_flags::ConvertFlagsToSwitches(&flags_storage,
+                                         base::CommandLine::ForCurrentProcess(),
+                                         flags_ui::kAddSentinels);
++#if !defined(CHROME_MULTIPLE_DLL_CHILD)
++    const base::CommandLine& command_line =
++        *base::CommandLine::ForCurrentProcess();
++    if (!command_line.HasSwitch("disable-trkbar")) {
++      net::trace_urlreq_cb = &trace_url_request;
++    }
++#endif
+   }
+ #endif  // !defined(OS_CHROMEOS)
+   // The MaterialDesignController needs to look at command line flags, which
