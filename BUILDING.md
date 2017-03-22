@@ -56,7 +56,7 @@ For Debian 9 (stretch):
 
 ```
 export UTILIKIT_CONFIG_TYPE=debian_stretch
-./utilikit/check_requirements.py
+./utilikit/check_requirements.py --common --quilt
 mkdir build/
 mkdir build/sandbox
 mkdir build/downloads
