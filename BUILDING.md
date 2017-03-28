@@ -170,7 +170,7 @@ quilt push -a
 ./tools/gn/bootstrap/bootstrap.py -v
 ./out/Release/gn gen out/Release  --fail-on-unused-args
 ```
-####Modify args.gn inside out/Release to look like this
+#### Modify args.gn inside `out/Release` to look like this
 ```
 is_debug = false
 treat_warnings_as_errors=false
@@ -198,7 +198,7 @@ enable_widevine=true
 symbol_level=0
 enable_iterator_debugging=false
 ```
-#####and finally:
+##### and finally:
 ```
 ninja -C out/Release chrome
 ```
