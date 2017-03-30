@@ -261,7 +261,6 @@ def get_resources_dir():
 def get_resource_obj():
     """Returns a resource object"""
     config_type = os.environ.get(_ENV_PREFIX + "CONFIG_TYPE")
-    print("Config type {}".format(config_type))
     if not config_type:
         raise ValueError(_ENV_PREFIX + "CONFIG_TYPE environment variable must be defined")
     if config_type == "custom":

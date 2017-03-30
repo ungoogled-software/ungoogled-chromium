@@ -21,15 +21,14 @@
 
 """Debian-specific build files generation code"""
 
-import string
 import locale
 import datetime
-import re
 import os
 import shutil
 
 from .. import _common
 from .. import export_resources as _export_resources
+from . import _common as _build_files_common
 
 # Private definitions
 
@@ -120,23 +119,6 @@ class _Flavor:
             else:
                 shutil.copy(str(source_path), str(dest_path), follow_symlinks=False)
 
-class _BuildFileStringTemplate(string.Template):
-    """
-    Custom string substitution class
-
-    Inspired by
-    http://stackoverflow.com/questions/12768107/string-substitutions-using-templates-in-python
-    """
-
-    pattern = r"""
-    {delim}(?:
-      (?P<escaped>{delim}) |
-      _(?P<named>{id})      |
-      {{(?P<braced>{id})}}   |
-      (?P<invalid>{delim}((?!_)|(?!{{)))
-    )
-    """.format(delim=re.escape("$ungoog"), id=string.Template.idpattern)
-
 def _get_dpkg_changelog_datetime(override_datetime=None):
     if override_datetime is None:
         current_datetime = datetime.date.today()
@@ -187,12 +169,4 @@ def generate_build_files(resources, output_dir, build_output, flavor, #pylint: d
     _common.write_list(debian_dir / _common.PATCHES_DIR / "series",
                        resources.read_patch_order())
 
-    for old_path in debian_dir.glob("*.in"):
-        new_path = debian_dir / old_path.stem
-        old_path.replace(new_path)
-        with new_path.open("r+") as new_file:
-            content = _BuildFileStringTemplate(new_file.read()).substitute(
-                **build_file_subs)
-            new_file.seek(0)
-            new_file.write(content)
-            new_file.truncate()
+    _build_files_common.generate_from_templates(debian_dir, build_file_subs)

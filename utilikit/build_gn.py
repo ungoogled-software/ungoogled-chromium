@@ -27,11 +27,11 @@ import sys
 import pathlib
 import argparse
 import shlex
+import os.path
 
 if __name__ == "__main__" and (__package__ is None or __package__ == ""):
     def _fix_relative_import():
         """Allow relative imports to work from anywhere"""
-        import os.path
         parent_path = os.path.dirname(os.path.realpath(os.path.abspath(__file__)))
         sys.path.insert(0, os.path.dirname(parent_path))
         global __package__ #pylint: disable=global-variable-undefined
@@ -56,7 +56,11 @@ def construct_gn_command(output_path, gn_flags, python2_command=None, shell=Fals
     if python2_command:
         command_list.insert(0, python2_command)
     if shell:
-        return " ".join([shlex.quote(x) for x in command_list])
+        command_string = " ".join([shlex.quote(x) for x in command_list])
+        if python2_command:
+            return command_string
+        else:
+            return os.path.join(".", command_string)
     else:
         return command_list
 
