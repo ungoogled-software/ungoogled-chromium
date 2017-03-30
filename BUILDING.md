@@ -154,8 +154,55 @@ See `build.py` for more on customizing the build environment or process.
 
 #### Build
 
-    # Change directory to ungoogled-chromium's root directory
-    python3 build.py
+# Change directory to ungoogled-chromium's root directory
+
+```
+export UTILIKIT_CONFIG_TYPE=macos
+./utilikit/check_requirements.py --common --quilt --macos
+mkdir build/
+mkdir build/sandbox
+mkdir build/downloads
+./utilikit/prepare_sources.py
+./utilikit/substitute_domains.py
+./utilikit/generate_build_files.py macos --apply-domain-substitution
+cd build/sandbox
+quilt push -a
+./tools/gn/bootstrap/bootstrap.py -v
+./out/Release/gn gen out/Release  --fail-on-unused-args
+```
+#### Modify args.gn inside `out/Release` to look like this
+```
+is_debug = false
+treat_warnings_as_errors=false
+fatal_linker_warnings=false
+use_ozone=false
+use_sysroot=false
+enable_remoting=false
+enable_nacl=false
+enable_nacl_nonsfi=false
+safe_browsing_mode=0
+enable_webrtc=false
+enable_hangout_services_extension=false
+fieldtrial_testing_like_official_build=true
+proprietary_codecs=true
+ffmpeg_branding="Chrome"
+enable_google_now=false
+enable_one_click_signin=false
+enable_hotwording=false
+google_api_key=""
+google_default_client_id=""
+google_default_client_secret=""
+use_official_google_api_keys=false
+remove_webcore_debug_symbols=true
+enable_widevine=true
+symbol_level=0
+enable_iterator_debugging=false
+```
+##### and finally:
+```
+ninja -C out/Release chrome
+```
+
 
 ### Arch Linux
 
