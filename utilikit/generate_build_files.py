@@ -59,6 +59,15 @@ def _add_subparsers(subparsers):
     debian_subparser.add_argument("--apply-domain-substitution", action="store_true",
                                   help="Use domain substitution")
     debian_subparser.set_defaults(callback=_debian_callback)
+    def _macos_callback(resources, output_dir, args):
+        from ._build_files_generators import macos
+        macos.generate_build_files(resources, output_dir, args.build_output, args.apply_domain_substitution)
+    macos_subparser = subparsers.add_parser("macos", help="Generator for macos")
+    macos_subparser.add_argument("--build-output", metavar="DIRECTORY", default="out/Default",
+                                  help="The Chromium build output directory")
+    macos_subparser.add_argument("--apply-domain-substitution", action="store_true",
+                                  help="Use domain substitution")
+    macos_subparser.set_defaults(callback=_macos_callback)
 
 def _main():
     parser = argparse.ArgumentParser(description=__doc__)
