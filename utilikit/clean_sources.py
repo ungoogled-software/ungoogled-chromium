@@ -26,18 +26,17 @@ import pathlib
 import sys
 import argparse
 
-def fix_relative_import():
-    """Allow relative imports to work from anywhere"""
-    import os.path
-    parent_path = os.path.dirname(os.path.realpath(os.path.abspath(__file__)))
-    sys.path.insert(0, os.path.dirname(parent_path))
-    global __package__ #pylint: disable=global-variable-undefined
-    __package__ = os.path.basename(parent_path) #pylint: disable=redefined-builtin
-    __import__(__package__)
-    sys.path.pop(0)
-
 if __name__ == "__main__" and (__package__ is None or __package__ == ""):
-    fix_relative_import()
+    def _fix_relative_import():
+        """Allow relative imports to work from anywhere"""
+        import os.path
+        parent_path = os.path.dirname(os.path.realpath(os.path.abspath(__file__)))
+        sys.path.insert(0, os.path.dirname(parent_path))
+        global __package__ #pylint: disable=global-variable-undefined
+        __package__ = os.path.basename(parent_path) #pylint: disable=redefined-builtin
+        __import__(__package__)
+        sys.path.pop(0)
+    _fix_relative_import()
 
 from . import _common #pylint: disable=wrong-import-position
 

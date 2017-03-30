@@ -25,12 +25,11 @@ import string
 import locale
 import datetime
 import re
-import distutils.dir_util
 import os
 import shutil
 
 from .. import _common
-from .. import substitute_domains as _substitute_domains
+from .. import export_resources as _export_resources
 
 # Private definitions
 
@@ -183,15 +182,10 @@ def generate_build_files(resources, output_dir, build_output, flavor, #pylint: d
     debian_dir = output_dir / "debian"
     debian_dir.mkdir(exist_ok=True)
     _Flavor(flavor).assemble_files(debian_dir)
-    distutils.dir_util.copy_tree(str(resources.get_patches_dir()),
-                                 str(debian_dir / _common.PATCHES_DIR))
-    patch_order = resources.read_patch_order()
-    if apply_domain_substitution:
-        _substitute_domains.substitute_domains(
-            _substitute_domains.get_parsed_domain_regexes(resources.read_domain_regex_list()),
-            patch_order, debian_dir / _common.PATCHES_DIR, log_warnings=False)
+    _export_resources.export_patches_dir(resources, debian_dir / _common.PATCHES_DIR,
+                                         apply_domain_substitution)
     _common.write_list(debian_dir / _common.PATCHES_DIR / "series",
-                       patch_order)
+                       resources.read_patch_order())
 
     for old_path in debian_dir.glob("*.in"):
         new_path = debian_dir / old_path.stem
