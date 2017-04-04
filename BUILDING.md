@@ -17,7 +17,7 @@ Additional requirements are listed in the sections for specific platforms.
 Here are the general steps for building a package of ungoogled-chromium:
 
 * Set `UTILIKIT_*` environment variables
-* Check to see if the build environment is setup correctly: `utilikit/check_requirements.py`
+* Check to see if the build environment is setup correctly (optional, only certain requirements): `utilikit/check_requirements.py`
 * Make build directories `build/`, `build/sandbox/`, `build/downloads/`
 * Prepare the source code: `utilikit/prepare_sources.py`
 * Apply domain substitution: `utilikit/substitute_domains.py`
@@ -63,7 +63,6 @@ For Debian 9 (stretch):
 
 ```
 export UTILIKIT_CONFIG_TYPE=debian_stretch
-./utilikit/check_requirements.py --common --quilt
 mkdir build/
 mkdir build/sandbox
 mkdir build/downloads
@@ -156,7 +155,7 @@ See `build.py` for more on customizing the build environment or process.
 
 ```
 export UTILIKIT_CONFIG_TYPE=macos
-./utilikit/check_requirements.py --common --quilt --macos
+./utilikit/check_requirements.py --macos
 mkdir build/
 mkdir build/sandbox
 mkdir build/downloads
