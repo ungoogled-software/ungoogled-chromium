@@ -6,9 +6,10 @@
 
 The following is needed to fully use `utilikit`:
 * Python 3 (tested on 3.5) for running `utilikit`
-* The following can be provided by [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools) (but it is recommended to obtain these from their respective websites)
-    * Python 2 (tested on 2.7) for building GN and running other scripts
-    * [Ninja](//ninja-build.org/) for running the build command
+* Python 2 (tested on 2.7) for building GN and running other scripts
+* [Ninja](//ninja-build.org/) for running the build command
+
+Alternatively, one can obtain Python 2 and Ninja binaries from [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools). depot_tools provides additional utilities that may ease the setup of the build environment for certain target configurations.
 
 Additional requirements are listed in the sections for specific platforms.
 
