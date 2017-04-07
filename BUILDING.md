@@ -1,6 +1,6 @@
 # Building ungoogled-chromium
 
-**Notice for master branch users**: The information in this document may not apply to the latest tag version. Please consult the documentation from the tag instead.
+**Notice for users of the develop branch**: The information in this document may be out-of-date or incorrect.
 
 ## Common building requirements
 
@@ -15,28 +15,31 @@ Additional requirements are listed in the sections for specific platforms.
 
 ## General building instructions
 
-Here are the general steps for building a package of ungoogled-chromium:
-
-* Set `UTILIKIT_*` environment variables
-* Check to see if the build environment is setup correctly (optional, only certain requirements): `utilikit/check_requirements.py`
-* Make build directories `build/`, `build/sandbox/`, `build/downloads/`
-* Prepare the source code: `utilikit/prepare_sources.py`
-* Apply domain substitution: `utilikit/substitute_domains.py`
-* Generate a build script: `utilikit/generate_build_files.py`
-* Invoke the build script
-
-All build scripts follow the general pattern:
-* Setup some or all of the source tree (as necessary)
-* Apply patches
-* Build GN via `tools/gn/bootstrap/bootstrap.py`
-* Run `gn gen` with the GN flags
-* Build Chromium via `ninja`
-
-All utilities in `utilikit` have built-in command-line help. Pass in `-h` or `--help` for details.
+The general building steps listed below is only one use case of `utilikit`. You can use whichever and as many utilities as needed in your build process.
 
 If you just want the build flags and patches without going through `utilikit`, you can use `utilikit/export_resources.py` to export them.
 
-The general building steps is only one use case of `utilikit`. You can use whichever and as many utilities as needed in your build process.
+Here are the typical steps for building a package of ungoogled-chromium:
+
+1. Set `UTILIKIT_*` environment variables
+2. Check to see if the build environment is setup correctly (optional, only certain requirements): `utilikit/check_requirements.py`
+3. Make build directories `build/`, `build/sandbox/`, `build/downloads/`
+4. Prepare the source code: `utilikit/prepare_sources.py`
+5. Apply domain substitution: `utilikit/substitute_domains.py`
+6. If `utilikit` can generate build files for the desired configuration, use the following:
+    * Generate build files: `utilikit/generate_build_files.py`
+    * Use the build files.
+    * NOTE: The generated build files vary in format across configurations. Consult the [platform-specific building instructions](#platform-specific-building-instructions) below for usage details.
+7. If not using generated build files, run the build sequence as follows:
+    2. Apply patches
+    3. Build GN via `tools/gn/bootstrap/bootstrap.py`
+    4. Run `gn gen` with the GN flags
+    5. Build Chromium via `ninja`
+    6. Package the build outputs
+
+The build sequence is essentially what the build files automate.
+
+All utilities in `utilikit` have built-in command-line help. Pass in `-h` or `--help` for details.
 
 For a list of all `utilikit` utilities, see [DESIGN.md](DESIGN.md).
 
@@ -54,7 +57,7 @@ For Linux users, make sure to `export` these variables to make them available to
 
 ## Platform-specific building instructions
 
-### Debian and derivatives
+### Debian and its derivatives
 
 These build instructions should work on the CPU architectures `amd64`, `i386`, `arm64`, and `armhf`.
 
@@ -175,22 +178,13 @@ For now, see the instructions for Other Linux distributions. The resulting binar
 
 ### Other Linux distributions
 
-**These instructions are out-of-date**
-
 #### Setting up the build environment
 
-* Install the following through your package manager or elsewhere:
-    * `clang`, preferrably the latest version
-    * Python 3.5 or newer (or 3.4 if necessary)
-    * Python 2
-    * `quilt`
-    * `ninja`
-* Follow [these instructions](//chromium.googlesource.com/chromium/src/+/55.0.2883.75/docs/linux_build_instructions.md#Install-additional-build-dependencies) to install additional dependencies for building
+TODO
 
 #### Build
 
-    # Change directory to ungoogled-chromium's root directory
-    python3 build.py
+TODO
 
 ### Notes for other systems, platforms, and configurations
 
