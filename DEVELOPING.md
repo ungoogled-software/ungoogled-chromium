@@ -36,7 +36,7 @@ This is an example workflow on Linux that can be modified for your specific usag
     * This will setup quilt to modify patches directly in `resources/`
 4. Use `quilt` to update the patches. The general procedure is as follows:
     1. Make sure all patches are unapplied: `quilt pop -a`. Check the status with `quilt top`
-    2. Execute shell loop: `while quilt push; do quilt refresh -p ab; done`
+    2. Execute shell loop: `while quilt push; do quilt refresh -p ab --no-index --no-timestamp; done`
     3. If encountered an error, do `quilt push -f`
     4. Edit the broken files as necessary, adding (`quilt add ...`) or removing (`quilt remove ...`) files as necessary
     5. `quilt refresh -p ab`
