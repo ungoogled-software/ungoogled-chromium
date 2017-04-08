@@ -19,7 +19,7 @@ The general building steps listed below is only one use case of `utilikit`. You 
 
 If you just want the build flags and patches without going through `utilikit`, you can use `utilikit/export_resources.py` to export them.
 
-Here are the typical steps for building a package of ungoogled-chromium:
+Here are the typical steps for building ungoogled-chromium:
 
 1. Set `UTILIKIT_*` environment variables
 2. Check to see if the build environment is setup correctly (optional, only certain requirements): `utilikit/check_requirements.py`
@@ -35,9 +35,12 @@ Here are the typical steps for building a package of ungoogled-chromium:
     3. Build GN via `tools/gn/bootstrap/bootstrap.py`
     4. Run `gn gen` with the GN flags
     5. Build Chromium via `ninja`
-    6. Package the build outputs
+    6. Package the build outputs. This should be the same as it is for regular Chromium.
 
-The build sequence is essentially what the build files automate.
+It should be noted that the build sequence...
+
+* is similar to Google's build steps for Chromium, and identical to the steps used by some Linux packagers of Chromium.
+* is automated by the build files.
 
 All utilities in `utilikit` have built-in command-line help. Pass in `-h` or `--help` for details.
 
@@ -57,9 +60,13 @@ For Linux users, make sure to `export` these variables to make them available to
 
 ## Platform-specific building instructions
 
+NOTE: These instructions are the ones used for producing the published binaries.
+
 ### Debian and its derivatives
 
-These build instructions should work on the CPU architectures `amd64`, `i386`, `arm64`, and `armhf`.
+These instructions will create `.deb` packages using ungoogled-chromium's variation of Debian's `debian` directory.
+
+The build should work on the CPU architectures `amd64`, `i386`, `arm64`, and `armhf`.
 
 Install common requirements: `# apt install packaging-dev python3 python2 ninja`
 

@@ -18,6 +18,7 @@ It is recommended to first read the [BUILDING.md](BUILDING.md) and [DESIGN.md](D
 This is an example workflow on Linux that can be modified for your specific usage.
 
 1. Download and extract the Chromium source tree into a sandbox directory.
+    * **IMPORTANT**: Do not apply domain substitution, as that will be reflected in the repository patches.
 2. Generate the patch order for the desired configuration to modify via `developer_utilities/generate_patch_order.sh`
     * Read the comments at the top of the script for the arguments it requires
     * Choose the appropriate configuration that contains the patches to be updated. To get just the common patches, use the `common` config.
