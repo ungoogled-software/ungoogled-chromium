@@ -50,7 +50,9 @@ def generate_build_files(resources, output_dir, build_output, apply_domain_subst
         build_files_dir=_BUILD_FILES_DIR,
         gn_args_string=" ".join(
             [flag + "=" + value for flag, value in gn_flags.items()]
-        )
+        ),
+        chromium_version=resources.read_version()[0],
+        release_revision=resources.read_version()[1]
     )
 
     macos_dir = output_dir / _BUILD_FILES_DIR
