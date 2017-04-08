@@ -1,5 +1,15 @@
 # Development notes and procedures
 
+## Updating domain substitution and source cleaning lists
+
+```
+export UTILIKIT_CONFIG_TYPE=common
+printf "" | ./utilikit/prepare_sources.py --source-cleaning-list -
+./developer_utilities/update_lists.py --generate cleaning_list --cleaning-list resources/configs/common/cleaning_list
+./utilikit/clean_sources.py # This is important so domain substitution does not include extra files
+./developer_utilities/update_lists.py --generate domain_substitution_list --domain-regex-list resources/configs/common/domain_substitution_list
+```
+
 ## Workflow of updating patches
 
 Tested on Debian 9.0 (stretch). Exact instructions should work on any other Linux or macOS system with the proper dependencies.
@@ -19,10 +29,9 @@ This is an example workflow on Linux that can be modified for your specific usag
 
 1. Download and extract the Chromium source tree into a sandbox directory.
     * **IMPORTANT**: Do not apply domain substitution, as that will be reflected in the repository patches.
-2. Generate the patch order for the desired configuration to modify via `developer_utilities/generate_patch_order.sh`
-    * Read the comments at the top of the script for the arguments it requires
+2. Generate the patch order for the desired configuration to modify via `developer_utilities/generate_patch_order.py`
+    * Pass in `--help` for arguments it takes
     * Choose the appropriate configuration that contains the patches to be updated. To get just the common patches, use the `common` config.
-    * This will create a temporary patch order file in `build/`
 3. Run `source $ROOT/developer_utilities/set_quilt_vars.sh $ROOT`, where `$ROOT` is the ungoogled-chromium directory.
     * This will setup quilt to modify patches directly in `resources/`
 4. Use `quilt` to update the patches. The general procedure is as follows:
