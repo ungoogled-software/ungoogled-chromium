@@ -40,9 +40,7 @@ if __name__ == "__main__" and (__package__ is None or __package__ == ""):
 
 from . import _common #pylint: disable=wrong-import-position
 
-def _add_subparsers(subparsers):
-    """Adds argument subparsers"""
-    subparsers.required = True # Workaround: http://bugs.python.org/issue9253#msg186387
+def _add_debian_subparser(subparsers):
     def _debian_callback(resources, output_dir, args):
         from ._build_files_generators import debian
         debian.generate_build_files(resources, output_dir, args.build_output, args.flavor,
@@ -58,6 +56,8 @@ def _add_subparsers(subparsers):
     debian_subparser.add_argument("--apply-domain-substitution", action="store_true",
                                   help="Use domain substitution")
     debian_subparser.set_defaults(callback=_debian_callback)
+
+def _add_macos_subparser(subparsers):
     def _macos_callback(resources, output_dir, args):
         from ._build_files_generators import macos
         macos.generate_build_files(resources, output_dir, args.build_output,
@@ -68,6 +68,28 @@ def _add_subparsers(subparsers):
     macos_subparser.add_argument("--apply-domain-substitution", action="store_true",
                                  help="Use domain substitution")
     macos_subparser.set_defaults(callback=_macos_callback)
+
+def _add_linux_simple_subparser(subparsers):
+    def _callback(resources, output_dir, args):
+        from ._build_files_generators import linux_simple
+        linux_simple.generate_build_files(resources, output_dir, args.build_output,
+                                          args.apply_domain_substitution)
+    new_subparser = subparsers.add_parser(
+        "linux_simple",
+        help="Generator for a simple Linux build script"
+    )
+    new_subparser.add_argument("--build-output", metavar="DIRECTORY", default="out/Default",
+                               help="The Chromium build output directory")
+    new_subparser.add_argument("--apply-domain-substitution", action="store_true",
+                               help="Use domain substitution")
+    new_subparser.set_defaults(callback=_callback)
+
+def _add_subparsers(subparsers):
+    """Adds argument subparsers"""
+    subparsers.required = True # Workaround: http://bugs.python.org/issue9253#msg186387
+    _add_debian_subparser(subparsers)
+    _add_macos_subparser(subparsers)
+    _add_linux_simple_subparser(subparsers)
 
 def _main():
     parser = argparse.ArgumentParser(description=__doc__)
