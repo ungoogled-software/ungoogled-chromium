@@ -25,6 +25,7 @@
 import sys
 import pathlib
 import argparse
+import platform
 
 if __name__ == "__main__" and (__package__ is None or __package__ == ""):
     def _fix_relative_import():
@@ -51,11 +52,8 @@ def file_list_generator(root_dir_name, files_cfg_path, build_output_dir, include
         exec(cfg_file.read(), exec_globals) # pylint: disable=exec-used
     for file_spec in exec_globals["FILES"]:
         if "official" in file_spec["buildtype"]:
-            if "arch" in file_spec:
-                if target_cpu == "x86" and not "32bit" in file_spec["arch"]:
-                    continue
-                elif target_cpu == "x64" and not "64bit" in file_spec["arch"]:
-                    continue
+            if target_cpu and "arch" in file_spec and target_cpu not in file_spec["arch"]:
+                continue
             for file_path in build_output_dir.glob(file_spec["filename"]):
                 if not file_path.suffix.lower() == ".pdb":
                     arcname = file_path.relative_to(build_output_dir)
@@ -70,17 +68,22 @@ def _parse_args(args_list):
     parser.add_argument("--files-cfg", metavar="FILE", required=True,
                         help="The path to FILES.cfg")
     parser.add_argument("--archive-root-dir", metavar="DIRECTORY",
-                        help="The name of the archive's root directory. Default is no directory")
+                        help=("The name of the directory inside the archive containing "
+                              "all of the files. Omit this argument to have no "
+                              "directory. Default is no directory"))
     parser.add_argument("--output-file", required=True, metavar="FILE",
                         help="The archive file path to output")
     parser.add_argument("--archive-format", required=True, choices=["tar_xz", "zip"],
                         help="The type of archive to generate")
     parser.add_argument("--build-output-dir", required=True, metavar="DIRECTORY",
                         help="The directory containing build outputs")
-    parser.add_argument("--target-cpu", required=True,
-                        help=("The target CPU of the build outputs. "
-                              "This is the same as the value of the GN flag 'target_cpu"))
-    parser.add_argument("--include-file", action="append",
+    parser.add_argument("--target-cpu", required=True, choices=["auto", "none", "x64", "x86"],
+                        help=("Filter build outputs by a target CPU. "
+                              "This is the same as the value of the GN flag 'target_cpu'. "
+                              "Specify 'auto' to use the architecture from "
+                              "'platform.architecture()'. "
+                              "Specify 'none' to disable filtering."))
+    parser.add_argument("--include-file", action="append", default=list(),
                         help=("An additional file to include in the archive. "
                               "This can be repeated for multiple different files"))
     args = parser.parse_args(args_list)
@@ -96,8 +99,15 @@ def _parse_args(args_list):
         if not filepath.is_file():
             parser.error("--include-file is not a file: " + pathstring)
         include_files.append(filepath)
+    target_cpu = None
+    if args.target_cpu == "auto":
+        target_cpu = platform.architecture()[0]
+    elif args.target_cpu == "x64":
+        target_cpu = "64bit"
+    elif args.target_cpu == "x86":
+        target_cpu = "32bit"
     return (args.archive_root_dir, args.output_file, args.archive_format, files_cfg,
-            build_output_dir, args.target_cpu, include_files)
+            build_output_dir, target_cpu, include_files)
 
 def main(args):
     """Entry point"""
