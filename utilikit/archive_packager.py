@@ -67,7 +67,7 @@ def _parse_args(args_list):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--files-cfg", metavar="FILE", required=True,
                         help="The path to FILES.cfg")
-    parser.add_argument("--archive-root-dir", metavar="DIRECTORY",
+    parser.add_argument("--archive-root-dir", metavar="DIRECTORY", default=str(),
                         help=("The name of the directory inside the archive containing "
                               "all of the files. Omit this argument to have no "
                               "directory. Default is no directory"))
