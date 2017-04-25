@@ -80,8 +80,8 @@ mkdir build/downloads
 ./utilikit/prepare_sources.py
 ./utilikit/substitute_domains.py
 ./utilikit/generate_build_files.py debian --flavor standard --apply-domain-substitution
-dpkg-checkbuilddeps # Checks and reports any additional packages needed
 cd build/sandbox
+dpkg-checkbuilddeps # Checks and reports any additional packages needed
 dpkg-buildpackage -b -uc
 ```
 
@@ -89,9 +89,13 @@ Packages will appear under `build/`.
 
 Deviations for different Debian versions or flavors:
 
-Ubuntu 16.04 (xenial) and Debian 8 (jessie):
+Ubuntu 16.04 (xenial):
 * Set `UTILIKIT_CONFIG_TYPE=linux_conservative`
 * Use `--flavor conservative` in `generate_build_files.py`
+
+Debian 8.0 (jessie) is currently not working at this time, due to `utilikit` using Python 3.5 features and the lack of a build configuration that will work on it.
+
+Other versions or derivatives are not officially supported, but it still may be possible to build on them with the settings from one listed above.
 
 ### Windows
 
