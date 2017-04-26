@@ -109,6 +109,8 @@ This applies to version `55.0.2883.95`. In case you're using a different version
 
 `cp -R Google\ Chrome.app/Contents/Versions/55.0.2883.95/Google\ Chrome\ Framework.framework/Libraries/WidevineCdm Chromium.app/Contents/Versions/55.0.2883.95/Chromium\ Framework.framework/Libraries/`
 
+Note that there is no slash after `WidevineCdm`.
+
 ## How do I get the Namespace Sandbox to work on Linux?
 
 Enable the kernel option `unprivileged_userns_clone`
