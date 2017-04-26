@@ -89,6 +89,8 @@ Packages will appear under `build/`.
 
 Deviations for different Debian versions or flavors:
 
+Ubuntu 17.04 (zesty): Same as Debian 9 (stretch)
+
 Ubuntu 16.04 (xenial):
 * Set `UTILIKIT_CONFIG_TYPE=linux_conservative`
 * Use `--flavor conservative` in `generate_build_files.py`
