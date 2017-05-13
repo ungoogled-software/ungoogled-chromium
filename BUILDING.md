@@ -68,7 +68,7 @@ These instructions will create `.deb` packages using ungoogled-chromium's variat
 
 The build should work on the CPU architectures `amd64`, `i386`, `arm64`, and `armhf`.
 
-Install common requirements: `# apt install packaging-dev python3 python2 ninja`
+Install common requirements: `# apt install packaging-dev python3 python2 ninja-build`
 
 For Debian 9 (stretch):
 
