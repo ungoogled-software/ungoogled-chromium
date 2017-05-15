@@ -36,7 +36,7 @@ author: Michael Gilbert <mgilbert@debian.org>
        return new NullVideoDecoder();
 --- a/third_party/webrtc/media/engine/internalencoderfactory.cc
 +++ b/third_party/webrtc/media/engine/internalencoderfactory.cc
-@@ -31,8 +31,6 @@ bool IsFlexfecFieldTrialEnabled() {
+@@ -34,8 +34,6 @@ bool IsFlexfecAdvertisedFieldTrialEnable
  
  InternalEncoderFactory::InternalEncoderFactory() {
    supported_codecs_.push_back(cricket::VideoCodec(kVp8CodecName));
@@ -45,7 +45,7 @@ author: Michael Gilbert <mgilbert@debian.org>
    if (webrtc::H264Encoder::IsSupported()) {
      cricket::VideoCodec codec(kH264CodecName);
      // TODO(magjed): Move setting these parameters into webrtc::H264Encoder
-@@ -74,8 +72,6 @@ webrtc::VideoEncoder* InternalEncoderFac
+@@ -77,8 +75,6 @@ webrtc::VideoEncoder* InternalEncoderFac
        return webrtc::H264Encoder::Create(codec);
      case webrtc::kVideoCodecVP8:
        return webrtc::VP8Encoder::Create();
@@ -54,3 +54,27 @@ author: Michael Gilbert <mgilbert@debian.org>
      default:
        return nullptr;
    }
+--- a/third_party/webrtc/modules/video_coding/codecs/vp8/vp8_impl.cc
++++ b/third_party/webrtc/modules/video_coding/codecs/vp8/vp8_impl.cc
+@@ -1146,9 +1146,6 @@ int VP8DecoderImpl::Decode(const Encoded
+ 
+   img = vpx_codec_get_frame(decoder_, &iter);
+   int qp;
+-  vpx_codec_err_t vpx_ret =
+-      vpx_codec_control(decoder_, VPXD_GET_LAST_QUANTIZER, &qp);
+-  RTC_DCHECK_EQ(vpx_ret, VPX_CODEC_OK);
+   ret = ReturnFrame(img, input_image._timeStamp, input_image.ntp_time_ms_, qp);
+   if (ret != 0) {
+     // Reset to avoid requesting key frames too often.
+@@ -1237,8 +1234,9 @@ int VP8DecoderImpl::ReturnFrame(const vp
+ 
+   VideoFrame decoded_image(buffer, timestamp, 0, kVideoRotation_0);
+   decoded_image.set_ntp_time_ms(ntp_time_ms);
+-  decode_complete_callback_->Decoded(decoded_image, rtc::Optional<int32_t>(),
+-                                     rtc::Optional<uint8_t>(qp));
++  int ret = decode_complete_callback_->Decoded(decoded_image);
++  if (ret != 0)
++    return ret;
+ 
+   // Remember image format for later
+   image_format_ = img->fmt;
