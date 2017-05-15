@@ -1,20 +1,10 @@
 # Development notes and procedures
 
-## Updating domain substitution and source cleaning lists
-
-```
-export UTILIKIT_CONFIG_TYPE=common
-printf "" | ./utilikit/prepare_sources.py --source-cleaning-list -
-./developer_utilities/update_lists.py --generate cleaning_list --cleaning-list resources/configs/common/cleaning_list
-./utilikit/clean_sources.py # This is important so domain substitution does not include extra files
-./developer_utilities/update_lists.py --generate domain_substitution_list --domain-regex-list resources/configs/common/domain_substitution_list
-```
-
 ## Workflow of updating patches
 
 Tested on Debian 9.0 (stretch). Exact instructions should work on any other Linux or macOS system with the proper dependencies.
 
-It is recommended to first read the [BUILDING.md](BUILDING.md) and [DESIGN.md](DESIGN.md) documents first in order to gain a better understanding of how the updating process works.
+It is recommended to read the [BUILDING.md](BUILDING.md) and [DESIGN.md](DESIGN.md) documents first to gain a deeper understanding of the process.
 
 ### Dependencies
 
@@ -27,29 +17,44 @@ It is recommended to first read the [BUILDING.md](BUILDING.md) and [DESIGN.md](D
 
 This is an example workflow on Linux that can be modified for your specific usage.
 
+### Downloading the source code and updating lists
+
 1. Download and extract the Chromium source tree into a sandbox directory. Do not apply source cleaning during this step if updating the source cleaning list.
-    * **IMPORTANT**: Do not apply domain substitution, as that will be reflected in the repository patches.
-    * Source cleaning can be ignored by passing in an empty source cleaning list; e.g. `printf "" | ./utilikit/prepare_sources.py --source-cleaning-list -`
+    * Source cleaning can be ignored by passing in an empty source cleaning list. See the example below.
 2. Update source cleaning and domain substitution lists
-    1. Generate new cleaning list; e.g. `developer_utilities/update_lists.py --generate cleaning_list --sandbox-dir build/sandbox/ --cleaning-list resources/configs/common/cleaning_list`
-    2. Run source cleaning via `utilikit/clean_sources.py`. This ensures that the generation of the domain substitution list won't include cleaned files.
-    3. Generate new domain substitution list; e.g. `./developer_utilities/update_lists.py --generate domain_substitution_list --sandbox-dir build/sandbox/ --domain-substitution-list resources/configs/common/domain_substitution_list --domain-regex-list resources/configs/common/domain_regex_list`
-    4. Apply domain substitution via `utilikit/substitute_domains.py`
-3. Generate the patch order for the desired configuration to modify via `developer_utilities/generate_patch_order.py`
+    1. Generate new cleaning list
+    2. Run source cleaning. This ensures that the generation of the domain substitution list won't include cleaned files.
+    3. Generate new domain substitution list. **IMPORTANT**: Do not apply domain substitution until initial patch updating has completed. This will create a dependency on domain substitution.
+
+Here's an example for updating the `common` configuration type:
+
+```
+export UTILIKIT_CONFIG_TYPE=common
+printf "" | ./utilikit/prepare_sources.py --source-cleaning-list -
+./developer_utilities/update_lists.py --generate cleaning_list --cleaning-list resources/configs/common/cleaning_list
+./utilikit/clean_sources.py # This is important so domain substitution does not include extra files
+./developer_utilities/update_lists.py --generate domain_substitution_list --domain-regex-list resources/configs/common/domain_substitution_list
+```
+
+#### Updating patches
+
+**IMPORTANT**: Make sure domain substitution has not been applied before continuing. Otherwise, the resulting patches will require domain substitution.
+
+1. Generate the patch order for the desired configuration to modify via `developer_utilities/generate_patch_order.py`
     * Pass in `--help` for arguments it takes
     * Choose the appropriate configuration that contains the patches to be updated. To get just the common patches, use the `common` config.
-4. Run `source $ROOT/developer_utilities/set_quilt_vars.sh $ROOT`, where `$ROOT` is the ungoogled-chromium directory.
+2. Run `source $ROOT/developer_utilities/set_quilt_vars.sh $ROOT`, where `$ROOT` is the ungoogled-chromium directory.
     * This will setup quilt to modify patches directly in `resources/`
-5. Use `quilt` to update the patches. The general procedure is as follows:
+3. Use `quilt` to update the patches. The general procedure is as follows:
     1. Make sure all patches are unapplied: `quilt pop -a`. Check the status with `quilt top`
     2. Execute shell loop: `while quilt push; do quilt refresh -p ab --no-index --no-timestamp; done`
-    3. If encountered an error, do `quilt push -f`
+    3. If an error occurs, do `quilt push -f`
     4. Edit the broken files as necessary, adding (`quilt add ...`) or removing (`quilt remove ...`) files as necessary
     5. `quilt refresh -p ab`
     6. Go back and continue from Step 2, repeating until all of the patches have been fixed
     8. Remove backup patch files (ending in `.patch~`) generated by `quilt` as necessary: `find resources/patches -name "*.patch~" | xargs rm`
 
-This should leave you with unstaged changes in your git repository to be reviewed, added, and committed.
+This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 
 If you used `quilt new` anywhere during the update process, remember to add that patch manually to the corresponding `patch_order` in `resources/configs`.
 
@@ -57,7 +62,7 @@ If you used `quilt new` anywhere during the update process, remember to add that
 
 If domain substitution is not used, then the above setup will still work for performing updates to the patches between build attempts.
 
-If domain substitution is being used, then the steps for the initial update will not apply since the patches in the repository are not domain-substituted (for those who need functionality that would break with domain substitution). In that case, the steps will vary from platform-to-platform, but they can follow this general platform:
+If domain substitution is being used, then the steps for the initial update will not apply since that would create patches which depend on domain substitution (which is undesirable for use cases that don't use domain substitution). Here is a method of dealing with this:
 
 1. Use quilt to update the domain-substituted copy of the patch set
 2. Copy back modified patches to the repository after reverting domain substitution on the patches manually
