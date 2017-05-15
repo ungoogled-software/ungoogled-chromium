@@ -27,14 +27,20 @@ It is recommended to first read the [BUILDING.md](BUILDING.md) and [DESIGN.md](D
 
 This is an example workflow on Linux that can be modified for your specific usage.
 
-1. Download and extract the Chromium source tree into a sandbox directory.
+1. Download and extract the Chromium source tree into a sandbox directory. Do not apply source cleaning during this step if updating the source cleaning list.
     * **IMPORTANT**: Do not apply domain substitution, as that will be reflected in the repository patches.
-2. Generate the patch order for the desired configuration to modify via `developer_utilities/generate_patch_order.py`
+    * Source cleaning can be ignored by passing in an empty source cleaning list; e.g. `printf "" | ./utilikit/prepare_sources.py --source-cleaning-list -`
+2. Update source cleaning and domain substitution lists
+    1. Generate new cleaning list; e.g. `developer_utilities/update_lists.py --generate cleaning_list --sandbox-dir build/sandbox/ --cleaning-list resources/configs/common/cleaning_list`
+    2. Run source cleaning via `utilikit/clean_sources.py`. This ensures that the generation of the domain substitution list won't include cleaned files.
+    3. Generate new domain substitution list; e.g. `./developer_utilities/update_lists.py --generate domain_substitution_list --sandbox-dir build/sandbox/ --domain-substitution-list resources/configs/common/domain_substitution_list --domain-regex-list resources/configs/common/domain_regex_list`
+    4. Apply domain substitution via `utilikit/substitute_domains.py`
+3. Generate the patch order for the desired configuration to modify via `developer_utilities/generate_patch_order.py`
     * Pass in `--help` for arguments it takes
     * Choose the appropriate configuration that contains the patches to be updated. To get just the common patches, use the `common` config.
-3. Run `source $ROOT/developer_utilities/set_quilt_vars.sh $ROOT`, where `$ROOT` is the ungoogled-chromium directory.
+4. Run `source $ROOT/developer_utilities/set_quilt_vars.sh $ROOT`, where `$ROOT` is the ungoogled-chromium directory.
     * This will setup quilt to modify patches directly in `resources/`
-4. Use `quilt` to update the patches. The general procedure is as follows:
+5. Use `quilt` to update the patches. The general procedure is as follows:
     1. Make sure all patches are unapplied: `quilt pop -a`. Check the status with `quilt top`
     2. Execute shell loop: `while quilt push; do quilt refresh -p ab --no-index --no-timestamp; done`
     3. If encountered an error, do `quilt push -f`
