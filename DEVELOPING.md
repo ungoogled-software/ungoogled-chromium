@@ -13,7 +13,7 @@ It is recommended to read the [BUILDING.md](BUILDING.md) and [DESIGN.md](DESIGN.
     * This utility facilitates most of the updating process, so it is important to learn how to use this. The manpage for quilt (as of early 2017) lacks an example of a workflow. There are multiple guides online, but [this guide from Debian](https://wiki.debian.org/UsingQuilt) and [the referenced guide on that page](https://raphaelhertzog.com/2012/08/08/how-to-use-quilt-to-manage-patches-in-debian-packages/) are the ones referenced in developing the current workflow.
 * Python 3.5 or newer
 
-### Steps for initial update
+#### Steps for initial update
 
 This is an example workflow on Linux that can be modified for your specific usage.
 

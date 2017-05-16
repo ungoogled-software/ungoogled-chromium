@@ -2,65 +2,16 @@
 
 **Notice for users of the develop branch**: The information in this document may be out-of-date or incorrect.
 
-## Common building requirements
+There are two major sections of this document:
 
-The following is needed to fully use `utilikit`:
-* Python 3 (tested on 3.5) for running `utilikit`
-* Python 2 (tested on 2.7) for building GN and running other scripts
-* [Ninja](//ninja-build.org/) for running the build command
-
-Alternatively, one can obtain Python 2 and Ninja binaries from [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools). depot_tools provides additional utilities that may ease the setup of the build environment for certain target configurations.
-
-Additional requirements are listed in the sections for specific platforms.
-
-## General building instructions
-
-The general building steps listed below is only one use case of `utilikit`. You can use whichever and as many utilities as needed in your build process.
-
-If you just want the build flags and patches without going through `utilikit`, you can use `utilikit/export_resources.py` to export them.
-
-Here are the typical steps for building ungoogled-chromium:
-
-1. Set `UTILIKIT_*` environment variables
-2. Check to see if the build environment is setup correctly (optional, only certain requirements): `utilikit/check_requirements.py`
-3. Make build directories `build/`, `build/sandbox/`, `build/downloads/`
-4. Prepare the source code: `utilikit/prepare_sources.py`
-5. Apply domain substitution: `utilikit/substitute_domains.py`
-6. If `utilikit` can generate build files for the desired configuration, use the following:
-    * Generate build files: `utilikit/generate_build_files.py`
-    * Use the build files.
-    * NOTE: The generated build files vary in format across configurations. Consult the [platform-specific building instructions](#platform-specific-building-instructions) below for usage details.
-7. If not using generated build files, run the build sequence as follows:
-    2. Apply patches
-    3. Build GN via `tools/gn/bootstrap/bootstrap.py`
-    4. Run `gn gen` with the GN flags
-    5. Build Chromium via `ninja`
-    6. Package the build outputs. This should be the same as it is for regular Chromium.
-
-It should be noted that the build sequence...
-
-* is similar to Google's build steps for Chromium, and identical to the steps used by some Linux packagers of Chromium.
-* is automated by the build files.
-
-All utilities in `utilikit` have built-in command-line help. Pass in `-h` or `--help` for details.
-
-For a list of all `utilikit` utilities, see [DESIGN.md](DESIGN.md).
-
-### Configuring environment variables
-
-`utilikit` uses a few environment variables to reduce redundancy in command invocations.
-
-Here is a list of variables:
-* `UTILIKIT_CONFIG_TYPE` - The configuration to use. This corresponds to a directory name in `resources/configs`
-* `UTILIKIT_RESOURCES` - The path to the `resources` directory. Defaults to `../resources`, relative to the `utilikit` directory.
-* `UTILIKIT_DOWNLOADS_DIR` - The path containing downloaded Chromium source archive and other packed dependencies. Defaults to `../build/downloads`, relative to the `utilikit` directory.
-* `UTILIKIT_SANDBOX_DIR` - The path containing the build sandbox. Defaults to `../build/sandbox`, relative to the `utilikit` directory.
-
-For Linux users, make sure to `export` these variables to make them available to sub-processes.
+* [Platform-specific building instructions](#platform-specific-building-instructions)
+* [Building generalizations and additional information](#building-generalizations-and-additional-information)
 
 ## Platform-specific building instructions
 
-NOTE: These instructions are the ones used for producing the published binaries.
+This section is for users who are using a supported platform and don't need to customize their build.
+
+These instructions are the ones used for producing the published binaries.
 
 ### Debian and its derivatives
 
@@ -201,7 +152,9 @@ TODO
 
 ### Notes for other systems, platforms, and configurations
 
-You may find [DESIGN.md](DESIGN.md) a helpful read.
+There is much freedom in building Chromium with ungoogled-chromium's changes. One may choose to abide more by ungoogled-chromium's general building steps (described in the or more by Google's steps for building Chromium.
+
+[DESIGN.md](DESIGN.md) may be a helpful read to gain insights into `utilikit` and the project's file structure.
 
 Consult the build instructions on the [Chromium homepage](//www.chromium.org/Home) for platform-specific building information.
 
@@ -210,3 +163,63 @@ You can use `depot_tools` to setup the Chromium source tree in `build/sandbox` i
 The main set of patches (listed in `resources/configs/common/patch_order`) should work on most, if not all, platforms supported by desktop Chromium. Some patches are there to fix building with certain build flags, so those may not work with other platforms or configurations. However, the patches as they are should apply as long as there is a clean and unmodified source tree.
 
 Domain substitution and source cleaning will break scripts that downloads from Google, and other scripts operating on binary files from the source tree.
+
+## Building generalizations and additional information
+
+This section is targeted for users who are building for a platform without build instructions or who need additional customizations.
+
+### Common building requirements
+
+The following is needed to fully use `utilikit`:
+* Python 3 (tested on 3.5) for running `utilikit`
+* Python 2 (tested on 2.7) for building GN and running other scripts
+* [Ninja](//ninja-build.org/) for running the build command
+
+Alternatively, one can obtain Python 2 and Ninja binaries from [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools). depot_tools provides additional utilities that may ease the setup of the build environment for certain target configurations.
+
+Additional requirements are listed in the sections for specific platforms.
+
+### Configuring environment variables
+
+`utilikit` uses a few environment variables to reduce redundancy in command invocations.
+
+Here is a list of variables:
+* `UTILIKIT_CONFIG_TYPE` - The configuration to use. This corresponds to a directory name in `resources/configs`
+* `UTILIKIT_RESOURCES` - The path to the `resources` directory. Defaults to `../resources`, relative to the `utilikit` directory.
+* `UTILIKIT_DOWNLOADS_DIR` - The path containing downloaded Chromium source archive and other packed dependencies. Defaults to `../build/downloads`, relative to the `utilikit` directory.
+* `UTILIKIT_SANDBOX_DIR` - The path containing the build sandbox. Defaults to `../build/sandbox`, relative to the `utilikit` directory.
+
+For Linux users, make sure to `export` these variables to make them available to sub-processes.
+
+### General building instructions
+
+These steps are employed in the [platform-specific building instructions](#platform-specific-building-instructions) below. Do note, however, that this is only one application of `utilikit`.
+
+If you just want the build flags and patches without going through `utilikit`, you can use `utilikit/export_resources.py` to export them.
+
+Here is a typical build sequence for ungoogled-chromium:
+
+1. Set `UTILIKIT_*` environment variables
+2. Check to see if the build environment is setup correctly (optional, only certain requirements): `utilikit/check_requirements.py`
+3. Make build directories `build/`, `build/sandbox/`, `build/downloads/`
+4. Prepare the source code: `utilikit/prepare_sources.py`
+5. Apply domain substitution: `utilikit/substitute_domains.py`
+6. If `utilikit` can generate build files for the desired configuration, use the following:
+    * Generate build files: `utilikit/generate_build_files.py`
+    * Use the build files.
+    * NOTE: The generated build files vary in format across configurations. Consult the [platform-specific building instructions](#platform-specific-building-instructions) below for usage details.
+7. If not using generated build files, run the build sequence as follows:
+    2. Apply patches
+    3. Build GN via `tools/gn/bootstrap/bootstrap.py`
+    4. Run `gn gen` with the GN flags
+    5. Build Chromium via `ninja`
+    6. Package the build outputs. This should be the same as it is for regular Chromium.
+
+It should be noted that the build sequence...
+
+* is similar to Google's build steps for Chromium, and identical to the steps used by some Linux packagers of Chromium.
+* is automated by the build files.
+
+All utilities in `utilikit` have built-in command-line help. Pass in `-h` or `--help` for details.
+
+For a list of all `utilikit` utilities, see [DESIGN.md](DESIGN.md).
