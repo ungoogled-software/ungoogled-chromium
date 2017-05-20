@@ -36,7 +36,7 @@
  void ChromeContentBrowserClient::SelectClientCertificate(
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -473,12 +473,12 @@ ProfileImpl::ProfileImpl(
+@@ -470,12 +470,12 @@ ProfileImpl::ProfileImpl(
        path_, sequenced_task_runner, create_mode == CREATE_MODE_SYNCHRONOUS);
  #endif
  
@@ -376,7 +376,7 @@
  namespace subresource_filter {
  class RulesetService;
  }
-@@ -114,10 +110,6 @@ namespace rappor {
+@@ -114,10 +114,6 @@
  class RapporServiceImpl;
  }
  
@@ -384,9 +384,9 @@
 -class ClientSideDetectionService;
 -}
 -
- // NOT THREAD SAFE, call only from the main thread.
- // These functions shouldn't return NULL unless otherwise noted.
- class BrowserProcess {
+ namespace ukm {
+ class UkmService;
+ }
 @@ -224,14 +216,6 @@ class BrowserProcess {
    // on this platform (or this is a unit test).
    virtual StatusTray* status_tray() = 0;
@@ -725,10 +725,10 @@
  void DownloadTargetDeterminer::OnDownloadDestroyed(
 --- a/chrome/browser/permissions/permission_uma_util.cc
 +++ b/chrome/browser/permissions/permission_uma_util.cc
-@@ -636,8 +636,6 @@ void PermissionUmaUtil::RecordPermission
-             requesting_origin, permission, profile),
-         PermissionDecisionAutoBlocker::GetIgnoreCount(
-             requesting_origin, permission, profile));
+@@ -645,8 +645,6 @@
+         PermissionPersistDecision::UNSPECIFIED,
+         autoblocker->GetDismissCount(requesting_origin, permission),
+         autoblocker->GetIgnoreCount(requesting_origin, permission));
 -    g_browser_process->safe_browsing_service()
 -        ->ui_manager()->ReportPermissionAction(report_info);
    }
@@ -748,7 +748,7 @@
        return !download_item_->IsDone();
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -3090,8 +3090,6 @@ split_static_library("browser") {
+@@ -3088,8 +3088,6 @@ split_static_library("browser") {
        "download/download_commands.h",
        "download/download_crx_util.cc",
        "download/download_crx_util.h",
@@ -759,14 +759,14 @@
        "download/download_permission_request.cc",
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -1668,7 +1668,6 @@ split_static_library("ui") {
-         "views/create_application_shortcut_view.h",
-         "views/desktop_ios_promotion/desktop_ios_promotion_view.cc",
-         "views/desktop_ios_promotion/desktop_ios_promotion_view.h",
--        "views/download/download_danger_prompt_views.cc",
-         "views/download/download_feedback_dialog_view.cc",
-         "views/download/download_feedback_dialog_view.h",
-         "views/download/download_in_progress_dialog_view.cc",
+@@ -1466,7 +1466,6 @@
+       "views/cookie_info_view.h",
+       "views/device_chooser_content_view.cc",
+       "views/device_chooser_content_view.h",
+-      "views/download/download_danger_prompt_views.cc",
+       "views/elevation_icon_setter.cc",
+       "views/elevation_icon_setter.h",
+       "views/exclusive_access_bubble_views.cc",
 @@ -2633,7 +2632,6 @@ split_static_library("ui") {
          "cocoa/device_chooser_content_view_cocoa.mm",
          "cocoa/download/background_theme.h",
@@ -777,10 +777,12 @@
          "cocoa/download/download_item_cell.h",
 --- a/chrome/browser/ssl/security_state_tab_helper.cc
 +++ b/chrome/browser/ssl/security_state_tab_helper.cc
-@@ -156,40 +156,6 @@ SecurityStateTabHelper::GetMaliciousCont
+@@ -143,43 +143,6 @@
+ SecurityStateTabHelper::GetMaliciousContentStatus() const {
+   content::NavigationEntry* entry =
        web_contents()->GetController().GetVisibleEntry();
-   if (!entry)
-     return security_state::MALICIOUS_CONTENT_STATUS_NONE;
+-  if (!entry)
+-    return security_state::MALICIOUS_CONTENT_STATUS_NONE;
 -  safe_browsing::SafeBrowsingService* sb_service =
 -      g_browser_process->safe_browsing_service();
 -  if (!sb_service)
@@ -808,6 +810,7 @@
 -      case safe_browsing::SB_THREAT_TYPE_EXTENSION:
 -      case safe_browsing::SB_THREAT_TYPE_BLACKLISTED_RESOURCE:
 -      case safe_browsing::SB_THREAT_TYPE_API_ABUSE:
+-      case safe_browsing::SB_THREAT_TYPE_SUBRESOURCE_FILTER:
 -        // These threat types are not currently associated with
 -        // interstitials, and thus resources with these threat types are
 -        // not ever whitelisted or pending whitelisting.
@@ -908,15 +911,7 @@
    // Badges are only supported on Android, primarily because it's the only
 --- a/chrome/browser/permissions/permission_blacklist_client.cc
 +++ b/chrome/browser/permissions/permission_blacklist_client.cc
-@@ -9,7 +9,6 @@
- 
- #include "base/logging.h"
- #include "base/memory/ptr_util.h"
--#include "base/timer/timer.h"
- #include "content/public/browser/browser_thread.h"
- #include "content/public/browser/web_contents.h"
- #include "url/gurl.h"
-@@ -53,38 +52,10 @@ PermissionBlacklistClient::~PermissionBl
+@@ -56,49 +56,10 @@
  void PermissionBlacklistClient::StartCheck(const GURL& request_origin) {
    DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
  
@@ -924,11 +919,15 @@
 -  // empty response if Safe Browsing times out.
 -  safe_browsing::ThreatMetadata empty_metadata;
 -  timer_ = base::MakeUnique<base::OneShotTimer>();
+-  elapsed_timer_.reset(new base::ElapsedTimer());
 -  timer_->Start(
 -      FROM_HERE, base::TimeDelta::FromMilliseconds(timeout_),
 -      base::Bind(&PermissionBlacklistClient::OnCheckApiBlacklistUrlResult, this,
 -                 request_origin, empty_metadata));
--  db_manager_->CheckApiBlacklistUrl(request_origin, this);
+-  // If CheckApiBlacklistUrl returns true, no asynchronous call to |this| will
+-  // be made, so just directly call through to OnCheckApiBlacklistUrlResult.
+-  if (db_manager_->CheckApiBlacklistUrl(request_origin, this))
+-    OnCheckApiBlacklistUrlResult(request_origin, empty_metadata);
 -}
 -
 -void PermissionBlacklistClient::OnCheckApiBlacklistUrlResult(
@@ -936,18 +935,25 @@
 -    const safe_browsing::ThreatMetadata& metadata) {
 -  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
 -
--  if (timer_->IsRunning())
+-  base::TimeDelta response_time = elapsed_timer_->Elapsed();
+-  SafeBrowsingResponse response = SafeBrowsingResponse::NOT_BLACKLISTED;
+-
+-  if (timer_->IsRunning()) {
 -    timer_->Stop();
--  else
+-  } else {
 -    db_manager_->CancelApiCheck(this);
+-    response = SafeBrowsingResponse::TIMEOUT;
+-  }
+-
 -  timer_.reset(nullptr);
--
--  // TODO(meredithl): Convert the strings returned from Safe Browsing to the
--  // ones used by PermissionUtil for comparison.
 -  bool permission_blocked =
--      metadata.api_permissions.find(PermissionUtil::GetPermissionString(
--          permission_type_)) != metadata.api_permissions.end();
+-      metadata.api_permissions.find(
+-          PermissionUtil::ConvertContentSettingsTypeToSafeBrowsingName(
+-              content_settings_type_)) != metadata.api_permissions.end();
+-  if (permission_blocked)
+-    response = SafeBrowsingResponse::BLACKLISTED;
 -
+-  PermissionUmaUtil::RecordSafeBrowsingResponse(response_time, response);
    content::BrowserThread::PostTask(
        content::BrowserThread::UI, FROM_HERE,
        base::Bind(&PermissionBlacklistClient::EvaluateBlacklistResultOnUiThread,
@@ -956,29 +962,6 @@
  }
  
  void PermissionBlacklistClient::EvaluateBlacklistResultOnUiThread(
---- a/chrome/browser/permissions/permission_context_base.cc
-+++ b/chrome/browser/permissions/permission_context_base.cc
-@@ -130,19 +130,12 @@ void PermissionContextBase::RequestPermi
-     return;
-   }
- 
--  if (!db_manager_) {
--    safe_browsing::SafeBrowsingService* sb_service =
--        g_browser_process->safe_browsing_service();
--    if (sb_service)
--      db_manager_ = sb_service->database_manager();
--  }
--
-   // Asynchronously check whether the origin should be blocked from making this
-   // permission request. It may be on the Safe Browsing API blacklist, or it may
-   // have been dismissed too many times in a row. If the origin is allowed to
-   // request, that request will be made to ContinueRequestPermission().
-   PermissionDecisionAutoBlocker::UpdateEmbargoedStatus(
--      db_manager_, permission_type_, requesting_origin, web_contents,
-+      nullptr, permission_type_, requesting_origin, web_contents,
-       safe_browsing_timeout_, profile_, base::Time::Now(),
-       base::Bind(&PermissionContextBase::ContinueRequestPermission,
-                  weak_factory_.GetWeakPtr(), web_contents, id,
 --- a/chrome/browser/profiles/net_http_session_params_observer.cc
 +++ b/chrome/browser/profiles/net_http_session_params_observer.cc
 @@ -10,7 +10,6 @@
@@ -1039,14 +1022,14 @@
  // static
 --- a/chrome/browser/metrics/chrome_metrics_service_client.cc
 +++ b/chrome/browser/metrics/chrome_metrics_service_client.cc
-@@ -35,7 +35,6 @@
- #include "chrome/browser/metrics/network_quality_estimator_provider_impl.h"
+@@ -41,7 +41,6 @@
  #include "chrome/browser/metrics/sampling_metrics_provider.h"
  #include "chrome/browser/metrics/subprocess_metrics_provider.h"
+ #include "chrome/browser/profiles/profile_manager.h"
 -#include "chrome/browser/safe_browsing/certificate_reporting_metrics_provider.h"
  #include "chrome/browser/sync/chrome_sync_client.h"
+ #include "chrome/browser/sync/profile_sync_service_factory.h"
  #include "chrome/browser/ui/browser_otr_state.h"
- #include "chrome/common/channel_info.h"
 @@ -692,10 +691,6 @@ void ChromeMetricsServiceClient::Initial
    metrics_service_->RegisterMetricsProvider(
        std::unique_ptr<metrics::MetricsProvider>(
@@ -1060,7 +1043,7 @@
  bool ChromeMetricsServiceClient::ShouldIncludeProfilerDataInLog() {
 --- a/chrome/browser/permissions/permission_blacklist_client.h
 +++ b/chrome/browser/permissions/permission_blacklist_client.h
-@@ -54,11 +54,6 @@ class PermissionBlacklistClient
+@@ -59,11 +59,6 @@
  
    void StartCheck(const GURL& request_origin);
  
@@ -1069,7 +1052,7 @@
 -      const GURL& url,
 -      const safe_browsing::ThreatMetadata& metadata) override;
 -
-   void EvaluateBlacklistResultOnUiThread(bool permission_blocked);
+   void EvaluateBlacklistResultOnUiThread(bool response);
  
    // WebContentsObserver implementation. Sets a flag so that when the database
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
@@ -1146,3 +1129,24 @@
    TabContentsSyncedTabDelegate::CreateForWebContents(web_contents);
    TabDialogs::CreateForWebContents(web_contents);
    ThumbnailTabHelper::CreateForWebContents(web_contents);
+--- a/chrome/browser/permissions/permission_decision_auto_blocker.cc
++++ b/chrome/browser/permissions/permission_decision_auto_blocker.cc
+@@ -16,7 +16,6 @@
+ #include "chrome/browser/permissions/permission_util.h"
+ #include "chrome/browser/profiles/incognito_helpers.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/safe_browsing/safe_browsing_service.h"
+ #include "chrome/common/chrome_features.h"
+ #include "components/content_settings/core/browser/host_content_settings_map.h"
+ #include "components/keyed_service/content/browser_context_dependency_manager.h"
+@@ -320,10 +319,6 @@
+       db_manager_(nullptr),
+       safe_browsing_timeout_(kCheckUrlTimeoutMs),
+       clock_(new base::DefaultClock()) {
+-  safe_browsing::SafeBrowsingService* sb_service =
+-      g_browser_process->safe_browsing_service();
+-  if (sb_service)
+-    db_manager_ = sb_service->database_manager();
+ }
+ 
+ PermissionDecisionAutoBlocker::~PermissionDecisionAutoBlocker() {}
