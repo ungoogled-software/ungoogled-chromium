@@ -4,8 +4,8 @@
 
 There are two major sections of this document:
 
-* [Platform-specific building instructions](#platform-specific-building-instructions)
-* [Building generalizations and additional information](#building-generalizations-and-additional-information)
+* [Platform-specific building instructions](#platform-specific-building-instructions) - For users who are using a supported platform and don't need to customize their build.
+* [Building generalizations and additional information](#building-generalizations-and-additional-information) - For users who are building for a platform without build instructions or who need additional customizations.
 
 ## Platform-specific building instructions
 
@@ -166,7 +166,7 @@ Domain substitution and source cleaning will break scripts that downloads from G
 
 ## Building generalizations and additional information
 
-This section is targeted for users who are building for a platform without build instructions or who need additional customizations.
+This section is targeted towards users who are building for a platform without build instructions or who need additional customizations.
 
 ### Common building requirements
 
