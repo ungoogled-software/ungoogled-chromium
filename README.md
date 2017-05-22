@@ -127,4 +127,4 @@ Contributions of many kinds are welcome! For pull requests, please read the guid
 
 ## License
 
-GPLv3. See [LICENSE](LICENSE)
+BSD-3-clause. See [LICENSE](LICENSE)
