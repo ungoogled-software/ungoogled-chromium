@@ -57,21 +57,6 @@ cd build/sandbox
 ./ungoogled_macos/build.sh
 ```
 
-
-**This is a WIP**
-
-For now, see the instructions for Other Linux distributions. The resulting binary will still use system libraries.
-
-### Other Linux distributions
-
-#### Setting up the build environment
-
-TODO
-
-#### Build
-
-TODO
-
 ### Notes for other systems, platforms, and configurations
 
 There is much freedom in building Chromium with ungoogled-chromium's changes. One may choose to abide more by ungoogled-chromium's general building steps (described in the or more by Google's steps for building Chromium.
