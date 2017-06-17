@@ -13,88 +13,6 @@ This section is for users who are using a supported platform and don't need to c
 
 These instructions are the ones used for producing the published binaries.
 
-### Debian and its derivatives
-
-These instructions will create `.deb` packages using ungoogled-chromium's variation of Debian's `debian` directory.
-
-The build should work on the CPU architectures `amd64`, `i386`, `arm64`, and `armhf`.
-
-Install common requirements: `# apt install packaging-dev python3 python2 ninja-build`
-
-For Debian 9 (stretch):
-
-```
-export UTILIKIT_CONFIG_TYPE=debian_stretch
-mkdir build/
-mkdir build/sandbox
-mkdir build/downloads
-./utilikit/prepare_sources.py
-./utilikit/substitute_domains.py
-./utilikit/generate_build_files.py debian --flavor standard --apply-domain-substitution
-cd build/sandbox
-dpkg-checkbuilddeps # Checks and reports any additional packages needed
-dpkg-buildpackage -b -uc
-```
-
-Packages will appear under `build/`.
-
-Deviations for different Debian versions or flavors:
-
-Ubuntu 17.04 (zesty): Same as Debian 9 (stretch)
-
-Ubuntu 16.04 (xenial):
-* Set `UTILIKIT_CONFIG_TYPE=linux_conservative`
-* Use `--flavor conservative` in `generate_build_files.py`
-
-Debian 8.0 (jessie) is currently not working at this time, due to `utilikit` using Python 3.5 features and the lack of a build configuration that will work on it.
-
-Other versions or derivatives are not officially supported, but it still may be possible to build on them with the settings from one listed above.
-
-### Windows
-
-**These instructions are out-of-date**
-
-Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md#Setting-up-the-environment-for-Visual-Studio). These instructions are tested on Windows 10 Home x64.
-
-For maximum portability, the build configuration will generate x86 binaries by default. This can be changed to x64 by setting `builder.target_cpu = CPUArch.x64` in `build.py`.
-
-#### Additional Requirements
-* Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md) for Google's requirements
-    * Build has been tested on 2015 Community Edition Update 2 with only the following features installed:
-        * Programming Languages -> Visual C++ (including all subcomponents)
-        * Universal Windows App Development Tools -> Windows 10 SDK 10.0.10586
-        * Windows 8.1 and Windows Phone 8.0/8.1 Tools -> Tools and Windows SDKs
-* GNU patch (to deal with patches that have fuzz). You can get the latest GNU patch from [MSYS2](http://msys2.github.io/).
-    * If you don't want to use the installer, you can download and extract the following files manually from [MSYS2's repository on SourceForge](https://sourceforge.net/projects/msys2/files/REPOS/MSYS2/x86_64/):
-        * `/usr/bin/patch.exe` from `patch-*-x86_64.pkg.tar.xz`
-        * `/usr/bin/msys-2.0.dll` from `msys2-runtime-*-x86_64.pkg.tar.xz`
-        * These files are portable.
-* [gperf from GNUWin32](http://gnuwin32.sourceforge.net/packages/gperf.htm)
-* [bison from GNUWin32](http://gnuwin32.sourceforge.net/packages/bison.htm)
-    * Get the Binaries, Developer files, Sources, and Dependencies
-    * **NOTE**: Make sure to place gperf and bison in a path without spaces, otherwise the build will fail.
-
-#### Setting up the build environment
-
-Make sure the following are accessible in `PATH` (the PATH overrides feature can be used on the directories containing the actual executable):
-* Python 2 as `python`
-* Ninja as `ninja`
-* GNU patch as `patch`
-* gperf as `gperf`
-* bison as `bison`
-
-See `build.py` for more on customizing the build environment or process.
-
-#### Build
-
-To make sure that the GN tool builds correctly, make sure you run `vcvarsall` in the build command-line with the correct arguments:
-* `vcvarsall amd64_x86` for building x86 binaries
-* `vcvarsall amd64` for building x64 binaries
-
-Then do the following:
-
-    # Change directory to ungoogled-chromium's root directory
-    path\to\python3 build.py
 
 ### macOS
 
@@ -122,19 +40,23 @@ See `build.py` for more on customizing the build environment or process.
 #### Build
 
 ```
+Download source files from latest tag/branch
+Extract files and cd to directory /utilikit
 export UTILIKIT_CONFIG_TYPE=macos
 ./utilikit/check_requirements.py --macos
+cd to root directory /ungoogled
 mkdir build/
 mkdir build/sandbox
 mkdir build/downloads
-./utilikit/prepare_sources.py
+export UTILIKIT_CONFIG_TYPE=macos
+./utilikit/check_requirements.py --macos
+./utilikit/prepare_sources.py --source-cleaning-list -
 ./utilikit/substitute_domains.py
 ./utilikit/generate_build_files.py macos --apply-domain-substitution
 cd build/sandbox
 ./ungoogled_macos/build.sh
 ```
 
-### Arch Linux
 
 **This is a WIP**
 
