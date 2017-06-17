@@ -125,6 +125,8 @@ Contributions of many kinds are welcome! For pull requests, please read the guid
 
 [The Chromium Project](//www.chromium.org/)
 
+[Eloston ungoogled-chromium](//https://github.com/Eloston/ungoogled-chromium/)
+
 ## License
 
 BSD-3-clause. See [LICENSE](LICENSE)
