@@ -100,15 +100,16 @@ Then do the following:
 
 **NOTE: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue**
 
-Tested on macOS 10.11.6
+Tested on macOS 10.11 and 10.12
 
 Credits:
 * [9Morello](//github.com/9Morello)
 * [tectiv3](//github.com/tectiv3)
+* [nixballs](//github.com/nixballs)
 
 #### Additional Requirements
 
-* Xcode 7
+* Xcode 7 or 8
 * Homebrew
 * Perl (for creating a `.dmg` package)
 
