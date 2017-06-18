@@ -56,7 +56,7 @@ Other versions or derivatives are not officially supported, but it still may be 
 
 Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md#Setting-up-the-environment-for-Visual-Studio). These instructions are tested on Windows 10 Home x64.
 
-For maximum portability, the build configuration will generate x86 binaries by default. This can be changed to x64 by setting `builder.target_cpu = CPUArch.x64` in `build.py`.
+For maximum portability, the build configuration will generate x86 binaries by default. This can be changed to x64 by setting TODO
 
 #### Additional Requirements
 * Visual Studio. See [Chromium's Windows Build Instructions](https://chromium.googlesource.com/chromium/src/+/51.0.2704.106/docs/windows_build_instructions.md) for Google's requirements
@@ -83,8 +83,6 @@ Make sure the following are accessible in `PATH` (the PATH overrides feature can
 * gperf as `gperf`
 * bison as `bison`
 
-See `build.py` for more on customizing the build environment or process.
-
 #### Build
 
 To make sure that the GN tool builds correctly, make sure you run `vcvarsall` in the build command-line with the correct arguments:
@@ -93,8 +91,7 @@ To make sure that the GN tool builds correctly, make sure you run `vcvarsall` in
 
 Then do the following:
 
-    # Change directory to ungoogled-chromium's root directory
-    path\to\python3 build.py
+TODO
 
 ### macOS
 
@@ -117,8 +114,6 @@ Credits:
 
 1. Install Quilt via Homebrew: `brew install quilt`
 2. Install Ninja via Homebrew: `brew install ninja`
-
-See `build.py` for more on customizing the build environment or process.
 
 #### Build
 
