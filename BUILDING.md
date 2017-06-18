@@ -40,17 +40,12 @@ See `build.py` for more on customizing the build environment or process.
 #### Build
 
 ```
-Download source files from latest tag/branch
-Extract files and cd to directory /utilikit
 export UTILIKIT_CONFIG_TYPE=macos
 ./utilikit/check_requirements.py --macos
-cd to root directory /ungoogled
 mkdir build/
 mkdir build/sandbox
 mkdir build/downloads
-export UTILIKIT_CONFIG_TYPE=macos
-./utilikit/check_requirements.py --macos
-./utilikit/prepare_sources.py --source-cleaning-list -
+./utilikit/prepare_sources.py
 ./utilikit/substitute_domains.py
 ./utilikit/generate_build_files.py macos --apply-domain-substitution
 cd build/sandbox
