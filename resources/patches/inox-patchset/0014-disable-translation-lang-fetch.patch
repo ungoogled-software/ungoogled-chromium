@@ -1,44 +1,17 @@
 --- a/components/translate/core/browser/translate_language_list.cc
 +++ b/components/translate/core/browser/translate_language_list.cc
-@@ -216,35 +216,6 @@ GURL TranslateLanguageList::TranslateLan
+@@ -216,6 +216,8 @@ GURL TranslateLanguageList::TranslateLan
  }
  
  void TranslateLanguageList::RequestLanguageList() {
--  // If resource requests are not allowed, we'll get a callback when they are.
--  if (!resource_requests_allowed_) {
--    request_pending_ = true;
--    return;
--  }
--
--  request_pending_ = false;
--
--  if (language_list_fetcher_.get() &&
--      (language_list_fetcher_->state() == TranslateURLFetcher::IDLE ||
--       language_list_fetcher_->state() == TranslateURLFetcher::FAILED)) {
--    GURL url = TranslateLanguageUrl();
--    url = AddHostLocaleToUrl(url);
--    url = AddApiKeyToUrl(url);
--    url = net::AppendQueryParameter(
--        url, kAlphaLanguageQueryName, kAlphaLanguageQueryValue);
--
--    std::string message = base::StringPrintf(
--        "Language list including alpha languages fetch starts (URL: %s)",
--        url.spec().c_str());
--    NotifyEvent(__LINE__, message);
--
--    bool result = language_list_fetcher_->Request(
--        url,
--        base::Bind(&TranslateLanguageList::OnLanguageListFetchComplete,
--                   base::Unretained(this)));
--    if (!result)
--      NotifyEvent(__LINE__, "Request is omitted due to retry limit");
--  }
- }
- 
- void TranslateLanguageList::SetResourceRequestsAllowed(bool allowed) {
++  return;
++
+   // If resource requests are not allowed, we'll get a callback when they are.
+   if (!resource_requests_allowed_) {
+     request_pending_ = true;
 --- a/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
 +++ b/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
-@@ -153,7 +153,6 @@ void SpellcheckHunspellDictionary::Retry
+@@ -152,7 +152,6 @@ void SpellcheckHunspellDictionary::Retry
      return;
    }
    request_context_getter_ = request_context_getter;
@@ -46,7 +19,7 @@
  }
  
  bool SpellcheckHunspellDictionary::IsReady() const {
-@@ -370,9 +369,6 @@ void SpellcheckHunspellDictionary::Initi
+@@ -345,9 +344,6 @@ void SpellcheckHunspellDictionary::Initi
      }
  
      if (request_context_getter_) {
@@ -56,20 +29,29 @@
        return;
      }
    }
---- a/components/translate/core/browser/translate_ranker.cc
-+++ b/components/translate/core/browser/translate_ranker.cc
-@@ -96,12 +96,12 @@ bool TranslateRanker::IsLoggingEnabled()
+--- a/components/translate/core/browser/translate_ranker_impl.cc
++++ b/components/translate/core/browser/translate_ranker_impl.cc
+@@ -134,11 +134,9 @@ TranslateRankerImpl::TranslateRankerImpl
+                                          ukm::UkmRecorder* ukm_recorder)
+     : ukm_recorder_(ukm_recorder),
+       is_logging_enabled_(true),
+-      is_query_enabled_(base::FeatureList::IsEnabled(kTranslateRankerQuery)),
+-      is_enforcement_enabled_(
+-          base::FeatureList::IsEnabled(kTranslateRankerEnforcement)),
+-      is_decision_override_enabled_(base::FeatureList::IsEnabled(
+-          translate::kTranslateRankerDecisionOverride)),
++      is_query_enabled_(false),
++      is_enforcement_enabled_(false),
++      is_decision_override_enabled_(false),
+       weak_ptr_factory_(this) {
+   if (is_query_enabled_ || is_enforcement_enabled_ ||
+       is_decision_override_enabled_) {
+@@ -201,6 +199,8 @@ bool TranslateRankerImpl::ShouldOfferTra
+   // (or become False).
+   const bool kDefaultResponse = true;
  
- // static
- bool TranslateRanker::IsQueryEnabled() {
--  return base::FeatureList::IsEnabled(kTranslateRankerQuery);
-+  return false;
- }
- 
- // static
- bool TranslateRanker::IsEnforcementEnabled() {
--  return base::FeatureList::IsEnabled(kTranslateRankerEnforcement);
-+  return false;
- }
- 
- // static
++  return kDefaultResponse;
++
+   translate_event->set_ranker_request_timestamp_sec(
+       (base::TimeTicks::Now() - base::TimeTicks()).InSeconds());
+   translate_event->set_ranker_version(GetModelVersion());
