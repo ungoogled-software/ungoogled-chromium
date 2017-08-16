@@ -1,62 +1,9 @@
-description: system vpx doesn't yet support vp9 interface used by webrtc
+description: maintain compatibility with system vpx
 author: Michael Gilbert <mgilbert@debian.org>
 
---- a/third_party/webrtc/modules/video_coding/BUILD.gn
-+++ b/third_party/webrtc/modules/video_coding/BUILD.gn
-@@ -91,7 +91,6 @@ rtc_static_library("video_coding") {
-     ":webrtc_h264",
-     ":webrtc_i420",
-     ":webrtc_vp8",
--    ":webrtc_vp9",
-     "../..:webrtc_common",
-     "../../base:rtc_base",
-     "../../base:rtc_base_approved",
---- a/third_party/webrtc/modules/video_coding/codec_database.cc
-+++ b/third_party/webrtc/modules/video_coding/codec_database.cc
-@@ -574,8 +574,6 @@ VCMGenericDecoder* VCMCodecDataBase::Cre
-   switch (type) {
-     case kVideoCodecVP8:
-       return new VCMGenericDecoder(VP8Decoder::Create());
--    case kVideoCodecVP9:
--      return new VCMGenericDecoder(VP9Decoder::Create());
-     case kVideoCodecI420:
-       return new VCMGenericDecoder(new I420Decoder());
-     case kVideoCodecH264:
---- a/third_party/webrtc/media/engine/internaldecoderfactory.cc
-+++ b/third_party/webrtc/media/engine/internaldecoderfactory.cc
-@@ -73,9 +73,6 @@ webrtc::VideoDecoder* InternalDecoderFac
-       return new NullVideoDecoder();
-     case webrtc::kVideoCodecVP8:
-       return webrtc::VP8Decoder::Create();
--    case webrtc::kVideoCodecVP9:
--      RTC_DCHECK(webrtc::VP9Decoder::IsSupported());
--      return webrtc::VP9Decoder::Create();
-     default:
-       LOG(LS_ERROR) << "Creating NullVideoDecoder for unsupported codec.";
-       return new NullVideoDecoder();
---- a/third_party/webrtc/media/engine/internalencoderfactory.cc
-+++ b/third_party/webrtc/media/engine/internalencoderfactory.cc
-@@ -34,8 +34,6 @@ bool IsFlexfecAdvertisedFieldTrialEnable
- 
- InternalEncoderFactory::InternalEncoderFactory() {
-   supported_codecs_.push_back(cricket::VideoCodec(kVp8CodecName));
--  if (webrtc::VP9Encoder::IsSupported())
--    supported_codecs_.push_back(cricket::VideoCodec(kVp9CodecName));
-   if (webrtc::H264Encoder::IsSupported()) {
-     cricket::VideoCodec codec(kH264CodecName);
-     // TODO(magjed): Move setting these parameters into webrtc::H264Encoder
-@@ -77,8 +75,6 @@ webrtc::VideoEncoder* InternalEncoderFac
-       return webrtc::H264Encoder::Create(codec);
-     case webrtc::kVideoCodecVP8:
-       return webrtc::VP8Encoder::Create();
--    case webrtc::kVideoCodecVP9:
--      return webrtc::VP9Encoder::Create();
-     default:
-       return nullptr;
-   }
 --- a/third_party/webrtc/modules/video_coding/codecs/vp8/vp8_impl.cc
 +++ b/third_party/webrtc/modules/video_coding/codecs/vp8/vp8_impl.cc
-@@ -1146,9 +1146,6 @@ int VP8DecoderImpl::Decode(const Encoded
+@@ -1076,9 +1076,6 @@ int VP8DecoderImpl::Decode(const Encoded
  
    img = vpx_codec_get_frame(decoder_, &iter);
    int qp;
@@ -66,7 +13,7 @@ author: Michael Gilbert <mgilbert@debian.org>
    ret = ReturnFrame(img, input_image._timeStamp, input_image.ntp_time_ms_, qp);
    if (ret != 0) {
      // Reset to avoid requesting key frames too often.
-@@ -1237,8 +1234,9 @@ int VP8DecoderImpl::ReturnFrame(const vp
+@@ -1125,8 +1122,9 @@ int VP8DecoderImpl::ReturnFrame(const vp
  
    VideoFrame decoded_image(buffer, timestamp, 0, kVideoRotation_0);
    decoded_image.set_ntp_time_ms(ntp_time_ms);
@@ -76,5 +23,27 @@ author: Michael Gilbert <mgilbert@debian.org>
 +  if (ret != 0)
 +    return ret;
  
-   // Remember image format for later
-   image_format_ = img->fmt;
+   return WEBRTC_VIDEO_CODEC_OK;
+ }
+--- a/media/base/decode_capabilities.cc
++++ b/media/base/decode_capabilities.cc
+@@ -14,8 +14,8 @@
+ // backwards compatibility for legacy applications using the library.
+ #define VPX_CODEC_DISABLE_COMPAT 1
+ extern "C" {
+-#include "third_party/libvpx/source/libvpx/vpx/vp8dx.h"
+-#include "third_party/libvpx/source/libvpx/vpx/vpx_codec.h"
++#include <vpx/vp8dx.h>
++#include <vpx/vpx_codec.h>
+ }
+ #endif
+ 
+@@ -113,7 +113,7 @@ bool IsColorSpaceSupported(const media::
+ }
+ 
+ bool IsVp9ProfileSupported(VideoCodecProfile profile) {
+-#if !defined(MEDIA_DISABLE_LIBVPX)
++#if 0
+   // High bit depth capabilities may be toggled via LibVPX config flags.
+   static bool vpx_supports_high_bit_depth =
+       (vpx_codec_get_caps(vpx_codec_vp9_dx()) & VPX_CODEC_CAP_HIGHBITDEPTH) !=
