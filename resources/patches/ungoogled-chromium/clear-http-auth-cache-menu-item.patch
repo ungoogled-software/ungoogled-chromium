@@ -2,7 +2,7 @@
 
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
-@@ -146,6 +146,7 @@
+@@ -143,6 +143,7 @@
  #define IDC_DEV_TOOLS_INSPECT           40023
  #define IDC_UPGRADE_DIALOG              40024
  #define IDC_VIEW_INCOMPATIBILITIES      40025
@@ -12,7 +12,7 @@
  #define IDC_BOOKMARKS_MENU              40029
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -1199,6 +1199,9 @@ Subsequent notifications, windows and di
+@@ -1034,6 +1034,9 @@ Subsequent notifications, windows and di
          <message name="IDS_CLEAR_BROWSING_DATA" desc="The text label for the menu item for clearing of browsing data">
            &amp;Clear browsing data...
          </message>
@@ -22,7 +22,7 @@
          <message name="IDS_SHOW_DOWNLOADS" desc="The show downloads menu in the app menu">
            &amp;Downloads
          </message>
-@@ -1234,6 +1237,9 @@ Subsequent notifications, windows and di
+@@ -1072,6 +1075,9 @@ Subsequent notifications, windows and di
          <message name="IDS_CLEAR_BROWSING_DATA" desc="In Title Case: The text label for the menu item for clearing of browsing data">
            &amp;Clear Browsing Data...
          </message>
@@ -34,7 +34,7 @@
          </message>
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -203,6 +203,7 @@ void ToolsMenuModel::Build(Browser* brow
+@@ -200,6 +200,7 @@ void ToolsMenuModel::Build(Browser* brow
  
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddItemWithStringId(IDC_CLEAR_BROWSING_DATA, IDS_CLEAR_BROWSING_DATA);
@@ -42,7 +42,7 @@
    AddItemWithStringId(IDC_MANAGE_EXTENSIONS, IDS_SHOW_EXTENSIONS);
    if (chrome::CanOpenTaskManager())
      AddItemWithStringId(IDC_TASK_MANAGER, IDS_TASK_MANAGER);
-@@ -464,6 +465,13 @@ void AppMenuModel::LogMenuMetrics(int co
+@@ -455,6 +456,13 @@ void AppMenuModel::LogMenuMetrics(int co
        }
        LogMenuAction(MENU_ACTION_CLEAR_BROWSING_DATA);
        break;
@@ -59,16 +59,16 @@
 --- a/chrome/browser/ui/toolbar/app_menu_model.h
 +++ b/chrome/browser/ui/toolbar/app_menu_model.h
 @@ -72,6 +72,7 @@ enum AppMenuAction {
-   MENU_ACTION_BOOKMARK_OPEN = 42,
    MENU_ACTION_UPGRADE_DIALOG = 44,
    MENU_ACTION_CAST = 45,
-+  MENU_ACTION_CLEAR_HTTP_AUTH_CACHE = 46,
+   MENU_ACTION_BETA_FORUM = 46,
++  MENU_ACTION_CLEAR_HTTP_AUTH_CACHE = 47,
    LIMIT_MENU_ACTION
  };
  
 --- a/chrome/browser/ui/views/frame/global_menu_bar_x11.cc
 +++ b/chrome/browser/ui/views/frame/global_menu_bar_x11.cc
-@@ -229,6 +229,7 @@ GlobalMenuBarCommand tools_menu[] = {
+@@ -225,6 +225,7 @@ GlobalMenuBarCommand tools_menu[] = {
  
      {IDS_TASK_MANAGER, IDC_TASK_MANAGER},
      {IDS_CLEAR_BROWSING_DATA, IDC_CLEAR_BROWSING_DATA},
@@ -88,7 +88,7 @@
  
  #if defined(OS_MACOSX)
  #include "chrome/browser/ui/browser_commands_mac.h"
-@@ -589,6 +592,9 @@ void BrowserCommandController::ExecuteCo
+@@ -600,6 +603,9 @@ void BrowserCommandController::ExecuteCo
      case IDC_CLEAR_BROWSING_DATA:
        ShowClearBrowsingDataDialog(browser_);
        break;
@@ -98,35 +98,27 @@
      case IDC_IMPORT_SETTINGS:
        ShowImportDialog(browser_);
        break;
-@@ -789,6 +795,7 @@ void BrowserCommandController::InitComma
-                                         !guest_session &&
+@@ -810,6 +816,7 @@ void BrowserCommandController::InitComma
                                          !profile()->IsOffTheRecord());
-   command_updater_.UpdateCommandEnabled(IDC_CLEAR_BROWSING_DATA, normal_window);
+   command_updater_.UpdateCommandEnabled(IDC_CLEAR_BROWSING_DATA,
+                                         !guest_session);
 +  command_updater_.UpdateCommandEnabled(IDC_CLEAR_HTTP_AUTH_CACHE, true);
  #if defined(OS_CHROMEOS)
    command_updater_.UpdateCommandEnabled(IDC_TAKE_SCREENSHOT, true);
    command_updater_.UpdateCommandEnabled(IDC_TOUCH_HUD_PROJECTION_TOGGLE, true);
 --- a/tools/metrics/histograms/histograms.xml
 +++ b/tools/metrics/histograms/histograms.xml
-@@ -114330,6 +114330,7 @@ from previous Chrome versions.
-   <int value="43" label="Exit"/>
-   <int value="44" label="Upgrade browser"/>
-   <int value="45" label="Cast"/>
-+  <int value="46" label="Clear HTTP auth cache"/>
- </enum>
- 
- <enum name="XFrameOptions" type="int">
-@@ -122830,6 +122831,7 @@ from previous Chrome versions.
-     </obsolete>
+@@ -94909,6 +94909,7 @@ http://cs/file:chrome/histograms.xml - b
    </suffix>
    <suffix name="Cast"/>
+   <suffix name="BetaForum"/>
 +  <suffix name="ClearHttpAuthCache"/>
    <affected-histogram name="WrenchMenu.TimeToAction"/>
  </histogram_suffixes>
  
 --- a/net/http/http_auth_cache.cc
 +++ b/net/http/http_auth_cache.cc
-@@ -252,6 +252,10 @@ bool HttpAuthCache::Remove(const GURL& o
+@@ -253,6 +253,10 @@ bool HttpAuthCache::Remove(const GURL& o
    return false;
  }
  
@@ -136,7 +128,7 @@
 +
  void HttpAuthCache::ClearEntriesAddedWithin(base::TimeDelta duration) {
    base::TimeTicks begin_time = base::TimeTicks::Now() - duration;
-   entries_.remove_if([begin_time](const Entry& entry) {
+   base::EraseIf(entries_, [begin_time](const Entry& entry) {
 --- a/net/http/http_auth_cache.h
 +++ b/net/http/http_auth_cache.h
 @@ -166,6 +166,8 @@ class NET_EXPORT HttpAuthCache {
@@ -148,3 +140,13 @@
    // Clears cache entries created within |duration| of base::TimeTicks::Now().
    void ClearEntriesAddedWithin(base::TimeDelta duration);
  
+--- a/tools/metrics/histograms/enums.xml
++++ b/tools/metrics/histograms/enums.xml
+@@ -38509,6 +38509,7 @@ from previous Chrome versions.
+   <int value="43" label="Exit"/>
+   <int value="44" label="Upgrade browser"/>
+   <int value="45" label="Cast"/>
++  <int value="47" label="Clear HTTP auth cache"/>
+ </enum>
+ 
+ <enum name="XFrameOptions" type="int">

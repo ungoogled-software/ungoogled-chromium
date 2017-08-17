@@ -129,17 +129,20 @@
  
 --- a/chrome/browser/page_load_metrics/observers/from_gws_page_load_metrics_observer.cc
 +++ b/chrome/browser/page_load_metrics/observers/from_gws_page_load_metrics_observer.cc
-@@ -277,6 +277,7 @@ bool WasAbortedBeforeInteraction(
- // static
- bool FromGWSPageLoadMetricsLogger::IsGoogleSearchHostname(
-     base::StringPiece host) {
-+  return false;
-   const char kGoogleSearchHostnamePrefix[] = "www.";
+@@ -322,9 +322,7 @@ bool WasAbortedBeforeInteraction(
  
-   // Hostname must start with 'www.' Hostnames are not case sensitive.
+ // static
+ bool FromGWSPageLoadMetricsLogger::IsGoogleSearchHostname(const GURL& url) {
+-  base::Optional<std::string> result =
+-      page_load_metrics::GetGoogleHostnamePrefix(url);
+-  return result && result.value() == "www";
++  return false;
+ }
+ 
+ // static
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -439,11 +439,6 @@ base::string16 TemplateURLRef::SearchTer
+@@ -444,11 +444,6 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -153,12 +156,18 @@
  
 --- a/components/google/core/browser/google_util.cc
 +++ b/components/google/core/browser/google_util.cc
-@@ -41,87 +41,11 @@ namespace {
+@@ -41,120 +41,16 @@ namespace {
  
  bool gUseMockLinkDoctorBaseURLForTesting = false;
  
 -bool IsPathHomePageBase(base::StringPiece path) {
 -  return (path == "/") || (path == "/webhp");
+-}
+-
+-// Removes a single trailing dot if present in |host|.
+-void StripTrailingDot(base::StringPiece* host) {
+-  if (host->ends_with("."))
+-    host->remove_suffix(1);
 -}
 -
 -// True if the given canonical |host| is "[www.]<domain_in_lower_case>.<TLD>"
@@ -220,9 +229,29 @@
 -  if (!IsValidHostName(canonical_host, "google", subdomain_permission, &tld))
 -    return false;
 -
+-  // Remove the trailing dot from tld if present, as for google domain it's the
+-  // same page.
+-  StripTrailingDot(&tld);
+-
 -  CR_DEFINE_STATIC_LOCAL(std::set<std::string>, google_tlds,
 -                         ({GOOGLE_TLD_LIST}));
 -  return base::ContainsKey(google_tlds, tld.as_string());
+-}
+-
+-// True if |url| is a valid URL with a host that is in the static list of
+-// Google subdomains for google search, and an HTTP or HTTPS scheme. Requires
+-// |url| to use the standard port for its scheme (80 for HTTP, 443 for HTTPS).
+-bool IsGoogleSearchSubdomainUrl(const GURL& url) {
+-  if (!IsValidURL(url, PortPermission::DISALLOW_NON_STANDARD_PORTS))
+-    return false;
+-
+-  base::StringPiece host(url.host_piece());
+-  StripTrailingDot(&host);
+-
+-  CR_DEFINE_STATIC_LOCAL(std::set<std::string>, google_subdomains,
+-                         ({"ipv4.google.com", "ipv6.google.com"}));
+-
+-  return base::ContainsKey(google_subdomains, host.as_string());
 -}
 -
  }  // namespace
@@ -241,7 +270,15 @@
    return false;
  }
  
-@@ -142,38 +66,15 @@ std::string GetGoogleLocale(const std::s
+ GURL LinkDoctorBaseURL() {
+-  if (gUseMockLinkDoctorBaseURLForTesting)
+-    return GURL("http://mock.linkdoctor.url/for?testing");
+-  return GURL(LINKDOCTOR_SERVER_REQUEST_URL);
++  return GURL();
+ }
+ 
+ void SetMockLinkDoctorBaseURLForTesting() {
+@@ -168,119 +64,49 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -252,10 +289,10 @@
  
  std::string GetGoogleCountryCode(const GURL& google_homepage_url) {
 -  base::StringPiece google_hostname = google_homepage_url.host_piece();
+-  // TODO(igorcov): This needs a fix for case when the host has a trailing dot,
+-  // like "google.com./". https://crbug.com/720295.
 -  const size_t last_dot = google_hostname.find_last_of('.');
--  if (last_dot == std::string::npos) {
--    NOTREACHED();
--  }
+-  DCHECK_NE(std::string::npos, last_dot);
 -  base::StringPiece country_code = google_hostname.substr(last_dot + 1);
 -  // Assume the com TLD implies the US.
 -  if (country_code == "com")
@@ -283,10 +320,14 @@
  }
  
  const GURL& CommandLineGoogleBaseURL() {
-@@ -185,70 +86,37 @@ const GURL& CommandLineGoogleBaseURL() {
-   std::string current_switch_value(
-       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-           switches::kGoogleBaseURL));
+-  // Unit tests may add command-line flags after the first call to this
+-  // function, so we don't simply initialize a static |base_url| directly and
+-  // then unconditionally return it.
+-  CR_DEFINE_STATIC_LOCAL(std::string, switch_value, ());
+-  CR_DEFINE_STATIC_LOCAL(GURL, base_url, ());
+-  std::string current_switch_value(
+-      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+-          switches::kGoogleBaseURL));
 -  if (current_switch_value != switch_value) {
 -    switch_value = current_switch_value;
 -    base_url = url_formatter::FixupURL(switch_value, std::string());
@@ -323,8 +364,11 @@
  
  bool IsGoogleHomePageUrl(const GURL& url) {
 -  // First check to see if this has a Google domain.
--  if (!IsGoogleDomainUrl(url, DISALLOW_SUBDOMAIN, DISALLOW_NON_STANDARD_PORTS))
+-  if (!IsGoogleDomainUrl(url, DISALLOW_SUBDOMAIN,
+-                         DISALLOW_NON_STANDARD_PORTS) &&
+-      !IsGoogleSearchSubdomainUrl(url)) {
 -    return false;
+-  }
 -
 -  // Make sure the path is a known home page path.
 -  base::StringPiece path(url.path_piece());
@@ -335,8 +379,11 @@
  
  bool IsGoogleSearchUrl(const GURL& url) {
 -  // First check to see if this has a Google domain.
--  if (!IsGoogleDomainUrl(url, DISALLOW_SUBDOMAIN, DISALLOW_NON_STANDARD_PORTS))
+-  if (!IsGoogleDomainUrl(url, DISALLOW_SUBDOMAIN,
+-                         DISALLOW_NON_STANDARD_PORTS) &&
+-      !IsGoogleSearchSubdomainUrl(url)) {
 -    return false;
+-  }
 -
 -  // Make sure the path is a known search path.
 -  base::StringPiece path(url.path_piece());
@@ -361,3 +408,45 @@
  }
  
  }  // namespace google_util
+--- a/chrome/common/page_load_metrics/page_load_metrics_util.cc
++++ b/chrome/common/page_load_metrics/page_load_metrics_util.cc
+@@ -12,38 +12,7 @@
+ namespace page_load_metrics {
+ 
+ base::Optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
+-  const size_t registry_length =
+-      net::registry_controlled_domains::GetRegistryLength(
+-          url,
+-
+-          // Do not include unknown registries (registries that don't have any
+-          // matches in effective TLD names).
+-          net::registry_controlled_domains::EXCLUDE_UNKNOWN_REGISTRIES,
+-
+-          // Do not include private registries, such as appspot.com. We don't
+-          // want to match URLs like www.google.appspot.com.
+-          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
+-
+-  const base::StringPiece hostname = url.host_piece();
+-  if (registry_length == 0 || registry_length == std::string::npos ||
+-      registry_length >= hostname.length()) {
+-    return base::Optional<std::string>();
+-  }
+-
+-  // Removes the tld and the preceding dot.
+-  const base::StringPiece hostname_minus_registry =
+-      hostname.substr(0, hostname.length() - (registry_length + 1));
+-
+-  if (hostname_minus_registry == "google")
+-    return std::string("");
+-
+-  if (!base::EndsWith(hostname_minus_registry, ".google",
+-                      base::CompareCase::INSENSITIVE_ASCII)) {
+-    return base::Optional<std::string>();
+-  }
+-
+-  return std::string(hostname_minus_registry.substr(
+-      0, hostname_minus_registry.length() - strlen(".google")));
++  return base::Optional<std::string>();
+ }
+ 
+ bool IsGoogleHostname(const GURL& url) {
