@@ -97,7 +97,7 @@ TODO
 
 **NOTE: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue**
 
-Tested on macOS 10.11 and 10.12
+Tested on macOS 10.11-10.13
 
 Credits:
 * [9Morello](//github.com/9Morello)
@@ -106,7 +106,7 @@ Credits:
 
 #### Additional Requirements
 
-* Xcode 7 or 8
+* Xcode 7-9
 * Homebrew
 * Perl (for creating a `.dmg` package)
 
