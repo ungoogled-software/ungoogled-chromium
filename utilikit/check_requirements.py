@@ -54,7 +54,7 @@ def check_macos():
     if not result.returncode is 0:
         raise Exception("xcrun command returned non-zero exit code {}".format(
             result.returncode))
-    if not result.stdout.strip() in ["10.10", "10.11", "10.12"]:
+    if not result.stdout.strip() in ["10.10", "10.11", "10.12", "10.13"]:
         raise Exception("Unsupported macOS SDK version '{!s}'".format(
             result.stdout.strip()))
     print("Using macOS SDK version '{!s}'".format(result.stdout.strip()))
