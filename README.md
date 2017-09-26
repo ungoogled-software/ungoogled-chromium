@@ -74,7 +74,11 @@ Most of the additional features are as follows:
 
 ### Contributor binaries
 
+These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not reproducible, their functionality cannot be guaranteed.
+
 [All downloads](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+
+* [Page source code and contribution instructions](//github.com/ungoogled-software/ungoogled-chromium-binaries)
 
 The release versioning scheme follows that of the tags. See the next section for more details.
 
