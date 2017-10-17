@@ -95,6 +95,8 @@ These instructions are platform-specific.
 2. Inside `data.tar.xz`, extract `./opt/google/chrome/libwidevinecdm.so`
 3. Using the extracted `libwidevinecdm.so`, replace the existing file of the same name bundled with ungoogled-chromium
 
+If you are experiencing crashes, try to use the libwidevinecdm.so from the chrome version that matches the current ungoogled-chromium version.
+
 ### Windows
 
 TODO
