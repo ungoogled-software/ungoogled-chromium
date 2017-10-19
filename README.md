@@ -109,9 +109,13 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 ## Contributing, Reporting, Contacting
 
-Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions. There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for those who want a real-time discussion.
+Contributions are welcome!
 
-Contributions of many kinds are welcome! For pull requests, please read the guidelines below first. Additionally, issues marked with the `help wanted` tag are changes that needs discussion or assistance.
+The [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) is the main area for development activity. It tracks problems, suggestions, and questions. Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
+
+There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for real-time discussion.
+
+For pull requests, please read the guidelines below first.
 
 ### Pull request guidelines
 
