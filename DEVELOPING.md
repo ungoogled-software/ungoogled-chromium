@@ -1,5 +1,7 @@
 # Development notes and procedures
 
+The [GitHub Wiki](//github.com/Eloston/ungoogled-chromium/wiki) contains some additional information that changes more frequently.
+
 ## Workflow of updating patches
 
 Tested on Debian 9.0 (stretch). Exact instructions should work on any other Linux or macOS system with the proper dependencies.
@@ -31,9 +33,9 @@ Here's an example for updating the `common` configuration type:
 ```
 export UTILIKIT_CONFIG_TYPE=common
 printf "" | ./utilikit/prepare_sources.py --source-cleaning-list -
-./developer_utilities/update_lists.py --generate cleaning_list --cleaning-list resources/configs/common/cleaning_list
+./developer_utilities/update_lists.py --generate cleaning_list --cleaning-list resources/configs/common/cleaning_list --sandbox-dir build/sandbox
 ./utilikit/clean_sources.py # This is important so domain substitution does not include extra files
-./developer_utilities/update_lists.py --generate domain_substitution_list --domain-regex-list resources/configs/common/domain_substitution_list
+./developer_utilities/update_lists.py --generate domain_substitution_list --domain-regex-list resources/configs/common/domain_regex_list --domain-substitution-list resources/configs/common/domain_substitution_list --sandbox-dir build/sandbox
 ```
 
 #### Updating patches
