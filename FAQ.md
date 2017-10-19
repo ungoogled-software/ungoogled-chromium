@@ -89,6 +89,8 @@ There are also ways to get Google's Flash player or other versions. See http://c
 
 These instructions are platform-specific.
 
+**WARNING**: For all platforms, it is recommended to download the Google Chrome version that has the same major version as ungoogled-chromium. Otherwise, there may be stability issues or crashes.
+
 ### Linux
 
 1. [Download the latest Google Chrome for Linux (.deb file)](https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb)

@@ -120,9 +120,7 @@ Credits:
 ```
 export UTILIKIT_CONFIG_TYPE=macos
 ./utilikit/check_requirements.py --macos
-mkdir build/
-mkdir build/sandbox
-mkdir build/downloads
+mkdir -p build/{sandbox,downloads}
 ./utilikit/prepare_sources.py
 ./utilikit/substitute_domains.py
 ./utilikit/generate_build_files.py macos --apply-domain-substitution
