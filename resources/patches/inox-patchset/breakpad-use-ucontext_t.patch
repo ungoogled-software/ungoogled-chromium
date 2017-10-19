@@ -1,13 +1,27 @@
+From b6a312ed8e144a37da840ae50dbd39df5ffb7e9f Mon Sep 17 00:00:00 2001
+From: Khem Raj <raj.khem@gmail.com>
+Date: Sun, 2 Jul 2017 16:34:54 -0700
+Subject: [PATCH 2/2] replace struct ucontext with ucontext_t
+
+glibc 2.26 does not expose struct ucontext any longer
+
+Upstream-Status: Pending
+
+Signed-off-by: Khem Raj <raj.khem@gmail.com>
+---
+ .../linux/dump_writer_common/ucontext_reader.cc    | 30 +++++++++++-----------
+ .../linux/dump_writer_common/ucontext_reader.h     | 10 ++++----
+ .../src/client/linux/handler/exception_handler.cc  |  8 +++---
+ .../src/client/linux/handler/exception_handler.h   |  2 +-
+ .../linux/microdump_writer/microdump_writer.cc     |  2 +-
+ .../linux/minidump_writer/minidump_writer.cc       |  2 +-
+ 6 files changed, 27 insertions(+), 27 deletions(-)
+
 diff --git a/breakpad/src/client/linux/dump_writer_common/ucontext_reader.cc b/breakpad/src/client/linux/dump_writer_common/ucontext_reader.cc
-index c80724d..052ce37 100644
+index c80724dd8..93b4d9f85 100644
 --- a/breakpad/src/client/linux/dump_writer_common/ucontext_reader.cc
 +++ b/breakpad/src/client/linux/dump_writer_common/ucontext_reader.cc
-@@ -36,19 +36,19 @@ namespace google_breakpad {
- 
- // Minidump defines register structures which are different from the raw
- // structures which we get from the kernel. These are platform specific
--// functions to juggle the ucontext and user structures into minidump format.
-+// functions to juggle the ucontext_t and user structures into minidump format.
+@@ -40,15 +40,15 @@ namespace google_breakpad {
  
  #if defined(__i386__)
  
@@ -103,15 +117,12 @@ index c80724d..052ce37 100644
    out->context_flags = MD_CONTEXT_MIPS64_FULL;
  #elif _MIPS_SIM == _ABIO32
 diff --git a/breakpad/src/client/linux/dump_writer_common/ucontext_reader.h b/breakpad/src/client/linux/dump_writer_common/ucontext_reader.h
-index b6e77b4..2de80b7 100644
+index b6e77b4b5..2369a9ad3 100644
 --- a/breakpad/src/client/linux/dump_writer_common/ucontext_reader.h
 +++ b/breakpad/src/client/linux/dump_writer_common/ucontext_reader.h
-@@ -39,23 +39,23 @@
+@@ -41,21 +41,21 @@ namespace google_breakpad {
  
- namespace google_breakpad {
- 
--// Wraps platform-dependent implementations of accessors to ucontext structs.
-+// Wraps platform-dependent implementations of accessors to ucontext_t structs.
+ // Wraps platform-dependent implementations of accessors to ucontext structs.
  struct UContextReader {
 -  static uintptr_t GetStackPointer(const struct ucontext* uc);
 +  static uintptr_t GetStackPointer(const ucontext_t* uc);
@@ -119,8 +130,7 @@ index b6e77b4..2de80b7 100644
 -  static uintptr_t GetInstructionPointer(const struct ucontext* uc);
 +  static uintptr_t GetInstructionPointer(const ucontext_t* uc);
  
--  // Juggle a arch-specific ucontext into a minidump format
-+  // Juggle a arch-specific ucontext_t into a minidump format
+   // Juggle a arch-specific ucontext into a minidump format
    //   out: the minidump structure
    //   info: the collection of register structures.
  #if defined(__i386__) || defined(__x86_64)
@@ -138,10 +148,10 @@ index b6e77b4..2de80b7 100644
  };
  
 diff --git a/breakpad/src/client/linux/handler/exception_handler.cc b/breakpad/src/client/linux/handler/exception_handler.cc
-index 586d84e..05936d2 100644
+index b63f973b8..f2688acaf 100644
 --- a/breakpad/src/client/linux/handler/exception_handler.cc
 +++ b/breakpad/src/client/linux/handler/exception_handler.cc
-@@ -457,9 +457,9 @@ bool ExceptionHandler::HandleSignal(int /*sig*/, siginfo_t* info, void* uc) {
+@@ -439,9 +439,9 @@ bool ExceptionHandler::HandleSignal(int sig, siginfo_t* info, void* uc) {
    // Fill in all the holes in the struct to make Valgrind happy.
    memset(&g_crash_context_, 0, sizeof(g_crash_context_));
    memcpy(&g_crash_context_.siginfo, info, sizeof(siginfo_t));
@@ -153,19 +163,16 @@ index 586d84e..05936d2 100644
    struct fpsimd_context* fp_ptr =
        (struct fpsimd_context*)&uc_ptr->uc_mcontext.__reserved;
    if (fp_ptr->head.magic == FPSIMD_MAGIC) {
-@@ -468,9 +468,9 @@ bool ExceptionHandler::HandleSignal(int /*sig*/, siginfo_t* info, void* uc) {
-   }
- #elif !defined(__ARM_EABI__) && !defined(__mips__)
+@@ -452,7 +452,7 @@ bool ExceptionHandler::HandleSignal(int sig, siginfo_t* info, void* uc) {
    // FP state is not part of user ABI on ARM Linux.
--  // In case of MIPS Linux FP state is already part of struct ucontext
-+  // In case of MIPS Linux FP state is already part of ucontext_t
+   // In case of MIPS Linux FP state is already part of struct ucontext
    // and 'float_state' is not a member of CrashContext.
 -  struct ucontext* uc_ptr = (struct ucontext*)uc;
 +  ucontext_t* uc_ptr = (ucontext_t*)uc;
    if (uc_ptr->uc_mcontext.fpregs) {
      memcpy(&g_crash_context_.float_state, uc_ptr->uc_mcontext.fpregs,
             sizeof(g_crash_context_.float_state));
-@@ -494,7 +494,7 @@ bool ExceptionHandler::SimulateSignalDelivery(int sig) {
+@@ -476,7 +476,7 @@ bool ExceptionHandler::SimulateSignalDelivery(int sig) {
    // ExceptionHandler::HandleSignal().
    siginfo.si_code = SI_USER;
    siginfo.si_pid = getpid();
@@ -175,10 +182,10 @@ index 586d84e..05936d2 100644
    return HandleSignal(sig, &siginfo, &context);
  }
 diff --git a/breakpad/src/client/linux/handler/exception_handler.h b/breakpad/src/client/linux/handler/exception_handler.h
-index daba57e..25598a2 100644
+index 591c31085..846df772f 100644
 --- a/breakpad/src/client/linux/handler/exception_handler.h
 +++ b/breakpad/src/client/linux/handler/exception_handler.h
-@@ -191,11 +191,11 @@ class ExceptionHandler {
+@@ -191,7 +191,7 @@ class ExceptionHandler {
    struct CrashContext {
      siginfo_t siginfo;
      pid_t tid;  // the crashing thread.
@@ -187,16 +194,11 @@ index daba57e..25598a2 100644
  #if !defined(__ARM_EABI__) && !defined(__mips__)
      // #ifdef this out because FP state is not part of user ABI for Linux ARM.
      // In case of MIPS Linux FP state is already part of struct
--    // ucontext so 'float_state' is not required.
-+    // ucontext_t so 'float_state' is not required.
-     fpstate_t float_state;
- #endif
-   };
 diff --git a/breakpad/src/client/linux/microdump_writer/microdump_writer.cc b/breakpad/src/client/linux/microdump_writer/microdump_writer.cc
-index 3764eec..80ad5c4 100644
+index 6f5b43559..a508667a0 100644
 --- a/breakpad/src/client/linux/microdump_writer/microdump_writer.cc
 +++ b/breakpad/src/client/linux/microdump_writer/microdump_writer.cc
-@@ -593,7 +593,7 @@ class MicrodumpWriter {
+@@ -571,7 +571,7 @@ class MicrodumpWriter {
  
    void* Alloc(unsigned bytes) { return dumper_->allocator()->Alloc(bytes); }
  
@@ -206,10 +208,10 @@ index 3764eec..80ad5c4 100644
    const google_breakpad::fpstate_t* const float_state_;
  #endif
 diff --git a/breakpad/src/client/linux/minidump_writer/minidump_writer.cc b/breakpad/src/client/linux/minidump_writer/minidump_writer.cc
-index d11ba6e..c716143 100644
+index 86009b9f6..f2aec73d7 100644
 --- a/breakpad/src/client/linux/minidump_writer/minidump_writer.cc
 +++ b/breakpad/src/client/linux/minidump_writer/minidump_writer.cc
-@@ -1323,7 +1323,7 @@ class MinidumpWriter {
+@@ -1248,7 +1248,7 @@ class MinidumpWriter {
    const int fd_;  // File descriptor where the minidum should be written.
    const char* path_;  // Path to the file where the minidum should be written.
  
@@ -218,3 +220,6 @@ index d11ba6e..c716143 100644
  #if !defined(__ARM_EABI__) && !defined(__mips__)
    const google_breakpad::fpstate_t* const float_state_;  // ditto
  #endif
+-- 
+2.13.2
+
