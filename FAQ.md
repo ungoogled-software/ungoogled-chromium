@@ -45,7 +45,7 @@ You have 4 options to install an extension:
         "external_version": "1.0.0"
     }
     ```
-    If you restart Inox the extension should be loaded automatically.
+    If you restart Inox, the extension should be loaded automatically.
 
 * **Extension loader**
 
