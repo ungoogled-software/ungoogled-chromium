@@ -1,0 +1,78 @@
+Description: Fixes a network api crash
+
+--- a/extensions/browser/api/networking_private/networking_private_linux.cc
++++ b/extensions/browser/api/networking_private/networking_private_linux.cc
+@@ -215,12 +215,14 @@ void NetworkingPrivateLinux::GetState(
+   std::unique_ptr<base::DictionaryValue> network_properties(
+       new base::DictionaryValue);
+ 
++  std::string* erp = error.get();
++  base::DictionaryValue* npp = network_properties.get();
+   // Runs GetCachedNetworkProperties on |dbus_thread|.
+   dbus_thread_.task_runner()->PostTaskAndReply(
+       FROM_HERE, base::Bind(&NetworkingPrivateLinux::GetCachedNetworkProperties,
+                             base::Unretained(this), guid,
+-                            base::Unretained(network_properties.get()),
+-                            base::Unretained(error.get())),
++                            base::Unretained(npp),
++                            base::Unretained(erp)),
+       base::Bind(&GetCachedNetworkPropertiesCallback, base::Passed(&error),
+                  base::Passed(&network_properties), success_callback,
+                  failure_callback));
+@@ -301,11 +303,12 @@ void NetworkingPrivateLinux::GetNetworks
+ 
+   // Runs GetAllWiFiAccessPoints on the dbus_thread and returns the
+   // results back to OnAccessPointsFound where the callback is fired.
++  NetworkMap* nmp = network_map.get();
+   dbus_thread_.task_runner()->PostTaskAndReply(
+       FROM_HERE,
+       base::Bind(&NetworkingPrivateLinux::GetAllWiFiAccessPoints,
+                  base::Unretained(this), configured_only, visible_only, limit,
+-                 base::Unretained(network_map.get())),
++                 base::Unretained(nmp)),
+       base::Bind(&NetworkingPrivateLinux::OnAccessPointsFound,
+                  base::Unretained(this), base::Passed(&network_map),
+                  success_callback, failure_callback));
+@@ -321,11 +324,12 @@ bool NetworkingPrivateLinux::GetNetworks
+   // Runs GetAllWiFiAccessPoints on the dbus_thread and returns the
+   // results back to SendNetworkListChangedEvent to fire the event. No
+   // callbacks are used in this case.
++  NetworkMap* nmp = network_map.get();
+   dbus_thread_.task_runner()->PostTaskAndReply(
+       FROM_HERE, base::Bind(&NetworkingPrivateLinux::GetAllWiFiAccessPoints,
+                             base::Unretained(this), false /* configured_only */,
+                             false /* visible_only */, 0 /* limit */,
+-                            base::Unretained(network_map.get())),
++                            base::Unretained(nmp)),
+       base::Bind(&NetworkingPrivateLinux::OnAccessPointsFoundViaScan,
+                  base::Unretained(this), base::Passed(&network_map)));
+ 
+@@ -506,11 +510,12 @@ void NetworkingPrivateLinux::StartConnec
+ 
+   std::unique_ptr<std::string> error(new std::string);
+ 
++  std::string* erp = error.get();
+   // Runs ConnectToNetwork on |dbus_thread|.
+   dbus_thread_.task_runner()->PostTaskAndReply(
+       FROM_HERE,
+       base::Bind(&NetworkingPrivateLinux::ConnectToNetwork,
+-                 base::Unretained(this), guid, base::Unretained(error.get())),
++                 base::Unretained(this), guid, base::Unretained(erp)),
+       base::Bind(&OnNetworkConnectOperationCompleted, base::Passed(&error),
+                  success_callback, failure_callback));
+ }
+@@ -524,11 +529,12 @@ void NetworkingPrivateLinux::StartDiscon
+ 
+   std::unique_ptr<std::string> error(new std::string);
+ 
++  std::string* erp = error.get();
+   // Runs DisconnectFromNetwork on |dbus_thread|.
+   dbus_thread_.task_runner()->PostTaskAndReply(
+       FROM_HERE,
+       base::Bind(&NetworkingPrivateLinux::DisconnectFromNetwork,
+-                 base::Unretained(this), guid, base::Unretained(error.get())),
++                 base::Unretained(this), guid, base::Unretained(erp)),
+       base::Bind(&OnNetworkConnectOperationCompleted, base::Passed(&error),
+                  success_callback, failure_callback));
+ }
+
