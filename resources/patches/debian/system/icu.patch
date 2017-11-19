@@ -1,15 +1,32 @@
-description: maintain compatibility with system icu library
+description: backwards compatibility for older versions of icu
 author: Michael Gilbert <mgilbert@debian.org>
 
---- a/BUILD.gn
-+++ b/BUILD.gn
-@@ -657,8 +657,7 @@ group("gn_all") {
-     }
-   }
+--- a/v8/src/runtime/runtime-intl.cc
++++ b/v8/src/runtime/runtime-intl.cc
+@@ -632,7 +632,11 @@ RUNTIME_FUNCTION(Runtime_PluralRulesSele
+   return *isolate->factory()
+               ->NewStringFromTwoByte(Vector<const uint16_t>(
+                   reinterpret_cast<const uint16_t*>(
++#if U_ICU_VERSION_MAJOR_NUM >= 59
+                       icu::toUCharPtr(result.getBuffer())),
++#else
++                      result.getBuffer()),
++#endif
+                   result.length()))
+               .ToHandleChecked();
+ }
+--- a/third_party/WebKit/Source/platform/graphics/LoggingCanvas.cpp
++++ b/third_party/WebKit/Source/platform/graphics/LoggingCanvas.cpp
+@@ -527,8 +527,12 @@ String StringForUTF32LEText(const void*
+   utf16 = icu::UnicodeString::fromUTF32(reinterpret_cast<const UChar32*>(text),
+                                         static_cast<int32_t>(byte_length));
+ #endif
++#if U_ICU_VERSION_MAJOR_NUM >= 59
+   return String(icu::toUCharPtr(utf16.getBuffer()),
+                 static_cast<unsigned>(utf16.length()));
++#else
++  return String(utf16.getBuffer(),static_cast<unsigned>(utf16.length()));
++#endif
+ }
  
--  if ((is_linux && !is_chromeos && !is_chromecast) || (is_win && use_drfuzz) ||
--      (use_libfuzzer && is_mac)) {
-+  if (false) {
-     deps += [
-       "//testing/libfuzzer/fuzzers",
-       "//testing/libfuzzer/tests:libfuzzer_tests",
+ String StringForText(const void* text,
