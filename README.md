@@ -51,7 +51,7 @@ Most of the additional features are as follows:
 * Added menu item under "More tools" to clear the HTTP authentication cache on-demand
 * Add new command-line switches and `chrome://flags` entries:
     * `--extension-mime-request-handling` - Change how extension MIME types (CRX and user scripts) are handled. Acceptable values are `download-as-regular-file` or `install-always`. Leave unset to use normal behavior. It is also configurable under `chrome://flags`
-    * `enable-stacked-tab-strip` and `enable-tab-adjust-layout` - These flags adjust the tab strip behavior. They are not well tested, so proceed with caution.
+    * `--enable-stacked-tab-strip` and `--enable-tab-adjust-layout` - These flags adjust the tab strip behavior. `--enable-stacked-tab-strip` is also configurable in `chrome://flags` Please note that they are not well tested, so proceed with caution.
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
     * See the [FAQ](FAQ.md#why-is-safe-browsing-disabled)
