@@ -7,6 +7,7 @@
 
 """Exports resources for a specific configuration"""
 
+import os
 import pathlib
 import sys
 import argparse
@@ -31,14 +32,16 @@ def export_patches_dir(resources, output_patches_dir, domain_substitute_patches)
     Exports only the necessary patches from `resources` into `output_patches_dir`
     and optionally applying domain substitution
     """
-    output_patches_dir.mkdir(exist_ok=True)
+    os.makedirs(output_patches_dir.as_posix(), exist_ok=True)
     patch_order = resources.read_patch_order()
 
     for patch_name in patch_order:
         input_path = resources.get_patches_dir() / patch_name
         output_path = output_patches_dir / pathlib.Path(patch_name)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(input_path.read_bytes())
+        os.makedirs(output_path.parent.as_posix(), exist_ok=True)
+        outputF = open(output_path.as_posix(), 'wb')
+        outputF.write(open(input_path.as_posix(), 'rb').read())
+        outputF.close()
 
     if domain_substitute_patches:
         _substitute_domains.substitute_domains(
