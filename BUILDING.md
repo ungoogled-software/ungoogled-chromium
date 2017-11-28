@@ -1,6 +1,12 @@
 # Building ungoogled-chromium
 
-**Notice for users of the develop branch**: The information in this document may be out-of-date or incorrect.
+## IMPORTANT - Please read this section first
+
+**Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses)
+
+**Choosing branches**: The `master` branch contains stable code, and `develop` is for unstable code. Please do not use `develop` unless you know what you are doing.
+
+## Contents
 
 There are two major sections of this document:
 
