@@ -33,7 +33,7 @@ Since these goals and requirements are not precise, unclear situations are discu
 
 ## Features
 
-Many of ungoogled-chromium's features are small changes that may or may not last. As a result it is best to consult the source code for up-to-date information.
+A number of ungoogled-chromium's changes are subtle and evolve over time. As a result, it is best to consult the source code for complete and up-to-date information.
 
 ungoogled-chromium selectively borrows many of its features from the following:
 * [Debian](//tracker.debian.org/pkg/chromium-browser)
