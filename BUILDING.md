@@ -51,8 +51,8 @@ Deviations for different Debian versions or flavors:
 Ubuntu 17.04 (zesty): Same as Debian 9 (stretch)
 
 Ubuntu 16.04 (xenial):
-* Set `UTILIKIT_CONFIG_TYPE=linux_conservative`
-* Use `--flavor conservative` in `generate_build_files.py`
+* Set `UTILIKIT_CONFIG_TYPE=linux_portable`
+* Use `--flavor minimal` in `generate_build_files.py`
 
 Debian 8.0 (jessie) is currently not working at this time, due to `utilikit` using Python 3.5 features and the lack of a build configuration that will work on it.
 
