@@ -33,14 +33,14 @@ Since these goals and requirements are not precise, unclear situations are discu
 
 ## Features
 
-This list is not exhaustive. For more details, consult the source code.
+Many of ungoogled-chromium's features are small changes that may or may not last. As a result it is best to consult the source code for up-to-date information.
 
-ungoogled-chromium borrows features from the following:
+ungoogled-chromium selectively borrows many of its features from the following:
 * [Debian](//tracker.debian.org/pkg/chromium-browser)
 * [Inox patchset](//github.com/gcarq/inox-patchset)
 * [Iridium Browser](//iridiumbrowser.de/)
 
-Most of the additional features are as follows:
+Most of the **additional** features are as follows:
 * Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
 * Strip binaries from the source code (known as source cleaning)
     * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
