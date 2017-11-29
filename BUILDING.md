@@ -1,6 +1,12 @@
 # Building ungoogled-chromium
 
-**Notice for users of the develop branch**: The information in this document may be out-of-date or incorrect.
+## IMPORTANT - Please read this section first
+
+**Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses)
+
+**Choosing branches**: The `master` branch contains stable code, and `develop` is for unstable code. Please do not use `develop` unless you know what you are doing.
+
+## Contents
 
 There are two major sections of this document:
 
@@ -45,8 +51,8 @@ Deviations for different Debian versions or flavors:
 Ubuntu 17.04 (zesty): Same as Debian 9 (stretch)
 
 Ubuntu 16.04 (xenial):
-* Set `UTILIKIT_CONFIG_TYPE=linux_conservative`
-* Use `--flavor conservative` in `generate_build_files.py`
+* Set `UTILIKIT_CONFIG_TYPE=linux_portable`
+* Use `--flavor minimal` in `generate_build_files.py`
 
 Debian 8.0 (jessie) is currently not working at this time, due to `utilikit` using Python 3.5 features and the lack of a build configuration that will work on it.
 
