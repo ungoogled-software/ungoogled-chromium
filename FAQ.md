@@ -16,10 +16,12 @@ Yes, but not via the web interface. Adapted from [inox-patchset](https://raw.git
 
 Since there is no Webstore plugin, you cannot install extensions directly from the store, but you can download and install any extension manually.
 
-    https://clients2.google.com/service/update2/crx?response=redirect&prodversion=48.0&x=id%3D[EXTENSION_ID]%26installsource%3Dondemand%26uc
+    https://clients2.google.com/service/update2/crx?response=redirect&prodversion=[VERSION]&x=id%3D[EXTENSION_ID]%26installsource%3Dondemand%26uc
 
-To download a extension just replace [EXTENSION_ID] with the extension-id from the WebStore
-(For example cjpalhdlnbpafiamejdnhcphjbkeiagm is the extension id of uBlock Origin).
+To download a extension, replace [EXTENSION_ID] with the extension-id from the Chrome Web Store, and [VERSION] with the browser's version. For example, `cjpalhdlnbpafiamejdnhcphjbkeiagm` is the extension id of uBlock Origin, and `62.0` is for the 62.0.x.x browser versions
+
+Since version 62, an option `chrome://flags/#extension-mime-request-handling` was added to allow configuring of the behavior when the browser requests for a CRX or User Script file. This changes the behavior of the Chrome Web Store URL above. 
+
 You have 4 options to install an extension:
 
 * **User script**
