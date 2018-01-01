@@ -6,6 +6,7 @@
 
 """Linux Simple-specific build files generation code"""
 
+import os
 import shutil
 import pathlib
 
@@ -39,7 +40,7 @@ def generate_build_files(resources, output_dir, build_output, apply_domain_subst
     )
 
     linux_simple_dir = output_dir / _BUILD_FILES_DIR
-    linux_simple_dir.mkdir(exist_ok=True)
+    os.makedirs(linux_simple_dir.as_posix(), exist_ok=True)
 
     # Build script
     shutil.copy(
