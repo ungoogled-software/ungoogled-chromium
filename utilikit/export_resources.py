@@ -44,9 +44,12 @@ def export_patches_dir(resources, output_patches_dir, domain_substitute_patches)
                 output_file.write(input_file.read())
 
     if domain_substitute_patches:
-        _substitute_domains.substitute_domains(
+        _substitute_domains.substitute_domains_in_patches(
             _substitute_domains.get_parsed_domain_regexes(resources.read_domain_regex_list()),
-            patch_order, output_patches_dir, log_warnings=False)
+            resources.read_domain_substitution_list(),
+            patch_order,
+            output_patches_dir,
+            log_warnings=False)
 
 def _parse_args(args_list):
     parser = argparse.ArgumentParser(description=__doc__)
