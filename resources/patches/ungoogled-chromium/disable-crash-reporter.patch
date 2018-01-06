@@ -12,15 +12,41 @@
    if (!CheckForRequiredFlagsOrDie()) {
 --- a/chrome/browser/tracing/crash_service_uploader.cc
 +++ b/chrome/browser/tracing/crash_service_uploader.cc
-@@ -122,6 +122,7 @@ void TraceCrashServiceUploader::DoUpload
-     std::unique_ptr<const base::DictionaryValue> metadata,
-     const UploadProgressCallback& progress_callback,
-     const UploadDoneCallback& done_callback) {
-+  return;
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
- 
+@@ -127,11 +127,16 @@ void TraceCrashServiceUploader::DoUpload
    progress_callback_ = progress_callback;
-@@ -302,6 +303,7 @@ bool TraceCrashServiceUploader::Compress
+   done_callback_ = done_callback;
+ 
+-  base::PostTaskWithTraits(
+-      FROM_HERE, {base::TaskPriority::BACKGROUND},
+-      base::Bind(&TraceCrashServiceUploader::DoCompressOnBackgroundThread,
+-                 base::Unretained(this), file_contents, upload_mode,
+-                 upload_url_, base::Passed(std::move(metadata))));
++  if (!progress_callback_.is_null()) {
++    content::BrowserThread::PostTask(
++        content::BrowserThread::UI, FROM_HERE,
++        base::Bind(progress_callback_, 1, 1));
++  }
++  if (!done_callback_.is_null()) {
++    content::BrowserThread::PostTask(
++        content::BrowserThread::UI, FROM_HERE,
++        base::Bind(done_callback_, true, "Upload skipped."));
++  }
+ }
+ 
+ void TraceCrashServiceUploader::DoCompressOnBackgroundThread(
+@@ -200,11 +205,6 @@ void TraceCrashServiceUploader::DoCompre
+   std::string post_data;
+   SetupMultipart(product, version, std::move(metadata), "trace.json.gz",
+                  compressed_contents, &post_data);
+-
+-  content::BrowserThread::PostTask(
+-      content::BrowserThread::UI, FROM_HERE,
+-      base::Bind(&TraceCrashServiceUploader::CreateAndStartURLFetcher,
+-                 base::Unretained(this), upload_url, post_data));
+ }
+ 
+ void TraceCrashServiceUploader::OnUploadError(
+@@ -302,6 +302,7 @@ bool TraceCrashServiceUploader::Compress
  void TraceCrashServiceUploader::CreateAndStartURLFetcher(
      const std::string& upload_url,
      const std::string& post_data) {
