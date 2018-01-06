@@ -1,0 +1,427 @@
+commit 03f9a90d8a783f9d1a94935ac298338a1e694380
+Author: Eric Lawrence <elawrence@chromium.org>
+Date:   Sat Dec 16 04:48:11 2017 +0000
+
+    Reland of 'Unescape fragment for display in Omnibox'
+    
+    The original landing broke EGTests for iOS Simulator and Device which
+    were not run by the CQ. This change includes updated EGTests.
+    
+    TBR=pkasting@chromium.org
+    
+    Bug: 789163, 643458
+    Cq-Include-Trybots: master.tryserver.chromium.mac:ios-simulator-cronet;master.tryserver.chromium.mac:ios-simulator-full-configs
+    Change-Id: Ie30afcb7bcba5affc7266d72a10b7f8dc0074314
+    Reviewed-on: https://chromium-review.googlesource.com/830093
+    Reviewed-by: Eric Lawrence <elawrence@chromium.org>
+    Reviewed-by: Peter Kasting <pkasting@chromium.org>
+    Reviewed-by: Eugene But <eugenebut@chromium.org>
+    Commit-Queue: Eric Lawrence <elawrence@chromium.org>
+    Cr-Commit-Position: refs/heads/master@{#524591}
+
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views_browsertest.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views_browsertest.cc
+@@ -458,3 +458,13 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsT
+   EXPECT_EQ(omnibox_view_views->GetRenderText()->elide_behavior(),
+             gfx::NO_ELIDE);
+ }
++ 
++IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, FragmentUnescapedForDisplay) {
++  OmniboxView* view = nullptr;
++  ASSERT_NO_FATAL_FAILURE(GetOmniboxViewForBrowser(browser(), &view));
++  ui_test_utils::NavigateToURL(browser(),
++                               GURL("https://www.google.com/#%E2%98%83"));
++
++  EXPECT_EQ(view->GetText(),
++            base::UTF8ToUTF16("https://www.google.com/#\u2603"));
++}
+--- a/components/url_formatter/elide_url_unittest.cc
++++ b/components/url_formatter/elide_url_unittest.cc
+@@ -337,15 +337,16 @@ TEST(TextEliderTest, TestElisionSpecialC
+        kEllipsisStr + "berkeley.edu:4430/" + kEllipsisStr + "/arbitfilename"},
+ 
+       // Unescaping.
+-      {"http://www/%E4%BD%A0%E5%A5%BD?q=%E4%BD%A0%E5%A5%BD#\xe4\xbd\xa0",
+-       "www/\xe4\xbd\xa0\xe5\xa5\xbd?q=\xe4\xbd\xa0\xe5\xa5\xbd#" +
++      {"http://www/%E4%BD%A0%E5%A5%BD?"
++       "q=%E4%BD%A0%E5%A5%BD#\xe4\xbd\xa0\xe4\xbd\xa0\xe4\xbd\xa0",
++       "www/\xe4\xbd\xa0\xe5\xa5\xbd?q=\xe4\xbd\xa0\xe5\xa5\xbd#\xe4\xbd\xa0" +
+            kEllipsisStr},
+ 
+       // Invalid unescaping for path. The ref will always be valid UTF-8. We
+       // don't bother to do too many edge cases, since these are handled by the
+       // escaper unittest.
+       {"http://www/%E4%A0%E5%A5%BD?q=%E4%BD%A0%E5%A5%BD#\xe4\xbd\xa0",
+-       "www/%E4%A0%E5%A5%BD?q=\xe4\xbd\xa0\xe5\xa5\xbd#" + kEllipsisStr},
++       "www/%E4%A0%E5%A5%BD?q=\xe4\xbd\xa0\xe5\xa5\xbd#\xe4\xbd\xa0"},
+   };
+ 
+   RunElisionTest(testcases);
+--- a/components/url_formatter/url_formatter.cc
++++ b/components/url_formatter/url_formatter.cc
+@@ -586,11 +586,10 @@ base::string16 FormatUrlWithAdjustments(
+                              NonHostComponentTransform(unescape_rules),
+                              &url_string, &new_parsed->query, adjustments);
+ 
+-    // Ref.  This is valid, unescaped UTF-8, so we can just convert.
+     if (parsed.ref.is_valid())
+       url_string.push_back('#');
+     AppendFormattedComponent(spec, parsed.ref,
+-                             NonHostComponentTransform(net::UnescapeRule::NONE),
++                             NonHostComponentTransform(unescape_rules),
+                              &url_string, &new_parsed->ref, adjustments);
+   }
+ 
+--- a/components/url_formatter/url_formatter_unittest.cc
++++ b/components/url_formatter/url_formatter_unittest.cc
+@@ -762,7 +762,7 @@ TEST(UrlFormatterTest, FormatUrl) {
+ 
+       {"With a port number and a reference",
+        "http://www.google.com:8080/#\xE3\x82\xB0", default_format_type,
+-       net::UnescapeRule::NORMAL, L"http://www.google.com:8080/#%E3%82%B0", 7},
++       net::UnescapeRule::NORMAL, L"http://www.google.com:8080/#\x30B0", 7},
+ 
+       // -------- IDN tests --------
+       {"Japanese IDN with ja", "http://xn--l8jvb1ey91xtjb.jp",
+@@ -1053,7 +1053,7 @@ TEST(UrlFormatterTest, FormatUrlParsed)
+                 kFormatUrlOmitNothing, net::UnescapeRule::NORMAL, &parsed,
+                 nullptr, nullptr);
+   EXPECT_EQ(WideToUTF16(L"http://\x30B0:\x30FC@\x30B0\x30FC\x30B0\x30EB.jp:8080"
+-                        L"/\x30B0/?q=\x30B0#%E3%82%B0"),
++                        L"/\x30B0/?q=\x30B0#\x30B0"),
+             formatted);
+   EXPECT_EQ(WideToUTF16(L"\x30B0"),
+       formatted.substr(parsed.username.begin, parsed.username.len));
+@@ -1067,7 +1067,7 @@ TEST(UrlFormatterTest, FormatUrlParsed)
+       formatted.substr(parsed.path.begin, parsed.path.len));
+   EXPECT_EQ(WideToUTF16(L"q=\x30B0"),
+       formatted.substr(parsed.query.begin, parsed.query.len));
+-  EXPECT_EQ(WideToUTF16(L"%E3%82%B0"),
++  EXPECT_EQ(WideToUTF16(L"\x30B0"),
+             formatted.substr(parsed.ref.begin, parsed.ref.len));
+ 
+   // Omit_username_password + unescape case.
+@@ -1077,7 +1077,7 @@ TEST(UrlFormatterTest, FormatUrlParsed)
+                 kFormatUrlOmitUsernamePassword, net::UnescapeRule::NORMAL,
+                 &parsed, nullptr, nullptr);
+   EXPECT_EQ(WideToUTF16(L"http://\x30B0\x30FC\x30B0\x30EB.jp:8080"
+-                        L"/\x30B0/?q=\x30B0#%E3%82%B0"),
++                        L"/\x30B0/?q=\x30B0#\x30B0"),
+             formatted);
+   EXPECT_FALSE(parsed.username.is_valid());
+   EXPECT_FALSE(parsed.password.is_valid());
+@@ -1089,7 +1089,7 @@ TEST(UrlFormatterTest, FormatUrlParsed)
+       formatted.substr(parsed.path.begin, parsed.path.len));
+   EXPECT_EQ(WideToUTF16(L"q=\x30B0"),
+       formatted.substr(parsed.query.begin, parsed.query.len));
+-  EXPECT_EQ(WideToUTF16(L"%E3%82%B0"),
++  EXPECT_EQ(WideToUTF16(L"\x30B0"),
+             formatted.substr(parsed.ref.begin, parsed.ref.len));
+ 
+   // View-source case.
+@@ -1323,9 +1323,12 @@ TEST(UrlFormatterTest, FormatUrlWithOffs
+       kFormatUrlOmitNothing, net::UnescapeRule::SPACES, unescape_offsets);
+ 
+   const size_t ref_offsets[] = {
+-      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+-      17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+-      34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
++      0,  1,     2,     3,     4,     5,     6,     7,     8,     9,
++      10, 11,    12,    13,    14,    15,    16,    17,    18,    19,
++      20, 21,    22,    23,    24,    25,    26,    27,    28,    29,
++      30, 31,    kNpos, kNpos, kNpos, kNpos, kNpos, kNpos, kNpos, kNpos,
++      32, kNpos, kNpos, kNpos, kNpos, kNpos, kNpos, kNpos, kNpos, 33};
++
+   // Unescape to "http://www.google.com/foo.html#\x30B0\x30B0z".
+   CheckAdjustedOffsets("http://www.google.com/foo.html#%E3%82%B0%E3%82%B0z",
+                        kFormatUrlOmitNothing, net::UnescapeRule::NORMAL,
+--- a/ios/chrome/browser/web/push_and_replace_state_navigation_egtest.mm
++++ b/ios/chrome/browser/web/push_and_replace_state_navigation_egtest.mm
+@@ -59,40 +59,42 @@ const char* kReplaceStateRootPathSpaceUR
+   // Push 3 URLs. Verify that the URL changed and the status was updated.
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStateHashWithObject"];
+   [self assertStatusText:@"pushStateHashWithObject"
+-                 withURL:pushStateHashWithObjectURL
++         withOmniboxText:pushStateHashWithObjectURL.GetContent()
+               pageLoaded:NO];
+ 
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStateRootPath"];
+   [self assertStatusText:@"pushStateRootPath"
+-                 withURL:pushStateRootPathURL
++         withOmniboxText:pushStateRootPathURL.GetContent()
+               pageLoaded:NO];
+ 
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStatePathSpace"];
+   [self assertStatusText:@"pushStatePathSpace"
+-                 withURL:pushStatePathSpaceURL
++         withOmniboxText:pushStatePathSpaceURL.GetContent()
+               pageLoaded:NO];
+ 
+   // Go back and check that the page doesn't load and the status text is updated
+   // by the popstate event.
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+   [self assertStatusText:@"pushStateRootPath"
+-                 withURL:pushStateRootPathURL
++         withOmniboxText:pushStateRootPathURL.GetContent()
+               pageLoaded:NO];
+ 
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+   [self assertStatusText:@"pushStateHashWithObject"
+-                 withURL:pushStateHashWithObjectURL
++         withOmniboxText:pushStateHashWithObjectURL.GetContent()
+               pageLoaded:NO];
+ 
+   [ChromeEarlGrey tapWebViewElementWithID:@"goBack"];
+   const GURL historyTestURL = web::test::HttpServer::MakeUrl(kHistoryTestUrl);
+-  [self assertStatusText:NULL withURL:historyTestURL pageLoaded:NO];
++  [self assertStatusText:nil
++         withOmniboxText:historyTestURL.GetContent()
++              pageLoaded:NO];
+ 
+   // Go forward 2 pages and check that the page doesn't load and the status text
+   // is updated by the popstate event.
+   [ChromeEarlGrey tapWebViewElementWithID:@"goForward2"];
+   [self assertStatusText:@"pushStateRootPath"
+-                 withURL:pushStateRootPathURL
++         withOmniboxText:pushStateRootPathURL.GetContent()
+               pageLoaded:NO];
+ }
+ 
+@@ -108,7 +110,7 @@ const char* kReplaceStateRootPathSpaceUR
+       web::test::HttpServer::MakeUrl(kReplaceStateHashWithObjectURL);
+   [ChromeEarlGrey tapWebViewElementWithID:@"replaceStateHashWithObject"];
+   [self assertStatusText:@"replaceStateHashWithObject"
+-                 withURL:replaceStateHashWithObjectURL
++         withOmniboxText:replaceStateHashWithObjectURL.GetContent()
+               pageLoaded:NO];
+ 
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+@@ -119,7 +121,7 @@ const char* kReplaceStateRootPathSpaceUR
+   [[EarlGrey selectElementWithMatcher:ForwardButton()]
+       performAction:grey_tap()];
+   [self assertStatusText:@"replaceStateHashWithObject"
+-                 withURL:replaceStateHashWithObjectURL
++         withOmniboxText:replaceStateHashWithObjectURL.GetContent()
+               pageLoaded:YES];
+ 
+   // Push URL then replace it. Do this twice.
+@@ -127,44 +129,44 @@ const char* kReplaceStateRootPathSpaceUR
+       web::test::HttpServer::MakeUrl(kPushStateHashStringURL);
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStateHashString"];
+   [self assertStatusText:@"pushStateHashString"
+-                 withURL:pushStateHashStringURL
++         withOmniboxText:pushStateHashStringURL.GetContent()
+               pageLoaded:NO];
+ 
+   const GURL replaceStateHashStringURL =
+       web::test::HttpServer::MakeUrl(kReplaceStateHashStringURL);
+   [ChromeEarlGrey tapWebViewElementWithID:@"replaceStateHashString"];
+   [self assertStatusText:@"replaceStateHashString"
+-                 withURL:replaceStateHashStringURL
++         withOmniboxText:replaceStateHashStringURL.GetContent()
+               pageLoaded:NO];
+ 
+   const GURL pushStatePathURL =
+       web::test::HttpServer::MakeUrl(kPushStatePathURL);
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStatePath"];
+   [self assertStatusText:@"pushStatePath"
+-                 withURL:pushStatePathURL
++         withOmniboxText:pushStatePathURL.GetContent()
+               pageLoaded:NO];
+ 
+   const GURL replaceStateRootPathSpaceURL =
+       web::test::HttpServer::MakeUrl(kReplaceStateRootPathSpaceURL);
+   [ChromeEarlGrey tapWebViewElementWithID:@"replaceStateRootPathSpace"];
+   [self assertStatusText:@"replaceStateRootPathSpace"
+-                 withURL:replaceStateRootPathSpaceURL
++         withOmniboxText:replaceStateRootPathSpaceURL.GetContent()
+               pageLoaded:NO];
+ 
+   // Go back and check URLs.
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+   [self assertStatusText:@"replaceStateHashString"
+-                 withURL:replaceStateHashStringURL
++         withOmniboxText:replaceStateHashStringURL.GetContent()
+               pageLoaded:NO];
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+   [self assertStatusText:@"replaceStateHashWithObject"
+-                 withURL:replaceStateHashWithObjectURL
++         withOmniboxText:replaceStateHashWithObjectURL.GetContent()
+               pageLoaded:NO];
+ 
+   // Go forward and check URL.
+   [ChromeEarlGrey tapWebViewElementWithID:@"goForward2"];
+   [self assertStatusText:@"replaceStateRootPathSpace"
+-                 withURL:replaceStateRootPathSpaceURL
++         withOmniboxText:replaceStateRootPathSpaceURL.GetContent()
+               pageLoaded:NO];
+ }
+ 
+@@ -180,11 +182,11 @@ const char* kReplaceStateRootPathSpaceUR
+       web::test::HttpServer::MakeUrl(kPushStateHashStringURL);
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStateHashString"];
+   [self assertStatusText:@"pushStateHashString"
+-                 withURL:pushStateHashStringURL
++         withOmniboxText:pushStateHashStringURL.GetContent()
+               pageLoaded:NO];
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStateHashString"];
+   [self assertStatusText:@"pushStateHashString"
+-                 withURL:pushStateHashStringURL
++         withOmniboxText:pushStateHashStringURL.GetContent()
+               pageLoaded:NO];
+ 
+   // Load a non-pushed URL.
+@@ -194,7 +196,7 @@ const char* kReplaceStateRootPathSpaceUR
+   [ChromeEarlGrey loadURL:historyTestURL];
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStateHashString"];
+   [self assertStatusText:@"pushStateHashString"
+-                 withURL:pushStateHashStringURL
++         withOmniboxText:pushStateHashStringURL.GetContent()
+               pageLoaded:NO];
+ 
+   // At this point the history looks like this:
+@@ -202,38 +204,54 @@ const char* kReplaceStateRootPathSpaceUR
+ 
+   // Go back (to second history.html) and verify page did not load.
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+-  [self assertStatusText:nil withURL:historyTestURL pageLoaded:NO];
++  [self assertStatusText:nil
++         withOmniboxText:historyTestURL.GetContent()
++              pageLoaded:NO];
+ 
+   // Go back twice (to second #string) and verify page did load.
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+-  [self assertStatusText:nil withURL:pushStateHashStringURL pageLoaded:YES];
++  [self assertStatusText:nil
++         withOmniboxText:pushStateHashStringURL.GetContent()
++              pageLoaded:YES];
+ 
+   // Go back once (to first #string) and verify page did not load.
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+   [self assertStatusText:@"pushStateHashString"
+-                 withURL:pushStateHashStringURL
++         withOmniboxText:pushStateHashStringURL.GetContent()
+               pageLoaded:NO];
+ 
+   // Go forward 4 entries at once (to third #string) and verify page did load.
+   [ChromeEarlGrey tapWebViewElementWithID:@"goForward4"];
+ 
+-  [self assertStatusText:nil withURL:pushStateHashStringURL pageLoaded:YES];
++  [self assertStatusText:nil
++         withOmniboxText:pushStateHashStringURL.GetContent()
++              pageLoaded:YES];
+ 
+   // Go back 4 entries at once (to first #string) and verify page did load.
+   [ChromeEarlGrey tapWebViewElementWithID:@"goBack4"];
+ 
+-  [self assertStatusText:NULL withURL:pushStateHashStringURL pageLoaded:YES];
++  [self assertStatusText:nil
++         withOmniboxText:pushStateHashStringURL.GetContent()
++              pageLoaded:YES];
+ }
+ 
+ // Tests calling pushState with unicode characters.
+ - (void)testHtml5HistoryPushUnicodeCharacters {
+-  const GURL pushStateUnicodeURLEncoded = web::test::HttpServer::MakeUrl(
+-      "http://ios/testing/data/http_server_files/"
+-      "history.html#unicode%E1%84%91");
+-  const GURL pushStateUnicode2URLEncoded = web::test::HttpServer::MakeUrl(
+-      "http://ios/testing/data/http_server_files/"
+-      "history.html#unicode2%E2%88%A2");
++  // The GURL object %-escapes Unicode characters in the URL's fragment,
++  // but the omnibox decodes them back to Unicode for display.
++  std::string pushStateUnicode =
++      web::test::HttpServer::MakeUrl(
++          "http://ios/testing/data/http_server_files/"
++          "history.html#unicode")
++          .GetContent() +
++      "\xe1\x84\x91";
++  std::string pushStateUnicode2 =
++      web::test::HttpServer::MakeUrl(
++          "http://ios/testing/data/http_server_files/"
++          "history.html#unicode2")
++          .GetContent() +
++      "\xe2\x88\xa2";
+   const char pushStateUnicodeLabel[] = "Action: pushStateUnicodeᄑ";
+   NSString* pushStateUnicodeStatus = @"pushStateUnicodeᄑ";
+   const char pushStateUnicode2Label[] = "Action: pushStateUnicode2∢";
+@@ -242,21 +260,16 @@ const char* kReplaceStateRootPathSpaceUR
+   web::test::SetUpFileBasedHttpServer();
+   [ChromeEarlGrey loadURL:web::test::HttpServer::MakeUrl(kHistoryTestUrl)];
+ 
+-  // TODO(crbug.com/643458): The fact that the URL shows %-escaped is due to
+-  // NSURL escaping to make UIWebView/JS happy. See if it's possible to
+-  // represent differently such that it displays unescaped.
+   // Do 2 push states with unicode characters.
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStateUnicode"];
+   [[EarlGrey
+-      selectElementWithMatcher:chrome_test_util::OmniboxText(
+-                                   pushStateUnicodeURLEncoded.GetContent())]
++      selectElementWithMatcher:chrome_test_util::OmniboxText(pushStateUnicode)]
+       assertWithMatcher:grey_notNil()];
+   [ChromeEarlGrey waitForWebViewContainingText:pushStateUnicodeLabel];
+ 
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStateUnicode2"];
+   [[EarlGrey
+-      selectElementWithMatcher:chrome_test_util::OmniboxText(
+-                                   pushStateUnicode2URLEncoded.GetContent())]
++      selectElementWithMatcher:chrome_test_util::OmniboxText(pushStateUnicode2)]
+       assertWithMatcher:grey_notNil()];
+   [ChromeEarlGrey waitForWebViewContainingText:pushStateUnicode2Label];
+ 
+@@ -266,18 +279,18 @@ const char* kReplaceStateRootPathSpaceUR
+   [ChromeEarlGrey tapWebViewElementWithID:@"pushStatePath"];
+ 
+   [self assertStatusText:@"pushStatePath"
+-                 withURL:pushStatePathURL
++         withOmniboxText:pushStatePathURL.GetContent()
+               pageLoaded:NO];
+ 
+   // Go back and check the unicode in the URL and status.
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+   [self assertStatusText:pushStateUnicode2Status
+-                 withURL:pushStateUnicode2URLEncoded
++         withOmniboxText:pushStateUnicode2
+               pageLoaded:NO];
+ 
+   [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+   [self assertStatusText:pushStateUnicodeStatus
+-                 withURL:pushStateUnicodeURLEncoded
++         withOmniboxText:pushStateUnicode
+               pageLoaded:NO];
+ }
+ 
+@@ -321,10 +334,11 @@ const char* kReplaceStateRootPathSpaceUR
+ 
+ #pragma mark - Utility methods
+ 
+-// Assert that status text |status| is displayed in the webview, that "onloaded"
+-// text is displayed if pageLoaded is YES, and that the URL is as expected.
++// Assert that status text |status|, if non-nil, is displayed in the webview,
++// that the omnibox text is as expected, and that "onload" text is displayed if
++// pageLoaded is YES.
+ - (void)assertStatusText:(NSString*)status
+-                 withURL:(const GURL&)urlToVerify
++         withOmniboxText:(const std::string&)omniboxText
+               pageLoaded:(BOOL)pageLoaded {
+   if (pageLoaded) {
+     [ChromeEarlGrey waitForWebViewContainingText:"onload"];
+@@ -332,14 +346,14 @@ const char* kReplaceStateRootPathSpaceUR
+     [ChromeEarlGrey waitForWebViewNotContainingText:"onload"];
+   }
+ 
+-  if (status != NULL) {
++  if (status != nil) {
+     NSString* statusLabel = [NSString stringWithFormat:@"Action: %@", status];
+     [ChromeEarlGrey
+         waitForWebViewContainingText:base::SysNSStringToUTF8(statusLabel)];
+   }
+ 
+-  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
+-                                          urlToVerify.GetContent())]
++  [[EarlGrey
++      selectElementWithMatcher:chrome_test_util::OmniboxText(omniboxText)]
+       assertWithMatcher:grey_notNil()];
+ }
+ 

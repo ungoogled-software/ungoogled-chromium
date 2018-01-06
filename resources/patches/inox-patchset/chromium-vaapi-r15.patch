@@ -1,6 +1,6 @@
-From d60511c973e432b97d9929dcfbd77c9af25dbd51 Mon Sep 17 00:00:00 2001
+From 7f29b44224439377592be2b75da0b86d82d8ad6d Mon Sep 17 00:00:00 2001
 From: Daniel Charles <daniel.charles@intel.com>
-Date: Fri, 01 Sep 2017 15:57:43 -0700
+Date: Wed, 18 Oct 2017 17:27:42 -0700
 Subject: [PATCH] Enable VAVDA, VAVEA and VAJDA on linux with VAAPI only
 
 This patch contains all the changes necessary to use VA-API along with
@@ -38,7 +38,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -1267,12 +1267,14 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1278,12 +1278,14 @@ const FeatureEntry kFeatureEntries[] = {
       flag_descriptions::kUiPartialSwapDescription, kOsAll,
       SINGLE_DISABLE_VALUE_TYPE(switches::kUIDisablePartialSwap)},
  #if BUILDFLAG(ENABLE_WEBRTC)
@@ -53,9 +53,9 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      {"enable-webrtc-hw-h264-encoding",
       flag_descriptions::kWebrtcHwH264EncodingName,
       flag_descriptions::kWebrtcHwH264EncodingDescription, kOsAndroid | kOsCrOS,
-@@ -1587,6 +1589,13 @@ const FeatureEntry kFeatureEntries[] = {
-      flag_descriptions::kMultideviceDescription, kOsCrOS,
-      FEATURE_VALUE_TYPE(features::kMultidevice)},
+@@ -1589,6 +1591,13 @@ const FeatureEntry kFeatureEntries[] = {
+      flag_descriptions::kSpuriousPowerButtonLidAngleChangeDescription, kOsCrOS,
+      MULTI_VALUE_TYPE(kSpuriousPowerButtonLidAngleChangeChoices)},
  #endif  // OS_CHROMEOS
 +#if defined(OS_LINUX) && !defined(OS_CHROMEOS) && !defined(OS_ANDROID)
 +    {
@@ -67,7 +67,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      {
          "disable-accelerated-video-decode",
          flag_descriptions::kAcceleratedVideoDecodeName,
-@@ -1594,6 +1603,7 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1596,6 +1605,7 @@ const FeatureEntry kFeatureEntries[] = {
          kOsMac | kOsWin | kOsCrOS | kOsAndroid,
          SINGLE_DISABLE_VALUE_TYPE(switches::kDisableAcceleratedVideoDecode),
      },
@@ -75,7 +75,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      {"mojo-video-encode-accelerator",
       flag_descriptions::kMojoVideoEncodeAcceleratorName,
       flag_descriptions::kMojoVideoEncodeAcceleratorDescription,
-@@ -2252,12 +2262,17 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -2257,12 +2267,17 @@ const FeatureEntry kFeatureEntries[] = {
       FEATURE_VALUE_TYPE(features::kWebVrVsyncAlign)},
  #endif  // OS_ANDROID
  #endif  // ENABLE_VR
@@ -97,7 +97,15 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
       MULTI_VALUE_TYPE(kV8CacheOptionsChoices)},
 --- a/chrome/browser/chromeos/login/chrome_restart_request.cc
 +++ b/chrome/browser/chromeos/login/chrome_restart_request.cc
-@@ -80,8 +80,13 @@ void DeriveCommandLine(const GURL& start
+@@ -19,6 +19,7 @@
+ #include "base/sys_info.h"
+ #include "base/timer/timer.h"
+ #include "base/values.h"
++#include "build/build_config.h"
+ #include "cc/base/switches.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/chromeos/boot_times_recorder.h"
+@@ -79,8 +80,13 @@ void DeriveCommandLine(const GURL& start
      ::switches::kDisable2dCanvasImageChromium,
      ::switches::kDisableAccelerated2dCanvas,
      ::switches::kDisableAcceleratedJpegDecoding,
@@ -111,7 +119,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      ::switches::kDisableBlinkFeatures,
      ::switches::kDisableCastStreamingHWEncoding,
      ::switches::kDisableDistanceFieldText,
-@@ -168,7 +173,7 @@ void DeriveCommandLine(const GURL& start
+@@ -166,7 +172,7 @@ void DeriveCommandLine(const GURL& start
      ::switches::kDisableWebGLImageChromium,
      ::switches::kEnableWebGLImageChromium,
      ::switches::kEnableWebVR,
@@ -136,7 +144,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  const char kAcceleratedVideoDecodeName[] = "Hardware-accelerated video decode";
  const char kAcceleratedVideoDecodeDescription[] =
      "Hardware-accelerated video decode where available.";
-@@ -1424,6 +1431,7 @@ const char kWebrtcEchoCanceller3Name[] =
+@@ -1485,6 +1492,7 @@ const char kWebrtcEchoCanceller3Name[] =
  const char kWebrtcEchoCanceller3Description[] =
      "Experimental WebRTC echo canceller (AEC3).";
  
@@ -144,7 +152,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  const char kWebrtcHwDecodingName[] = "WebRTC hardware video decoding";
  const char kWebrtcHwDecodingDescription[] =
      "Support in WebRTC for decoding video streams using platform hardware.";
-@@ -1431,6 +1439,7 @@ const char kWebrtcHwDecodingDescription[
+@@ -1492,6 +1500,7 @@ const char kWebrtcHwDecodingDescription[
  const char kWebrtcHwEncodingName[] = "WebRTC hardware video encoding";
  const char kWebrtcHwEncodingDescription[] =
      "Support in WebRTC for encoding video streams using platform hardware.";
@@ -152,7 +160,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  
  const char kWebrtcHwH264EncodingName[] = "WebRTC hardware h264 video encoding";
  const char kWebrtcHwH264EncodingDescription[] =
-@@ -2217,14 +2226,16 @@ const char kPermissionPromptPersistenceT
+@@ -2296,14 +2305,16 @@ const char kPermissionPromptPersistenceT
  
  // Chrome OS -------------------------------------------------------------------
  
@@ -172,7 +180,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      "Enables touchpad three-finger-click as middle button.";
 --- a/chrome/browser/flag_descriptions.h
 +++ b/chrome/browser/flag_descriptions.h
-@@ -36,6 +36,10 @@ namespace flag_descriptions {
+@@ -37,6 +37,10 @@ namespace flag_descriptions {
  extern const char kAccelerated2dCanvasName[];
  extern const char kAccelerated2dCanvasDescription[];
  
@@ -183,7 +191,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  extern const char kAcceleratedVideoDecodeName[];
  extern const char kAcceleratedVideoDecodeDescription[];
  
-@@ -1356,13 +1360,17 @@ extern const char kPermissionPromptPersi
+@@ -1407,13 +1411,17 @@ extern const char kPermissionPromptPersi
  
  #endif  // defined(OS_MACOSX)
  
@@ -206,7 +214,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  
 --- a/content/browser/gpu/compositor_util.cc
 +++ b/content/browser/gpu/compositor_util.cc
-@@ -104,7 +104,11 @@ const GpuFeatureInfo GetGpuFeatureInfo(s
+@@ -105,7 +105,11 @@ const GpuFeatureInfo GetGpuFeatureInfo(s
      {"video_decode",
       manager->IsFeatureBlacklisted(
           gpu::GPU_FEATURE_TYPE_ACCELERATED_VIDEO_DECODE),
@@ -218,7 +226,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
       "Accelerated video decode has been disabled, either via blacklist,"
       " about:flags or the command line.",
       true},
-@@ -112,7 +116,11 @@ const GpuFeatureInfo GetGpuFeatureInfo(s
+@@ -113,7 +117,11 @@ const GpuFeatureInfo GetGpuFeatureInfo(s
      {"video_encode",
       manager->IsFeatureBlacklisted(
           gpu::GPU_FEATURE_TYPE_ACCELERATED_VIDEO_ENCODE),
@@ -244,7 +252,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  
  #if defined(USE_AURA)
    if (!CanUseGpuBrowserCompositor())
-@@ -751,7 +755,11 @@ void GpuDataManagerImplPrivate::AppendGp
+@@ -748,7 +752,11 @@ void GpuDataManagerImplPrivate::AppendGp
    }
  
    if (ShouldDisableAcceleratedVideoDecode(command_line)) {
@@ -256,7 +264,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
    }
  
  #if defined(USE_OZONE)
-@@ -844,7 +852,12 @@ void GpuDataManagerImplPrivate::UpdateRe
+@@ -826,7 +834,12 @@ void GpuDataManagerImplPrivate::UpdateRe
    const base::CommandLine* command_line =
        base::CommandLine::ForCurrentProcess();
    if (!ShouldDisableAcceleratedVideoDecode(command_line) &&
@@ -270,7 +278,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      prefs->pepper_accelerated_video_decode_enabled = true;
    }
  }
-@@ -1043,7 +1056,13 @@ bool GpuDataManagerImplPrivate::ShouldDi
+@@ -1016,7 +1029,13 @@ bool GpuDataManagerImplPrivate::ShouldDi
    // to resolve crbug/442039 has been collected.
    const std::string group_name = base::FieldTrialList::FindFullName(
        "DisableAcceleratedVideoDecode");
@@ -287,7 +295,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
    }
 --- a/content/browser/gpu/gpu_process_host.cc
 +++ b/content/browser/gpu/gpu_process_host.cc
-@@ -112,7 +112,11 @@ namespace {
+@@ -111,7 +111,11 @@ namespace {
  
  // Command-line switches to propagate to the GPU process.
  static const char* const kSwitchNames[] = {
@@ -299,7 +307,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      switches::kDisableBreakpad,
      switches::kDisableGpuRasterization,
      switches::kDisableGpuSandbox,
-@@ -121,7 +125,7 @@ static const char* const kSwitchNames[]
+@@ -120,7 +124,7 @@ static const char* const kSwitchNames[]
      switches::kDisableLogging,
      switches::kDisableSeccompFilterSandbox,
      switches::kDisableShaderNameHashing,
@@ -354,9 +362,9 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      return;
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -2488,7 +2488,11 @@ void RenderProcessHostImpl::PropagateBro
+@@ -2526,7 +2526,11 @@ void RenderProcessHostImpl::PropagateBro
+     switches::kDefaultTileHeight,
      switches::kDisable2dCanvasImageChromium,
-     switches::kDisable3DAPIs,
      switches::kDisableAcceleratedJpegDecoding,
 +#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 +    switches::kEnableAcceleratedVideo,
@@ -365,9 +373,9 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 +#endif
      switches::kDisableBackgroundTimerThrottling,
      switches::kDisableBreakpad,
-     switches::kDisablePreferCompositingToLCDText,
-@@ -2641,8 +2645,10 @@ void RenderProcessHostImpl::PropagateBro
-     switches::kEnablePepperTesting,
+     switches::kDisableBrowserSideNavigation,
+@@ -2680,8 +2684,10 @@ void RenderProcessHostImpl::PropagateBro
+     switches::kDisableMojoRenderer,
  #endif
  #if BUILDFLAG(ENABLE_WEBRTC)
 +#if !defined(OS_LINUX) || defined(OS_CHROMEOS)
@@ -393,91 +401,6 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
    }
  
   private:
---- a/content/common/sandbox_linux/bpf_gpu_policy_linux.cc
-+++ b/content/common/sandbox_linux/bpf_gpu_policy_linux.cc
-@@ -57,22 +57,6 @@ inline bool IsChromeOS() {
- #endif
- }
- 
--inline bool IsArchitectureX86_64() {
--#if defined(__x86_64__)
--  return true;
--#else
--  return false;
--#endif
--}
--
--inline bool IsArchitectureI386() {
--#if defined(__i386__)
--  return true;
--#else
--  return false;
--#endif
--}
--
- inline bool IsArchitectureArm() {
- #if defined(__arm__) || defined(__aarch64__)
-   return true;
-@@ -97,21 +81,14 @@ inline bool UseLibV4L2() {
- #endif
- }
- 
--bool IsAcceleratedVaapiVideoEncodeEnabled() {
--  bool accelerated_encode_enabled = false;
--#if defined(OS_CHROMEOS)
--  const base::CommandLine& command_line =
--      *base::CommandLine::ForCurrentProcess();
--  accelerated_encode_enabled =
--      !command_line.HasSwitch(switches::kDisableVaapiAcceleratedVideoEncode);
--#endif
--  return accelerated_encode_enabled;
--}
--
- bool IsAcceleratedVideoDecodeEnabled() {
-   const base::CommandLine& command_line =
-       *base::CommandLine::ForCurrentProcess();
-+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
-+  return command_line.HasSwitch(switches::kEnableAcceleratedVideo);
-+#else
-   return !command_line.HasSwitch(switches::kDisableAcceleratedVideoDecode);
-+#endif
- }
- 
- intptr_t GpuSIGSYS_Handler(const struct arch_seccomp_data& args,
-@@ -295,33 +272,6 @@ bool GpuProcessPolicy::PreSandboxHook()
-       GpuBrokerProcessPolicy::Create,
-       std::vector<BrokerFilePermission>());  // No extra files in whitelist.
- 
--  if (IsArchitectureX86_64() || IsArchitectureI386()) {
--    // Accelerated video dlopen()'s some shared objects
--    // inside the sandbox, so preload them now.
--    if (IsAcceleratedVaapiVideoEncodeEnabled() ||
--        IsAcceleratedVideoDecodeEnabled()) {
--      const char* I965DrvVideoPath = NULL;
--      const char* I965HybridDrvVideoPath = NULL;
--
--      if (IsArchitectureX86_64()) {
--        I965DrvVideoPath = "/usr/lib64/va/drivers/i965_drv_video.so";
--        I965HybridDrvVideoPath = "/usr/lib64/va/drivers/hybrid_drv_video.so";
--      } else if (IsArchitectureI386()) {
--        I965DrvVideoPath = "/usr/lib/va/drivers/i965_drv_video.so";
--      }
--
--      dlopen(I965DrvVideoPath, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
--      if (I965HybridDrvVideoPath)
--        dlopen(I965HybridDrvVideoPath, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
--      dlopen("libva.so.1", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
--#if defined(USE_OZONE)
--      dlopen("libva-drm.so.1", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
--#elif defined(USE_X11)
--      dlopen("libva-x11.so.1", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
--#endif
--    }
--  }
--
-   return true;
- }
- 
 --- a/content/gpu/BUILD.gn
 +++ b/content/gpu/BUILD.gn
 @@ -45,7 +45,6 @@ target(link_target_type, "gpu_sources")
@@ -499,7 +422,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  }
 --- a/content/gpu/gpu_main.cc
 +++ b/content/gpu/gpu_main.cc
-@@ -245,7 +245,7 @@ int GpuMain(const MainFunctionParams& pa
+@@ -254,7 +254,7 @@ int GpuMain(const MainFunctionParams& pa
    // Initializes StatisticsRecorder which tracks UMA histograms.
    base::StatisticsRecorder::Initialize();
  
@@ -508,8 +431,8 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
    // Set thread priority before sandbox initialization.
    base::PlatformThread::SetCurrentThreadPriority(base::ThreadPriority::DISPLAY);
  #endif
-@@ -275,7 +275,7 @@ int GpuMain(const MainFunctionParams& pa
-   GetContentClient()->SetGpuInfo(gpu_init.gpu_info());
+@@ -283,7 +283,7 @@ int GpuMain(const MainFunctionParams& pa
+   GetContentClient()->SetGpuInfo(gpu_init->gpu_info());
  
    base::ThreadPriority io_thread_priority = base::ThreadPriority::NORMAL;
 -#if defined(OS_ANDROID) || defined(OS_CHROMEOS)
@@ -519,7 +442,15 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  
 --- a/content/public/browser/gpu_utils.cc
 +++ b/content/public/browser/gpu_utils.cc
-@@ -57,12 +57,19 @@ const gpu::GpuPreferences GetGpuPreferen
+@@ -7,6 +7,7 @@
+ #include "base/command_line.h"
+ #include "base/single_thread_task_runner.h"
+ #include "base/strings/string_number_conversions.h"
++#include "build/build_config.h"
+ #include "content/browser/gpu/gpu_process_host.h"
+ #include "content/public/common/content_features.h"
+ #include "content/public/common/content_switches.h"
+@@ -57,12 +58,19 @@ const gpu::GpuPreferences GetGpuPreferen
    gpu_preferences.ui_prioritize_in_gpu_process =
        command_line->HasSwitch(switches::kUIPrioritizeInGpuProcess);
    gpu_preferences.disable_accelerated_video_decode =
@@ -543,7 +474,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  #endif
 --- a/content/public/common/content_switches.cc
 +++ b/content/public/common/content_switches.cc
-@@ -88,12 +88,21 @@ const char kDisable3DAPIs[]
+@@ -89,12 +89,21 @@ const char kDisable3DAPIs[]
  
  // Disable gpu-accelerated 2d canvas.
  const char kDisableAccelerated2dCanvas[]    = "disable-accelerated-2d-canvas";
@@ -566,7 +497,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  // Disables hardware acceleration of video decode, where available.
  const char kDisableAcceleratedVideoDecode[] =
      "disable-accelerated-video-decode";
-@@ -933,11 +942,13 @@ const char kZygoteProcess[]
+@@ -932,11 +941,13 @@ const char kZygoteProcess[]
  // ignores this switch on its stable and beta channels.
  const char kDisableWebRtcEncryption[]      = "disable-webrtc-encryption";
  
@@ -594,7 +525,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  CONTENT_EXPORT extern const char kDisableAcceleratedVideoDecode[];
  CONTENT_EXPORT extern const char kDisableAudioSupportForDesktopShare[];
  extern const char kDisableBackingStoreLimit[];
-@@ -107,6 +111,9 @@ CONTENT_EXPORT extern const char kDisabl
+@@ -109,6 +113,9 @@ CONTENT_EXPORT extern const char kDisabl
  CONTENT_EXPORT extern const char kDomAutomationController[];
  extern const char kDisable2dCanvasClipAntialiasing[];
  CONTENT_EXPORT extern const char kDumpBlinkRuntimeCallStats[];
@@ -602,9 +533,9 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 +CONTENT_EXPORT extern const char kEnableAcceleratedVideo[];
 +#endif
  CONTENT_EXPORT extern const char kEnableAggressiveDOMStorageFlushing[];
+ CONTENT_EXPORT extern const char kEnableAutomation[];
  CONTENT_EXPORT extern const char kEnablePreferCompositingToLCDText[];
- CONTENT_EXPORT extern const char kEnableBlinkFeatures[];
-@@ -261,8 +268,10 @@ CONTENT_EXPORT extern const char kZygote
+@@ -256,8 +263,10 @@ CONTENT_EXPORT extern const char kZygote
  
  #if BUILDFLAG(ENABLE_WEBRTC)
  CONTENT_EXPORT extern const char kDisableWebRtcEncryption[];
@@ -640,7 +571,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
    }
 --- a/content/renderer/render_thread_impl.cc
 +++ b/content/renderer/render_thread_impl.cc
-@@ -1453,7 +1453,11 @@ media::GpuVideoAcceleratorFactories* Ren
+@@ -1456,7 +1456,11 @@ media::GpuVideoAcceleratorFactories* Ren
    scoped_refptr<base::SingleThreadTaskRunner> media_task_runner =
        GetMediaThreadTaskRunner();
    const bool enable_video_accelerator =
@@ -665,7 +596,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  #endif
 --- a/gpu/config/software_rendering_list.json
 +++ b/gpu/config/software_rendering_list.json
-@@ -371,17 +371,6 @@
+@@ -374,17 +374,6 @@
        ]
      },
      {
@@ -685,7 +616,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
        "cr_bugs": [145531, 332596, 571899, 629434],
 --- a/media/filters/BUILD.gn
 +++ b/media/filters/BUILD.gn
-@@ -182,7 +182,7 @@ source_set("filters") {
+@@ -189,7 +189,7 @@ source_set("filters") {
      deps += [ "//media/base/android" ]
    }
  
@@ -723,7 +654,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
    if (is_win) {
 --- a/media/gpu/gpu_video_decode_accelerator_factory.cc
 +++ b/media/gpu/gpu_video_decode_accelerator_factory.cc
-@@ -86,6 +86,7 @@ GpuVideoDecodeAcceleratorFactory::GetDec
+@@ -87,6 +87,7 @@ GpuVideoDecodeAcceleratorFactory::GetDec
  // profile (instead of calculating a superset).
  // TODO(posciak,henryhsu): improve this so that we choose a superset of
  // resolutions and other supported profile parameters.
@@ -733,7 +664,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
        DXVAVideoDecodeAccelerator::GetSupportedProfiles(gpu_preferences,
 --- a/media/gpu/vaapi_wrapper.cc
 +++ b/media/gpu/vaapi_wrapper.cc
-@@ -1116,6 +1116,7 @@ void VaapiWrapper::PreSandboxInitializat
+@@ -1117,6 +1117,7 @@ void VaapiWrapper::PreSandboxInitializat
    if (drm_file.IsValid())
      GetDisplayState()->SetDrmFd(drm_file.GetPlatformFile());
  #endif
@@ -741,23 +672,3 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  }
  
  // static
---- a/services/ui/gpu/gpu_main.cc
-+++ b/services/ui/gpu/gpu_main.cc
-@@ -79,7 +79,7 @@ GpuMain::GpuMain(mojom::GpuMainRequest r
-   thread_options.message_loop_type = base::MessageLoop::TYPE_IO;
- #endif
- 
--#if defined(OS_ANDROID) || defined(OS_CHROMEOS)
-+#if defined(OS_LINUX)
-   thread_options.priority = base::ThreadPriority::DISPLAY;
- #endif
-   CHECK(gpu_thread_.StartWithOptions(thread_options));
-@@ -89,7 +89,7 @@ GpuMain::GpuMain(mojom::GpuMainRequest r
-   // should be possible to use |main_task_runner_| for doing IO tasks.
-   thread_options = base::Thread::Options(base::MessageLoop::TYPE_IO, 0);
-   thread_options.priority = base::ThreadPriority::NORMAL;
--#if defined(OS_ANDROID) || defined(OS_CHROMEOS)
-+#if defined(OS_LINUX)
-   // TODO(reveman): Remove this in favor of setting it explicitly for each type
-   // of process.
-   thread_options.priority = base::ThreadPriority::DISPLAY;

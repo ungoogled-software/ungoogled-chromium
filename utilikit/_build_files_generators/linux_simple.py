@@ -40,7 +40,7 @@ def generate_build_files(resources, output_dir, build_output, apply_domain_subst
     )
 
     linux_simple_dir = output_dir / _BUILD_FILES_DIR
-    os.makedirs(linux_simple_dir.as_posix(), exist_ok=True)
+    os.makedirs(str(linux_simple_dir), exist_ok=True)
 
     # Build script
     shutil.copy(
