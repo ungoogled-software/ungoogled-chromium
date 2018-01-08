@@ -50,13 +50,7 @@ Deviations for different Debian versions or flavors:
 
 Ubuntu 17.04 (zesty): Same as Debian 9 (stretch)
 
-Ubuntu 16.04 (xenial):
-* Set `UTILIKIT_CONFIG_TYPE=linux_portable`
-* Use `--flavor minimal` in `generate_build_files.py`
-
-Debian 8.0 (jessie) is currently not working at this time, due to `utilikit` using Python 3.5 features and the lack of a build configuration that will work on it.
-
-Other versions or derivatives are not officially supported, but it still may be possible to build on them with the settings from one listed above.
+Ubuntu 16.04 (xenial), Debian 8.0 (jessie), and other older versions: See [Other Linux distributions](#other-linux-distributions)
 
 ### Windows
 
@@ -143,6 +137,51 @@ cd build/sandbox
 For now, see the instructions for Other Linux distributions. The resulting binary will still use system libraries.
 
 ### Other Linux distributions
+
+These are for building on Linux distributions that do not have support already. It builds without distribution-optimized flags and patches for maximum compatibility.
+
+#### Requirements
+
+Requirements should be similar to that of Debian and derivatives.
+
+#### Build
+
+First, setup the source tree:
+
+```
+export UTILIKIT_CONFIG_TYPE=linux_simple
+./utilikit/prepare_sources.py
+./utilikit/substitute_domains.py
+```
+
+Then, build a package:
+
+**Debian package**
+
+Build a `deb` package for any Debian-based system
+
+```
+# TODO: The following command doesn't work yet because utilikit needs to be updated. Instead, use --flavor standard and manually apply the patch at resources/packaging/debian/minimal.patch
+./utilikit/generate_build_files.py debian --flavor minimal --apply-domain-substitution
+cd build/sandbox
+# Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts package)
+# If necessary, change the dependencies in debian/control and modify CLANG_BASE_PATH in debian/rules to accomodate your environment.
+dpkg-buildpackage -b -uc
+```
+
+**Archive**
+
+Build a compressed tar archive of the build outputs:
+
+```
+./utilikit/generate_build_files.py linux_simple --apply-domain-substitution
+cd build/sandbox
+# Use "export CLANG_BASE_PATH=/path/to/clang_files" if Clang and related files are not located under /usr
+./ungoogled_linux_simple/build.sh
+../../utilikit/archive_packager.py --files-cfg chrome/tools/build/linux/FILES.cfg --archive-format tar_xz --build-output-dir out/Default --target-cpu auto --output-file $OUTPUT_FILE
+```
+
+where `OUTPUT_FILE` is the path for the new archive.
 
 #### Setting up the build environment
 
