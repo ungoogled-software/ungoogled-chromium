@@ -45,7 +45,7 @@ printf "" | ./utilikit/prepare_sources.py --source-cleaning-list -
 1. Generate the patch order for the desired configuration to modify via `developer_utilities/generate_patch_order.py`
     * Pass in `--help` for arguments it takes
     * Choose the appropriate configuration that contains the patches to be updated. To get just the common patches, use the `common` config.
-2. Run `source $ROOT/developer_utilities/set_quilt_vars.sh $ROOT`, where `$ROOT` is the ungoogled-chromium directory.
+2. Run `source $ROOT/developer_utilities/set_quilt_vars.sh`
     * This will setup quilt to modify patches directly in `resources/`
 3. Use `quilt` to update the patches. The general procedure is as follows:
     1. Make sure all patches are unapplied: `quilt pop -a`. Check the status with `quilt top`

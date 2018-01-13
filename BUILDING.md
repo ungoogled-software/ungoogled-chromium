@@ -40,7 +40,7 @@ mkdir build/downloads
 ./utilikit/substitute_domains.py
 ./utilikit/generate_build_files.py debian --flavor standard --apply-domain-substitution
 cd build/sandbox
-dpkg-checkbuilddeps # Checks and reports any additional packages needed
+# Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
 dpkg-buildpackage -b -uc
 ```
 
@@ -134,7 +134,7 @@ cd build/sandbox
 
 **This is a WIP**
 
-For now, see the instructions for Other Linux distributions. The resulting binary will still use system libraries.
+For now, see the instructions for Other Linux distributions.
 
 ### Other Linux distributions
 
@@ -164,7 +164,7 @@ Build a `deb` package for any Debian-based system
 # TODO: The following command doesn't work yet because utilikit needs to be updated. Instead, use --flavor standard and manually apply the patch at resources/packaging/debian/minimal.patch
 ./utilikit/generate_build_files.py debian --flavor minimal --apply-domain-substitution
 cd build/sandbox
-# Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts package)
+# Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
 # If necessary, change the dependencies in debian/control and modify CLANG_BASE_PATH in debian/rules to accomodate your environment.
 dpkg-buildpackage -b -uc
 ```
