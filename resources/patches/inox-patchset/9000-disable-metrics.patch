@@ -1,6 +1,6 @@
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -1215,6 +1215,11 @@ const FeatureEntry::FeatureVariation kSp
+@@ -1211,6 +1211,11 @@ const FeatureEntry::FeatureVariation kSp
  //
  // When adding a new choice, add it to the end of the list.
  const FeatureEntry kFeatureEntries[] = {
@@ -14,7 +14,7 @@
       SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
 --- a/base/metrics/histogram_base.h
 +++ b/base/metrics/histogram_base.h
-@@ -84,6 +84,12 @@ BASE_EXPORT HistogramBase* DeserializeHi
+@@ -94,6 +94,12 @@ BASE_EXPORT HistogramBase* DeserializeHi
  
  class BASE_EXPORT HistogramBase {
   public:
@@ -29,15 +29,15 @@
    typedef int32_t Count;  // Used to manipulate counts in temporaries.
 --- a/base/metrics/histogram_base.cc
 +++ b/base/metrics/histogram_base.cc
-@@ -9,6 +9,7 @@
- #include <memory>
+@@ -10,6 +10,7 @@
+ #include <set>
  #include <utility>
  
 +#include "base/command_line.h"
  #include "base/json/json_string_value_serializer.h"
+ #include "base/lazy_instance.h"
  #include "base/logging.h"
- #include "base/metrics/histogram.h"
-@@ -60,6 +61,12 @@ HistogramBase* DeserializeHistogramInfo(
+@@ -64,6 +65,12 @@ HistogramBase* DeserializeHistogramInfo(
    }
  }
  
@@ -48,8 +48,8 @@
 +}
 +
  const HistogramBase::Sample HistogramBase::kSampleType_MAX = INT_MAX;
- HistogramBase* HistogramBase::report_histogram_ = nullptr;
  
+ HistogramBase::HistogramBase(const char* name)
 --- a/base/metrics/histogram.cc
 +++ b/base/metrics/histogram.cc
 @@ -124,7 +124,8 @@ class Histogram::Factory {
@@ -91,8 +91,8 @@
            minimum_,
            maximum_,
            registered_ranges,
-@@ -232,6 +238,10 @@ HistogramBase* Histogram::Factory::Build
-     ReportHistogramActivity(*histogram, HISTOGRAM_LOOKUP);
+@@ -226,6 +232,10 @@ HistogramBase* Histogram::Factory::Build
+     }
    }
  
 +  if (!enabled_)
@@ -102,7 +102,7 @@
    CHECK_EQ(histogram_type_, histogram->GetHistogramType()) << name_;
    if (bucket_count_ != 0 &&
        !histogram->HasConstructionArguments(minimum_, maximum_, bucket_count_)) {
-@@ -468,10 +478,16 @@ bool Histogram::HasConstructionArguments
+@@ -462,10 +472,16 @@ bool Histogram::HasConstructionArguments
  }
  
  void Histogram::Add(int value) {
@@ -119,7 +119,7 @@
    DCHECK_EQ(0, ranges(0));
    DCHECK_EQ(kSampleType_MAX, ranges(bucket_count()));
  
-@@ -526,10 +542,16 @@ std::unique_ptr<HistogramSamples> Histog
+@@ -520,10 +536,16 @@ std::unique_ptr<HistogramSamples> Histog
  }
  
  void Histogram::AddSamples(const HistogramSamples& samples) {
@@ -165,13 +165,13 @@
        DCHECK(!histogram_ref);  // Should never have been set.
        DCHECK(!allocator);      // Shouldn't have failed.
        flags &= ~HistogramBase::kIsPersistent;
--      tentative_histogram.reset(new SparseHistogram(name));
-+      tentative_histogram.reset(new SparseHistogram(overridden_name));
+-      tentative_histogram.reset(new SparseHistogram(GetPermanentName(name)));
++      tentative_histogram.reset(new SparseHistogram(GetPermanentName(overridden_name)));
        tentative_histogram->SetFlags(flags);
      }
  
-@@ -68,6 +73,10 @@ HistogramBase* SparseHistogram::FactoryG
-     ReportHistogramActivity(*histogram, HISTOGRAM_LOOKUP);
+@@ -64,6 +69,10 @@ HistogramBase* SparseHistogram::FactoryG
+     }
    }
  
 +  if (!enabled_)
@@ -181,7 +181,7 @@
    CHECK_EQ(SPARSE_HISTOGRAM, histogram->GetHistogramType());
    return histogram;
  }
-@@ -101,10 +110,16 @@ bool SparseHistogram::HasConstructionArg
+@@ -97,10 +106,16 @@ bool SparseHistogram::HasConstructionArg
  }
  
  void SparseHistogram::Add(Sample value) {
@@ -198,7 +198,7 @@
    if (count <= 0) {
      NOTREACHED();
      return;
-@@ -150,11 +165,17 @@ std::unique_ptr<HistogramSamples> Sparse
+@@ -146,11 +161,17 @@ std::unique_ptr<HistogramSamples> Sparse
  }
  
  void SparseHistogram::AddSamples(const HistogramSamples& samples) {
@@ -268,7 +268,7 @@
  #include "base/location.h"
  #include "base/memory/ptr_util.h"
  #include "base/metrics/histogram_base.h"
-@@ -809,6 +810,8 @@ bool MetricsService::UmaMetricsProperlyS
+@@ -802,6 +803,8 @@ bool MetricsService::UmaMetricsProperlyS
  void MetricsService::RegisterMetricsProvider(
      std::unique_ptr<MetricsProvider> provider) {
    DCHECK_EQ(INITIALIZED, state_);
@@ -279,7 +279,20 @@
  
 --- a/chrome/browser/ui/tab_helpers.cc
 +++ b/chrome/browser/ui/tab_helpers.cc
-@@ -215,13 +215,17 @@ void TabHelpers::AttachTabHelpers(WebCon
+@@ -204,8 +204,10 @@ void TabHelpers::AttachTabHelpers(WebCon
+   ChromeTranslateClient::CreateForWebContents(web_contents);
+   ClientHintsObserver::CreateForWebContents(web_contents);
+   CoreTabHelper::CreateForWebContents(web_contents);
+-  data_use_measurement::DataUseWebContentsObserver::CreateForWebContents(
+-      web_contents);
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics")) {
++    data_use_measurement::DataUseWebContentsObserver::CreateForWebContents(
++        web_contents);
++  }
+   ExternalProtocolObserver::CreateForWebContents(web_contents);
+   favicon::CreateContentFaviconDriverForWebContents(web_contents);
+   FindTabHelper::CreateForWebContents(web_contents);
+@@ -220,14 +222,20 @@ void TabHelpers::AttachTabHelpers(WebCon
    HistoryTabHelper::CreateForWebContents(web_contents);
    InfoBarService::CreateForWebContents(web_contents);
    InstallableManager::CreateForWebContents(web_contents);
@@ -288,20 +301,34 @@
 +  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics")) {
 +    metrics::RendererUptimeWebContentsObserver::CreateForWebContents(
 +        web_contents);
-+  }
++  };
    if (content::IsBrowserSideNavigationEnabled())
      MixedContentSettingsTabHelper::CreateForWebContents(web_contents);
    NavigationCorrectionTabObserver::CreateForWebContents(web_contents);
 -  NavigationMetricsRecorder::CreateForWebContents(web_contents);
--  chrome::InitializePageLoadMetricsForWebContents(web_contents);
 +  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics")) {
 +    NavigationMetricsRecorder::CreateForWebContents(web_contents);
++  };
+   OutOfMemoryReporter::CreateForWebContents(web_contents);
+-  chrome::InitializePageLoadMetricsForWebContents(web_contents);
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics")) {
 +    chrome::InitializePageLoadMetricsForWebContents(web_contents);
 +  }
    PDFPluginPlaceholderObserver::CreateForWebContents(web_contents);
    PermissionRequestManager::CreateForWebContents(web_contents);
-   PopupBlockerTabHelper::CreateForWebContents(web_contents);
-@@ -285,7 +289,8 @@ void TabHelpers::AttachTabHelpers(WebCon
+   // The PopupBlockerTabHelper has an implicit dependency on
+@@ -252,7 +260,9 @@ void TabHelpers::AttachTabHelpers(WebCon
+   // is taken over by ChromeContentSettingsClient. http://crbug.com/387075
+   TabSpecificContentSettings::CreateForWebContents(web_contents);
+   TabUIHelper::CreateForWebContents(web_contents);
+-  ukm::InitializeSourceUrlRecorderForWebContents(web_contents);
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics")) {
++    ukm::InitializeSourceUrlRecorderForWebContents(web_contents);
++  }
+   vr::VrTabHelper::CreateForWebContents(web_contents);
+ 
+   // NO! Do not just add your tab helper here. This is a large alphabetized
+@@ -302,7 +312,8 @@ void TabHelpers::AttachTabHelpers(WebCon
  
  #if defined(OS_WIN) || defined(OS_MACOSX) || \
      (defined(OS_LINUX) && !defined(OS_CHROMEOS))

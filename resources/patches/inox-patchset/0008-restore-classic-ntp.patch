@@ -1,24 +1,36 @@
 --- a/chrome/browser/search/search.cc
 +++ b/chrome/browser/search/search.cc
-@@ -170,17 +170,7 @@ struct NewTabURLDetails {
-       return NewTabURLDetails(local_url, NEW_TAB_URL_VALID);
+@@ -147,29 +147,7 @@ struct NewTabURLDetails {
  
-     NewTabURLState state = IsValidNewTabURL(profile, search_provider_url);
--    switch (state) {
--      case NEW_TAB_URL_VALID:
--        // We can use the search provider's page.
--        return NewTabURLDetails(search_provider_url, state);
--      case NEW_TAB_URL_INCOGNITO:
--        // Incognito has its own New Tab.
--        return NewTabURLDetails(GURL(), state);
--      default:
--        // Use the local New Tab otherwise.
--        return NewTabURLDetails(local_url, state);
--    }
-+    return NewTabURLDetails(local_url, state);
+     const GURL local_url(chrome::kChromeSearchLocalNtpUrl);
+ 
+-    if (ShouldShowLocalNewTab(profile))
+-      return NewTabURLDetails(local_url, NEW_TAB_URL_VALID);
+-
+-    const TemplateURL* template_url =
+-        GetDefaultSearchProviderTemplateURL(profile);
+-    if (!profile || !template_url)
+-      return NewTabURLDetails(local_url, NEW_TAB_URL_BAD);
+-
+-    GURL search_provider_url(template_url->new_tab_url_ref().ReplaceSearchTerms(
+-        TemplateURLRef::SearchTermsArgs(base::string16()),
+-        UIThreadSearchTermsData(profile)));
+-
+-    if (ShouldDelayRemoteNTP(search_provider_url, profile))
+-      return NewTabURLDetails(local_url, NEW_TAB_URL_VALID);
+-
+-    if (!search_provider_url.is_valid())
+-      return NewTabURLDetails(local_url, NEW_TAB_URL_NOT_SET);
+-    if (!search_provider_url.SchemeIsCryptographic())
+-      return NewTabURLDetails(local_url, NEW_TAB_URL_INSECURE);
+-    if (!IsURLAllowedForSupervisedUser(search_provider_url, profile))
+-      return NewTabURLDetails(local_url, NEW_TAB_URL_BLOCKED);
+-
+-    return NewTabURLDetails(search_provider_url, NEW_TAB_URL_VALID);
++    return NewTabURLDetails(local_url, NEW_TAB_URL_VALID);
    }
  
-   GURL url;
+   const GURL url;
 --- a/components/ntp_snippets/features.cc
 +++ b/components/ntp_snippets/features.cc
 @@ -38,16 +38,16 @@ const base::Feature* const kAllFeatures[
