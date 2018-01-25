@@ -73,7 +73,11 @@ def substitute_domains_in_patches(regex_list, file_list, patch_list, root_dir, l
 
     for patch_path_str in patch_list:
         with (root_dir / patch_path_str).open('r+') as file_obj:
-            patchset = unidiff.PatchSet(file_obj.read())
+            try:
+                patchset = unidiff.PatchSet(file_obj.read())
+            except Exception as e:
+                print('***ERROR: Patch caused error: {}'.format(patch_path_str))
+                raise e
             file_subs = 0
             for patchedfile in patchset:
                 if patchedfile.path not in file_set:

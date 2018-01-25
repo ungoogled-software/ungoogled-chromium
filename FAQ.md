@@ -14,32 +14,38 @@
 
 Yes, but not via the web interface. Adapted from [inox-patchset](https://raw.githubusercontent.com/gcarq/inox-patchset/master/README.md):
 
-Since there is no Webstore plugin, you cannot install extensions directly from the store, but you can download and install any extension manually.
+The built-in Chrome Webstore feature does not work. However, they can be downloaded manually via the following URL template:
 
     https://clients2.google.com/service/update2/crx?response=redirect&prodversion=[VERSION]&x=id%3D[EXTENSION_ID]%26installsource%3Dondemand%26uc
 
-To download a extension, replace [EXTENSION_ID] with the extension-id from the Chrome Web Store, and [VERSION] with the browser's version. For example, `cjpalhdlnbpafiamejdnhcphjbkeiagm` is the extension id of uBlock Origin, and `62.0` is for the 62.0.x.x browser versions
+To use the template, replace `[EXTENSION_ID]` with the extension-id from the Chrome Web Store, and `[VERSION]` with the browser's version. For example, `cjpalhdlnbpafiamejdnhcphjbkeiagm` is the extension id of uBlock Origin, and `63.0` is for the 63.0.x.x browser versions.
 
-Since version 62, an option `chrome://flags/#extension-mime-request-handling` was added to allow configuring of the behavior when the browser requests for a CRX or User Script file. This changes the behavior of the Chrome Web Store URL above. 
+There are several installation methods deriving from this URL:
 
-You have 4 options to install an extension:
+1. **Custom Search Engine (Preferred)**
 
-* **User script**
+    Create a custom search engine under `chrome://settings/searchEngines` with the manual download URL above after replacing `[EXTENSION_ID]` with `%s`. Then, configure `chrome://flags/#extension-mime-request-handling` to `Always prompt for install`.
 
-    You can use [this user script](http://chromium-crx.stuff.admicos.cf/get.user.js), which will add a button to the Chrome Webstore so the CRX file can be downloaded and installed.
+    To use it, go to a Chrome Webstore extension page. The page should have the a URL of the form `https://chrome.google.com/webstore/detail/[...]/[EXTENSION_ID]`. Use the custom search engine against `[EXTENSION_ID]`, and the browser should request permission for installation.
 
-    Script written and provided by Admicos in [#134](//github.com/Eloston/ungoogled-chromium/issues/134)
+2. **Drag and drop**
 
-* **Drag and drop**
+    Steps:
 
-    Download the crx file with the browser, open `chrome://extensions` and drop the file from the download bar into the extensions tab.
-    **Note:** Under some circumstances this method does not work on KDE Plasma.
+    1. Download the CRX file. One download method is to create a custom search engine like the above method, but set `chrome://flags/#extension-mime-request-handling` to `Download as regular file`.
+    2. Open `chrome://extensions`
+    3. Drag-and-drop the CRX from a file browser into the page of the extensions tab. While dragging over the page, it should state to drop the file to install it.
 
+    This can be used with the above method when `chrome://flags/#extension-mime-request-handling` is set to `Download as regular file`.
 
-* **Preference file (Linux systems only)**
+    **NOTE**: There are certain circumstances where this method fails on KDE Plasma.
 
-    For example to install the extension aaaaaaaaaabbbbbbbbbbcccccccccc, create:
+3. **External Extension Descriptor (Linux systems only)**
+
+    To install an extension with ID `aaaaaaaaaabbbbbbbbbbcccccccccc`, create the file
+
     `/usr/share/chromium/extensions/aaaaaaaaaabbbbbbbbbbcccccccccc.json`
+
     with following content:
     ```json
     {
@@ -47,13 +53,15 @@ You have 4 options to install an extension:
         "external_version": "1.0.0"
     }
     ```
-    If you restart Inox, the extension should be loaded automatically.
+    After restarting the browser, the extension should be loaded automatically.
 
-* **Extension loader**
+4. **User script**
 
-    You can also use [extension-downloader](https://github.com/gcarq/inox-patchset/issues/7), it's a small python script to automate the download.
+    You can use [this user script](http://chromium-crx.stuff.admicos.cf/get.user.js), which will add a button to the Chrome Webstore so the CRX file can be downloaded and installed.
 
-Keep in mind extensions are not updated automatically, so make sure you update them on a regular base.
+    Script written and provided by Admicos in [#134](//github.com/Eloston/ungoogled-chromium/issues/134).
+
+**IMPORTANT: These extensions are not updated automatically.** Make sure to use the `Update extensions now` button after enabling `Developer mode` on `chrome://extensions`, or re-download the CRX.
 
 ## Do plugins work?
 

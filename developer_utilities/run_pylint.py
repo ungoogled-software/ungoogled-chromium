@@ -8,6 +8,5 @@ if __name__ == "__main__":
     from pylint import epylint as lint
     import pathlib
 
-    lint.lint(filename=str(pathlib.Path(__file__).parent.parent / "utilikit"),
-              options=["--disable=logging-format-interpolation",
-                       "--disable=locally-disabled"])
+    lint.lint(filename=str(pathlib.Path(__file__).parent.parent / "buildkit"),
+              options=["--disable=locally-disabled"])

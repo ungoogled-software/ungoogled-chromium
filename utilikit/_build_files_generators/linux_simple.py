@@ -12,7 +12,6 @@ import pathlib
 
 from .. import _common
 from .. import export_resources as _export_resources
-from .. import build_gn as _build_gn
 from . import _common as _build_files_common
 
 _BUILD_FILES_DIR = "ungoogled_linux_simple"
@@ -28,11 +27,6 @@ def generate_build_files(resources, output_dir, build_output, apply_domain_subst
     gn_flags = resources.read_gn_flags()
     build_file_subs = dict(
         build_output=build_output,
-        build_gn_command=_build_gn.construct_gn_command(
-            pathlib.Path(build_output) / "gn",
-            gn_flags,
-            shell=True
-        ),
         build_files_dir=_BUILD_FILES_DIR,
         gn_args_string=" ".join(
             [flag + "=" + value for flag, value in gn_flags.items()]
