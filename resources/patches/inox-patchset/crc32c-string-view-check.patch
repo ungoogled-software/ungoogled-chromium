@@ -1,0 +1,74 @@
+From d0f929a5db87cb34d03afb0d8e8bfc95b8f786e3 Mon Sep 17 00:00:00 2001
+From: Victor Costan <costan@gmail.com>
+Date: Mon, 11 Sep 2017 13:18:27 -0700
+Subject: [PATCH] More conservative check for <string_view> availability. (#4)
+
+has_include(<string_view>) does not imply that the header can be
+included and will work. The assumption fails on MSVC and libc++ [1, 2].
+Conversely, checking that __cplusplus > 201402L is not sufficient on its
+own either, as the toolchain on Mac OS 10.12 passes that check but does
+not contain a <string_view> header.
+
+[1] https://crbug.com/759349
+[2] https://gcc.gnu.org/bugzilla/show_bug.cgi?id=79433
+---
+ include/crc32c/crc32c.h | 10 +++-------
+ src/crc32c_unittest.cc  |  6 ++----
+ 2 files changed, 5 insertions(+), 11 deletions(-)
+
+diff --git a/third_party/crc32c/src/include/crc32c/crc32c.h b/third_party/crc32c/src/include/crc32c/crc32c.h
+index 9f1973a..8ecab0d 100644
+--- a/third_party/crc32c/src/include/crc32c/crc32c.h
++++ b/third_party/crc32c/src/include/crc32c/crc32c.h
+@@ -33,22 +33,18 @@ inline uint32_t Crc32c(const std::string& string) {
+                 string.size());
+ }
+ 
+-#if defined(__has_include)
++#if __cplusplus > 201402L
+ #if __has_include(<string_view>)
+-// Visual Studio provides a <string_view> header even in C++11 mode. When
+-// included, the header issues an #error. (C1189)
+-#if !defined(_MSC_VER) || __cplusplus >= 201703L
+ #include <string_view>
+ 
+-// Comptues the CRC32C of the bytes in the string_view.
++// Computes the CRC32C of the bytes in the string_view.
+ inline uint32_t Crc32c(const std::string_view& string_view) {
+   return Crc32c(reinterpret_cast<const uint8_t*>(string_view.data()),
+                 string_view.size());
+ }
+ 
+-#endif  // !defined(_MSC_VER) || __cplusplus >= 201703L
+ #endif  // __has_include(<string_view>)
+-#endif  // defined(__has_include)
++#endif  // __cplusplus > 201402L
+ 
+ }  // namespace crc32c
+ 
+diff --git a/third_party/crc32c/src/src/crc32c_unittest.cc b/third_party/crc32c/src/src/crc32c_unittest.cc
+index 7a9c765..69babb3 100644
+--- a/third_party/crc32c/src/src/crc32c_unittest.cc
++++ b/third_party/crc32c/src/src/crc32c_unittest.cc
+@@ -95,9 +95,8 @@ TEST(CRC32CTest, Crc32cStdString) {
+   EXPECT_EQ(static_cast<uint32_t>(0x113fdb5c), crc32c::Crc32c(buf));
+ }
+ 
+-#if defined(__has_include)
++#if __cplusplus > 201402L
+ #if __has_include(<string_view>)
+-#if !defined(_MSC_VER) || __cplusplus >= 201703L
+ 
+ TEST(CRC32CTest, Crc32cStdStringView) {
+   uint8_t buf[32];
+@@ -118,9 +117,8 @@ TEST(CRC32CTest, Crc32cStdStringView) {
+   EXPECT_EQ(static_cast<uint32_t>(0x113fdb5c), crc32c::Crc32c(view));
+ }
+ 
+-#endif  // !defined(_MSC_VER) || __cplusplus >= 201703L
+ #endif  // __has_include(<string_view>)
+-#endif  // defined(__has_include)
++#endif  // __cplusplus > 201402L
+ 
+ #define TESTED_EXTEND Extend
+ #include "./crc32c_extend_unittests.h"

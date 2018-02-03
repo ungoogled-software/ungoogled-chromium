@@ -1,0 +1,73 @@
+# Fix building with enable_service_discovery=false and enable_mds=false
+# Borrows code from chrome/browser/local_discovery/service_discovery_device_lister.cc,
+# which already has its header file included by
+# chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.h
+
+--- a/chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.cc
++++ b/chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.cc
+@@ -4,6 +4,65 @@
+ 
+ #include "chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.h"
+ 
++namespace local_discovery {
++
++ServiceDiscoveryDeviceLister::ServiceDiscoveryDeviceLister(
++    Delegate* delegate,
++    ServiceDiscoveryClient* service_discovery_client,
++    const std::string& service_type)
++    : delegate_(delegate),
++      service_discovery_client_(service_discovery_client),
++      service_type_(service_type),
++      weak_factory_(this) {
++}
++
++ServiceDiscoveryDeviceLister::~ServiceDiscoveryDeviceLister() {
++}
++
++void ServiceDiscoveryDeviceLister::Start() {
++  VLOG(1) << "DeviceListerStart: service_type: " << service_type_;
++}
++
++void ServiceDiscoveryDeviceLister::DiscoverNewDevices() {
++  VLOG(1) << "DiscoverNewDevices: service_type: " << service_type_;
++}
++
++void ServiceDiscoveryDeviceLister::OnServiceUpdated(
++    ServiceWatcher::UpdateType update,
++    const std::string& service_name) {
++  VLOG(1) << "OnServiceUpdated: service_type: " << service_type_
++          << ", service_name: " << service_name
++          << ", update: " << update;
++  if (update == ServiceWatcher::UPDATE_INVALIDATED) {
++    delegate_->OnDeviceCacheFlushed();
++    return;
++  }
++
++  if (update == ServiceWatcher::UPDATE_REMOVED) {
++    delegate_->OnDeviceRemoved(service_name);
++    return;
++  }
++}
++
++// TODO(noamsml): Update ServiceDiscoveryClient interface to match this.
++void ServiceDiscoveryDeviceLister::OnResolveComplete(
++    bool added,
++    std::string service_name,
++    ServiceResolver::RequestStatus status,
++    const ServiceDescription& service_description) {
++  VLOG(1) << "OnResolveComplete: service_type: " << service_type_
++          << ", service_name: " << service_name
++          << ", status: " << status;
++  if (status == ServiceResolver::STATUS_SUCCESS) {
++    delegate_->OnDeviceChanged(added, service_description);
++  }
++}
++
++void ServiceDiscoveryDeviceLister::CreateServiceWatcher() {
++}
++
++}  // namespace local_discovery
++
+ using local_discovery::ServiceDescription;
+ 
+ namespace media_router {

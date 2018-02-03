@@ -12,11 +12,10 @@ export CLANG_BASE_PATH=/usr/lib/llvm-3.9
 defines+=target_extra_ldflags=\"-Wl,--stats\"
 
 # avoid error in v8's garbage collector (see http://gcc.gnu.org/bugzilla/show_bug.cgi?id=68853)
-defines+=target_extra_cxxflags=\"-fno-delete-null-pointer-checks\"
-
-DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+defines+=target_extra_cxxflags=\"-fno-delete-null-pointer-checks -Wno-deprecated-declarations\"
 
 # set the appropriate cpu architecture
+DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 ifeq (i386,$(DEB_HOST_ARCH))
 defines+=host_cpu=\"x86\"
 endif
@@ -48,7 +47,11 @@ flotpaths=/usr/share/javascript/jquery/*min.js \
           /usr/share/javascript/jquery-flot/*min.js \
 
 %:
-	dh $@ --parallel
+	dh $@
+
+$ungoog{build_output}/gn:
+	mkdir -p $ungoog{build_output} || true
+	./tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s $(njobs)
 
 override_dh_auto_configure:
 	# output compiler information
@@ -60,13 +63,8 @@ override_dh_auto_configure:
 	./debian/scripts/unbundle
 	mkdir -p third_party/freetype/src/src/psnames
 	mv pstables.h third_party/freetype/src/src/psnames
-	# build gn
-	mkdir -p $ungoog{build_output} || true
-	./tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s $(njobs)
-	# configure
-	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
 
-override_dh_auto_build-arch:
+override_dh_auto_build-arch: $ungoog{build_output}/gn
 	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
 	ninja $(njobs) -C $ungoog{build_output} chrome chrome_sandbox content_shell chromedriver
 	mv $ungoog{build_output}/chrome $ungoog{build_output}/chromium || true
@@ -76,7 +74,8 @@ override_dh_auto_build-arch:
 	mv $ungoog{build_output}/locales/en-US.pak $ungoog{build_output}/resources || true
 	chmod 4755 $ungoog{build_output}/chrome-sandbox # suid sandbox
 
-override_dh_auto_build-indep:
+override_dh_auto_build-indep: $ungoog{build_output}/gn
+	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
 	ninja $(njobs) -C $ungoog{build_output} packed_resources
 	rm -f $ungoog{build_output}/locales/en-US.pak
 
@@ -115,13 +114,18 @@ override_dh_auto_clean:
 
 url=https://gsdview.appspot.com/chromium-browser-official
 version=$(shell dpkg-parsechangelog -S Version | sed s/-.*//)
-tarball=chromium-$(version).tar.xz
-removed=chromium-browser_$(version).files-removed
+extract=chromium-$(version)
+tarball=$(extract).tar.xz
+debian=chromium-browser_$(version)
+output=$(debian).orig.tar.xz
+removed=$(debian).files-removed
 
 get-orig-source:
 	wget -nv --show-progress -c $(url)/$(tarball) -O ../$(tarball)
-	mk-origtargz ../$(tarball) | tee ../$(removed)
-	echo >> ../$(removed)
-	tar tf ../$(tarball) | sort > ../chromium.upstream
-	tar tf ../chromium-browser_$(version).orig.tar.xz | sort > ../chromium.orig
-	diff -u ../chromium.upstream ../chromium.orig >> ../$(removed) || true
+	/usr/bin/time --portability ./debian/scripts/mk-origtargz ../$(tarball) > ../$(removed)
+	test ! -e $(extract) || rm -rf $(extract)
+	/usr/bin/time --portability tar xaf ../$(tarball)
+	while read line; do rm -rf $$line; done < ../$(removed)
+	test ! -e ../$(output) || rm -f ../$(output)
+	/usr/bin/time --portability tar caf ../$(output) $(extract)
+	/usr/bin/time --portability rm -rf $(extract)

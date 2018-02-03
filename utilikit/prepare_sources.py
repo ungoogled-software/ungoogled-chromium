@@ -64,7 +64,7 @@ def _extract_tar_file(tar_path, destination_dir, ignore_files, relative_to):
                 if str(relative_path) in ignore_files:
                     ignore_files.remove(str(relative_path))
                 else:
-                    destination = destination_dir / pathlib.Path(*relative_path.parts)
+                    destination = destination_dir.resolve() / pathlib.Path(*relative_path.parts)
                     if tarinfo.issym() and not symlink_supported:
                         # In this situation, TarFile.makelink() will try to create a copy of the
                         # target. But this fails because TarFile.members is empty
@@ -76,7 +76,7 @@ def _extract_tar_file(tar_path, destination_dir, ignore_files, relative_to):
                         relative_target = pathlib.PurePosixPath(
                             tarinfo.linkname).relative_to(relative_to)
                         tarinfo._link_target = str( # pylint: disable=protected-access
-                            destination_dir / pathlib.Path(*relative_target.parts))
+                            destination_dir.resolve() / pathlib.Path(*relative_target.parts))
                     if destination.is_symlink():
                         destination.unlink()
                     tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access

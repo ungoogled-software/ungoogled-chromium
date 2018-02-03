@@ -1,0 +1,123 @@
+# Add extension-mime-request-handling chrome://flag to tweak the behavior of
+# extension MIME types
+
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -170,6 +170,16 @@ const unsigned kOsDesktop = kOsMac | kOs
+ const unsigned kOsAura = kOsWin | kOsLinux | kOsCrOS;
+ #endif  // USE_AURA
+ 
++const FeatureEntry::Choice kExtensionHandlingChoices[] = {
++    {flags_ui::kGenericExperimentChoiceDefault, "", ""},
++    {"Download as regular file",
++     "extension-mime-request-handling",
++     "download-as-regular-file"},
++    {"Always prompt for install",
++     "extension-mime-request-handling",
++     "always-prompt-for-install"},
++};
++
+ const FeatureEntry::Choice kTouchEventFeatureDetectionChoices[] = {
+     {flags_ui::kGenericExperimentChoiceAutomatic, "", ""},
+     {flags_ui::kGenericExperimentChoiceEnabled,
+@@ -1213,6 +1223,10 @@ const FeatureEntry kFeatureEntries[] = {
+      flag_descriptions::kDisableTrkbarDescription, kOsDesktop,
+      SINGLE_VALUE_TYPE("disable-trkbar")},
+ #endif
++    {"extension-mime-request-handling",
++     "Handling of extension MIME type requests",
++     "Used when deciding how to handle a request for a CRX or User Script MIME type",
++     kOsAll, MULTI_VALUE_TYPE(kExtensionHandlingChoices)},
+     {"enable-stacked-tab-strip",
+      "Enable stacking in tab strip",
+      "Forces tabs to be stacked in the tab strip. Otherwise, they follow default behavior.",
+--- a/chrome/browser/download/download_crx_util.cc
++++ b/chrome/browser/download/download_crx_util.cc
+@@ -6,6 +6,7 @@
+ 
+ #include "chrome/browser/download/download_crx_util.h"
+ 
++#include "base/command_line.h"
+ #include "chrome/browser/chrome_notification_types.h"
+ #include "chrome/browser/extensions/crx_installer.h"
+ #include "chrome/browser/extensions/extension_install_prompt.h"
+@@ -116,6 +117,14 @@ scoped_refptr<extensions::CrxInstaller>
+   return installer;
+ }
+ 
++bool ShouldDownloadAsRegularFile() {
++    const base::CommandLine& command_line =
++        *base::CommandLine::ForCurrentProcess();
++    return command_line.HasSwitch("extension-mime-request-handling") &&
++        command_line.GetSwitchValueASCII("extension-mime-request-handling") ==
++        "download-as-regular-file";
++}
++
+ bool IsExtensionDownload(const DownloadItem& download_item) {
+   if (download_item.GetTargetDisposition() ==
+       DownloadItem::TARGET_DISPOSITION_PROMPT)
+@@ -124,7 +133,7 @@ bool IsExtensionDownload(const DownloadI
+   if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
+       extensions::UserScript::IsURLUserScript(download_item.GetURL(),
+                                               download_item.GetMimeType())) {
+-    return true;
++    return !ShouldDownloadAsRegularFile();
+   } else {
+     return false;
+   }
+--- a/chrome/browser/extensions/extension_management.cc
++++ b/chrome/browser/extensions/extension_management.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "base/bind.h"
+ #include "base/bind_helpers.h"
++#include "base/command_line.h"
+ #include "base/logging.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/metrics/histogram_macros.h"
+@@ -142,6 +143,13 @@ bool ExtensionManagement::IsInstallation
+ bool ExtensionManagement::IsOffstoreInstallAllowed(
+     const GURL& url,
+     const GURL& referrer_url) const {
++  const base::CommandLine& command_line =
++      *base::CommandLine::ForCurrentProcess();
++  if (command_line.HasSwitch("extension-mime-request-handling") &&
++      command_line.GetSwitchValueASCII("extension-mime-request-handling") ==
++      "always-prompt-for-install") {
++    return true;
++  }
+   // No allowed install sites specified, disallow by default.
+   if (!global_settings_->has_restricted_install_sources)
+     return false;
+--- a/chrome/browser/download/download_crx_util.h
++++ b/chrome/browser/download/download_crx_util.h
+@@ -43,6 +43,10 @@ scoped_refptr<extensions::CrxInstaller>
+     Profile* profile,
+     const content::DownloadItem& download_item);
+ 
++// Returns true if the user wants all extensions to be downloaded as regular
++// files.
++bool ShouldDownloadAsRegularFile();
++
+ // Returns true if this is an extension download. This also considers user
+ // scripts to be extension downloads, since we convert those automatically.
+ bool IsExtensionDownload(const content::DownloadItem& download_item);
+--- a/chrome/browser/download/download_target_determiner.cc
++++ b/chrome/browser/download/download_target_determiner.cc
+@@ -827,10 +827,12 @@ DownloadConfirmationReason DownloadTarge
+     return DownloadConfirmationReason::SAVE_AS;
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+-  // Don't prompt for extension downloads.
+-  if (download_crx_util::IsExtensionDownload(*download_) ||
+-      filename.MatchesExtension(extensions::kExtensionFileExtension))
+-    return DownloadConfirmationReason::NONE;
++  if (!download_crx_util::ShouldDownloadAsRegularFile()) {
++    // Don't prompt for extension downloads.
++    if (download_crx_util::IsExtensionDownload(*download_) ||
++        filename.MatchesExtension(extensions::kExtensionFileExtension))
++      return DownloadConfirmationReason::NONE;
++  }
+ #endif
+ 
+   // Don't prompt for file types that are marked for opening automatically.

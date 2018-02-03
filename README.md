@@ -33,14 +33,14 @@ Since these goals and requirements are not precise, unclear situations are discu
 
 ## Features
 
-This list is not exhaustive. For more details, consult the source code.
+A number of ungoogled-chromium's changes are subtle and evolve over time. As a result, it is best to consult the source code for complete and up-to-date information.
 
-ungoogled-chromium borrows features from the following:
+ungoogled-chromium selectively borrows many of its features from the following:
 * [Debian](//tracker.debian.org/pkg/chromium-browser)
 * [Inox patchset](//github.com/gcarq/inox-patchset)
 * [Iridium Browser](//iridiumbrowser.de/)
 
-Most of the additional features are as follows:
+Most of the **additional** features are as follows:
 * Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
 * Strip binaries from the source code (known as source cleaning)
     * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
@@ -49,10 +49,12 @@ Most of the additional features are as follows:
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
 * Added menu item under "More tools" to clear the HTTP authentication cache on-demand
+* Add new command-line switches and `chrome://flags` entries:
+    * `--extension-mime-request-handling` - Change how extension MIME types (CRX and user scripts) are handled. Acceptable values are `download-as-regular-file` or `install-always`. Leave unset to use normal behavior. It is also configurable under `chrome://flags`
+    * `--enable-stacked-tab-strip` and `--enable-tab-adjust-layout` - These flags adjust the tab strip behavior. `--enable-stacked-tab-strip` is also configurable in `chrome://flags` Please note that they are not well tested, so proceed with caution.
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
     * See the [FAQ](FAQ.md#why-is-safe-browsing-disabled)
-* Disable WebRTC (will be configurable in the future [#179](//github.com/Eloston/ungoogled-chromium/issues/179))
 * Disable intranet redirect detector (extraneous DNS requests)
     * This breaks captive portal detection, but captive portals still work.
 * Add more URL schemes allowed for saving
@@ -66,15 +68,20 @@ Most of the additional features are as follows:
 **NOTE: Although it is the top priority to eliminate bugs and privacy-invading code, there will be those that slip by due to the fast-paced growth and evolution of the Chromium project.**
 
 ### Supported platforms and distributions
-* Linux
-* Windows
-* macOS
+
+Currently, only desktop platforms are supported. Functionality of specific desktop platforms may vary across different releases. For more details, see [Statuses in the Wiki](//github.com/Eloston/ungoogled-chromium/wiki/statuses).
+
+Other platforms are discussed and tracked in GitHub's Issue Tracker. Learn more about using the Issue Tracker under the section [Contributing, Reporting, Contacting](#contributing-reporting-contacting).
 
 ## Download pre-built packages
 
 ### Contributor binaries
 
+These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not reproducible, their functionality cannot be guaranteed.
+
 [All downloads](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+
+* [Page source code and contribution instructions](//github.com/ungoogled-software/ungoogled-chromium-binaries)
 
 The release versioning scheme follows that of the tags. See the next section for more details.
 
@@ -105,9 +112,13 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 ## Contributing, Reporting, Contacting
 
-Use the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) for problems, suggestions, and questions. There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for those who want a real-time discussion.
+Contributions are welcome!
 
-Contributions of many kinds are welcome! For pull requests, please read the guidelines below first. Additionally, issues marked with the `help wanted` tag are changes that needs discussion or assistance.
+The [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) is the main area for development activity. It tracks problems, suggestions, and questions. Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
+
+There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for real-time discussion.
+
+For pull requests, please read the guidelines below first.
 
 ### Pull request guidelines
 

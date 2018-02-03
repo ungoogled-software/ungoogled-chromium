@@ -1,0 +1,313 @@
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -1208,6 +1208,11 @@ const FeatureEntry::FeatureVariation kTh
+ //
+ // When adding a new choice, add it to the end of the list.
+ const FeatureEntry kFeatureEntries[] = {
++    {"enable-metrics",
++     "Record metrics",
++     "Record histograms and user actions.",
++     kOsAll, SINGLE_VALUE_TYPE("enable-metrics")},
++
+     {"ignore-gpu-blacklist", flag_descriptions::kIgnoreGpuBlacklistName,
+      flag_descriptions::kIgnoreGpuBlacklistDescription, kOsAll,
+      SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
+--- a/base/metrics/histogram_base.h
++++ b/base/metrics/histogram_base.h
+@@ -84,6 +84,12 @@ BASE_EXPORT HistogramBase* DeserializeHi
+ 
+ class BASE_EXPORT HistogramBase {
+  public:
++  // Allow histograms to be disabled.
++  static const std::string& kDummyName;
++  static const std::string& kDummySparseName;
++  static bool MetricsEnabled();
++  bool enabled = false;
++
+   typedef int32_t Sample;                // Used for samples.
+   typedef subtle::Atomic32 AtomicCount;  // Used to count samples.
+   typedef int32_t Count;  // Used to manipulate counts in temporaries.
+--- a/base/metrics/histogram_base.cc
++++ b/base/metrics/histogram_base.cc
+@@ -9,6 +9,7 @@
+ #include <memory>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "base/json/json_string_value_serializer.h"
+ #include "base/logging.h"
+ #include "base/metrics/histogram.h"
+@@ -60,6 +61,12 @@ HistogramBase* DeserializeHistogramInfo(
+   }
+ }
+ 
++const std::string& HistogramBase::kDummyName = "Dummy";
++const std::string& HistogramBase::kDummySparseName = "DummySparse";
++bool HistogramBase::MetricsEnabled() {
++  return base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics");
++}
++
+ const HistogramBase::Sample HistogramBase::kSampleType_MAX = INT_MAX;
+ HistogramBase* HistogramBase::report_histogram_ = nullptr;
+ 
+--- a/base/metrics/histogram.cc
++++ b/base/metrics/histogram.cc
+@@ -124,7 +124,8 @@ class Histogram::Factory {
+       minimum_(minimum),
+       maximum_(maximum),
+       bucket_count_(bucket_count),
+-      flags_(flags) {}
++      flags_(flags),
++      enabled_(HistogramBase::MetricsEnabled()) {}
+ 
+   // Create a BucketRanges structure appropriate for this histogram.
+   virtual BucketRanges* CreateRanges() {
+@@ -154,13 +155,18 @@ class Histogram::Factory {
+   HistogramBase::Sample maximum_;
+   uint32_t bucket_count_;
+   int32_t flags_;
++  const bool enabled_;
+ 
+  private:
+   DISALLOW_COPY_AND_ASSIGN(Factory);
+ };
+ 
+ HistogramBase* Histogram::Factory::Build() {
+-  HistogramBase* histogram = StatisticsRecorder::FindHistogram(name_);
++  std::string overridden_name = HistogramBase::kDummyName;
++  if (enabled_)
++    overridden_name = name_;
++
++  HistogramBase* histogram = StatisticsRecorder::FindHistogram(overridden_name);
+   if (!histogram) {
+     // To avoid racy destruction at shutdown, the following will be leaked.
+     const BucketRanges* created_ranges = CreateRanges();
+@@ -191,7 +197,7 @@ HistogramBase* Histogram::Factory::Build
+     if (allocator) {
+       tentative_histogram = allocator->AllocateHistogram(
+           histogram_type_,
+-          name_,
++          overridden_name,
+           minimum_,
+           maximum_,
+           registered_ranges,
+@@ -232,6 +238,10 @@ HistogramBase* Histogram::Factory::Build
+     ReportHistogramActivity(*histogram, HISTOGRAM_LOOKUP);
+   }
+ 
++  if (!enabled_)
++    return histogram;
++
++  histogram->enabled = true;
+   CHECK_EQ(histogram_type_, histogram->GetHistogramType()) << name_;
+   if (bucket_count_ != 0 &&
+       !histogram->HasConstructionArguments(minimum_, maximum_, bucket_count_)) {
+@@ -468,10 +478,16 @@ bool Histogram::HasConstructionArguments
+ }
+ 
+ void Histogram::Add(int value) {
++  if (!enabled)
++    return;
++
+   AddCount(value, 1);
+ }
+ 
+ void Histogram::AddCount(int value, int count) {
++  if (!enabled)
++    return;
++
+   DCHECK_EQ(0, ranges(0));
+   DCHECK_EQ(kSampleType_MAX, ranges(bucket_count()));
+ 
+@@ -526,10 +542,16 @@ std::unique_ptr<HistogramSamples> Histog
+ }
+ 
+ void Histogram::AddSamples(const HistogramSamples& samples) {
++  if (!enabled)
++    return;
++
+   unlogged_samples_->Add(samples);
+ }
+ 
+ bool Histogram::AddSamplesFromPickle(PickleIterator* iter) {
++  if (!enabled)
++    return true;
++
+   return unlogged_samples_->AddFromPickle(iter);
+ }
+ 
+--- a/base/metrics/sparse_histogram.cc
++++ b/base/metrics/sparse_histogram.cc
+@@ -24,7 +24,12 @@ typedef HistogramBase::Sample Sample;
+ // static
+ HistogramBase* SparseHistogram::FactoryGet(const std::string& name,
+                                            int32_t flags) {
+-  HistogramBase* histogram = StatisticsRecorder::FindHistogram(name);
++  const bool enabled_ = HistogramBase::MetricsEnabled();
++  std::string overridden_name = HistogramBase::kDummySparseName;
++  if (enabled_)
++    overridden_name = name;
++
++  HistogramBase* histogram = StatisticsRecorder::FindHistogram(overridden_name);
+   if (!histogram) {
+     // Try to create the histogram using a "persistent" allocator. As of
+     // 2016-02-25, the availability of such is controlled by a base::Feature
+@@ -36,7 +41,7 @@ HistogramBase* SparseHistogram::FactoryG
+     PersistentHistogramAllocator* allocator = GlobalHistogramAllocator::Get();
+     if (allocator) {
+       tentative_histogram = allocator->AllocateHistogram(
+-          SPARSE_HISTOGRAM, name, 0, 0, nullptr, flags, &histogram_ref);
++          SPARSE_HISTOGRAM, overridden_name, 0, 0, nullptr, flags, &histogram_ref);
+     }
+ 
+     // Handle the case where no persistent allocator is present or the
+@@ -45,7 +50,7 @@ HistogramBase* SparseHistogram::FactoryG
+       DCHECK(!histogram_ref);  // Should never have been set.
+       DCHECK(!allocator);      // Shouldn't have failed.
+       flags &= ~HistogramBase::kIsPersistent;
+-      tentative_histogram.reset(new SparseHistogram(name));
++      tentative_histogram.reset(new SparseHistogram(overridden_name));
+       tentative_histogram->SetFlags(flags);
+     }
+ 
+@@ -68,6 +73,10 @@ HistogramBase* SparseHistogram::FactoryG
+     ReportHistogramActivity(*histogram, HISTOGRAM_LOOKUP);
+   }
+ 
++  if (!enabled_)
++    return histogram;
++
++  histogram->enabled = true;
+   CHECK_EQ(SPARSE_HISTOGRAM, histogram->GetHistogramType());
+   return histogram;
+ }
+@@ -101,10 +110,16 @@ bool SparseHistogram::HasConstructionArg
+ }
+ 
+ void SparseHistogram::Add(Sample value) {
++  if (!enabled)
++    return;
++
+   AddCount(value, 1);
+ }
+ 
+ void SparseHistogram::AddCount(Sample value, int count) {
++  if (!enabled)
++    return;
++
+   if (count <= 0) {
+     NOTREACHED();
+     return;
+@@ -150,11 +165,17 @@ std::unique_ptr<HistogramSamples> Sparse
+ }
+ 
+ void SparseHistogram::AddSamples(const HistogramSamples& samples) {
++  if (!enabled)
++    return;
++
+   base::AutoLock auto_lock(lock_);
+   unlogged_samples_->Add(samples);
+ }
+ 
+ bool SparseHistogram::AddSamplesFromPickle(PickleIterator* iter) {
++  if (!enabled)
++    return true;
++
+   base::AutoLock auto_lock(lock_);
+   return unlogged_samples_->AddFromPickle(iter);
+ }
+--- a/base/metrics/user_metrics.cc
++++ b/base/metrics/user_metrics.cc
+@@ -9,6 +9,7 @@
+ #include <vector>
+ 
+ #include "base/bind.h"
++#include "base/command_line.h"
+ #include "base/lazy_instance.h"
+ #include "base/location.h"
+ #include "base/macros.h"
+@@ -24,11 +25,21 @@ LazyInstance<scoped_refptr<SingleThreadT
+ 
+ }  // namespace
+ 
++static bool MetricsEnabled() {
++  return base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics");
++}
++
+ void RecordAction(const UserMetricsAction& action) {
++  if (!MetricsEnabled())
++    return;
++
+   RecordComputedAction(action.str_);
+ }
+ 
+ void RecordComputedAction(const std::string& action) {
++  if (!MetricsEnabled())
++    return;
++
+   if (!g_task_runner.Get()) {
+     DCHECK(g_callbacks.Get().empty());
+     return;
+@@ -46,6 +57,9 @@ void RecordComputedAction(const std::str
+ }
+ 
+ void AddActionCallback(const ActionCallback& callback) {
++  if (!MetricsEnabled())
++    return;
++
+   // Only allow adding a callback if the task runner is set.
+   DCHECK(g_task_runner.Get());
+   DCHECK(g_task_runner.Get()->BelongsToCurrentThread());
+--- a/components/metrics/metrics_service.cc
++++ b/components/metrics/metrics_service.cc
+@@ -131,6 +131,7 @@
+ 
+ #include "base/bind.h"
+ #include "base/callback.h"
++#include "base/command_line.h"
+ #include "base/location.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/metrics/histogram_base.h"
+@@ -811,6 +812,8 @@ bool MetricsService::UmaMetricsProperlyS
+ void MetricsService::RegisterMetricsProvider(
+     std::unique_ptr<MetricsProvider> provider) {
+   DCHECK_EQ(INITIALIZED, state_);
++  if (!base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics"))
++    return;
+   delegating_provider_.RegisterMetricsProvider(std::move(provider));
+ }
+ 
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -207,13 +207,17 @@ void TabHelpers::AttachTabHelpers(WebCon
+   HistoryTabHelper::CreateForWebContents(web_contents);
+   InfoBarService::CreateForWebContents(web_contents);
+   InstallableManager::CreateForWebContents(web_contents);
+-  metrics::RendererUptimeWebContentsObserver::CreateForWebContents(
+-      web_contents);
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics")) {
++    metrics::RendererUptimeWebContentsObserver::CreateForWebContents(
++        web_contents);
++  }
+   if (content::IsBrowserSideNavigationEnabled())
+     MixedContentSettingsTabHelper::CreateForWebContents(web_contents);
+   NavigationCorrectionTabObserver::CreateForWebContents(web_contents);
+-  NavigationMetricsRecorder::CreateForWebContents(web_contents);
+-  chrome::InitializePageLoadMetricsForWebContents(web_contents);
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics")) {
++    NavigationMetricsRecorder::CreateForWebContents(web_contents);
++    chrome::InitializePageLoadMetricsForWebContents(web_contents);
++  }
+   PDFPluginPlaceholderObserver::CreateForWebContents(web_contents);
+   PermissionRequestManager::CreateForWebContents(web_contents);
+   PopupBlockerTabHelper::CreateForWebContents(web_contents);
+@@ -278,7 +282,8 @@ void TabHelpers::AttachTabHelpers(WebCon
+ 
+ #if defined(OS_WIN) || defined(OS_MACOSX) || \
+     (defined(OS_LINUX) && !defined(OS_CHROMEOS))
+-  metrics::DesktopSessionDurationObserver::CreateForWebContents(web_contents);
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-metrics"))
++    metrics::DesktopSessionDurationObserver::CreateForWebContents(web_contents);
+ #endif
+ 
+ // --- Feature tab helpers behind flags ---

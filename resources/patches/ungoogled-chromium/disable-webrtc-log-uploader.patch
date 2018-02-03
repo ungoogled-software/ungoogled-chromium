@@ -1,0 +1,111 @@
+# Disables WebRTC log uploading to Google
+
+--- a/chrome/browser/media/webrtc/webrtc_log_uploader.cc
++++ b/chrome/browser/media/webrtc/webrtc_log_uploader.cc
+@@ -117,30 +117,11 @@ void WebRtcLogUploader::LoggingStoppedDo
+   DCHECK(meta_data.get());
+   DCHECK(!upload_done_data.log_path.empty());
+ 
+-  std::string compressed_log;
+-  CompressLog(&compressed_log, log_buffer.get());
+-
+-  std::string local_log_id;
+-
+   if (base::PathExists(upload_done_data.log_path)) {
+     WebRtcLogUtil::DeleteOldWebRtcLogFiles(upload_done_data.log_path);
+-
+-    local_log_id = base::DoubleToString(base::Time::Now().ToDoubleT());
+-    base::FilePath log_file_path =
+-        upload_done_data.log_path.AppendASCII(local_log_id)
+-            .AddExtension(FILE_PATH_LITERAL(".gz"));
+-    WriteCompressedLogToFile(compressed_log, log_file_path);
+-
+-    base::FilePath log_list_path =
+-        WebRtcLogList::GetWebRtcLogListFileForDirectory(
+-            upload_done_data.log_path);
+-    AddLocallyStoredLogInfoToUploadListFile(log_list_path, local_log_id);
+   }
+ 
+-  WebRtcLogUploadDoneData upload_done_data_with_log_id = upload_done_data;
+-  upload_done_data_with_log_id.local_log_id = local_log_id;
+-  PrepareMultipartPostData(compressed_log, std::move(meta_data),
+-                           upload_done_data_with_log_id);
++  NotifyUploadDone(kHttpResponseOk, "", upload_done_data);
+ }
+ 
+ void WebRtcLogUploader::PrepareMultipartPostData(
+@@ -151,29 +132,7 @@ void WebRtcLogUploader::PrepareMultipart
+   DCHECK(!compressed_log.empty());
+   DCHECK(meta_data.get());
+ 
+-  std::unique_ptr<std::string> post_data(new std::string());
+-  SetupMultipart(post_data.get(),
+-                 compressed_log,
+-                 upload_done_data.incoming_rtp_dump,
+-                 upload_done_data.outgoing_rtp_dump,
+-                 *meta_data.get());
+-
+-  // If a test has set the test string pointer, write to it and skip uploading.
+-  // Still fire the upload callback so that we can run an extension API test
+-  // using the test framework for that without hanging.
+-  // TODO(grunell): Remove this when the api test for this feature is fully
+-  // implemented according to the test plan. http://crbug.com/257329.
+-  if (post_data_) {
+-    *post_data_ = *post_data;
+-    NotifyUploadDone(kHttpResponseOk, "", upload_done_data);
+-    return;
+-  }
+-
+-  BrowserThread::PostTask(
+-      BrowserThread::IO, FROM_HERE,
+-      base::BindOnce(&WebRtcLogUploader::UploadCompressedLog,
+-                     base::Unretained(this), upload_done_data,
+-                     base::Passed(&post_data)));
++  NotifyUploadDone(kHttpResponseOk, "", upload_done_data);
+ }
+ 
+ void WebRtcLogUploader::UploadStoredLog(
+@@ -239,43 +198,6 @@ void WebRtcLogUploader::LoggingStoppedDo
+ 
+   WebRtcLogUtil::DeleteOldWebRtcLogFiles(log_paths.log_path);
+ 
+-  base::FilePath log_list_path =
+-      WebRtcLogList::GetWebRtcLogListFileForDirectory(log_paths.log_path);
+-
+-  // Store the native log with a ".gz" extension.
+-  std::string compressed_log;
+-  CompressLog(&compressed_log, log_buffer.get());
+-  base::FilePath native_log_path = log_paths.log_path.AppendASCII(log_id)
+-      .AddExtension(FILE_PATH_LITERAL(".gz"));
+-  WriteCompressedLogToFile(compressed_log, native_log_path);
+-  AddLocallyStoredLogInfoToUploadListFile(log_list_path, log_id);
+-
+-  // Move the rtp dump files to the log directory with a name of
+-  // <log id>.rtp_[in|out].
+-  if (!log_paths.incoming_rtp_dump.empty()) {
+-    base::FilePath rtp_path = log_paths.log_path.AppendASCII(log_id)
+-        .AddExtension(FILE_PATH_LITERAL(".rtp_in"));
+-    base::Move(log_paths.incoming_rtp_dump, rtp_path);
+-  }
+-
+-  if (!log_paths.outgoing_rtp_dump.empty()) {
+-    base::FilePath rtp_path = log_paths.log_path.AppendASCII(log_id)
+-        .AddExtension(FILE_PATH_LITERAL(".rtp_out"));
+-    base::Move(log_paths.outgoing_rtp_dump, rtp_path);
+-  }
+-
+-  if (meta_data.get() && !meta_data->empty()) {
+-    base::Pickle pickle;
+-    for (const auto& it : *meta_data.get()) {
+-      pickle.WriteString(it.first);
+-      pickle.WriteString(it.second);
+-    }
+-    base::FilePath meta_path = log_paths.log_path.AppendASCII(log_id)
+-        .AddExtension(FILE_PATH_LITERAL(".meta"));
+-    base::WriteFile(meta_path, static_cast<const char*>(pickle.data()),
+-        pickle.size());
+-  }
+-
+   BrowserThread::PostTask(BrowserThread::UI, FROM_HERE,
+                           base::BindOnce(done_callback, true, ""));
+ 
