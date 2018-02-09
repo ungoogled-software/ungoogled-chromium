@@ -21,6 +21,10 @@ These instructions are the ones used for producing the published binaries.
 
 ### Debian and its derivatives
 
+TODO: Document using dpkg-source to build a source package
+
+TODO: Investigate using existing flavors to package only via flags to dpkg-buildpackage
+
 These instructions will create `.deb` packages using ungoogled-chromium's variation of Debian's `debian` directory.
 
 The build should work on the CPU architectures `amd64`, `i386`, `arm64`, and `armhf`.

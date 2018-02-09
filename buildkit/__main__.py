@@ -5,7 +5,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-"""CLI entry point for invoking module directly"""
+"""
+CLI entry point when invoking the module directly
+
+Pass in -h or --help for usage information.
+"""
 
 from . import cli
 

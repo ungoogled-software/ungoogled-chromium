@@ -41,10 +41,8 @@ ungoogled-chromium selectively borrows many of its features from the following:
 * [Iridium Browser](//iridiumbrowser.de/)
 
 Most of the **additional** features are as follows:
-* Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
-* Strip binaries from the source code (known as source cleaning)
-    * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
-    * However a few data files are left in as they do not contain machine code and are needed for building.
+* Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution; [see DESIGN.md](DESIGN.md#source-file-processors))
+* Strip binaries from the source code (known as source cleaning; [see DESIGN.md](DESIGN.md#source-file-processors))
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)

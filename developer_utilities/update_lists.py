@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2017 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-"""Script to update source cleaning and domain substitution lists"""
+"""Script to generate source cleaning and domain substitution lists"""
 
 import pathlib
 import os
