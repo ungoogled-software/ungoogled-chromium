@@ -9,7 +9,7 @@ A number of features or background services communicate with Google servers desp
 ungoogled-chromium is a set of configuration flags, patches, and custom scripts. These components altogether strive to accomplish the following:
 * Disable or remove offending services and features that communicate with Google or weaken privacy
 * Strip binaries from the source tree, and use those provided by the system or build them from source
-* Add, modify, or disable features that inhibit control and transparency (these changes are minor and do not have significant impacts on the general user experience)
+* Disable features that inhibit control and transparency, and add or modify features that promote them (these changes are minor and do not have significant impacts on the general user experience)
 
 **ungoogled-chromium should not be considered a fork of Chromium**. The main reason for this is that a fork is associated with more significant deviations from the Chromium, such as branding, configuration formats, file locations, and other interface changes. ungoogled-chromium will not modify the Chromium browser outside of the project's goals.
 
