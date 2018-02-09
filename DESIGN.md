@@ -38,9 +38,9 @@ Configuration files (or config files) are files that store build configuration a
 
 All config file names have an extension that determines their type. The extensions are:
 
-* `.list` - A list of strings delimited by a carriage return character.
-* `.map` - A mapping of string keys and values, with entries delimited by a carriage return, and keys and values delimited by an equal (`=`) sign.
-* `.ini` - An INI-like config format (specifically, the implementation by Python's `configparser`)
+* `.list` (list config file) - A list of strings delimited by a carriage return character.
+* `.map` (mapping config file) - A mapping of string keys and values, with entries delimited by a carriage return, and keys and values delimited by an equal (`=`) sign.
+* `.ini` (ini config file) - An INI-like config format (specifically, the implementation by Python's `configparser`)
 
 Config files are usually stored in a [configuration bundle](#configuration-bundles) or in some form in the `resources` directory of the repository.
 
@@ -52,12 +52,17 @@ Configuration bundles are a collection of config files grouped by system, platfo
 
 * *Base bundles* - Bundles included in ungoogled-chromium (which reside under `resources/config_bundles`). They are generally used for creating user bundles. All base bundles must include `basebundlemeta.ini`. Unlike user bundles, the patches used by a base bundle are stored in `resources/patches`
 
-    Many configurations share a lot in common. To reduce duplication, base bundles can depend on other base bundles by specifying a list of dependencies in `basebundlemeta.ini`. When dependencies are present, base bundles only contain the config file data that is modified in or added to its dependencies.
+    Many configurations share a lot in common. To reduce duplication, base bundles can depend on other base bundles by specifying a list of dependencies in the `depends` key of `basebundlemeta.ini`. When dependencies are present, base bundles only contain the config file data that is modified in or added to its dependencies. The following are additional points about base bundle dependencies:
+    * Direct dependencies for any one base bundle are ordered; the ordering specifies how dependency configuration is resolved in a consistent manner.
+        * This ordering is determined by the order in which they appear in the `depends` key of `basebundlemeta.ini`; dependencies are applied from right to left just like multiple inheritance in Python.
+    * The graph of all base bundle dependency relationships must be representable by a [polytree](https://en.wikipedia.org/wiki/Polytree) to be valid.
+    * Due to the direct dependency ordering and polytree requirements, all dependencies for a base bundle can be resolved to a consistent sequence. This sequence is known as the *dependency order*.
     * Base bundles may depend on mixins. Mixins are like base bundles, but they are only used as dependencies for base bundles or other mixins, and their names are always prefixed with `_mixin`. This means that mixins are not valid configurations; they only contain partial data. These are similar in idea to mixins in Python.
-    * Base bundle dependency relationships must be representable by a [polytree](https://en.wikipedia.org/wiki/Polytree) to be valid.
 
-    Base bundle pieces combine different types of files in the following manner (file types are explained in [the Configuration Files section](#configuration-files)):
-    * TODO
+    Base bundles merge config file types from its dependencies in the following manner (config file types are explained in [the Configuration Files section](#configuration-files)):
+    * `.list` - List files are joined in the dependency order.
+    * `.map` - Entries (key-value pairs) are collected together. If a key exists in two or more dependencies, the subsequent dependencies in the dependency order have precedence.
+    * `.ini` - Sections are collected together. If a section exists in two or more dependencies, its keys are resolved in an identical manner as mapping config files.
 * *User bundles* - Bundles intended for use in building. They cannot have dependencies, so they must contain all configuration data. They are usually generated from base bundles, from which they can be modified by the user. Unlike base bundles, all patches used must be contained within the user bundle.
 
 Config bundles can only contain the following files:
@@ -65,7 +70,7 @@ Config bundles can only contain the following files:
 * `cleaning.list` - [See the Source File Processors section](#source-file-processors)
 * `domain_regex.list` - [See the Source File Processors section](#source-file-processors)
 * `domain_substitution.list` - [See the Source File Processors section](#source-file-processors)
-* `extra_deps.ini` - Extra archives to download and unpack into the buildspace tree. This includes code not bundled in the Chromium source code archive that is specific to a non-Linux platform. On platforms such as macOS, this also includes a pre-built LLVM toolchain for covenience (which can be removed and built from source if necessary).
+* `extra_deps.ini` - Extra archives to download and unpack into the buildspace tree. This includes code not bundled in the Chromium source code archive that is specific to a non-Linux platform. On platforms such as macOS, this also includes a pre-built LLVM toolchain for covenience (which can be removed and built from source if desired).
 * `gn_flags.map` - GN arguments to set before building.
 * `patch_order.list` - The series of patches to apply with paths relative to the `patches/` directory (whether they be in `resources/` or the bundle itself).
 * `version.ini` - Tracks the the Chromium version to use, the ungoogled-chromium revision, and any configuration-specific version information.
@@ -93,10 +98,11 @@ The regular expressions to use are listed in `domain_regex.list`; the search and
 All of ungoogled-chromium's patches for the Chromium source code are located in `resources/patches`. The patches in this directory are referenced by base config bundles' `patch_order.list` config file. When a user config bundle is created, only the patches required by the user bundle's `patch_order.list` config file are copied from `resources/patches` into the user bundle's `patches/` directory.
 
 A file with the extension `.patch` is patch using the [unified format](https://en.wikipedia.org/wiki/Diff_utility#Unified_format). The requirements and recommendations for patch files are as follows:
-    * All paths in the hunk headers must begin after the first slash (which corresponds to the argument `-p1` for GNU patch).
-    * All patches must apply cleanly (i.e. no fuzz).
-    * It is recommended that hunk paths have the `a/` and `b/` prefixes, and a context of 3 (like the git default).
-    * All patches must be encoded in UTF-8 (i.e. same encoding as config files).
+
+* All paths in the hunk headers must begin after the first slash (which corresponds to the argument `-p1` for GNU patch).
+* All patches must apply cleanly (i.e. no fuzz).
+* It is recommended that hunk paths have the `a/` and `b/` prefixes, and a context of 3 (like the git default).
+* All patches must be encoded in UTF-8 (i.e. same encoding as config files).
 
 Patches are grouped into the following directories:
 
