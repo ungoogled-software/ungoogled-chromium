@@ -72,7 +72,7 @@ def substitute_domains_in_patches(regex_list, file_list, patch_list, root_dir, l
     file_set = set(file_list)
 
     for patch_path_str in patch_list:
-        with (root_dir / patch_path_str).open('r+') as file_obj:
+        with (root_dir / patch_path_str).open('r+', encoding='UTF-8') as file_obj:
             try:
                 patchset = unidiff.PatchSet(file_obj.read())
             except Exception as e:
