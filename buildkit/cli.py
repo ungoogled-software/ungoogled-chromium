@@ -18,40 +18,72 @@ the one in buildkit's parent directory.
 """
 
 import argparse
-import pathlib
+from pathlib import Path
 
-from . import common
-from . import config
+from .common import get_resources_dir, get_logger, CONFIG_BUNDLES_DIR
+from .config import BaseBundleMetaIni, BASEBUNDLEMETA_INI, ConfigBundle
 
 class _MainArgumentParserFormatter(argparse.RawTextHelpFormatter,
-                                     argparse.ArgumentDefaultsHelpFormatter):
+                                   argparse.ArgumentDefaultsHelpFormatter):
     """Custom argparse.HelpFormatter for the main argument parser"""
     pass
+
+class _CLIError(RuntimeError):
+    """Custom exception for printing argument parser errors from callbacks"""
+    pass
+
+class _NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-methods
+    """argparse.ArgumentParser action handler with more verbose logging"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.type:
+            raise ValueError('Cannot define action with action %s', type(self).__name__)
+        if self.nargs and self.nargs > 1:
+            raise ValueError('nargs cannot be greater than 1')
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        try:
+            base_bundle = ConfigBundle.from_base_name(values)
+        except NotADirectoryError as exc:
+            get_logger().error('resources/ or resources/patches directories could not be found.')
+            parser.exit(status=1)
+        except FileNotFoundError:
+            get_logger().error('The base config bundle "%s" does not exist.', values)
+            parser.exit(status=1)
+        except ValueError as exc:
+            get_logger().error('Base bundle metadata has an issue: %s', str(exc))
+            parser.exit(status=1)
+        except Exception as exc: #pylint: disable=broad-except
+            get_logger().exception(exc)
+            get_logger().error('Unexpected exception caught. Aborting.')
+            parser.exit(status=1)
+        setattr(namespace, self.dest, base_bundle)
 
 def setup_bundle_group(parser):
     """Helper to add arguments for loading a config bundle to argparse.ArgumentParser"""
     config_group = parser.add_mutually_exclusive_group()
     config_group.add_argument(
         '-b', '--base-bundle-name', dest='bundle', default=argparse.SUPPRESS,
-        type=config.ConfigBundle.from_base_name,
+        action=_NewBaseBundleAction,
         help=('The base config bundle name to use (located in resources/configs). '
               'Mutually exclusive with --user-bundle-path. '
               'Default value is nothing; a default is specified by --user-bundle-path.'))
     config_group.add_argument(
         '-u', '--user-bundle-path', dest='bundle', default='buildspace/user_bundle',
-        type=lambda x: config.ConfigBundle(pathlib.Path(x)),
+        type=lambda x: ConfigBundle(Path(x)),
         help=('The path to a user bundle to use. '
-              'Mutually exclusive with --base-bundle-name. '
-              'Default value is the path buildspace/user_bundle.'))
+              'Mutually exclusive with --base-bundle-name. '))
 
 def _add_bunnfo(subparsers):
     """Gets info about base bundles."""
     def _callback(args):
         if vars(args).get('list'):
             for bundle_dir in sorted(
-                    (common.get_resources_dir() / common.CONFIG_BUNDLES_DIR).iterdir()):
-                bundle_meta = config.BaseBundleMetaIni(
-                    bundle_dir / config.BASEBUNDLEMETA_INI)
+                    (get_resources_dir() / CONFIG_BUNDLES_DIR).iterdir()):
+                bundle_meta = BaseBundleMetaIni(
+                    bundle_dir / BASEBUNDLEMETA_INI)
                 print(bundle_dir.name, '-', bundle_meta.display_name)
         elif vars(args).get('bundle'):
             for dependency in args.bundle.get_dependencies():
@@ -67,7 +99,7 @@ def _add_bunnfo(subparsers):
         help='Lists all base bundles and their display names.')
     group.add_argument(
         '-d', '--dependency-order', dest='bundle',
-        type=config.ConfigBundle.from_base_name,
+        action=_NewBaseBundleAction,
         help=('Prints the dependency order of the given base bundle, '
               'delimited by newline characters. '
               'See DESIGN.md for the definition of dependency order.'))
@@ -75,18 +107,30 @@ def _add_bunnfo(subparsers):
 
 def _add_genbun(subparsers):
     """Generates a user config bundle from a base config bundle."""
+    def _callback(args):
+        try:
+            args.base_bundle.write(args.user_bundle_path)
+        except FileExistsError:
+            get_logger().error('User bundle already exists: %s', args.user_bundle_path)
+            raise _CLIError()
+        except ValueError as exc:
+            get_logger().error('Error with base bundle: %s', exc)
+            raise _CLIError()
+        except Exception as exc:
+            get_logger().exception(exc)
+            get_logger().error('Unexpected exception caught. Aborting.')
+            raise _CLIError()
     parser = subparsers.add_parser(
         'genbun', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help=_add_genbun.__doc__, description=_add_genbun.__doc__)
     parser.add_argument(
-        '-u', '--user-bundle-path', type=pathlib.Path, default='buildspace/user_bundle',
+        '-u', '--user-bundle-path', type=Path, default='buildspace/user_bundle',
         help=('The output path for the user config bundle. '
-              'The path must not already exist. '
-              'Default is buildspace/user_bundle'))
+              'The path must not already exist. '))
     parser.add_argument(
-        'base_bundle', type=config.ConfigBundle.from_base_name,
+        'base_bundle', action=_NewBaseBundleAction,
         help='The base config bundle name to use.')
-    # TODO: Catch FileExistsError when user config bundle already exists
+    parser.set_defaults(callback=_callback)
 
 def _add_getsrc(subparsers):
     """Downloads, checks, and unpacks the necessary files into the buildspace tree"""
@@ -130,11 +174,10 @@ def _add_genpkg(subparsers):
         description=_add_genpkg.__doc__ + ' Specify no arguments to get a list of different types.')
     setup_bundle_group(parser)
     parser.add_argument(
-        '-o', '--output-path', type=pathlib.Path, default='buildspace/tree/ungoogled_packaging',
+        '-o', '--output-path', type=Path, default='buildspace/tree/ungoogled_packaging',
         help=('The directory to store packaging files. '
               'If it does not exist, just the leaf directory will be created. '
-              'If it already exists, this command will abort. '
-              'Defaults to buildspace/tree/ungoogled_packaging'))
+              'If it already exists, this command will abort. '))
 
 def main(arg_list=None):
     """CLI entry point"""
@@ -151,4 +194,7 @@ def main(arg_list=None):
     _add_genpkg(subparsers)
 
     args = parser.parse_args(args=arg_list)
-    args.callback(args=args)
+    try:
+        args.callback(args=args)
+    except _CLIError:
+        parser.exit(status=1)

@@ -167,15 +167,14 @@ class IniConfigFile(_CacheConfigMixin, _ConfigABC):
         """
         parsed_ini = configparser.ConfigParser()
         for ini_path in self._path_order:
-            current_ini = configparser.ConfigParser()
             with ini_path.open() as ini_file:
-                current_ini.read_file(ini_file, source=str(ini_path))
-            try:
-                self._schema.validate(current_ini)
-            except schema.SchemaError as exc:
-                get_logger().error('INI file failed schema validation: %s', ini_path)
-                raise exc
-            parsed_ini.read_dict(current_ini, source=str(ini_path))
+                parsed_ini.read_file(ini_file, source=str(ini_path))
+        try:
+            self._schema.validate(parsed_ini)
+        except schema.SchemaError as exc:
+            get_logger().error(
+                'Merged INI files failed schema validation: %s', tuple(self._path_order))
+            raise exc
         return parsed_ini
 
     def write(self, path):
