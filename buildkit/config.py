@@ -268,9 +268,9 @@ class ConfigBundle(_CacheConfigMixin, _ConfigABC):
             known_names.add(base_bundle_name)
             basebundlemeta = BaseBundleMetaIni(
                 config_bundles_dir / base_bundle_name / BASEBUNDLEMETA_INI)
-            for parent_name in basebundlemeta.parents:
-                if new_bundle.update_first_path(config_bundles_dir / parent_name):
-                    pending_explore.appendleft(parent_name)
+            for dependency_name in basebundlemeta.depends:
+                if new_bundle.update_first_path(config_bundles_dir / dependency_name):
+                    pending_explore.appendleft(dependency_name)
         try:
             new_bundle.patches.set_patches_dir(get_resources_dir() / PATCHES_DIR)
         except KeyError:
@@ -376,7 +376,7 @@ class BaseBundleMetaIni(IniConfigFile):
     _schema = schema.Schema(_IniSchema({
         'basebundle': _DictCast({
             'display_name': schema.And(str, len),
-            schema.Optional('parents'): schema.And(str, len),
+            schema.Optional('depends'): schema.And(str, len),
         })
     }))
 
@@ -388,13 +388,13 @@ class BaseBundleMetaIni(IniConfigFile):
         return self['basebundle']['display_name']
 
     @property
-    def parents(self):
+    def depends(self):
         """
-        Returns an iterable of the parents defined in the metadata.
+        Returns an iterable of the dependencies defined in the metadata.
         Parents are ordered in increasing precedence.
         """
-        if 'parents' in self['basebundle']:
-            return [x.strip() for x in self['basebundle']['parents'].split(',')]
+        if 'depends' in self['basebundle']:
+            return [x.strip() for x in self['basebundle']['depends'].split(',')]
         else:
             return tuple()
 

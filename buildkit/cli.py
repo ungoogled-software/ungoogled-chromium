@@ -23,8 +23,9 @@ import pathlib
 from . import common
 from . import config
 
-class _CustomArgumentParserFormatter(argparse.RawTextHelpFormatter,
+class _MainArgumentParserFormatter(argparse.RawTextHelpFormatter,
                                      argparse.ArgumentDefaultsHelpFormatter):
+    """Custom argparse.HelpFormatter for the main argument parser"""
     pass
 
 def setup_bundle_group(parser):
@@ -58,7 +59,8 @@ def _add_bunnfo(subparsers):
         else:
             raise NotImplementedError()
     parser = subparsers.add_parser(
-        'bunnfo', help=_add_bunnfo.__doc__, description=_add_bunnfo.__doc__)
+        'bunnfo', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help=_add_bunnfo.__doc__, description=_add_bunnfo.__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         '-l', '--list', action='store_true',
@@ -66,14 +68,16 @@ def _add_bunnfo(subparsers):
     group.add_argument(
         '-d', '--dependency-order', dest='bundle',
         type=config.ConfigBundle.from_base_name,
-        help=('Lists dependencies of the given base bundle, '
-              'in descending order of inheritance'))
+        help=('Prints the dependency order of the given base bundle, '
+              'delimited by newline characters. '
+              'See DESIGN.md for the definition of dependency order.'))
     parser.set_defaults(callback=_callback)
 
 def _add_genbun(subparsers):
     """Generates a user config bundle from a base config bundle."""
     parser = subparsers.add_parser(
-        'genbun', help=_add_genbun.__doc__, description=_add_genbun.__doc__)
+        'genbun', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help=_add_genbun.__doc__, description=_add_genbun.__doc__)
     parser.add_argument(
         '-u', '--user-bundle-path', type=pathlib.Path, default='buildspace/user_bundle',
         help=('The output path for the user config bundle. '
@@ -87,8 +91,8 @@ def _add_genbun(subparsers):
 def _add_getsrc(subparsers):
     """Downloads, checks, and unpacks the necessary files into the buildspace tree"""
     parser = subparsers.add_parser(
-        'getsrc', help=_add_getsrc.__doc__ + '.',
-        description=_add_getsrc.__doc__ + '; ' + (
+        'getsrc', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help=_add_getsrc.__doc__ + '.', description=_add_getsrc.__doc__ + '; ' + (
             'these are the Chromium source code and any extra dependencies. '
             'The buildspace/downloads directory must already exist for storing downloads. '
             'If the buildspace/tree directory already exists, this comand will abort. '
@@ -102,14 +106,15 @@ def _add_getsrc(subparsers):
 def _add_clesrc(subparsers):
     """Cleans the buildspace tree of unwanted files."""
     parser = subparsers.add_parser(
-        'clesrc', help=_add_clesrc.__doc__, description=_add_clesrc.__doc__)
+        'clesrc', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help=_add_clesrc.__doc__, description=_add_clesrc.__doc__)
     setup_bundle_group(parser)
 
 def _add_subdom(subparsers):
     """Substitutes domain names in buildspace tree with blockable strings."""
     parser = subparsers.add_parser(
-        'subdom', help=_add_subdom.__doc__,
-        description=_add_subdom.__doc__ + (
+        'subdom', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help=_add_subdom.__doc__, description=_add_subdom.__doc__ + (
             ' By default, it will substitute the domains on both the buildspace tree and '
             'the bundle\'s patches.'))
     setup_bundle_group(parser)
@@ -121,7 +126,7 @@ def _add_subdom(subparsers):
 def _add_genpkg(subparsers):
     """Generates a packaging script."""
     parser = subparsers.add_parser(
-        'genpkg', help=_add_genpkg.__doc__,
+        'genpkg', formatter_class=argparse.ArgumentDefaultsHelpFormatter, help=_add_genpkg.__doc__,
         description=_add_genpkg.__doc__ + ' Specify no arguments to get a list of different types.')
     setup_bundle_group(parser)
     parser.add_argument(
@@ -134,7 +139,7 @@ def _add_genpkg(subparsers):
 def main(arg_list=None):
     """CLI entry point"""
     parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=_CustomArgumentParserFormatter)
+                                     formatter_class=_MainArgumentParserFormatter)
 
     subparsers = parser.add_subparsers(title='Available commands', dest='command')
     subparsers.required = True # Workaround for http://bugs.python.org/issue9253#msg186387
