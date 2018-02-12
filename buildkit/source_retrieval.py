@@ -34,12 +34,15 @@ class HashMismatchError(Exception):
 
 # Methods and supporting code
 
-def _extract_tar_file(tar_path, destination_dir, ignore_files, relative_to):
+def _extract_tar_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relative_to):
     """
     Improved one-time tar extraction function
 
     tar_path is the pathlib.Path to the archive to unpack
-    destination_dir is the pathlib.Path to the directory for unpacking. It must already exist.
+    buildspace_tree is a pathlib.Path to the buildspace tree.
+    unpack_dir is a pathlib.Path relative to buildspace_tree to unpack the archive.
+    It must already exist.
+
     ignore_files is a set of paths as strings that should not be extracted from the archive.
     Files that have been ignored are removed from the set.
     relative_to is a pathlib.Path for directories that should be stripped relative to the
@@ -68,18 +71,21 @@ def _extract_tar_file(tar_path, destination_dir, ignore_files, relative_to):
         get_logger().error('Unexpected exception during symlink support check.')
         raise exc
 
+    resolved_tree = buildspace_tree.resolve()
+
     with tarfile.open(str(tar_path)) as tar_file_obj:
         tar_file_obj.members = NoAppendList()
         for tarinfo in tar_file_obj:
             try:
                 if relative_to is None:
-                    relative_path = PurePosixPath(tarinfo.name)
+                    tree_relative_path = unpack_dir / PurePosixPath(tarinfo.name)
                 else:
-                    relative_path = PurePosixPath(tarinfo.name).relative_to(relative_to) # pylint: disable=redefined-variable-type
-                if str(relative_path) in ignore_files:
-                    ignore_files.remove(str(relative_path))
-                else:
-                    destination = destination_dir.resolve() / Path(*relative_path.parts)
+                    tree_relative_path = unpack_dir / PurePosixPath(tarinfo.name).relative_to(
+                        relative_to) # pylint: disable=redefined-variable-type
+                try:
+                    ignore_files.remove(tree_relative_path.as_posix())
+                except KeyError:
+                    destination = resolved_tree / tree_relative_path
                     if tarinfo.issym() and not symlink_supported:
                         # In this situation, TarFile.makelink() will try to create a copy of the
                         # target. But this fails because TarFile.members is empty
@@ -88,10 +94,9 @@ def _extract_tar_file(tar_path, destination_dir, ignore_files, relative_to):
                         continue
                     if tarinfo.islnk():
                         # Derived from TarFile.extract()
-                        relative_target = PurePosixPath(
+                        new_target = resolved_tree / unpack_dir / PurePosixPath(
                             tarinfo.linkname).relative_to(relative_to)
-                        tarinfo._link_target = str( # pylint: disable=protected-access
-                            destination_dir.resolve() / Path(*relative_target.parts))
+                        tarinfo._link_target = new_target.as_posix() # pylint: disable=protected-access
                     if destination.is_symlink():
                         destination.unlink()
                     tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
@@ -182,7 +187,7 @@ def _setup_chromium_source(config_bundle, downloads, tree, show_progress, prunin
         if not hasher.hexdigest().lower() == hash_hex.lower():
             raise HashMismatchError(source_archive)
     get_logger().info('Extracting archive...')
-    _extract_tar_file(source_archive, tree, pruning_set,
+    _extract_tar_file(source_archive, tree, Path(), pruning_set,
                       Path('chromium-{}'.format(config_bundle.version.chromium_version)))
 
 def _setup_extra_deps(config_bundle, downloads, tree, show_progress, pruning_set):
@@ -211,7 +216,7 @@ def _setup_extra_deps(config_bundle, downloads, tree, show_progress, pruning_set
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(dep_archive)
         get_logger().info('Extracting archive...')
-        _extract_tar_file(dep_archive, tree / dep_name, pruning_set,
+        _extract_tar_file(dep_archive, tree, Path(dep_name), pruning_set,
                           Path(dep_properties.strip_leading_dirs))
 
 def retrieve_and_extract(config_bundle, downloads, tree, prune_binaries=True, show_progress=True):
