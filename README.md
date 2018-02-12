@@ -42,7 +42,7 @@ ungoogled-chromium selectively borrows many of its features from the following:
 
 Most of the **additional** features are as follows:
 * Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution; [see DESIGN.md](DESIGN.md#source-file-processors))
-* Strip binaries from the source code (known as source cleaning; [see DESIGN.md](DESIGN.md#source-file-processors))
+* Strip binaries from the source code (known as binary pruning; [see DESIGN.md](DESIGN.md#source-file-processors))
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-# Copyright (c) 2017 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -20,8 +20,10 @@ the one in buildkit's parent directory.
 import argparse
 from pathlib import Path
 
-from .common import get_resources_dir, get_logger, CONFIG_BUNDLES_DIR
-from .config import BaseBundleMetaIni, BASEBUNDLEMETA_INI, ConfigBundle
+from . import config
+from . import source_retrieval
+from .common import CONFIG_BUNDLES_DIR, get_resources_dir, get_logger
+from .config import ConfigBundle
 
 class _MainArgumentParserFormatter(argparse.RawTextHelpFormatter,
                                    argparse.ArgumentDefaultsHelpFormatter):
@@ -53,11 +55,10 @@ class _NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-met
             get_logger().error('The base config bundle "%s" does not exist.', values)
             parser.exit(status=1)
         except ValueError as exc:
-            get_logger().error('Base bundle metadata has an issue: %s', str(exc))
+            get_logger().error('Base bundle metadata has an issue: %s', exc)
             parser.exit(status=1)
         except Exception as exc: #pylint: disable=broad-except
-            get_logger().exception(exc)
-            get_logger().error('Unexpected exception caught. Aborting.')
+            get_logger().exception('Unexpected exception caught.')
             parser.exit(status=1)
         setattr(namespace, self.dest, base_bundle)
 
@@ -67,7 +68,7 @@ def setup_bundle_group(parser):
     config_group.add_argument(
         '-b', '--base-bundle-name', dest='bundle', default=argparse.SUPPRESS,
         action=_NewBaseBundleAction,
-        help=('The base config bundle name to use (located in resources/configs). '
+        help=('The base config bundle name to use (located in resources/config_bundles). '
               'Mutually exclusive with --user-bundle-path. '
               'Default value is nothing; a default is specified by --user-bundle-path.'))
     config_group.add_argument(
@@ -82,8 +83,8 @@ def _add_bunnfo(subparsers):
         if vars(args).get('list'):
             for bundle_dir in sorted(
                     (get_resources_dir() / CONFIG_BUNDLES_DIR).iterdir()):
-                bundle_meta = BaseBundleMetaIni(
-                    bundle_dir / BASEBUNDLEMETA_INI)
+                bundle_meta = config.BaseBundleMetaIni(
+                    bundle_dir / config.BASEBUNDLEMETA_INI)
                 print(bundle_dir.name, '-', bundle_meta.display_name)
         elif vars(args).get('bundle'):
             for dependency in args.bundle.get_dependencies():
@@ -98,7 +99,7 @@ def _add_bunnfo(subparsers):
         '-l', '--list', action='store_true',
         help='Lists all base bundles and their display names.')
     group.add_argument(
-        '-d', '--dependency-order', dest='bundle',
+        '-d', '--dependencies', dest='bundle',
         action=_NewBaseBundleAction,
         help=('Prints the dependency order of the given base bundle, '
               'delimited by newline characters. '
@@ -117,8 +118,7 @@ def _add_genbun(subparsers):
             get_logger().error('Error with base bundle: %s', exc)
             raise _CLIError()
         except Exception as exc:
-            get_logger().exception(exc)
-            get_logger().error('Unexpected exception caught. Aborting.')
+            get_logger().exception('Unexpected exception caught.')
             raise _CLIError()
     parser = subparsers.add_parser(
         'genbun', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -134,24 +134,62 @@ def _add_genbun(subparsers):
 
 def _add_getsrc(subparsers):
     """Downloads, checks, and unpacks the necessary files into the buildspace tree"""
+    def _callback(args):
+        try:
+            source_retrieval.retrieve_and_extract(
+                args.bundle, args.downloads, args.tree, prune_binaries=args.prune_binaries,
+                show_progress=args.show_progress)
+        except FileExistsError:
+            get_logger().error('Buildspace tree already exists: %s', args.tree)
+            raise _CLIError()
+        except FileNotFoundError:
+            get_logger().error('Buildspace downloads does not exist: %s', args.downloads)
+            raise _CLIError()
+        except NotADirectoryError:
+            get_logger().error('Buildspace downloads is not a directory: %s', args.downloads)
+            raise _CLIError()
+        except source_retrieval.NotAFileError as exc:
+            get_logger().error('Archive path is not a regular file: %s', exc)
+            raise _CLIError()
+        except source_retrieval.HashMismatchError as exc:
+            get_logger().error('Archive checksum is invalid: %s', exc)
+            raise _CLIError()
+        except Exception as exc:
+            get_logger().exception('Unexpected exception caught.')
+            raise _CLIError()
     parser = subparsers.add_parser(
         'getsrc', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help=_add_getsrc.__doc__ + '.', description=_add_getsrc.__doc__ + '; ' + (
             'these are the Chromium source code and any extra dependencies. '
+            'By default, binary pruning is performed during extraction. '
             'The buildspace/downloads directory must already exist for storing downloads. '
-            'If the buildspace/tree directory already exists, this comand will abort. '
-            'Only files that are missing or have an invalid checksum will be (re)downloaded. '
+            'If the buildspace tree already exists or there is a checksum mismatch, '
+            'this command will abort. '
+            'Only files that are missing will be downloaded. '
             'If the files are already downloaded, their checksums are '
             'confirmed and unpacked if necessary.'))
     setup_bundle_group(parser)
-    # TODO: Catch FileExistsError when buildspace tree already exists
-    # TODO: Catch FileNotFoundError when buildspace/downloads does not exist
+    parser.add_argument(
+        '-t', '--tree', type=Path, default='buildspace/tree',
+        help='The buildspace tree path')
+    parser.add_argument(
+        '-d', '--downloads', type=Path, default='buildspace/downloads',
+        help='Path to store archives of Chromium source code and extra deps.')
+    parser.add_argument(
+        '--disable-binary-pruning', action='store_false', dest='prune_binaries',
+        help='Disables binary pruning during extraction.')
+    parser.add_argument(
+        '--hide-progress-bar', action='store_false', dest='show_progress',
+        help='Hide the download progress.')
+    parser.set_defaults(callback=_callback)
 
-def _add_clesrc(subparsers):
-    """Cleans the buildspace tree of unwanted files."""
+def _add_prubin(subparsers):
+    """Prunes binaries from the buildspace tree."""
     parser = subparsers.add_parser(
-        'clesrc', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        help=_add_clesrc.__doc__, description=_add_clesrc.__doc__)
+        'prubin', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help=_add_prubin.__doc__, description=_add_prubin.__doc__ + (
+            ' This is NOT necessary if the source code was already pruned '
+            'during the getsrc command.'))
     setup_bundle_group(parser)
 
 def _add_subdom(subparsers):
@@ -189,7 +227,7 @@ def main(arg_list=None):
     _add_bunnfo(subparsers)
     _add_genbun(subparsers)
     _add_getsrc(subparsers)
-    _add_clesrc(subparsers)
+    _add_prubin(subparsers)
     _add_subdom(subparsers)
     _add_genpkg(subparsers)
 

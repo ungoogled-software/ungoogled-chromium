@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 
-# Copyright (c) 2017 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,12 +15,12 @@ import itertools
 import re
 import shutil
 
-from .common import CONFIG_BUNDLES_DIR, get_logger, get_resources_dir
+from .common import ENCODING, CONFIG_BUNDLES_DIR, get_logger, get_resources_dir
 from .third_party import schema
 
 # Constants
 
-CLEANING_LIST = "cleaning.list"
+PRUNING_LIST = "pruning.list"
 DOMAIN_REGEX_LIST = "domain_regex.list"
 DOMAIN_SUBSTITUTION_LIST = "domain_substitution.list"
 EXTRA_DEPS_INI = "extra_deps.ini"
@@ -167,7 +167,7 @@ class IniConfigFile(_CacheConfigMixin, _ConfigABC):
         """
         parsed_ini = configparser.ConfigParser()
         for ini_path in self._path_order:
-            with ini_path.open() as ini_file:
+            with ini_path.open(encoding=ENCODING) as ini_file:
                 parsed_ini.read_file(ini_file, source=str(ini_path))
         try:
             self._schema.validate(parsed_ini)
@@ -180,7 +180,7 @@ class IniConfigFile(_CacheConfigMixin, _ConfigABC):
     def write(self, path):
         ini_parser = configparser.ConfigParser()
         ini_parser.read_dict(self._config_data)
-        with path.open("w") as output_file:
+        with path.open("w", encoding=ENCODING) as output_file:
             ini_parser.write(output_file)
 
 class ListConfigFile(_ConfigABC):
@@ -191,7 +191,7 @@ class ListConfigFile(_ConfigABC):
 
     def _line_generator(self):
         for list_path in self._path_order:
-            with list_path.open() as list_file:
+            with list_path.open(encoding=ENCODING) as list_file:
                 line_iter = list_file.read().splitlines()
                 yield from filter(len, line_iter)
 
@@ -204,7 +204,7 @@ class ListConfigFile(_ConfigABC):
         return self._line_generator()
 
     def write(self, path):
-        with path.open('w') as output_file:
+        with path.open('w', encoding=ENCODING) as output_file:
             output_file.writelines(map(lambda x: '%s\n' % x, self._config_data))
 
 class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
@@ -229,14 +229,14 @@ class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
         """Return a dictionary of the mapping of keys and values"""
         new_dict = dict()
         for mapping_path in self._path_order:
-            with mapping_path.open() as mapping_file:
+            with mapping_path.open(encoding=ENCODING) as mapping_file:
                 for line in filter(len, mapping_file.read().splitlines()):
                     key, value = line.split('=')
                     new_dict[key] = value
         return new_dict
 
     def write(self, path):
-        with path.open('w') as output_file:
+        with path.open('w', encoding=ENCODING) as output_file:
             for item in self._config_data.items():
                 output_file.write('%s=%s\n' % item)
 
@@ -335,9 +335,9 @@ class ConfigBundle(_CacheConfigMixin, _ConfigABC):
             config_file.write(path / config_file.name)
 
     @property
-    def cleaning(self):
-        """Property to access cleaning.list config file"""
-        return self._config_data[CLEANING_LIST]
+    def pruning(self):
+        """Property to access pruning.list config file"""
+        return self._config_data[PRUNING_LIST]
 
     @property
     def domain_regex(self):
@@ -434,7 +434,7 @@ class ExtraDepsIni(IniConfigFile):
         schema.And(str, len): _DictCast({
             **{x: schema.And(str, len) for x in _required_keys},
             **{schema.Optional(x): schema.And(str, len) for x in _optional_keys},
-            **{schema.Optional(x): schema.And(str, len) for x in _hashes},
+            schema.Or(*_hashes): schema.And(str, len),
         })
     }))
 
@@ -458,7 +458,7 @@ class ExtraDepsIni(IniConfigFile):
     def __getitem__(self, section):
         """
         Returns an object with keys as attributes and
-        values already pre-processed
+        values already pre-processed strings
         """
         return self._ExtraDepsSection(
             self._config_data[section], self._passthrough_properties,
@@ -537,9 +537,19 @@ class VersionIni(IniConfigFile):
         """
         return self['version'].get('release_extra', fallback=fallback)
 
+    @property
+    def version_string(self):
+        """
+        Returns a version string containing all information in a Debian-like format.
+        """
+        result = '{}-{}'.format(self.chromium_version, self.release_revision)
+        if self.release_extra:
+            result += '~{}'.format(self.release_extra)
+        return result
+
 _FILE_DEF = {
     BASEBUNDLEMETA_INI: None, # This file has special handling, so ignore it
-    CLEANING_LIST: ListConfigFile,
+    PRUNING_LIST: ListConfigFile,
     DOMAIN_REGEX_LIST: DomainRegexList,
     DOMAIN_SUBSTITUTION_LIST: ListConfigFile,
     EXTRA_DEPS_INI: ExtraDepsIni,
