@@ -22,24 +22,26 @@ _ENV_FORMAT = "BUILDKIT_{}"
 
 # Module-wide methods
 
-def get_logger(name=__package__, level=logging.DEBUG):
+def get_logger(name=__package__, initial_level=logging.DEBUG):
     '''Gets the named logger'''
 
     logger = logging.getLogger(name)
-    logger.setLevel(level)
 
-    if not logger.hasHandlers():
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
+    if logger.level == logging.NOTSET:
+        logger.setLevel(initial_level)
 
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s: %(message)s")
-        console_handler.setFormatter(formatter)
+        if not logger.hasHandlers():
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(initial_level)
 
-        logger.addHandler(console_handler)
-        if name is None:
-            logger.info("Initialized root logger")
-        else:
-            logger.info("Initialized logger '%s'", name)
+            formatter = logging.Formatter("%(asctime)s - %(levelname)s: %(message)s")
+            console_handler.setFormatter(formatter)
+
+            logger.addHandler(console_handler)
+            if name is None:
+                logger.debug("Initialized root logger")
+            else:
+                logger.debug("Initialized logger '%s'", name)
     return logger
 
 def get_resources_dir():

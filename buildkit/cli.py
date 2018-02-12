@@ -185,12 +185,32 @@ def _add_getsrc(subparsers):
 
 def _add_prubin(subparsers):
     """Prunes binaries from the buildspace tree."""
+    def _callback(args):
+        logger = get_logger()
+        try:
+            resolved_tree = args.tree.resolve()
+        except FileNotFoundError:
+            logger.error('Buildspace tree does not exist')
+            raise _CLIError()
+        missing_file = False
+        for tree_node in args.bundle.pruning:
+            try:
+                (resolved_tree / tree_node).unlink()
+            except FileNotFoundError:
+                missing_file = True
+                logger.warning('No such file: %s', resolved_tree / tree_node)
+        if missing_file:
+            raise _CLIError()
     parser = subparsers.add_parser(
         'prubin', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help=_add_prubin.__doc__, description=_add_prubin.__doc__ + (
             ' This is NOT necessary if the source code was already pruned '
             'during the getsrc command.'))
     setup_bundle_group(parser)
+    parser.add_argument(
+        '-t', '--tree', type=Path, default='buildspace/tree',
+        help='The buildspace tree path to apply binary pruning.')
+    parser.set_defaults(callback=_callback)
 
 def _add_subdom(subparsers):
     """Substitutes domain names in buildspace tree with blockable strings."""
