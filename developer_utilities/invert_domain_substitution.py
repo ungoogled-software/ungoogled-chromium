@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from buildkit import substitute_domains
+from buildkit import domain_substitution
 from buildkit.common import get_logger
 from buildkit.config import ConfigBundle
 sys.path.pop(0)
@@ -28,7 +28,7 @@ def main(arg_list=None):
     args = parser.parse_args(args=arg_list)
 
     try:
-        substitute_domains.process_bundle_patches(args.bundle, invert=True)
+        domain_substitution.process_bundle_patches(args.bundle, invert=True)
     except ValueError:
         get_logger().exception('A regex pair is not invertible')
         parser.exit(status=1)

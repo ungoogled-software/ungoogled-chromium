@@ -22,7 +22,7 @@ from pathlib import Path
 
 from . import config
 from . import source_retrieval
-from . import substitute_domains
+from . import domain_substitution
 from .common import CONFIG_BUNDLES_DIR, get_resources_dir, get_logger
 from .config import ConfigBundle
 
@@ -222,7 +222,7 @@ def _add_subdom(subparsers):
     def _callback(args):
         try:
             if not args.only or args.only == 'tree':
-                substitute_domains.process_tree_with_bundle(args.bundle, args.tree)
+                domain_substitution.process_tree_with_bundle(args.bundle, args.tree)
             if not args.only or args.only == 'patches':
                 pass
         except FileNotFoundError as exc:
