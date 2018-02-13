@@ -22,8 +22,11 @@ from pathlib import Path
 
 from . import config
 from . import source_retrieval
+from . import substitute_domains
 from .common import CONFIG_BUNDLES_DIR, get_resources_dir, get_logger
 from .config import ConfigBundle
+
+# Classes
 
 class _MainArgumentParserFormatter(argparse.RawTextHelpFormatter,
                                    argparse.ArgumentDefaultsHelpFormatter):
@@ -61,6 +64,8 @@ class _NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-met
             get_logger().exception('Unexpected exception caught.')
             parser.exit(status=1)
         setattr(namespace, self.dest, base_bundle)
+
+# Methods
 
 def setup_bundle_group(parser):
     """Helper to add arguments for loading a config bundle to argparse.ArgumentParser"""
@@ -189,8 +194,8 @@ def _add_prubin(subparsers):
         logger = get_logger()
         try:
             resolved_tree = args.tree.resolve()
-        except FileNotFoundError:
-            logger.error('Buildspace tree does not exist')
+        except FileNotFoundError as exc:
+            logger.error('Buildspace tree does not exist: %s', exc)
             raise _CLIError()
         missing_file = False
         for tree_node in args.bundle.pruning:
@@ -214,6 +219,18 @@ def _add_prubin(subparsers):
 
 def _add_subdom(subparsers):
     """Substitutes domain names in buildspace tree with blockable strings."""
+    def _callback(args):
+        try:
+            if not args.only or args.only == 'tree':
+                substitute_domains.process_tree_with_bundle(args.bundle, args.tree)
+            if not args.only or args.only == 'patches':
+                pass
+        except FileNotFoundError as exc:
+            get_logger().error('Buildspace tree does not exist: %s', exc)
+            raise _CLIError()
+        except NotADirectoryError as exc:
+            get_logger().error('Patches directory does not exist: %s', exc)
+            raise _CLIError()
     parser = subparsers.add_parser(
         'subdom', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help=_add_subdom.__doc__, description=_add_subdom.__doc__ + (
@@ -224,6 +241,11 @@ def _add_subdom(subparsers):
         '-o', '--only', choices=['tree', 'patches'],
         help=('Specifies a component to exclusively apply domain substitution to. '
               '"tree" is for the buildspace tree, and "patches" is for the bundle\'s patches.'))
+    parser.add_argument(
+        '-t', '--tree', type=Path, default='buildspace/tree',
+        help=('The buildspace tree path to apply domain substitution. '
+              'Not applicable when --only is "patches".'))
+    parser.set_defaults(callback=_callback)
 
 def _add_genpkg(subparsers):
     """Generates a packaging script."""

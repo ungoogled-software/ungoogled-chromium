@@ -148,9 +148,10 @@ def _chromium_hashes_generator(hashes_path):
         else:
             get_logger().warning('Skipping unknown hash algorithm: %s', hash_name)
 
-def _setup_chromium_source(config_bundle, downloads, tree, show_progress, pruning_set):
+def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree,
+                           show_progress, pruning_set):
     """
-    Download, check, and extract the Chromium source tree.
+    Download, check, and extract the Chromium source code into the buildspace tree.
 
     Arguments of the same name are shared with retreive_and_extract().
     pruning_set is a set of files to be pruned. Only the files that are ignored during
@@ -160,7 +161,7 @@ def _setup_chromium_source(config_bundle, downloads, tree, show_progress, prunin
     Raises source_retrieval.NotAFileError when the archive name exists but is not a file.
     May raise undetermined exceptions during archive unpacking.
     """
-    source_archive = downloads / 'chromium-{}.tar.xz'.format(
+    source_archive = buildspace_downloads / 'chromium-{}.tar.xz'.format(
         config_bundle.version.chromium_version)
     source_hashes = source_archive.with_name(source_archive.name + '.hashes')
 
@@ -187,12 +188,13 @@ def _setup_chromium_source(config_bundle, downloads, tree, show_progress, prunin
         if not hasher.hexdigest().lower() == hash_hex.lower():
             raise HashMismatchError(source_archive)
     get_logger().info('Extracting archive...')
-    _extract_tar_file(source_archive, tree, Path(), pruning_set,
+    _extract_tar_file(source_archive, buildspace_tree, Path(), pruning_set,
                       Path('chromium-{}'.format(config_bundle.version.chromium_version)))
 
-def _setup_extra_deps(config_bundle, downloads, tree, show_progress, pruning_set):
+def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
+                      pruning_set):
     """
-    Download, check, and extract extra dependencies.
+    Download, check, and extract extra dependencies into the buildspace tree.
 
     Arguments of the same name are shared with retreive_and_extract().
     pruning_set is a set of files to be pruned. Only the files that are ignored during
@@ -205,7 +207,7 @@ def _setup_extra_deps(config_bundle, downloads, tree, show_progress, pruning_set
     for dep_name in config_bundle.extra_deps:
         get_logger().info('Downloading extra dependency "%s" ...', dep_name)
         dep_properties = config_bundle.extra_deps[dep_name]
-        dep_archive = downloads / dep_properties.download_name
+        dep_archive = buildspace_downloads / dep_properties.download_name
         _download_if_needed(dep_archive, dep_properties.url, show_progress)
         get_logger().info('Verifying hashes...')
         with dep_archive.open('rb') as file_obj:
@@ -216,17 +218,18 @@ def _setup_extra_deps(config_bundle, downloads, tree, show_progress, pruning_set
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(dep_archive)
         get_logger().info('Extracting archive...')
-        _extract_tar_file(dep_archive, tree, Path(dep_name), pruning_set,
+        _extract_tar_file(dep_archive, buildspace_tree, Path(dep_name), pruning_set,
                           Path(dep_properties.strip_leading_dirs))
 
-def retrieve_and_extract(config_bundle, downloads, tree, prune_binaries=True, show_progress=True):
+def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
+                         prune_binaries=True, show_progress=True):
     """
     Downloads, checks, and unpacks the Chromium source code and extra dependencies
-    defined in the config bundle.
+    defined in the config bundle into the buildspace tree.
     Currently for extra dependencies, only compressed tar files are supported.
 
-    downloads is the path to the buildspace downloads directory, and tree is the path
-    to the buildspace tree.
+    buildspace_downloads is the path to the buildspace downloads directory, and
+    buildspace_tree is the path to the buildspace tree.
 
     Raises FileExistsError when the buildspace tree already exists.
     Raises FileNotFoundError when buildspace/downloads does not exist.
@@ -235,18 +238,20 @@ def retrieve_and_extract(config_bundle, downloads, tree, prune_binaries=True, sh
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     May raise undetermined exceptions during archive unpacking.
     """
-    if tree.exists():
-        raise FileExistsError(tree)
-    if not downloads.exists():
-        raise FileNotFoundError(downloads)
-    if not downloads.is_dir():
-        raise NotADirectoryError(downloads)
+    if buildspace_tree.exists():
+        raise FileExistsError(buildspace_tree)
+    if not buildspace_downloads.exists():
+        raise FileNotFoundError(buildspace_downloads)
+    if not buildspace_downloads.is_dir():
+        raise NotADirectoryError(buildspace_downloads)
     if prune_binaries:
         remaining_files = set(config_bundle.pruning)
     else:
         remaining_files = set()
-    _setup_chromium_source(config_bundle, downloads, tree, show_progress, remaining_files)
-    _setup_extra_deps(config_bundle, downloads, tree, show_progress, remaining_files)
+    _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
+                           remaining_files)
+    _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
+                      remaining_files)
     if remaining_files:
         logger = get_logger()
         for path in remaining_files:
