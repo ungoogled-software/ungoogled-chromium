@@ -23,15 +23,13 @@ from pathlib import Path
 from . import config
 from . import source_retrieval
 from . import domain_substitution
-from .common import CONFIG_BUNDLES_DIR, get_resources_dir, get_logger
+from .common import (
+    CONFIG_BUNDLES_DIR, BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE,
+    BUILDSPACE_TREE_PACKAGING, BUILDSPACE_USER_BUNDLE,
+    BuildkitAbort, get_resources_dir, get_logger)
 from .config import ConfigBundle
 
 # Classes
-
-class _MainArgumentParserFormatter(argparse.RawTextHelpFormatter,
-                                   argparse.ArgumentDefaultsHelpFormatter):
-    """Custom argparse.HelpFormatter for the main argument parser"""
-    pass
 
 class _CLIError(RuntimeError):
     """Custom exception for printing argument parser errors from callbacks"""
@@ -60,7 +58,7 @@ class _NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-met
         except ValueError as exc:
             get_logger().error('Base bundle metadata has an issue: %s', exc)
             parser.exit(status=1)
-        except Exception as exc: #pylint: disable=broad-except
+        except BaseException:
             get_logger().exception('Unexpected exception caught.')
             parser.exit(status=1)
         setattr(namespace, self.dest, base_bundle)
@@ -77,7 +75,7 @@ def setup_bundle_group(parser):
               'Mutually exclusive with --user-bundle-path. '
               'Default value is nothing; a default is specified by --user-bundle-path.'))
     config_group.add_argument(
-        '-u', '--user-bundle-path', dest='bundle', default='buildspace/user_bundle',
+        '-u', '--user-bundle-path', dest='bundle', default=BUILDSPACE_USER_BUNDLE,
         type=lambda x: ConfigBundle(Path(x)),
         help=('The path to a user bundle to use. '
               'Mutually exclusive with --base-bundle-name. '))
@@ -122,14 +120,14 @@ def _add_genbun(subparsers):
         except ValueError as exc:
             get_logger().error('Error with base bundle: %s', exc)
             raise _CLIError()
-        except Exception as exc:
+        except BaseException:
             get_logger().exception('Unexpected exception caught.')
             raise _CLIError()
     parser = subparsers.add_parser(
         'genbun', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help=_add_genbun.__doc__, description=_add_genbun.__doc__)
     parser.add_argument(
-        '-u', '--user-bundle-path', type=Path, default='buildspace/user_bundle',
+        '-u', '--user-bundle-path', type=Path, default=BUILDSPACE_USER_BUNDLE,
         help=('The output path for the user config bundle. '
               'The path must not already exist. '))
     parser.add_argument(
@@ -159,27 +157,28 @@ def _add_getsrc(subparsers):
         except source_retrieval.HashMismatchError as exc:
             get_logger().error('Archive checksum is invalid: %s', exc)
             raise _CLIError()
-        except Exception as exc:
+        except BaseException:
             get_logger().exception('Unexpected exception caught.')
             raise _CLIError()
     parser = subparsers.add_parser(
-        'getsrc', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        help=_add_getsrc.__doc__ + '.', description=_add_getsrc.__doc__ + '; ' + (
+        'getsrc', help=_add_getsrc.__doc__ + '.',
+        description=_add_getsrc.__doc__ + '; ' + (
             'these are the Chromium source code and any extra dependencies. '
             'By default, binary pruning is performed during extraction. '
-            'The buildspace/downloads directory must already exist for storing downloads. '
+            'The %s directory must already exist for storing downloads. '
             'If the buildspace tree already exists or there is a checksum mismatch, '
             'this command will abort. '
             'Only files that are missing will be downloaded. '
             'If the files are already downloaded, their checksums are '
-            'confirmed and unpacked if necessary.'))
+            'confirmed and then they are unpacked.') % BUILDSPACE_DOWNLOADS)
     setup_bundle_group(parser)
     parser.add_argument(
-        '-t', '--tree', type=Path, default='buildspace/tree',
-        help='The buildspace tree path')
+        '-t', '--tree', type=Path, default=BUILDSPACE_TREE,
+        help='The buildspace tree path. Default: %s' % BUILDSPACE_TREE)
     parser.add_argument(
-        '-d', '--downloads', type=Path, default='buildspace/downloads',
-        help='Path to store archives of Chromium source code and extra deps.')
+        '-d', '--downloads', type=Path, default=BUILDSPACE_DOWNLOADS,
+        help=('Path to store archives of Chromium source code and extra deps. '
+              'Default: %s') % BUILDSPACE_DOWNLOADS)
     parser.add_argument(
         '--disable-binary-pruning', action='store_false', dest='prune_binaries',
         help='Disables binary pruning during extraction.')
@@ -207,18 +206,17 @@ def _add_prubin(subparsers):
         if missing_file:
             raise _CLIError()
     parser = subparsers.add_parser(
-        'prubin', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        help=_add_prubin.__doc__, description=_add_prubin.__doc__ + (
+        'prubin', help=_add_prubin.__doc__, description=_add_prubin.__doc__ + (
             ' This is NOT necessary if the source code was already pruned '
             'during the getsrc command.'))
     setup_bundle_group(parser)
     parser.add_argument(
-        '-t', '--tree', type=Path, default='buildspace/tree',
-        help='The buildspace tree path to apply binary pruning.')
+        '-t', '--tree', type=Path, default=BUILDSPACE_TREE,
+        help='The buildspace tree path to apply binary pruning. Default: %s' % BUILDSPACE_TREE)
     parser.set_defaults(callback=_callback)
 
 def _add_subdom(subparsers):
-    """Substitutes domain names in buildspace tree with blockable strings."""
+    """Substitutes domain names in buildspace tree or patches with blockable strings."""
     def _callback(args):
         try:
             if not args.only or args.only == 'tree':
@@ -232,8 +230,7 @@ def _add_subdom(subparsers):
             get_logger().error('Patches directory does not exist: %s', exc)
             raise _CLIError()
     parser = subparsers.add_parser(
-        'subdom', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        help=_add_subdom.__doc__, description=_add_subdom.__doc__ + (
+        'subdom', help=_add_subdom.__doc__, description=_add_subdom.__doc__ + (
             ' By default, it will substitute the domains on both the buildspace tree and '
             'the bundle\'s patches.'))
     setup_bundle_group(parser)
@@ -242,27 +239,98 @@ def _add_subdom(subparsers):
         help=('Specifies a component to exclusively apply domain substitution to. '
               '"tree" is for the buildspace tree, and "patches" is for the bundle\'s patches.'))
     parser.add_argument(
-        '-t', '--tree', type=Path, default='buildspace/tree',
+        '-t', '--tree', type=Path, default=BUILDSPACE_TREE,
         help=('The buildspace tree path to apply domain substitution. '
-              'Not applicable when --only is "patches".'))
+              'Not applicable when --only is "patches". Default: %s') % BUILDSPACE_TREE)
+    parser.set_defaults(callback=_callback)
+
+def _add_genpkg_debian(subparsers):
+    """Generate Debian packaging files"""
+    def _callback(args):
+        from .packaging import debian as packaging_debian
+        try:
+            packaging_debian.generate_packaging(args.bundle, args.flavor, args.output)
+        except FileExistsError as exc:
+            get_logger().error('debian directory already exists: %s', exc)
+            raise _CLIError()
+        except FileNotFoundError as exc:
+            get_logger().error(
+                'Parent directories do not exist for path: %s', exc)
+            raise _CLIError()
+    parser = subparsers.add_parser(
+        'debian', help=_add_genpkg_debian.__doc__, description=_add_genpkg_debian.__doc__)
+    parser.add_argument(
+        '-f', '--flavor', required=True, help='The Debian packaging flavor to use.')
+    parser.add_argument(
+        '-o', '--output', type=Path, default='%s/debian' % BUILDSPACE_TREE,
+        help=('The path to the debian directory to be created. '
+              'It must not already exist, but the parent directories must exist. '
+              'Default: %s/debian') % BUILDSPACE_TREE)
+    parser.set_defaults(callback=_callback)
+
+def _add_genpkg_linux_simple(subparsers):
+    """Generate Linux Simple packaging files"""
+    def _callback(args):
+        from .packaging import linux_simple as packaging_linux_simple
+        try:
+            packaging_linux_simple.generate_packaging(args.bundle, args.output)
+        except FileExistsError as exc:
+            get_logger().error('Output directory already exists: %s', exc)
+            raise _CLIError()
+        except FileNotFoundError as exc:
+            get_logger().error(
+                'Parent directories do not exist for path: %s', exc)
+            raise _CLIError()
+    parser = subparsers.add_parser(
+        'linux_simple', help=_add_genpkg_linux_simple.__doc__,
+        description=_add_genpkg_linux_simple.__doc__)
+    parser.add_argument(
+        '-o', '--output', type=Path, default=BUILDSPACE_TREE_PACKAGING,
+        help=('The directory to store packaging files. '
+              'It must not already exist, but the parent directories must exist. '
+              'Default: %s') % BUILDSPACE_TREE_PACKAGING)
+    parser.set_defaults(callback=_callback)
+
+def _add_genpkg_macos(subparsers):
+    """Generate macOS packaging files"""
+    def _callback(args):
+        from .packaging import macos as packaging_macos
+        try:
+            packaging_macos.generate_packaging(args.bundle, args.output)
+        except FileExistsError as exc:
+            get_logger().error('Output directory already exists: %s', exc)
+            raise _CLIError()
+        except FileNotFoundError as exc:
+            get_logger().error(
+                'Parent directories do not exist for path: %s', exc)
+            raise _CLIError()
+    parser = subparsers.add_parser(
+        'macos', help=_add_genpkg_macos.__doc__, description=_add_genpkg_macos.__doc__)
+    parser.add_argument(
+        '-o', '--output', type=Path, default=BUILDSPACE_TREE_PACKAGING,
+        help=('The directory to store packaging files. '
+              'It must not already exist, but the parent directories must exist. '
+              'Default: %s') % BUILDSPACE_TREE_PACKAGING)
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg(subparsers):
     """Generates a packaging script."""
     parser = subparsers.add_parser(
-        'genpkg', formatter_class=argparse.ArgumentDefaultsHelpFormatter, help=_add_genpkg.__doc__,
+        'genpkg', help=_add_genpkg.__doc__,
         description=_add_genpkg.__doc__ + ' Specify no arguments to get a list of different types.')
     setup_bundle_group(parser)
-    parser.add_argument(
-        '-o', '--output-path', type=Path, default='buildspace/tree/ungoogled_packaging',
-        help=('The directory to store packaging files. '
-              'If it does not exist, just the leaf directory will be created. '
-              'If it already exists, this command will abort. '))
+    # Add subcommands to genpkg for handling different packaging types in the same manner as main()
+    # However, the top-level argparse.ArgumentParser will be passed the callback.
+    subsubparsers = parser.add_subparsers(title='Available packaging types', dest='packaging')
+    subsubparsers.required = True # Workaround for http://bugs.python.org/issue9253#msg186387
+    _add_genpkg_debian(subsubparsers)
+    _add_genpkg_linux_simple(subsubparsers)
+    _add_genpkg_macos(subsubparsers)
 
 def main(arg_list=None):
     """CLI entry point"""
     parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=_MainArgumentParserFormatter)
+                                     formatter_class=argparse.RawTextHelpFormatter)
 
     subparsers = parser.add_subparsers(title='Available commands', dest='command')
     subparsers.required = True # Workaround for http://bugs.python.org/issue9253#msg186387
@@ -276,5 +344,5 @@ def main(arg_list=None):
     args = parser.parse_args(args=arg_list)
     try:
         args.callback(args=args)
-    except _CLIError:
+    except (_CLIError, BuildkitAbort):
         parser.exit(status=1)

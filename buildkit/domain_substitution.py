@@ -8,7 +8,7 @@
 Module for substituting domain names in buildspace tree with blockable strings.
 """
 
-from .common import ENCODING, get_logger
+from .common import ENCODING, BuildkitAbort, get_logger
 from .third_party import unidiff
 
 def substitute_domains_for_files(regex_iter, file_iter, log_warnings=True):
@@ -26,9 +26,9 @@ def substitute_domains_for_files(regex_iter, file_iter, log_warnings=True):
             try:
                 encoding = ENCODING # TODO: Try other encodings on failure
                 content = file_bytes.decode(encoding)
-            except Exception as exc:
-                get_logger().error('Exception thrown while substituting: %s', path)
-                raise exc
+            except BaseException:
+                get_logger().exception('Exception thrown while substituting: %s', path)
+                raise BuildkitAbort()
             file_subs = 0
             for regex_pair in regex_iter:
                 content, sub_count = regex_pair.pattern.subn(

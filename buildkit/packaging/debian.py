@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 
-# Copyright (c) 2017 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,14 +11,34 @@ import datetime
 import os
 import shutil
 
-from .. import _common
-from .. import export_resources as _export_resources
-from . import _common as _build_files_common
+from ..third_party import schema
+
+from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir
+from ..config import IniConfigFile, schema_inisections, schema_dictcast
+from ._common import DEFAULT_BUILD_OUTPUT, process_templates
 
 # Private definitions
 
+_DEPENDENCIES_INI = 'dependencies.ini'
+
+class _DependenciesIni(IniConfigFile):
+    _schema = schema.Schema(schema_inisections({
+        schema.And(str, len): schema_dictcast({
+            'parent': schema.And(str, len),
+        }),
+    }))
+
+    def get_parent(self, name):
+        """
+        Returns the parent name for the given flavor, or None if there is no parent.
+        """
+        try:
+            return self._config_data[name]['parent']
+        except KeyError:
+            return None
+
 def _get_packaging_resources():
-    return _common.get_resources_dir() / _common.PACKAGING_DIR / "debian"
+    return get_resources_dir() / PACKAGING_DIR / 'debian'
 
 def _traverse_directory(directory):
     """Traversal of an entire directory tree in random order"""
@@ -35,7 +55,7 @@ def _traverse_directory(directory):
 
 class _Flavor:
     """
-    Represents a certain flavor
+    Represents a Debian packaging flavor
     """
 
     _loaded_flavors = dict()
@@ -63,10 +83,8 @@ class _Flavor:
     @classmethod
     def _get_parent_name(cls, child):
         if not cls._flavor_tree:
-            cls._flavor_tree = _common.read_ini(_get_packaging_resources() / "dependencies.ini")
-        if child in cls._flavor_tree and "parent" in cls._flavor_tree[child]:
-            return cls._flavor_tree[child]["parent"]
-        return None
+            cls._flavor_tree = _DependenciesIni(_get_packaging_resources() / _DEPENDENCIES_INI)
+        return cls._flavor_tree.get_parent(child)
 
     @property
     def parent(self):
@@ -132,26 +150,30 @@ def _get_parsed_gn_flags(gn_flags):
 
 # Public definitions
 
-def generate_build_files(resources, output_dir, build_output, flavor, #pylint: disable=too-many-arguments
-                         distribution_version, apply_domain_substitution):
+def generate_packaging(config_bundle, flavor, debian_dir,
+                       build_output=DEFAULT_BUILD_OUTPUT, distro_version='stable'):
     """
-    Generates the `debian` directory in `output_dir` using resources from
-    `resources`
+    Generates a debian directory in the buildspace tree
+
+    config_bundle is a config.ConfigBundle to use for configuration
+    flavor is a Debian packaging flavor name to use
+    debian_dir is a pathlib.Path to the Debian directory to be created.
+    build_output is the pathlib.Path for building intermediates and outputs to be stored
+    distro_version is the distribution version name to use in debian/changelog
+
+    Raises FileExistsError if debian_dir already exists.
+    Raises FileNotFoundError if the parent directories for debian_dir do not exist.
     """
+    # Use config_bundle.version.version_string for Debian version string
     build_file_subs = dict(
-        changelog_version="{}-{}".format(*resources.read_version()),
+        changelog_version=config_bundle.version.version_string,
         changelog_datetime=_get_dpkg_changelog_datetime(),
         build_output=build_output,
-        distribution_version=distribution_version,
-        gn_flags=_get_parsed_gn_flags(resources.read_gn_flags())
+        distribution_version=distro_version,
+        gn_flags=_get_parsed_gn_flags(config_bundle.gn_flags)
     )
 
-    debian_dir = output_dir / "debian"
-    debian_dir.mkdir(exist_ok=True)
+    debian_dir.mkdir() # Raises FileNotFoundError, FileExistsError
     _Flavor(flavor).assemble_files(debian_dir)
-    _export_resources.export_patches_dir(resources, debian_dir / _common.PATCHES_DIR,
-                                         apply_domain_substitution)
-    _common.write_list(debian_dir / _common.PATCHES_DIR / "series",
-                       resources.read_patch_order())
-
-    _build_files_common.generate_from_templates(debian_dir, build_file_subs)
+    process_templates(debian_dir, build_file_subs)
+    config_bundle.patches.export_patches(debian_dir / PATCHES_DIR)

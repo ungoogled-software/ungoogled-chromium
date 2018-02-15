@@ -14,7 +14,7 @@ import urllib.request
 import hashlib
 from pathlib import Path, PurePosixPath
 
-from .common import ENCODING, get_logger
+from .common import ENCODING, BuildkitAbort, get_logger
 
 # Constants
 
@@ -48,7 +48,7 @@ def _extract_tar_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relat
     relative_to is a pathlib.Path for directories that should be stripped relative to the
     root of the archive.
 
-    May raise undetermined exceptions during unpacking.
+    Raises BuildkitAbort if unexpected issues arise during unpacking.
     """
 
     class NoAppendList(list):
@@ -66,10 +66,10 @@ def _extract_tar_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relat
         # Symlinks probably not supported
         get_logger().info('System does not support symlinks. Ignoring them.')
         symlink_supported = False
-    except Exception as exc:
+    except BaseException:
         # Unexpected exception
-        get_logger().error('Unexpected exception during symlink support check.')
-        raise exc
+        get_logger().exception('Unexpected exception during symlink support check.')
+        raise BuildkitAbort()
 
     resolved_tree = buildspace_tree.resolve()
 
@@ -100,9 +100,9 @@ def _extract_tar_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relat
                     if destination.is_symlink():
                         destination.unlink()
                     tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
-            except Exception as exc:
-                get_logger().error('Exception thrown for tar member: %s', tarinfo.name)
-                raise exc
+            except BaseException:
+                get_logger().exception('Exception thrown for tar member: %s', tarinfo.name)
+                raise BuildkitAbort()
 
 class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
     """Hook for urllib.request.urlretrieve to log progress information to console"""
@@ -170,7 +170,7 @@ def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree,
     if source_hashes.exists() and not source_hashes.is_file():
         raise NotAFileError(source_hashes)
 
-    get_logger().info('Download Chromium source code...')
+    get_logger().info('Downloading Chromium source code...')
     _download_if_needed(
         source_archive,
         _SOURCE_ARCHIVE_URL.format(config_bundle.version.chromium_version),

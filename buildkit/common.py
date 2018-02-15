@@ -18,9 +18,26 @@ CONFIG_BUNDLES_DIR = "config_bundles"
 PACKAGING_DIR = "packaging"
 PATCHES_DIR = "patches"
 
+BUILDSPACE_DOWNLOADS = 'buildspace/downloads'
+BUILDSPACE_TREE = 'buildspace/tree'
+BUILDSPACE_TREE_PACKAGING = 'buildspace/tree/ungoogled_packaging'
+BUILDSPACE_USER_BUNDLE = 'buildspace/user_bundle'
+
 _ENV_FORMAT = "BUILDKIT_{}"
 
-# Module-wide methods
+# Public classes
+
+class BuildkitError(Exception):
+    """Represents a generic custom error from buildkit"""
+
+class BuildkitAbort(BuildkitError):
+    """
+    Exception thrown when all details have been logged and buildkit aborts.
+
+    It should only be caught by the user of buildkit's library interface.
+    """
+
+# Public methods
 
 def get_logger(name=__package__, initial_level=logging.DEBUG):
     '''Gets the named logger'''

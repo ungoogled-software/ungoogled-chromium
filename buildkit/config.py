@@ -15,7 +15,9 @@ import itertools
 import re
 import shutil
 
-from .common import ENCODING, CONFIG_BUNDLES_DIR, get_logger, get_resources_dir
+from pathlib import Path
+
+from .common import ENCODING, CONFIG_BUNDLES_DIR, BuildkitAbort, get_logger, get_resources_dir
 from .third_party import schema
 
 # Constants
@@ -32,11 +34,13 @@ VERSION_INI = "version.ini"
 
 # Helpers for third_party.schema
 
-def _DictCast(data): #pylint: disable=invalid-name
+def schema_dictcast(data):
+    """Cast data to dictionary for third_party.schema and configparser data structures"""
     return schema.And(schema.Use(dict), data)
 
-def _IniSchema(data): #pylint: disable=invalid-name
-    return _DictCast({configparser.DEFAULTSECT: object, **data})
+def schema_inisections(data):
+    """Cast configparser data structure to dict and remove DEFAULT section"""
+    return schema_dictcast({configparser.DEFAULTSECT: object, **data})
 
 # Classes
 
@@ -48,7 +52,8 @@ class _ConfigABC(abc.ABC):
         Initializes the config class.
 
         path is a pathlib.Path to a config file or directory.
-        name is a type identifier and the actual file or directory name.
+        name is the actual file or directory name. This is also used for type identification.
+        Defaults to the last element of path.
 
         Raises FileNotFoundError if path does not exist.
         """
@@ -163,7 +168,7 @@ class IniConfigFile(_CacheConfigMixin, _ConfigABC):
     def _parse_data(self):
         """
         Returns a parsed INI file.
-        Raises third_party.schema.SchemaError if validation fails
+        Raises BuildkitAbort if validation fails
         """
         parsed_ini = configparser.ConfigParser()
         for ini_path in self._path_order:
@@ -171,10 +176,10 @@ class IniConfigFile(_CacheConfigMixin, _ConfigABC):
                 parsed_ini.read_file(ini_file, source=str(ini_path))
         try:
             self._schema.validate(parsed_ini)
-        except schema.SchemaError as exc:
-            get_logger().error(
+        except schema.SchemaError:
+            get_logger().exception(
                 'Merged INI files failed schema validation: %s', tuple(self._path_order))
-            raise exc
+            raise BuildkitAbort()
         return parsed_ini
 
     def write(self, path):
@@ -224,6 +229,12 @@ class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
     def __iter__(self):
         """Returns an iterator over the keys"""
         return iter(self._config_data)
+
+    def items(self):
+        """
+        Returns an iterator of (key, value) tuples, like dict.items()
+        """
+        return self._config_data.items()
 
     def _parse_data(self):
         """Return a dictionary of the mapping of keys and values"""
@@ -299,6 +310,31 @@ class ConfigBundle(_CacheConfigMixin, _ConfigABC):
         """
         return item in self._config_data
 
+    def __getattr__(self, name): #pylint: disable=too-many-return-statements
+        """
+        Friendly interface to access config file objects via attributes.
+
+        Raises BuildkitAbort if a config file is missing
+        """
+        try:
+            if name == 'pruning':
+                return self._config_data[PRUNING_LIST]
+            elif name == 'domain_regex':
+                return self._config_data[DOMAIN_REGEX_LIST]
+            elif name == 'domain_substitution':
+                return self._config_data[DOMAIN_SUBSTITUTION_LIST]
+            elif name == 'extra_deps':
+                return self._config_data[EXTRA_DEPS_INI]
+            elif name == 'gn_flags':
+                return self._config_data[GN_FLAGS_MAP]
+            elif name == 'patches':
+                return self._config_data[PATCH_ORDER_LIST]
+            elif name == 'version':
+                return self._config_data[VERSION_INI]
+        except KeyError as exc:
+            get_logger().error('Bundle is missing requested file: %s', exc)
+            raise BuildkitAbort()
+
     def _parse_data(self):
         """
         Returns a dictionary of config file names to their respective objects.
@@ -334,46 +370,11 @@ class ConfigBundle(_CacheConfigMixin, _ConfigABC):
         for config_file in self._config_data.values():
             config_file.write(path / config_file.name)
 
-    @property
-    def pruning(self):
-        """Property to access pruning.list config file"""
-        return self._config_data[PRUNING_LIST]
-
-    @property
-    def domain_regex(self):
-        """Property to access domain_regex.list config file"""
-        return self._config_data[DOMAIN_REGEX_LIST]
-
-    @property
-    def domain_substitution(self):
-        """Property to access domain_substitution.list config file"""
-        return self._config_data[DOMAIN_SUBSTITUTION_LIST]
-
-    @property
-    def extra_deps(self):
-        """Property to access extra_deps.ini config file"""
-        return self._config_data[EXTRA_DEPS_INI]
-
-    @property
-    def gn_flags(self):
-        """Property to access gn_flags.map config file"""
-        return self._config_data[GN_FLAGS_MAP]
-
-    @property
-    def patches(self):
-        """Property to access patch_order.list and patches"""
-        return self._config_data[PATCH_ORDER_LIST]
-
-    @property
-    def version(self):
-        """Property to access version.ini config file"""
-        return self._config_data[VERSION_INI]
-
 class BaseBundleMetaIni(IniConfigFile):
     """Represents basebundlemeta.ini files"""
 
-    _schema = schema.Schema(_IniSchema({
-        'basebundle': _DictCast({
+    _schema = schema.Schema(schema_inisections({
+        'basebundle': schema_dictcast({
             'display_name': schema.And(str, len),
             schema.Optional('depends'): schema.And(str, len),
         })
@@ -430,7 +431,7 @@ class DomainRegexList(ListConfigFile):
         Generates a regex pair tuple with inverted pattern and replacement for
         the given line.
 
-        Raises undetermined exceptions if this fragile code breaks or some assumption
+        Raises BuildkitAbort if this fragile code breaks or some assumption
         checking fails.
         """
         # Because domain substitution regex expressions are really simple, some
@@ -483,9 +484,9 @@ class DomainRegexList(ListConfigFile):
                 self._regex_escaped_period_repl, replacement)
 
             return self._regex_pair_tuple(re.compile(pattern), replacement)
-        except Exception as exc:
+        except BaseException:
             get_logger().error('Error inverting regex for line: %s', line)
-            raise exc
+            raise BuildkitAbort()
 
     def _check_invertible(self):
         """
@@ -539,8 +540,8 @@ class ExtraDepsIni(IniConfigFile):
     _optional_keys = ('strip_leading_dirs')
     _passthrough_properties = (*_required_keys, *_optional_keys)
 
-    _schema = schema.Schema(_IniSchema({
-        schema.And(str, len): _DictCast({
+    _schema = schema.Schema(schema_inisections({
+        schema.And(str, len): schema_dictcast({
             **{x: schema.And(str, len) for x in _required_keys},
             **{schema.Optional(x): schema.And(str, len) for x in _optional_keys},
             schema.Or(*_hashes): schema.And(str, len),
@@ -609,20 +610,37 @@ class PatchesConfig(ListConfigFile):
         for relative_path in self:
             yield self._get_patches_dir() / relative_path
 
+    def export_patches(self, path, series=Path('series')):
+        """
+        Writes patches and a series file to the directory specified by path.
+        This is useful for writing a quilt-compatible patches directory and series file.
+
+        path is a pathlib.Path to the patches directory to create. It must not already exist.
+        series is a pathlib.Path to the series file, relative to path.
+
+        Raises FileExistsError if path already exists.
+        Raises FileNotFoundError if the parent directories for path do not exist.
+        """
+        path.mkdir() # Raises FileExistsError, FileNotFoundError
+        for relative_path in self:
+            destination = path / relative_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(str(self._get_patches_dir() / relative_path), str(destination))
+        super().write(path / series)
+
     def write(self, path):
         """Writes patch_order and patches/ directory to the same directory"""
         super().write(path)
         for relative_path in self:
             destination = path.parent / PATCHES_DIR / relative_path
-            if not destination.parent.exists():
-                destination.parent.mkdir(parents=True)
+            destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(str(self._get_patches_dir() / relative_path), str(destination))
 
 class VersionIni(IniConfigFile):
     """Representation of a version.ini file"""
 
-    _schema = schema.Schema(_IniSchema({
-        'version': _DictCast({
+    _schema = schema.Schema(schema_inisections({
+        'version': schema_dictcast({
             'chromium_version': schema.And(str, len),
             'release_revision': schema.And(str, len),
             schema.Optional('release_extra'): schema.And(str, len),

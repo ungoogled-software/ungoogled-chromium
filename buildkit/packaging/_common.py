@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 
-# Copyright (c) 2017 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,6 +8,16 @@
 
 import string
 import re
+
+from pathlib import Path
+
+# Constants
+
+SHARED_PACKAGING = 'shared'
+LIST_BUILD_OUTPUTS = 'list_build_outputs.py'
+DEFAULT_BUILD_OUTPUT = Path('out/Default')
+
+# Classes
 
 class BuildFileStringTemplate(string.Template):
     """
@@ -26,7 +36,9 @@ class BuildFileStringTemplate(string.Template):
     )
     """.format(delim=re.escape("$ungoog"), id=string.Template.idpattern)
 
-def generate_from_templates(root_dir, build_file_subs):
+# Methods
+
+def process_templates(root_dir, build_file_subs):
     """Substitute '$ungoog' strings in '.in' template files and remove the suffix"""
     for old_path in root_dir.glob("*.in"):
         new_path = root_dir / old_path.stem
