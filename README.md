@@ -27,7 +27,6 @@ Since these goals and requirements are not precise, unclear situations are discu
 * [Design and implementation](#design-and-implementation)
 * [Building](#building)
 * [Contributing, Reporting, Contacting](#contributing-reporting-contacting)
-    * [Pull request guidelines](#pull-request-guidelines)
 * [Credits](#credits)
 * [License](#license)
 
@@ -111,29 +110,25 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 ## Contributing, Reporting, Contacting
 
-Contributions are welcome!
+You may submit feedback (i.e. problems, suggestions, and questions) to the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues).
 
-The [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) is the main area for development activity. It tracks problems, suggestions, and questions. Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
+* The Issue Tracker the main hub for development activity; It tracks problems, suggestions, and questions. Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
 
-There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for real-time discussion.
-
-For pull requests, please read the guidelines below first.
-
-### Pull request guidelines
+Pull requests are welcome! Here are the general guidelines:
 
 * Minor changes, such as bug fixes, documentation fixes, or small feature additions, will generally not need prior approval.
-* More significant changes should be proposed through an issue first, where it can be discussed publically and then approved.
-* When in doubt, create an issue first.
+* More significant changes should be discussed via an issue first.
+* When in doubt, create an issue.
+
+There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for those who prefer real-time discussion.
 
 ## Credits
 
-[Iridium Browser](//iridiumbrowser.de/)
-
-[Inox patchset](//github.com/gcarq/inox-patchset)
-
-[Debian](//tracker.debian.org/pkg/chromium-browser)
-
-[The Chromium Project](//www.chromium.org/)
+* [The Chromium Project](//www.chromium.org/)
+* [Inox patchset](//github.com/gcarq/inox-patchset)
+* [Debian](//tracker.debian.org/pkg/chromium-browser)
+* [Iridium Browser](//iridiumbrowser.de/)
+* The users for testing and debugging, [contributing code](https://github.com/Eloston/ungoogled-chromium/graphs/contributors), providing feedback, or simply using ungoogled-chromium in some capacity.
 
 ## License
 
