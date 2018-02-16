@@ -17,7 +17,9 @@ import shutil
 
 from pathlib import Path
 
-from .common import ENCODING, CONFIG_BUNDLES_DIR, BuildkitAbort, get_logger, get_resources_dir
+from .common import (
+    ENCODING, CONFIG_BUNDLES_DIR, BuildkitAbort,
+    get_logger, get_resources_dir, ensure_empty_dir)
 from .third_party import schema
 
 # Constants
@@ -51,29 +53,53 @@ class _ConfigABC(abc.ABC):
         """
         Initializes the config class.
 
-        path is a pathlib.Path to a config file or directory.
+        path is a pathlib.Path to a config file or directory. If it is None, a placeholder
+        config file is created. Placeholder config files are essentially blank config files
+        with no associated path and will not write anywhere. Inherit RequiredConfigMixin to
+        disallow placeholder configs.
         name is the actual file or directory name. This is also used for type identification.
-        Defaults to the last element of path.
+        Defaults to the last element of path. If it is an empty config, this is required.
 
-        Raises FileNotFoundError if path does not exist.
+        Raises FileNotFoundError if path does not exist for non-empty configs.
+        Raises TypeError if name is not defined for empty configs
         """
-        if not path.exists():
+        if path and not path.exists():
             raise FileNotFoundError(str(path))
         self.path = path
         if name:
             self.name = name
-        else:
+        elif path:
             self.name = path.name
+        else:
+            raise TypeError('Either name or path must be defined and non-empty')
         # List of paths to inherit from, ordered from left to right.
         self._path_order = collections.deque()
-        self._path_order.appendleft(path)
+        if path:
+            # self.path will be set to the first path added to self._path_order
+            self._path_order.appendleft(path)
+
+    @property
+    def _placeholder(self):
+        """
+        Returns True if this config is a placeholder; False otherwise
+
+        Raises BuildkitAbort if there is an inconsistency
+        between self.path and self._path_order
+        """
+        if (self.path is None) == bool(self._path_order):
+            get_logger().error(
+                'Inconsistency of config file placeholder state: path = %s, _path_order = %s',
+                self.path, self._path_order)
+            raise BuildkitAbort()
+        return self.path is None
 
     def _check_path_add(self, path):
+        """Returns True if path is new and exists; False otherwise"""
         if path in self._path_order:
             return False
         if not path.exists():
             get_logger().error('Unable to add path for "%s"', self.name)
-            raise FileNotFoundError(str(path))
+            raise FileNotFoundError(path)
         return True
 
     def update_first_path(self, path):
@@ -86,6 +112,9 @@ class _ConfigABC(abc.ABC):
         Raises FileNotFoundError if path does not exist
         """
         if self._check_path_add(path):
+            if self._placeholder:
+                # This must be the first path to self._path_order
+                self.path = path
             self._path_order.appendleft(path)
             return True
         return False
@@ -100,18 +129,23 @@ class _ConfigABC(abc.ABC):
         Raises FileNotFoundError if path does not exist
         """
         if self._check_path_add(path):
+            if self._placeholder:
+                # This must be the first path to self._path_order
+                self.path = path
             self._path_order.append(path)
             return True
         return False
 
     @abc.abstractmethod
     def _parse_data(self):
-        """Parses and returns config data"""
-        pass
+        """
+        Parses and returns config data.
+        Returns a blank data structure if empty
+        """
 
     @property
     def _config_data(self):
-        """Returns the parsed config data"""
+        """Returns the parsed config data."""
         parsed_data = self._parse_data()
         if parsed_data is None:
             # Assuming no parser intentionally returns None
@@ -121,11 +155,19 @@ class _ConfigABC(abc.ABC):
 
     @abc.abstractmethod
     def write(self, path):
-        """Writes the config to path"""
-        pass
+        """
+        Writes the config to pathlib.Path path
+
+        If this config file is a placeholder, nothing is written.
+        """
 
 class _CacheConfigMixin: #pylint: disable=too-few-public-methods
-    """Mixin for _ConfigABC to cache parse output"""
+    """
+    Mixin for _ConfigABC to cache parse output
+
+    NOTE: This does not work with ListConfigFile
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -141,6 +183,17 @@ class _CacheConfigMixin: #pylint: disable=too-few-public-methods
             return self._read_cache
         self._read_cache = super()._config_data
         return self._read_cache
+
+class RequiredConfigMixin: #pylint: disable=too-few-public-methods
+    """Mixin to require a config file, i.e. disallow placeholders"""
+
+    def __init__(self, path, name=None):
+        """
+        Raises TypeError if path is None
+        """
+        if path is None:
+            raise TypeError('Config file "%s" requires a path.' % name)
+        super().__init__(path, name=name)
 
 class IniConfigFile(_CacheConfigMixin, _ConfigABC):
     """Represents an INI file"""
@@ -171,6 +224,10 @@ class IniConfigFile(_CacheConfigMixin, _ConfigABC):
         Raises BuildkitAbort if validation fails
         """
         parsed_ini = configparser.ConfigParser()
+        if self._placeholder:
+            # Bypass schema validation here. Derivatives will handle placeholder config files
+            # on their own, or inherit RequiredConfigMixin.
+            return parsed_ini
         for ini_path in self._path_order:
             with ini_path.open(encoding=ENCODING) as ini_file:
                 parsed_ini.read_file(ini_file, source=str(ini_path))
@@ -183,13 +240,18 @@ class IniConfigFile(_CacheConfigMixin, _ConfigABC):
         return parsed_ini
 
     def write(self, path):
-        ini_parser = configparser.ConfigParser()
-        ini_parser.read_dict(self._config_data)
-        with path.open("w", encoding=ENCODING) as output_file:
-            ini_parser.write(output_file)
+        if not self._placeholder:
+            ini_parser = configparser.ConfigParser()
+            ini_parser.read_dict(self._config_data)
+            with path.open("w", encoding=ENCODING) as output_file:
+                ini_parser.write(output_file)
 
 class ListConfigFile(_ConfigABC):
-    """Represents a simple newline-delimited list"""
+    """
+    Represents a simple newline-delimited list
+
+    NOTE: This will not work properly if combined with _CacheConfigMixin
+    """
     def __contains__(self, item):
         """Returns True if item is in the list; False otherwise"""
         return item in self._config_data
@@ -205,12 +267,13 @@ class ListConfigFile(_ConfigABC):
         return iter(self._config_data)
 
     def _parse_data(self):
-        """Returns a file object of the item's values"""
+        """Returns an iterator over the list items"""
         return self._line_generator()
 
     def write(self, path):
-        with path.open('w', encoding=ENCODING) as output_file:
-            output_file.writelines(map(lambda x: '%s\n' % x, self._config_data))
+        if not self._placeholder:
+            with path.open('w', encoding=ENCODING) as output_file:
+                output_file.writelines(map(lambda x: '%s\n' % x, self._config_data))
 
 class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
     """Represents a simple string-keyed and string-valued dictionary"""
@@ -247,11 +310,12 @@ class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
         return new_dict
 
     def write(self, path):
-        with path.open('w', encoding=ENCODING) as output_file:
-            for item in self._config_data.items():
-                output_file.write('%s=%s\n' % item)
+        if not self._placeholder:
+            with path.open('w', encoding=ENCODING) as output_file:
+                for item in self._config_data.items():
+                    output_file.write('%s=%s\n' % item)
 
-class ConfigBundle(_CacheConfigMixin, _ConfigABC):
+class ConfigBundle(_CacheConfigMixin, RequiredConfigMixin, _ConfigABC):
     """Represents a user or base config bundle"""
 
     @classmethod
@@ -297,14 +361,14 @@ class ConfigBundle(_CacheConfigMixin, _ConfigABC):
         """
         Returns the config file with the given name.
 
-        Raises KeyError if the file is not found.
+        Raises KeyError if the file name is not known.
         Raises ValueError if the config is malformed.
         """
         return self._config_data[key]
 
     def __contains__(self, item):
         """
-        Checks if a config file name exists.
+        Checks if a config file name is known.
 
         Raises ValueError if the config bundle is malformed.
         """
@@ -314,25 +378,28 @@ class ConfigBundle(_CacheConfigMixin, _ConfigABC):
         """
         Friendly interface to access config file objects via attributes.
 
-        Raises BuildkitAbort if a config file is missing
+        Raises BuildkitAbort if a config file is missing, or if the attribute name does not exist.
+        Raises AttributeError if the attribute name does not exist.
         """
         try:
             if name == 'pruning':
-                return self._config_data[PRUNING_LIST]
+                return self[PRUNING_LIST]
             elif name == 'domain_regex':
-                return self._config_data[DOMAIN_REGEX_LIST]
+                return self[DOMAIN_REGEX_LIST]
             elif name == 'domain_substitution':
-                return self._config_data[DOMAIN_SUBSTITUTION_LIST]
+                return self[DOMAIN_SUBSTITUTION_LIST]
             elif name == 'extra_deps':
-                return self._config_data[EXTRA_DEPS_INI]
+                return self[EXTRA_DEPS_INI]
             elif name == 'gn_flags':
-                return self._config_data[GN_FLAGS_MAP]
+                return self[GN_FLAGS_MAP]
             elif name == 'patches':
-                return self._config_data[PATCH_ORDER_LIST]
+                return self[PATCH_ORDER_LIST]
             elif name == 'version':
-                return self._config_data[VERSION_INI]
+                return self[VERSION_INI]
+            else:
+                raise AttributeError('ConfigBundle has no attribute "%s"' % name)
         except KeyError as exc:
-            get_logger().error('Bundle is missing requested file: %s', exc)
+            get_logger().error('Config file name not known: %s', exc)
             raise BuildkitAbort()
 
     def _parse_data(self):
@@ -342,6 +409,8 @@ class ConfigBundle(_CacheConfigMixin, _ConfigABC):
         Raises ValueError if the config bundle contains unknown files.
         """
         file_dict = dict()
+        unused_names = {key for key, value in _FILE_DEF.items() if value}
+        # Add existing config files and dependencies
         for directory in self._path_order:
             for config_path in directory.iterdir():
                 if config_path.name in file_dict:
@@ -355,22 +424,27 @@ class ConfigBundle(_CacheConfigMixin, _ConfigABC):
                         logger.error('Config directory "%s" has unknown files', directory.name)
                         raise ValueError(
                             'Unknown files in config bundle: {}'.format(directory))
+                    unused_names.discard(config_path.name)
                     if config_class:
                         file_dict[config_path.name] = config_class(config_path)
+        # Add placeholder config files
+        for name in unused_names:
+            file_dict[name] = _FILE_DEF[name](None, name=name)
         return file_dict
 
     def write(self, path):
         """
         Writes a copy of this config bundle to a new directory specified by path.
 
-        Raises FileExistsError if the directory already exists.
+        Raises FileExistsError if the directory already exists and is not empty.
+        Raises FileNotFoundError if the parent directories for path do not exist.
         Raises ValueError if the config bundle is malformed.
         """
-        path.mkdir(parents=True)
+        ensure_empty_dir(path)
         for config_file in self._config_data.values():
             config_file.write(path / config_file.name)
 
-class BaseBundleMetaIni(IniConfigFile):
+class BaseBundleMetaIni(RequiredConfigMixin, IniConfigFile):
     """Represents basebundlemeta.ini files"""
 
     _schema = schema.Schema(schema_inisections({
@@ -532,12 +606,20 @@ class DomainRegexList(ListConfigFile):
                 self._compiled_regex = tuple(map(self._compile_regex, self))
             return self._compiled_regex
 
+    @property
+    def search_regex(self):
+        """
+        Returns a single expression to search for domains
+        """
+        return re.compile('|'.join(
+            map(lambda x: x.split(self._PATTERN_REPLACE_DELIM, 1)[0], self)))
+
 class ExtraDepsIni(IniConfigFile):
     """Representation of an extra_deps.ini file"""
 
     _hashes = ('md5', 'sha1', 'sha256', 'sha512')
     _required_keys = ('version', 'url', 'download_name')
-    _optional_keys = ('strip_leading_dirs')
+    _optional_keys = ('strip_leading_dirs',)
     _passthrough_properties = (*_required_keys, *_optional_keys)
 
     _schema = schema.Schema(schema_inisections({
@@ -564,6 +646,9 @@ class ExtraDepsIni(IniConfigFile):
                     if value:
                         hashes_dict[hash_name] = value
                 return hashes_dict
+            else:
+                raise AttributeError(
+                    '"{}" has no attribute "{}"'.format(type(self).__name__, name))
 
     def __getitem__(self, section):
         """
@@ -584,7 +669,8 @@ class PatchesConfig(ListConfigFile):
 
     def set_patches_dir(self, path):
         """
-        Sets the path to the directory containing the patches
+        Sets the path to the directory containing the patches. Does nothing if this is
+        a placeholder.
 
         Raises NotADirectoryError if the path is not a directory or does not exist.
         """
@@ -593,7 +679,13 @@ class PatchesConfig(ListConfigFile):
         self._patches_dir = path
 
     def _get_patches_dir(self):
-        """Returns the path to the patches directory"""
+        """
+        Returns the path to the patches directory
+
+        Raises TypeError if this is a placeholder.
+        """
+        if self._placeholder:
+            raise TypeError('PatchesConfig is a placeholder')
         if self._patches_dir is None:
             patches_dir = self.path.parent / "patches"
             if not patches_dir.is_dir():
@@ -614,14 +706,17 @@ class PatchesConfig(ListConfigFile):
         """
         Writes patches and a series file to the directory specified by path.
         This is useful for writing a quilt-compatible patches directory and series file.
+        This does nothing if it is a placeholder.
 
         path is a pathlib.Path to the patches directory to create. It must not already exist.
         series is a pathlib.Path to the series file, relative to path.
 
-        Raises FileExistsError if path already exists.
+        Raises FileExistsError if path already exists and is not empty.
         Raises FileNotFoundError if the parent directories for path do not exist.
         """
-        path.mkdir() # Raises FileExistsError, FileNotFoundError
+        if self._placeholder:
+            return
+        ensure_empty_dir(path) # Raises FileExistsError, FileNotFoundError
         for relative_path in self:
             destination = path / relative_path
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -630,13 +725,15 @@ class PatchesConfig(ListConfigFile):
 
     def write(self, path):
         """Writes patch_order and patches/ directory to the same directory"""
+        if self._placeholder:
+            return
         super().write(path)
         for relative_path in self:
             destination = path.parent / PATCHES_DIR / relative_path
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(str(self._get_patches_dir() / relative_path), str(destination))
 
-class VersionIni(IniConfigFile):
+class VersionIni(RequiredConfigMixin, IniConfigFile):
     """Representation of a version.ini file"""
 
     _schema = schema.Schema(schema_inisections({

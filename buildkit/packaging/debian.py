@@ -13,15 +13,15 @@ import shutil
 
 from ..third_party import schema
 
-from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir
-from ..config import IniConfigFile, schema_inisections, schema_dictcast
+from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir, ensure_empty_dir
+from ..config import RequiredConfigMixin, IniConfigFile, schema_inisections, schema_dictcast
 from ._common import DEFAULT_BUILD_OUTPUT, process_templates
 
 # Private definitions
 
 _DEPENDENCIES_INI = 'dependencies.ini'
 
-class _DependenciesIni(IniConfigFile):
+class _DependenciesIni(RequiredConfigMixin, IniConfigFile):
     _schema = schema.Schema(schema_inisections({
         schema.And(str, len): schema_dictcast({
             'parent': schema.And(str, len),
@@ -161,7 +161,7 @@ def generate_packaging(config_bundle, flavor, debian_dir,
     build_output is the pathlib.Path for building intermediates and outputs to be stored
     distro_version is the distribution version name to use in debian/changelog
 
-    Raises FileExistsError if debian_dir already exists.
+    Raises FileExistsError if debian_dir already exists and is not empty.
     Raises FileNotFoundError if the parent directories for debian_dir do not exist.
     """
     # Use config_bundle.version.version_string for Debian version string
@@ -173,7 +173,7 @@ def generate_packaging(config_bundle, flavor, debian_dir,
         gn_flags=_get_parsed_gn_flags(config_bundle.gn_flags)
     )
 
-    debian_dir.mkdir() # Raises FileNotFoundError, FileExistsError
+    ensure_empty_dir(debian_dir) # Raises FileNotFoundError, FileExistsError
     _Flavor(flavor).assemble_files(debian_dir)
     process_templates(debian_dir, build_file_subs)
     config_bundle.patches.export_patches(debian_dir / PATCHES_DIR)

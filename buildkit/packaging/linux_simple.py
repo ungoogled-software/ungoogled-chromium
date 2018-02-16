@@ -8,7 +8,7 @@
 
 import shutil
 
-from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir
+from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir, ensure_empty_dir
 from ._common import DEFAULT_BUILD_OUTPUT, process_templates
 
 # Private definitions
@@ -31,7 +31,7 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
     output_dir is the pathlib.Path directory that will be created to contain packaging files
     build_output is a pathlib.Path for building intermediates and outputs to be stored
 
-    Raises FileExistsError if output_dir already exists.
+    Raises FileExistsError if output_dir already exists and is not empty.
     Raises FileNotFoundError if the parent directories for output_dir do not exist.
     """
     build_file_subs = dict(
@@ -41,7 +41,7 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
         version_string=config_bundle.version.version_string
     )
 
-    output_dir.mkdir() # Raises FileNotFoundError, FileExistsError
+    ensure_empty_dir(output_dir) # Raises FileNotFoundError, FileExistsError
 
     # Build and packaging scripts
     _copy_from_resources('build.sh.in', output_dir)

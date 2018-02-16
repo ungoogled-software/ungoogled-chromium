@@ -78,3 +78,30 @@ def get_resources_dir():
     if not path.is_dir():
         raise NotADirectoryError(str(path))
     return path
+
+def dir_empty(path):
+    """
+    Returns True if the directory is empty; False otherwise
+
+    path is a pathlib.Path or a string to a directory to test.
+    """
+    try:
+        next(os.scandir(str(path)))
+    except StopIteration:
+        return True
+    return False
+
+def ensure_empty_dir(path, parents=False):
+    """
+    Makes a directory at path if it doesn't exist. If it exists, check if it is empty.
+
+    path is a pathlib.Path to the directory.
+
+    Raises FileExistsError if the directory already exists and is not empty
+    When parents=False, raises FileNotFoundError if the parent directories do not exist
+    """
+    try:
+        path.mkdir(parents=parents)
+    except FileExistsError as exc:
+        if not dir_empty(path):
+            raise exc

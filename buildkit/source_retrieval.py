@@ -14,7 +14,7 @@ import urllib.request
 import hashlib
 from pathlib import Path, PurePosixPath
 
-from .common import ENCODING, BuildkitAbort, get_logger
+from .common import ENCODING, BuildkitAbort, get_logger, dir_empty
 
 # Constants
 
@@ -142,7 +142,7 @@ def _download_if_needed(file_path, url, show_progress):
 def _chromium_hashes_generator(hashes_path):
     with hashes_path.open(encoding=ENCODING) as hashes_file:
         hash_lines = hashes_file.read().splitlines()
-    for hash_name, hash_hex in map(lambda x: x.lower().split('  '), hash_lines):
+    for hash_name, hash_hex, _ in map(lambda x: x.lower().split('  '), hash_lines):
         if hash_name in hashlib.algorithms_available:
             yield hash_name, hash_hex
         else:
@@ -231,14 +231,14 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
     buildspace_downloads is the path to the buildspace downloads directory, and
     buildspace_tree is the path to the buildspace tree.
 
-    Raises FileExistsError when the buildspace tree already exists.
+    Raises FileExistsError when the buildspace tree already exists and is not empty
     Raises FileNotFoundError when buildspace/downloads does not exist.
     Raises NotADirectoryError if buildspace/downloads is not a directory.
     Raises source_retrieval.NotAFileError when the archive path exists but is not a regular file.
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     May raise undetermined exceptions during archive unpacking.
     """
-    if buildspace_tree.exists():
+    if buildspace_tree.exists() and not dir_empty(buildspace_tree):
         raise FileExistsError(buildspace_tree)
     if not buildspace_downloads.exists():
         raise FileNotFoundError(buildspace_downloads)

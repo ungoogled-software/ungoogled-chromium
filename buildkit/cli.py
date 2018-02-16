@@ -35,7 +35,7 @@ class _CLIError(RuntimeError):
     """Custom exception for printing argument parser errors from callbacks"""
     pass
 
-class _NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-methods
+class NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-methods
     """argparse.ArgumentParser action handler with more verbose logging"""
 
     def __init__(self, *args, **kwargs):
@@ -69,13 +69,13 @@ def setup_bundle_group(parser):
     """Helper to add arguments for loading a config bundle to argparse.ArgumentParser"""
     config_group = parser.add_mutually_exclusive_group()
     config_group.add_argument(
-        '-b', '--base-bundle-name', dest='bundle', default=argparse.SUPPRESS,
-        action=_NewBaseBundleAction,
+        '-b', '--base-bundle', metavar='NAME', dest='bundle', default=argparse.SUPPRESS,
+        action=NewBaseBundleAction,
         help=('The base config bundle name to use (located in resources/config_bundles). '
               'Mutually exclusive with --user-bundle-path. '
               'Default value is nothing; a default is specified by --user-bundle-path.'))
     config_group.add_argument(
-        '-u', '--user-bundle-path', dest='bundle', default=BUILDSPACE_USER_BUNDLE,
+        '-u', '--user-bundle', metavar='PATH', dest='bundle', default=BUILDSPACE_USER_BUNDLE,
         type=lambda x: ConfigBundle(Path(x)),
         help=('The path to a user bundle to use. '
               'Mutually exclusive with --base-bundle-name. '))
@@ -103,7 +103,7 @@ def _add_bunnfo(subparsers):
         help='Lists all base bundles and their display names.')
     group.add_argument(
         '-d', '--dependencies', dest='bundle',
-        action=_NewBaseBundleAction,
+        action=NewBaseBundleAction,
         help=('Prints the dependency order of the given base bundle, '
               'delimited by newline characters. '
               'See DESIGN.md for the definition of dependency order.'))
@@ -115,23 +115,21 @@ def _add_genbun(subparsers):
         try:
             args.base_bundle.write(args.user_bundle_path)
         except FileExistsError:
-            get_logger().error('User bundle already exists: %s', args.user_bundle_path)
+            get_logger().error('User bundle dir is not empty: %s', args.user_bundle_path)
             raise _CLIError()
         except ValueError as exc:
             get_logger().error('Error with base bundle: %s', exc)
-            raise _CLIError()
-        except BaseException:
-            get_logger().exception('Unexpected exception caught.')
             raise _CLIError()
     parser = subparsers.add_parser(
         'genbun', formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help=_add_genbun.__doc__, description=_add_genbun.__doc__)
     parser.add_argument(
-        '-u', '--user-bundle-path', type=Path, default=BUILDSPACE_USER_BUNDLE,
+        '-u', '--user-bundle', metavar='PATH', dest='user_bundle_path',
+        type=Path, default=BUILDSPACE_USER_BUNDLE,
         help=('The output path for the user config bundle. '
               'The path must not already exist. '))
     parser.add_argument(
-        'base_bundle', action=_NewBaseBundleAction,
+        'base_bundle', action=NewBaseBundleAction,
         help='The base config bundle name to use.')
     parser.set_defaults(callback=_callback)
 
@@ -143,7 +141,7 @@ def _add_getsrc(subparsers):
                 args.bundle, args.downloads, args.tree, prune_binaries=args.prune_binaries,
                 show_progress=args.show_progress)
         except FileExistsError:
-            get_logger().error('Buildspace tree already exists: %s', args.tree)
+            get_logger().error('Buildspace tree is not empty: %s', args.tree)
             raise _CLIError()
         except FileNotFoundError:
             get_logger().error('Buildspace downloads does not exist: %s', args.downloads)
@@ -156,9 +154,6 @@ def _add_getsrc(subparsers):
             raise _CLIError()
         except source_retrieval.HashMismatchError as exc:
             get_logger().error('Archive checksum is invalid: %s', exc)
-            raise _CLIError()
-        except BaseException:
-            get_logger().exception('Unexpected exception caught.')
             raise _CLIError()
     parser = subparsers.add_parser(
         'getsrc', help=_add_getsrc.__doc__ + '.',
@@ -251,7 +246,7 @@ def _add_genpkg_debian(subparsers):
         try:
             packaging_debian.generate_packaging(args.bundle, args.flavor, args.output)
         except FileExistsError as exc:
-            get_logger().error('debian directory already exists: %s', exc)
+            get_logger().error('debian directory is not empty: %s', exc)
             raise _CLIError()
         except FileNotFoundError as exc:
             get_logger().error(
@@ -275,7 +270,7 @@ def _add_genpkg_linux_simple(subparsers):
         try:
             packaging_linux_simple.generate_packaging(args.bundle, args.output)
         except FileExistsError as exc:
-            get_logger().error('Output directory already exists: %s', exc)
+            get_logger().error('Output directory is not empty: %s', exc)
             raise _CLIError()
         except FileNotFoundError as exc:
             get_logger().error(
@@ -298,7 +293,7 @@ def _add_genpkg_macos(subparsers):
         try:
             packaging_macos.generate_packaging(args.bundle, args.output)
         except FileExistsError as exc:
-            get_logger().error('Output directory already exists: %s', exc)
+            get_logger().error('Output directory is not empty: %s', exc)
             raise _CLIError()
         except FileNotFoundError as exc:
             get_logger().error(
@@ -345,4 +340,7 @@ def main(arg_list=None):
     try:
         args.callback(args=args)
     except (_CLIError, BuildkitAbort):
+        parser.exit(status=1)
+    except BaseException:
+        get_logger().exception('Unexpected exception caught.')
         parser.exit(status=1)

@@ -11,6 +11,9 @@ Module for substituting domain names in buildspace tree with blockable strings.
 from .common import ENCODING, BuildkitAbort, get_logger
 from .third_party import unidiff
 
+# Encodings to try on buildspace tree files
+TREE_ENCODINGS = (ENCODING, 'ISO-8859-1')
+
 def substitute_domains_for_files(regex_iter, file_iter, log_warnings=True):
     """
     Runs domain substitution with regex_iter over files from file_iter
@@ -23,12 +26,13 @@ def substitute_domains_for_files(regex_iter, file_iter, log_warnings=True):
     for path in file_iter:
         with path.open(mode="r+b") as file_obj:
             file_bytes = file_obj.read()
-            try:
-                encoding = ENCODING # TODO: Try other encodings on failure
-                content = file_bytes.decode(encoding)
-            except BaseException:
-                get_logger().exception('Exception thrown while substituting: %s', path)
-                raise BuildkitAbort()
+            content = None
+            for encoding in TREE_ENCODINGS:
+                try:
+                    content = file_bytes.decode(encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
             file_subs = 0
             for regex_pair in regex_iter:
                 content, sub_count = regex_pair.pattern.subn(
