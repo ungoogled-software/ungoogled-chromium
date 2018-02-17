@@ -33,7 +33,6 @@ from .config import ConfigBundle
 
 class _CLIError(RuntimeError):
     """Custom exception for printing argument parser errors from callbacks"""
-    pass
 
 class NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-methods
     """argparse.ArgumentParser action handler with more verbose logging"""
@@ -217,7 +216,7 @@ def _add_subdom(subparsers):
             if not args.only or args.only == 'tree':
                 domain_substitution.process_tree_with_bundle(args.bundle, args.tree)
             if not args.only or args.only == 'patches':
-                pass
+                domain_substitution.process_bundle_patches(args.bundle)
         except FileNotFoundError as exc:
             get_logger().error('Buildspace tree does not exist: %s', exc)
             raise _CLIError()
