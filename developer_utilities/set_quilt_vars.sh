@@ -1,6 +1,11 @@
 # Sets quilt variables for updating the patches
 # Make sure to run this with the shell command "source" in order to inherit the variables into the interactive environment
 
+# There is some problem with the absolute paths in QUILT_PATCHES and QUILT_SERIES breaking quilt
+# (refresh and diff don't read QUILT_*_ARGS, and series displays absolute paths instead of relative)
+# Specifying a quiltrc file fixes this, so "--quiltrc -" fixes this too.
+alias quilt='quilt --quiltrc -'
+
 # Assumes the script is run from the repository
 REPO_ROOT=$(dirname $(readlink -f $0))
 

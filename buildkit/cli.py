@@ -78,7 +78,7 @@ def setup_bundle_group(parser):
         '-u', '--user-bundle', metavar='PATH', dest='bundle', default=BUILDSPACE_USER_BUNDLE,
         type=lambda x: ConfigBundle(Path(x)),
         help=('The path to a user bundle to use. '
-              'Mutually exclusive with --base-bundle-name. '))
+              'Mutually exclusive with --base-bundle-name. Default: %(default)s'))
 
 def _add_bunnfo(subparsers):
     """Gets info about base bundles."""
