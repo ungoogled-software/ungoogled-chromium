@@ -247,6 +247,7 @@ def main(args_list=None):
         else:
             source_retrieval.retrieve_and_extract(
                 args.base_bundle, args.downloads, args.tree, prune_binaries=False)
+        get_logger().info('Computing lists...')
         pruning_list, domain_substitution_list = compute_lists(
             args.tree, args.base_bundle.domain_regex.search_regex)
     except BuildkitAbort:
