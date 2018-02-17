@@ -108,13 +108,17 @@ class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
     """Hook for urllib.request.urlretrieve to log progress information to console"""
     def __init__(self):
         self._max_len_printed = 0
+        self._last_percentage = None
 
     def __call__(self, block_count, block_size, total_size):
-        print('\r' + ' ' * self._max_len_printed, end='')
         downloaded_estimate = block_count * block_size
+        percentage = round(downloaded_estimate / total_size, ndigits=3)
+        if percentage == self._last_percentage:
+            return # Do not needlessly update the console
+        self._last_percentage = percentage
+        print('\r' + ' ' * self._max_len_printed, end='')
         if total_size > 0:
-            status_line = 'Progress: {:.3%} of {:,d} B'.format(
-                downloaded_estimate / total_size, total_size)
+            status_line = 'Progress: {:.1%} of {:,d} B'.format(percentage, total_size)
         else:
             status_line = 'Progress: {:,d} B of unknown size'.format(downloaded_estimate)
         self._max_len_printed = len(status_line)
@@ -178,7 +182,7 @@ def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree,
         _SOURCE_ARCHIVE_URL.format(config_bundle.version.chromium_version),
         show_progress)
     _download_if_needed(
-        source_archive,
+        source_hashes,
         _SOURCE_HASHES_URL.format(config_bundle.version.chromium_version),
         False)
     get_logger().info('Verifying hashes...')
