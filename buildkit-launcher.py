@@ -5,7 +5,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-"""Simple buildkit launcher for running from anywhere"""
+"""
+Simple buildkit CLI launcher allowing invocation from anywhere.
+
+Pass in -h or --help for usage information.
+"""
 
 import sys
 import pathlib

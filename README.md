@@ -9,7 +9,7 @@ A number of features or background services communicate with Google servers desp
 ungoogled-chromium is a set of configuration flags, patches, and custom scripts. These components altogether strive to accomplish the following:
 * Disable or remove offending services and features that communicate with Google or weaken privacy
 * Strip binaries from the source tree, and use those provided by the system or build them from source
-* Add, modify, or disable features that inhibit control and transparency (these changes are minor and do not have significant impacts on the general user experience)
+* Disable features that inhibit control and transparency, and add or modify features that promote them (these changes are minor and do not have significant impacts on the general user experience)
 
 **ungoogled-chromium should not be considered a fork of Chromium**. The main reason for this is that a fork is associated with more significant deviations from the Chromium, such as branding, configuration formats, file locations, and other interface changes. ungoogled-chromium will not modify the Chromium browser outside of the project's goals.
 
@@ -27,7 +27,6 @@ Since these goals and requirements are not precise, unclear situations are discu
 * [Design and implementation](#design-and-implementation)
 * [Building](#building)
 * [Contributing, Reporting, Contacting](#contributing-reporting-contacting)
-    * [Pull request guidelines](#pull-request-guidelines)
 * [Credits](#credits)
 * [License](#license)
 
@@ -41,10 +40,8 @@ ungoogled-chromium selectively borrows many of its features from the following:
 * [Iridium Browser](//iridiumbrowser.de/)
 
 Most of the **additional** features are as follows:
-* Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution)
-* Strip binaries from the source code (known as source cleaning)
-    * This includes all pre-built executables, shared libraries, and other forms of machine code. They are substituted with system or user-provided equivalents, or built from source.
-    * However a few data files are left in as they do not contain machine code and are needed for building.
+* Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution; [see DESIGN.md](DESIGN.md#source-file-processors))
+* Strip binaries from the source code (known as binary pruning; [see DESIGN.md](DESIGN.md#source-file-processors))
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
@@ -113,29 +110,25 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 ## Contributing, Reporting, Contacting
 
-Contributions are welcome!
+You may submit feedback (i.e. problems, suggestions, and questions) to the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues).
 
-The [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) is the main area for development activity. It tracks problems, suggestions, and questions. Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
+* The Issue Tracker the main hub for development activity; It tracks problems, suggestions, and questions. Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
 
-There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for real-time discussion.
-
-For pull requests, please read the guidelines below first.
-
-### Pull request guidelines
+Pull requests are welcome! Here are the general guidelines:
 
 * Minor changes, such as bug fixes, documentation fixes, or small feature additions, will generally not need prior approval.
-* More significant changes should be proposed through an issue first, where it can be discussed publically and then approved.
-* When in doubt, create an issue first.
+* More significant changes should be discussed via an issue first.
+* When in doubt, create an issue.
+
+There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for those who prefer real-time discussion.
 
 ## Credits
 
-[Iridium Browser](//iridiumbrowser.de/)
-
-[Inox patchset](//github.com/gcarq/inox-patchset)
-
-[Debian](//tracker.debian.org/pkg/chromium-browser)
-
-[The Chromium Project](//www.chromium.org/)
+* [The Chromium Project](//www.chromium.org/)
+* [Inox patchset](//github.com/gcarq/inox-patchset)
+* [Debian](//tracker.debian.org/pkg/chromium-browser)
+* [Iridium Browser](//iridiumbrowser.de/)
+* The users for testing and debugging, [contributing code](https://github.com/Eloston/ungoogled-chromium/graphs/contributors), providing feedback, or simply using ungoogled-chromium in some capacity.
 
 ## License
 

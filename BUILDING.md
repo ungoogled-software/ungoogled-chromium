@@ -10,45 +10,64 @@
 
 There are two major sections of this document:
 
-* [Platform-specific building instructions](#platform-specific-building-instructions) - For users who are using a supported platform and don't need to customize their build.
-* [Building generalizations and additional information](#building-generalizations-and-additional-information) - For users who are building for a platform without build instructions or who need additional customizations.
+* [Standard building instructions](#standard-building-instructions) contains standard building instructions for supported platforms.
+* [Advanced building information](#advanced-building-information) - For users who are building on unsupported systems or want a rough overview of the building procedure.
 
-## Platform-specific building instructions
+## Standard building instructions
 
-This section is for users who are using a supported platform and don't need to customize their build.
+This section contains standard building instructions for supported platforms.
 
-These instructions are the ones used for producing the published binaries.
+Contents:
+
+* [Debian and its derivatives](#debian-and-its-derivatives)
+* [Windows](#windows)
+* [macOS](#macos)
+* [Arch Linux](#arch-linux)
+* [Other Linux distributions](#other-linux-distributions)
 
 ### Debian and its derivatives
 
-These instructions will create `.deb` packages using ungoogled-chromium's variation of Debian's `debian` directory.
+
+These instructions will create `.deb` packages. It uses ungoogled-chromium's variation of Debian's `debian` directory.
 
 The build should work on the CPU architectures `amd64`, `i386`, `arm64`, and `armhf`.
 
 The final size of the sandbox with build artifacts is over 5 GB. On systems with enough RAM, it can be built entirely within `tmpfs` without swap memory.
 
-Install common requirements: `# apt install packaging-dev python3 python2 ninja-build`
+#### Setting up the build environment
 
-For Debian 9 (stretch):
+Install base requirements: `# apt install packaging-dev python3 ninja-build`
+
+On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 5.0.
+
+#### Setting up the buildspace tree and packaging files
+
+Procedure for Debian 9 (stretch):
 
 ```
-export UTILIKIT_CONFIG_TYPE=debian_stretch
-mkdir build/
-mkdir build/sandbox
-mkdir build/downloads
-./utilikit/prepare_sources.py
-./utilikit/substitute_domains.py
-./utilikit/generate_build_files.py debian --flavor standard --apply-domain-substitution
-cd build/sandbox
+mkdir -p buildspace/downloads # Alternatively, buildspace/ can be a symbolic link
+./buildkit-launcher.py genbun debian_stretch
+./buildkit-launcher.py getsrc
+./buildkit-launcher.py subdom
+./buildkit-launcher.py genpkg debian --flavor standard
+```
+TODO: Investigate using dpkg-source to build a source package
+
+The buildspace tree can be relocated to another system for building if necessary.
+
+#### Invoking build
+
+```
+cd buildspace/tree
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
 dpkg-buildpackage -b -uc
 ```
 
-Packages will appear under `build/`.
+Packages will appear under `buildspace/`.
 
-Deviations for different Debian versions or flavors:
+#### Notes for Debian derivatives
 
-Ubuntu 17.04 (zesty): Same as Debian 9 (stretch)
+Ubuntu 17.10 (artful): Same as Debian 9 (stretch)
 
 Ubuntu 16.04 (xenial), Debian 8.0 (jessie), and other older versions: See [Other Linux distributions](#other-linux-distributions)
 
@@ -101,11 +120,6 @@ TODO
 
 Tested on macOS 10.11-10.13
 
-Credits:
-* [9Morello](//github.com/9Morello)
-* [tectiv3](//github.com/tectiv3)
-* [nixballs](//github.com/nixballs)
-
 #### Additional Requirements
 
 * Xcode 7-9
@@ -116,19 +130,28 @@ Credits:
 
 1. Install Quilt via Homebrew: `brew install quilt`
 2. Install Ninja via Homebrew: `brew install ninja`
+3. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
 
-#### Build
+#### Setting up the buildspace tree and packaging files
 
 ```
-export UTILIKIT_CONFIG_TYPE=macos
-./utilikit/check_requirements.py --macos
-mkdir -p build/{sandbox,downloads}
-./utilikit/prepare_sources.py
-./utilikit/substitute_domains.py
-./utilikit/generate_build_files.py macos --apply-domain-substitution
-cd build/sandbox
-./ungoogled_macos/build.sh
+mkdir -p buildspace/downloads # Alternatively, buildspace/ can be a symbolic link
+./buildkit-launcher.py genbun macos
+./buildkit-launcher.py getsrc
+./buildkit-launcher.py subdom
+./buildkit-launcher.py genpkg macos
 ```
+
+The buildspace tree can be relocated to another system for building if necessary.
+
+#### Invoking build
+
+```
+cd buildspace/tree
+./ungoogled_packaging/build.sh
+```
+
+A `.dmg` should appear in `buildspace/`
 
 ### Arch Linux
 
@@ -142,125 +165,94 @@ These are for building on Linux distributions that do not have support already. 
 
 #### Requirements
 
-Requirements should be similar to that of Debian and derivatives.
+Debian-based: `# apt install packaging-dev python3 ninja-build`
 
-#### Build
+* If not building a `.deb` package, replace `packaging-dev` with `quilt python clang llvm-dev`
+
+Other:
+
+* Python 3 (tested on 3.5) for buildkit
+* Python 2 (tested on 2.7) for building GN and running other build-time scripts
+* [Ninja](//ninja-build.org/) for running the build command
+* [Quilt](//savannah.nongnu.org/projects/quilt/) for applying patches
+
+#### Setting up the buildspace tree
 
 First, setup the source tree:
 
 ```
-export UTILIKIT_CONFIG_TYPE=linux_simple
-./utilikit/prepare_sources.py
-./utilikit/substitute_domains.py
+mkdir -p buildspace/downloads
+./buildkit-launcher.py genbun linux_simple
+./buildkit-launcher.py subdom
 ```
 
-Then, build a package:
+#### Generating packaging files and invoking build
 
 **Debian package**
 
-Build a `deb` package for any Debian-based system
+Builds a `deb` package for any Debian-based system
 
 ```
-# TODO: The following command doesn't work yet because utilikit needs to be updated. Instead, use --flavor standard and manually apply the patch at resources/packaging/debian/minimal.patch
-./utilikit/generate_build_files.py debian --flavor minimal --apply-domain-substitution
-cd build/sandbox
+./buildkit-launcher.py genpkg debian --flavor minimal
+# The buildspace tree can be relocated to another system for building
+cd buildspace/tree
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
-# If necessary, change the dependencies in debian/control and modify CLANG_BASE_PATH in debian/rules to accomodate your environment.
+# If necessary, change the dependencies in debian/control to accomodate your environment.
+# If necessary, modify CLANG_BASE_PATH in debian/rules to change the LLVM and Clang installation path
+# (which contains files like bin/clang++, include/llvm, etc.).
 dpkg-buildpackage -b -uc
 ```
+Packages will appear in `buildspace/`
 
 **Archive**
 
-Build a compressed tar archive of the build outputs:
+Builds a compressed tar archive
 
 ```
-./utilikit/generate_build_files.py linux_simple --apply-domain-substitution
-cd build/sandbox
-# Use "export CLANG_BASE_PATH=/path/to/clang_files" if Clang and related files are not located under /usr
-./ungoogled_linux_simple/build.sh
-../../utilikit/archive_packager.py --files-cfg chrome/tools/build/linux/FILES.cfg --archive-format tar_xz --build-output-dir out/Default --target-cpu auto --output-file $OUTPUT_FILE
+./buildkit-launcher.py genpkg linux_simple
+# The buildspace tree can be relocated to another system for building
+cd buildspace/tree
+# Use "export CLANG_BASE_PATH=/path/to/llvm_root" to set the LLVM and Clang installation path
+# (which contains files like bin/clang++, include/llvm, etc.).
+# If left unset, it defaults to /usr.
+./ungoogled_packaging/build.sh
+./ungoogled_packaging/package.sh
 ```
+A compressed tar archive will appear in `buildspace/`
 
-where `OUTPUT_FILE` is the path for the new archive.
+## Advanced building information
 
-#### Setting up the build environment
+This section holds some information about building for unsupported systems and a rough building outline.
 
-TODO
+It is recommended to have an understanding of [DESIGN.md](DESIGN.md).
 
-#### Build
+**Note for unsupported systems**: There is no set procedure for building ungoogled-chromium on unsupported systems. One should already be able to build Chromium for their system before attempting to include ungoogled-chromium changes. More information about the Chromium build procedure is on [the Chromium project website](https://www.chromium.org/Home). One should also understand [DESIGN.md](DESIGN.md) before including ungoogled-chromium changes.
 
-TODO
+### Essential building requirements
 
-### Notes for other systems, platforms, and configurations
+Here are the essential building requirements: 
 
-There is much freedom in building Chromium with ungoogled-chromium's changes. One may choose to abide more by ungoogled-chromium's general building steps (described in the or more by Google's steps for building Chromium.
-
-[DESIGN.md](DESIGN.md) may be a helpful read to gain insights into `utilikit` and the project's file structure.
-
-Consult the build instructions on the [Chromium homepage](//www.chromium.org/Home) for platform-specific building information.
-
-You can use `depot_tools` to setup the Chromium source tree in `build/sandbox` if `utilikit`'s source downloading system does not support a configuration. However, please note that this will involve executing Google binaries part of `depot_tools` and will run scripts that can download and run more Google binaries.
-
-The main set of patches (listed in `resources/configs/common/patch_order`) should work on most, if not all, platforms supported by desktop Chromium. Some patches are there to fix building with certain build flags, so those may not work with other platforms or configurations. However, the patches as they are should apply as long as there is a clean and unmodified source tree.
-
-Domain substitution and source cleaning will break scripts that downloads from Google, and other scripts operating on binary files from the source tree.
-
-## Building generalizations and additional information
-
-This section is targeted towards users who are building for a platform without build instructions or who need additional customizations.
-
-### Common building requirements
-
-The following is needed to fully use `utilikit`:
-* Python 3 (tested on 3.5) for running `utilikit`
+* Python 3 (tested on 3.5) for running buildkit
 * Python 2 (tested on 2.7) for building GN and running other scripts
 * [Ninja](//ninja-build.org/) for running the build command
+* [Quilt](//savannah.nongnu.org/projects/quilt/) is recommended for patch management.
+    * [python-quilt](//github.com/bjoernricks/python-quilt) can be used as well.
 
-Alternatively, one can obtain Python 2 and Ninja binaries from [Google's depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools). depot_tools provides additional utilities that may ease the setup of the build environment for certain target configurations.
+Alternatively, [depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools) can provide Python 2 and Ninja.
 
-Additional requirements are listed in the sections for specific platforms.
+### Outline building procedure
 
-### Configuring environment variables
+This section has a rough outline of the entire building procedure.
 
-`utilikit` uses a few environment variables to reduce redundancy in command invocations.
+In the following steps, `buildkit` represents the command to invoke buildkit's CLI.
 
-Here is a list of variables:
-* `UTILIKIT_CONFIG_TYPE` - The configuration to use. This corresponds to a directory name in `resources/configs`
-* `UTILIKIT_RESOURCES` - The path to the `resources` directory. Defaults to `../resources`, relative to the `utilikit` directory.
-* `UTILIKIT_DOWNLOADS_DIR` - The path containing downloaded Chromium source archive and other packed dependencies. Defaults to `../build/downloads`, relative to the `utilikit` directory.
-* `UTILIKIT_SANDBOX_DIR` - The path containing the build sandbox. Defaults to `../build/sandbox`, relative to the `utilikit` directory.
+Note that each buildkit command has a help page associated with it. Pass in `-h` or `--help` for more information.
 
-For Linux users, make sure to `export` these variables to make them available to sub-processes.
-
-### General building instructions
-
-These steps are employed in the [platform-specific building instructions](#platform-specific-building-instructions) below. Do note, however, that this is only one application of `utilikit`.
-
-If you just want the build flags and patches without going through `utilikit`, you can use `utilikit/export_resources.py` to export them.
-
-Here is a typical build sequence for ungoogled-chromium:
-
-1. Set `UTILIKIT_*` environment variables
-2. Check to see if the build environment is setup correctly (optional, only certain requirements): `utilikit/check_requirements.py`
-3. Make build directories `build/`, `build/sandbox/`, `build/downloads/`
-4. Prepare the source code: `utilikit/prepare_sources.py`
-5. Apply domain substitution: `utilikit/substitute_domains.py`
-6. If `utilikit` can generate build files for the desired configuration, use the following:
-    * Generate build files: `utilikit/generate_build_files.py`
-    * Use the build files.
-    * NOTE: The generated build files vary in format across configurations. Consult the [platform-specific building instructions](#platform-specific-building-instructions) below for usage details.
-7. If not using generated build files, run the build sequence as follows:
-    2. Apply patches
-    3. Build GN via `tools/gn/bootstrap/bootstrap.py`
-    4. Run `gn gen` with the GN flags
-    5. Build Chromium via `ninja`
-    6. Package the build outputs. This should be the same as it is for regular Chromium.
-
-It should be noted that the build sequence...
-
-* is similar to Google's build steps for Chromium, and identical to the steps used by some Linux packagers of Chromium.
-* is automated by the build files.
-
-All utilities in `utilikit` have built-in command-line help. Pass in `-h` or `--help` for details.
-
-For a list of all `utilikit` utilities, see [DESIGN.md](DESIGN.md).
+1. Create `buildspace/` and `buildspace/downloads`. Other directories are created already.
+2. Generate a user config bundle from a base config bundle: `buildkit genbun base_bundle`
+3. Modify the user config bundle (default location is `buildspace/user_bundle`)
+4. Create the buildspace tree: `buildkit getsrc`
+5. Apply domain substitution: `buildkit subdom`
+6. Generate packaging files into the buildspace tree: `buildkit genpkg package_type [options]`
+7. Relocate the buildspace tree (with packaging files) to the proper machine for building.
+8. Invoke the packaging scripts to build and package ungoogled-chromium.
