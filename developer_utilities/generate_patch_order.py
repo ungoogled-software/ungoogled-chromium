@@ -5,44 +5,29 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-"""Generates a patch_order file for updating patches"""
+"""Generates updating_patch_order.list in the buildspace for updating patches"""
 
 import argparse
-import pathlib
+import sys
+from pathlib import Path
 
-if __name__ == "__main__" and (__package__ is None or __package__ == ""):
-    def _fix_relative_import():
-        import os
-        import sys
-        """Relative import from the root of the repository tree"""
-        parent_path = os.path.dirname(
-            os.path.dirname(
-                os.path.realpath(
-                    os.path.abspath(__file__)
-                )
-            )
-        )
-        sys.path.insert(0, os.path.dirname(parent_path))
-        global __package__ #pylint: disable=global-variable-undefined
-        __package__ = os.path.basename(parent_path) #pylint: disable=redefined-builtin
-        __import__(__package__)
-        sys.path.pop(0)
-    _fix_relative_import()
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from buildkit.common import ENCODING
+from buildkit.cli import NewBaseBundleAction
+sys.path.pop(0)
 
-from .utilikit import _common
-
-def _main():
+def main(arg_list=None):
+    """CLI entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("build_dir",
-                        help="The build directory to output the patch order file to")
-    parser.add_argument("target_config",
-                        help="The configuration to get the patch order from")
-    args = parser.parse_args()
+    parser.add_argument('base_bundle', action=NewBaseBundleAction,
+                        help='The base bundle to generate a patch order from')
+    parser.add_argument('--output', metavar='PATH', type=Path,
+                        default='buildspace/updating_patch_order.list',
+                        help='The patch order file to write')
+    args = parser.parse_args(args=arg_list)
 
-    resources = _common.ResourceConfig(args.target_config)
-
-    _common.write_list(pathlib.Path(args.build_dir) / "updating_patch_order",
-                       resources.read_patch_order())
+    with args.output.open('w', encoding=ENCODING) as file_obj:
+        file_obj.writelines('%s\n' % x for x in args.base_bundle.patches)
 
 if __name__ == "__main__":
-    _main()
+    main()
