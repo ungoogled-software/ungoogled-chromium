@@ -14,7 +14,7 @@
  #include "chrome/browser/ui/webui/print_preview/privet_printer_handler.h"
 --- a/content/browser/net/reporting_service_proxy.cc
 +++ b/content/browser/net/reporting_service_proxy.cc
-@@ -60,6 +60,7 @@ class ReportingServiceProxyImpl : public
+@@ -97,6 +97,7 @@ class ReportingServiceProxyImpl : public
                     const std::string& group,
                     const std::string& type,
                     std::unique_ptr<base::Value> body) {
@@ -22,7 +22,7 @@
      net::URLRequestContext* request_context =
          request_context_getter_->GetURLRequestContext();
      if (!request_context) {
-@@ -75,6 +76,7 @@ class ReportingServiceProxyImpl : public
+@@ -112,6 +113,7 @@ class ReportingServiceProxyImpl : public
      }
  
      reporting_service->QueueReport(url, group, type, std::move(body));
@@ -32,7 +32,7 @@
    scoped_refptr<net::URLRequestContextGetter> request_context_getter_;
 --- a/chrome/browser/profiles/profile_impl_io_data.h
 +++ b/chrome/browser/profiles/profile_impl_io_data.h
-@@ -194,6 +194,7 @@ class ProfileImplIOData : public Profile
+@@ -182,6 +182,7 @@ class ProfileImplIOData : public Profile
        const StoragePartitionDescriptor& partition_descriptor) const override;
    chrome_browser_net::Predictor* GetPredictor() override;
  
@@ -40,7 +40,7 @@
    // Returns a net::ReportingService, if reporting should be enabled. Otherwise,
    // returns nullptr.
    // TODO(mmenke): Remove once URLRequestContextBuilders are always used to
-@@ -204,6 +205,7 @@ class ProfileImplIOData : public Profile
+@@ -192,6 +193,7 @@ class ProfileImplIOData : public Profile
    // Returns a net::ReportingPolicy, if reporting should be enabled. Otherwise,
    // returns nullptr.
    static std::unique_ptr<net::ReportingPolicy> MaybeCreateReportingPolicy();
@@ -50,7 +50,7 @@
    mutable std::unique_ptr<LazyParams> lazy_params_;
 --- a/chrome/browser/profiles/profile_impl_io_data.cc
 +++ b/chrome/browser/profiles/profile_impl_io_data.cc
-@@ -481,7 +481,9 @@
+@@ -472,7 +472,9 @@ void ProfileImplIOData::InitializeIntern
        builder, std::move(request_interceptors),
        std::move(profile_params->protocol_handler_interceptor));
  
@@ -60,7 +60,7 @@
  }
  
  void ProfileImplIOData::OnMainRequestContextCreated(
-@@ -617,7 +619,9 @@
+@@ -608,7 +610,9 @@ net::URLRequestContext* ProfileImplIODat
            context->host_resolver()));
    context->SetJobFactory(std::move(top_job_factory));
  
@@ -70,7 +70,7 @@
  
    return context;
  }
-@@ -707,6 +711,7 @@
+@@ -698,6 +702,7 @@ chrome_browser_net::Predictor* ProfileIm
    return predictor_.get();
  }
  
@@ -78,8 +78,35 @@
  std::unique_ptr<net::ReportingService>
  ProfileImplIOData::MaybeCreateReportingService(
      net::URLRequestContext* url_request_context) const {
-@@ -725,3 +730,4 @@
+@@ -716,3 +721,4 @@ ProfileImplIOData::MaybeCreateReportingP
  
    return base::MakeUnique<net::ReportingPolicy>();
  }
 +#endif
+--- a/chrome/browser/profiles/profile_io_data.cc
++++ b/chrome/browser/profiles/profile_io_data.cc
+@@ -638,7 +638,9 @@
+ void ProfileIOData::AppRequestContext::SetReportingService(
+     std::unique_ptr<net::ReportingService> reporting_service) {
+   reporting_service_ = std::move(reporting_service);
++#if BUILDFLAG(ENABLE_REPORTING)
+   set_reporting_service(reporting_service_.get());
++#endif
+ }
+ 
+ ProfileIOData::AppRequestContext::~AppRequestContext() {
+--- a/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
++++ b/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
+@@ -252,10 +252,12 @@
+     const base::Callback<bool(const GURL&)>& origin_filter) {
+   DCHECK_CURRENTLY_ON(BrowserThread::IO);
+ 
++#if BUILDFLAG(ENABLE_REPORTING)
+   net::ReportingService* service =
+       context->GetURLRequestContext()->reporting_service();
+   if (service)
+     service->RemoveBrowsingData(data_type_mask, origin_filter);
++#endif
+ }
+ 
+ #if defined(OS_ANDROID)
