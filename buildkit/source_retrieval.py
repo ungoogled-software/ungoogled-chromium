@@ -136,6 +136,8 @@ def _download_if_needed(file_path, url, show_progress):
         if show_progress:
             reporthook = _UrlRetrieveReportHook()
         urllib.request.urlretrieve(url, str(file_path), reporthook=reporthook)
+        if show_progress:
+            print()
     else:
         get_logger().info('%s already exists. Skipping download.', file_path)
 

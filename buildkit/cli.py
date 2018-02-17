@@ -169,11 +169,11 @@ def _add_getsrc(subparsers):
     setup_bundle_group(parser)
     parser.add_argument(
         '-t', '--tree', type=Path, default=BUILDSPACE_TREE,
-        help='The buildspace tree path. Default: %s' % BUILDSPACE_TREE)
+        help='The buildspace tree path. Default: %(default)s')
     parser.add_argument(
         '-d', '--downloads', type=Path, default=BUILDSPACE_DOWNLOADS,
         help=('Path to store archives of Chromium source code and extra deps. '
-              'Default: %s') % BUILDSPACE_DOWNLOADS)
+              'Default: %(default)s'))
     parser.add_argument(
         '--disable-binary-pruning', action='store_false', dest='prune_binaries',
         help='Disables binary pruning during extraction.')
@@ -207,7 +207,7 @@ def _add_prubin(subparsers):
     setup_bundle_group(parser)
     parser.add_argument(
         '-t', '--tree', type=Path, default=BUILDSPACE_TREE,
-        help='The buildspace tree path to apply binary pruning. Default: %s' % BUILDSPACE_TREE)
+        help='The buildspace tree path to apply binary pruning. Default: %(default)s')
     parser.set_defaults(callback=_callback)
 
 def _add_subdom(subparsers):
@@ -236,7 +236,7 @@ def _add_subdom(subparsers):
     parser.add_argument(
         '-t', '--tree', type=Path, default=BUILDSPACE_TREE,
         help=('The buildspace tree path to apply domain substitution. '
-              'Not applicable when --only is "patches". Default: %s') % BUILDSPACE_TREE)
+              'Not applicable when --only is "patches". Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg_debian(subparsers):
@@ -260,7 +260,7 @@ def _add_genpkg_debian(subparsers):
         '-o', '--output', type=Path, default='%s/debian' % BUILDSPACE_TREE,
         help=('The path to the debian directory to be created. '
               'It must not already exist, but the parent directories must exist. '
-              'Default: %s/debian') % BUILDSPACE_TREE)
+              'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg_linux_simple(subparsers):
@@ -283,7 +283,7 @@ def _add_genpkg_linux_simple(subparsers):
         '-o', '--output', type=Path, default=BUILDSPACE_TREE_PACKAGING,
         help=('The directory to store packaging files. '
               'It must not already exist, but the parent directories must exist. '
-              'Default: %s') % BUILDSPACE_TREE_PACKAGING)
+              'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg_macos(subparsers):
@@ -305,7 +305,7 @@ def _add_genpkg_macos(subparsers):
         '-o', '--output', type=Path, default=BUILDSPACE_TREE_PACKAGING,
         help=('The directory to store packaging files. '
               'It must not already exist, but the parent directories must exist. '
-              'Default: %s') % BUILDSPACE_TREE_PACKAGING)
+              'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg(subparsers):

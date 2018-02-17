@@ -22,7 +22,7 @@ def substitute_domains_for_files(regex_iter, file_iter, log_warnings=True):
     file_iter is an iterable of pathlib.Path to files that are to be domain substituted
     log_warnings indicates if a warning is logged when a file has no matches.
     """
-
+    encoding = None # To satisfy pylint undefined-loop-variable warning
     for path in file_iter:
         with path.open(mode="r+b") as file_obj:
             file_bytes = file_obj.read()
@@ -33,6 +33,9 @@ def substitute_domains_for_files(regex_iter, file_iter, log_warnings=True):
                     break
                 except UnicodeDecodeError:
                     continue
+            if not content:
+                get_logger().error('Unable to decode with any encoding: %s', path)
+                raise BuildkitAbort()
             file_subs = 0
             for regex_pair in regex_iter:
                 content, sub_count = regex_pair.pattern.subn(
@@ -56,14 +59,16 @@ def substitute_domains_in_patches(regex_iter, file_set, patch_iter, log_warnings
     patch_iter is an iterable that returns pathlib.Path to patches that should be
         checked and substituted.
     log_warnings indicates if a warning is logged when no substitutions are performed
+
+    Raises BuildkitAbort if a unified diff could not be parsed.
     """
     for patch_path in patch_iter:
         with patch_path.open('r+', encoding=ENCODING) as file_obj:
             try:
                 patchset = unidiff.PatchSet(file_obj.read())
-            except unidiff.errors.UnidiffParseError as exc:
-                get_logger().error('Patch "%s" has an error: %s', patch_path, exc)
-                raise exc
+            except unidiff.errors.UnidiffParseError:
+                get_logger().exception('Could not parase patch: %s', patch_path)
+                raise BuildkitAbort()
             file_subs = 0
             for patchedfile in patchset:
                 if patchedfile.path not in file_set:
