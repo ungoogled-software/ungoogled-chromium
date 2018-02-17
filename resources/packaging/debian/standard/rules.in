@@ -6,7 +6,7 @@ export DH_VERBOSE=1
 # enable all build hardening flags
 export DEB_BUILD_MAINT_OPTIONS=hardening=+all
 
-export CLANG_BASE_PATH=/usr/lib/llvm-3.9
+export CLANG_BASE_PATH=/usr/lib/llvm-5.0
 
 # more verbose linker output
 defines+=target_extra_ldflags=\"-Wl,--stats\"
@@ -67,12 +67,13 @@ override_dh_auto_configure:
 override_dh_auto_build-arch: $ungoog{build_output}/gn
 	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
 	ninja $(njobs) -C $ungoog{build_output} chrome chrome_sandbox content_shell chromedriver
-	mv $ungoog{build_output}/chrome $ungoog{build_output}/chromium || true
-	mv $ungoog{build_output}/chrome.1 $ungoog{build_output}/chromium.1 || true
-	mv $ungoog{build_output}/content_shell $ungoog{build_output}/chromium-shell || true
-	mv $ungoog{build_output}/chrome_sandbox $ungoog{build_output}/chrome-sandbox || true
-	mv $ungoog{build_output}/locales/en-US.pak $ungoog{build_output}/resources || true
+	cp $ungoog{build_output}/chrome $ungoog{build_output}/chromium
+	cp $ungoog{build_output}/content_shell $ungoog{build_output}/chromium-shell
+	cp $ungoog{build_output}/chrome_sandbox $ungoog{build_output}/chrome-sandbox
+	cp $ungoog{build_output}/locales/en-US.pak $ungoog{build_output}/resources
 	chmod 4755 $ungoog{build_output}/chrome-sandbox # suid sandbox
+	sed -e s/@@PACKAGE@@/chromium/g -e s/@@MENUNAME@@/Chromium/g \
+	    < chrome/app/resources/manpage.1.in > $ungoog{build_output}/chromium.1
 
 override_dh_auto_build-indep: $ungoog{build_output}/gn
 	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
@@ -88,13 +89,7 @@ override_dh_auto_install-arch:
 	sed 's|@BUILD_DIST@|$(shell printf "%s %s/%s" $(shell lsb_release -si) $(shell lsb_release -sc) $(shell lsb_release -sr))|' \
 	    < debian/scripts/chromium > debian/ungoogled-chromium/usr/bin/chromium
 	# move icons into /usr/share
-	for file in $(shell find chrome/app/theme/chromium -name product_logo_[0-9]* -a ! -name *mono*); do \
-	    ext=$$(echo $$file | cut -d\. -f2); \
-	    siz=$$(echo $$file | cut -d_ -f3 | sed s/\.$$ext//); \
-	    dst=debian/ungoogled-chromium/usr/share/icons/hicolor/$$siz\x$$siz/apps; \
-	    mkdir -p $$dst; \
-	    cp $$file $$dst/chromium.$$ext; \
-	    done
+	./debian/scripts/icons
 
 override_dh_fixperms:
 	dh_fixperms --exclude chrome-sandbox
@@ -109,23 +104,3 @@ override_dh_auto_clean:
 	rm -rf out
 	find . -name \*.pyc -execdir rm -f {} \;
 	dh_auto_clean
-
-###################### upstream source downloading ############################
-
-url=https://gsdview.appspot.com/chromium-browser-official
-version=$(shell dpkg-parsechangelog -S Version | sed s/-.*//)
-extract=chromium-$(version)
-tarball=$(extract).tar.xz
-debian=chromium-browser_$(version)
-output=$(debian).orig.tar.xz
-removed=$(debian).files-removed
-
-get-orig-source:
-	wget -nv --show-progress -c $(url)/$(tarball) -O ../$(tarball)
-	/usr/bin/time --portability ./debian/scripts/mk-origtargz ../$(tarball) > ../$(removed)
-	test ! -e $(extract) || rm -rf $(extract)
-	/usr/bin/time --portability tar xaf ../$(tarball)
-	while read line; do rm -rf $$line; done < ../$(removed)
-	test ! -e ../$(output) || rm -f ../$(output)
-	/usr/bin/time --portability tar caf ../$(output) $(extract)
-	/usr/bin/time --portability rm -rf $(extract)

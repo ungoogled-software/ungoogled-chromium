@@ -1,0 +1,223 @@
+From a57aa298ed3c3b76056d6e24fb09db05dca2f465 Mon Sep 17 00:00:00 2001
+From: Daniel Charles <daniel.charles@intel.com>
+Date: Thu, 25 Jan 2018 13:01:37 -0800
+Subject: [PATCH] vaapi initialization: move it to vaapi_wrapper
+
+vaapi loading of libraries happens on the Pre and Post Sandbox
+functions.  Moving dynamic loading of libaries, i.e. libva,libva-drm
+and i965_drv_video shared libraries to vaapi_wrapper.
+
+When calling PreSandbox function in vaapi_wrapper libva will open
+i965_drv_video shared library and both will be available for use
+
+BUG=chromium:785117
+TEST="video initialization of h/w dec/enc, VAVDA/VAVEA/VAJDA subjective"
+TEST="testing and include unittests and autotests"
+
+Cq-Include-Trybots: master.tryserver.chromium.android:android_optional_gpu_tests_rel;master.tryserver.chromium.linux:linux_optional_gpu_tests_rel;master.tryserver.chromium.mac:mac_optional_gpu_tests_rel;master.tryserver.chromium.win:win_optional_gpu_tests_rel
+Change-Id: I862bb49f1167d7437e80387882cb9081ad53f54b
+Signed-off-by: Daniel Charles <daniel.charles@intel.com>
+---
+
+--- a/content/gpu/gpu_sandbox_hook_linux.cc
++++ b/content/gpu/gpu_sandbox_hook_linux.cc
+@@ -28,10 +28,6 @@
+ #include "services/service_manager/sandbox/linux/bpf_gpu_policy_linux.h"
+ #include "services/service_manager/sandbox/linux/sandbox_linux.h"
+ 
+-#if BUILDFLAG(USE_VAAPI)
+-#include <va/va_version.h>
+-#endif
+-
+ using sandbox::bpf_dsl::Policy;
+ using sandbox::syscall_broker::BrokerFilePermission;
+ using sandbox::syscall_broker::BrokerProcess;
+@@ -47,22 +43,6 @@ inline bool IsChromeOS() {
+ #endif
+ }
+ 
+-inline bool IsArchitectureX86_64() {
+-#if defined(__x86_64__)
+-  return true;
+-#else
+-  return false;
+-#endif
+-}
+-
+-inline bool IsArchitectureI386() {
+-#if defined(__i386__)
+-  return true;
+-#else
+-  return false;
+-#endif
+-}
+-
+ inline bool IsArchitectureArm() {
+ #if defined(ARCH_CPU_ARM_FAMILY)
+   return true;
+@@ -87,14 +67,6 @@ inline bool UseLibV4L2() {
+ #endif
+ }
+ 
+-inline bool IsLibVAVersion2() {
+-#if BUILDFLAG(USE_VAAPI) && VA_MAJOR_VERSION == 1
+-  return true;
+-#else
+-  return false;
+-#endif
+-}
+-
+ constexpr int dlopen_flag = RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE;
+ 
+ void AddV4L2GpuWhitelist(
+@@ -259,51 +231,6 @@ void LoadV4L2Libraries() {
+   }
+ }
+ 
+-void LoadStandardLibraries(
+-    const service_manager::SandboxSeccompBPF::Options& options) {
+-  if (IsArchitectureX86_64() || IsArchitectureI386()) {
+-    // Accelerated video dlopen()'s some shared objects
+-    // inside the sandbox, so preload them now.
+-    if (options.vaapi_accelerated_video_encode_enabled ||
+-        options.accelerated_video_decode_enabled) {
+-      if (IsLibVAVersion2()) {
+-        if (IsArchitectureX86_64()) {
+-          dlopen("/usr/lib64/va/drivers/i965_drv_video.so", dlopen_flag);
+-          dlopen("/usr/lib64/va/drivers/hybrid_drv_video.so", dlopen_flag);
+-        } else if (IsArchitectureI386()) {
+-          dlopen("/usr/lib/va/drivers/i965_drv_video.so", dlopen_flag);
+-        }
+-        dlopen("libva.so.2", dlopen_flag);
+-#if defined(USE_OZONE)
+-        dlopen("libva-drm.so.2", dlopen_flag);
+-#endif
+-      } else {
+-        // If we are linked against libva 1, we have two cases to handle:
+-        // - the sysroot includes both libva 1 and 2, in which case the drivers
+-        //   are in /usr/lib{64}/va1/
+-        // - the sysroot only includes libva 1, in which case the drivers are
+-        //   are in /usr/lib{64}/va/
+-        // This is ugly, but temporary until all builds have switched to libva 2.
+-        if (IsArchitectureX86_64()) {
+-          if (!dlopen("/usr/lib64/va1/drivers/i965_drv_video.so", dlopen_flag))
+-            dlopen("/usr/lib64/va/drivers/i965_drv_video.so", dlopen_flag);
+-          if (!dlopen("/usr/lib64/va1/drivers/hybrid_drv_video.so", dlopen_flag))
+-            dlopen("/usr/lib64/va/drivers/hybrid_drv_video.so", dlopen_flag);
+-        } else if (IsArchitectureI386()) {
+-          if (!dlopen("/usr/lib/va1/drivers/i965_drv_video.so", dlopen_flag))
+-            dlopen("/usr/lib/va/drivers/i965_drv_video.so", dlopen_flag);
+-        }
+-        dlopen("libva.so.1", dlopen_flag);
+-#if defined(USE_OZONE)
+-        dlopen("libva-drm.so.1", dlopen_flag);
+-#elif defined(USE_X11)
+-        dlopen("libva-x11.so.1", dlopen_flag);
+-#endif
+-      }
+-    }
+-  }
+-}
+-
+ bool LoadLibrariesForGpu(
+     const service_manager::SandboxSeccompBPF::Options& options) {
+   if (IsChromeOS()) {
+@@ -316,7 +243,6 @@ bool LoadLibrariesForGpu(
+     if (options.use_amd_specific_policies)
+       return LoadAmdGpuLibraries();
+   }
+-  LoadStandardLibraries(options);
+   return true;
+ }
+ 
+--- a/media/gpu/vaapi/vaapi_wrapper.cc
++++ b/media/gpu/vaapi/vaapi_wrapper.cc
+@@ -163,9 +163,6 @@ class VADisplayState {
+   void SetDrmFd(base::PlatformFile fd) { drm_fd_.reset(HANDLE_EINTR(dup(fd))); }
+ 
+  private:
+-  // Returns false on init failure.
+-  static bool PostSandboxInitialization();
+-
+   // Protected by |va_lock_|.
+   int refcount_;
+ 
+@@ -200,43 +197,12 @@ void VADisplayState::PreSandboxInitializ
+     VADisplayState::Get()->SetDrmFd(drm_file.GetPlatformFile());
+ }
+ 
+-// static
+-bool VADisplayState::PostSandboxInitialization() {
+-  const std::string va_suffix(std::to_string(VA_MAJOR_VERSION + 1));
+-  StubPathMap paths;
+-
+-  paths[kModuleVa].push_back(std::string("libva.so.") + va_suffix);
+-  paths[kModuleVa_drm].push_back(std::string("libva-drm.so.") + va_suffix);
+-#if defined(USE_X11)
+-  // libva-x11 does not exist on libva >= 2
+-  if (VA_MAJOR_VERSION == 0)
+-    paths[kModuleVa_x11].push_back("libva-x11.so.1");
+-#endif
+-
+-  const bool success = InitializeStubs(paths);
+-  if (!success) {
+-    static const char kErrorMsg[] = "Failed to initialize VAAPI libs";
+-#if defined(OS_CHROMEOS)
+-    // When Chrome runs on Linux with target_os="chromeos", do not log error
+-    // message without VAAPI libraries.
+-    LOG_IF(ERROR, base::SysInfo::IsRunningOnChromeOS()) << kErrorMsg;
+-#else
+-    DVLOG(1) << kErrorMsg;
+-#endif
+-  }
+-  return success;
+-}
+-
+ VADisplayState::VADisplayState()
+     : refcount_(0), va_display_(nullptr), va_initialized_(false) {}
+ 
+ bool VADisplayState::Initialize() {
+   va_lock_.AssertAcquired();
+ 
+-  static bool result = PostSandboxInitialization();
+-  if (!result)
+-    return false;
+-
+   if (refcount_++ > 0)
+     return true;
+ 
+@@ -1367,6 +1333,34 @@ void VaapiWrapper::DeinitializeVpp() {
+ // static
+ void VaapiWrapper::PreSandboxInitialization() {
+   VADisplayState::PreSandboxInitialization();
++
++  const std::string va_suffix(std::to_string(VA_MAJOR_VERSION + 1));
++  StubPathMap paths;
++
++  paths[kModuleVa].push_back(std::string("libva.so.") + va_suffix);
++  paths[kModuleVa_drm].push_back(std::string("libva-drm.so.") + va_suffix);
++#if defined(USE_X11)
++  paths[kModuleVa_x11].push_back(std::string("libva-x11.so.") + va_suffix);
++#endif
++
++  static bool result = InitializeStubs(paths);
++  if (!result) {
++    static const char kErrorMsg[] = "Failed to initialize VAAPI libs";
++#if defined(OS_CHROMEOS)
++    // When Chrome runs on Linux with target_os="chromeos", do not log error
++    // message without VAAPI libraries.
++    LOG_IF(ERROR, base::SysInfo::IsRunningOnChromeOS()) << kErrorMsg;
++#else
++    DVLOG(1) << kErrorMsg;
++#endif
++  }
++  // next command will dlopen all necessary libraries for
++  // va-api to function properly, to know:
++  // libva.so
++  // i965_drv_video.so
++  // hybrid_drv_video.so (platforms that support it)
++  // libva-x11.so (X11) or libva-drm.so (Ozone).
++  VASupportedProfiles::Get();
+ }
+ 
+ }  // namespace media

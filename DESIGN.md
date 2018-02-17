@@ -1,57 +1,182 @@
-# Design and implementation notes
+# Design
 
-Configuration flags, patches, and build script settings are stored in the `resources` directory. The `resources` directory consists of the following:
-* `configs` - GN flags, domain substitution lists, cleaning lists, and the patches to apply
-* `patches` - Contains all of the patches used in `configs`
-* `packaging` - Files used in producing build scripts (mainly for packaging)
+This document contains a high-level technical description of ungoogled-chromium and its components.
 
-There are currently two source-processing scripts:
-* Source cleaner - Used to clean out binary files (i.e. do not seem to be human-readable text files, except a few required for building)
-* Domain substitution - Used to replace Google and other domains in the source code to eliminate communication not caught by the patches and build flags.
+## Overview
 
-These processing scripts are a part of the build system.
+ungoogled-chromium consists of the following major components:
 
-## `utilikit`: The building system
+* [Configuration](#configuration)
+    * Configuration [files](#configuration-files) and [bundles](#configuration-bundles)
+    * [Source file processors](#source-file-processors)
+    * [Patches](#patches)
+* [Packaging](#packaging)
+* [buildkit](#buildkit)
+* [Buildspace](#buildspace)
 
-`utilikit` is a custom set of command-line tools (i.e. a kit of utilities) to assist in building Chromium with the modifications from ungoogled-chromium.
+The following sections describe each component.
 
-### List of utilities
+## Configuration
 
-All utilities have built-in command-line help associated with them. Pass in `-h` or `--help` for more details
+Configuration is a broad term that referes to patches, build flags, and metadata about Chromium source code. It consists of the following components:
 
-* `check_requirements.py` - Checks if the build environment is setup correctly
-* `prepare_sources.py` - Downloads, extracts, and runs source cleaning over the Chromium source archive. Also downloads extra dependencies if required.
-* `clean_sources.py` - Cleans the source tree (not necessary if using `prepare_sources.py`)
-* `substitute_domains.py` - Substitutes domains in the source tree
-* `build_gn.py` - Wrapper script around the GN bootstrap script
-* `generate_build_files.py` - Generates build and packaging scripts
-* `archive_packager.py` - Creates an archive of the build output using `FILES.cfg`
-* `export_resources.py` - Exports build flags, patches, domain substitution file list, and source cleaning file list for a configuration
+* Configuration [files](#configuration-files) and [bundles](#configuration-bundles)
+* [Source file processors](#source-file-processors)
+* [Patches](#patches)
 
-## Contents of a directory in `resources/configs`
+The following sections describe each component in more depth.
 
-* `metadata.ini` - Metadata about the configuration. This includes (but is not limited to) the other configurations that it inherits.
-* `cleaning_list` - (Used for source cleaning) A list of files to be excluded during the extraction of the Chromium source
-* `domain_regex_list` - (Used for domain substitution) A list of regular expressions that define how domains will be replaced in the source code
-* `domain_substitution_list` - (Used for domain substitution) A list of files that are processed by `domain_regex_list`
-* `extra_deps.ini` - Contains info to download extra dependencies needed for the platform but not included in the main Chromium source archive
-* `gn_flags` - A list of GN flags to use for building.
-* `patch_order` - The patches and ordering to apply them in.
+### Configuration Files
 
-All of these files are human-readable, but they are usually processed by the Python building system. See the Building section below for more information.
+Configuration files (or config files) are files that store build configuration and source code changes for a build. The kinds of config files are:
 
-## Contents of `resources/patches`
+* Compiler, linker and metaprocessor (e.g. GN, ninja) flags
+* Chromium code metadata
+* Patches to apply
 
-* `debian/` - Contains patches from Debian's Chromium.
-    * Patches are not touched unless they do not apply cleanly onto the version of Chromium being built
+**IMPORTANT**: For consistency, all config files must be encoded in UTF-8.
+
+All config file names have an extension that determines their type. The extensions are:
+
+* `.list` (list config file) - A list of strings delimited by a carriage return character.
+* `.map` (mapping config file) - A mapping of string keys and values, with entries delimited by a carriage return, and keys and values delimited by an equal (`=`) sign.
+* `.ini` (ini config file) - An INI-like config format (specifically, the implementation by Python's `configparser`)
+
+Config files are usually stored in a [configuration bundle](#configuration-bundles) or in some form in the `resources` directory of the repository.
+
+### Configuration Bundles
+
+*Also known as config bundles, or bundles.*
+
+Configuration bundles are a collection of config files grouped by system, platform, or target. They are stored as filesystem directories containing the config files. There are two kinds of config bundles:
+
+* *Base bundles* - Bundles included in ungoogled-chromium (which reside under `resources/config_bundles`). They are generally used for creating user bundles. All base bundles must include `basebundlemeta.ini`. Unlike user bundles, all base bundles' patches are stored in `resources/patches`.
+
+    Many configurations share a lot in common. To reduce duplication, base bundles can depend on other base bundles by specifying a list of dependencies in the `depends` key of `basebundlemeta.ini`. When dependencies are present, base bundles only contain the config file data that is modified in or added to its dependencies. The following are additional points about base bundle dependencies:
+    * Direct dependencies for any one base bundle are ordered; the ordering specifies how dependency configuration is resolved in a consistent manner.
+        * This ordering is determined by the order in which they appear in the `depends` key of `basebundlemeta.ini`; dependencies are applied from right to left just like multiple inheritance in Python.
+    * The graph of all base bundle dependency relationships must be representable by a [polytree](https://en.wikipedia.org/wiki/Polytree) to be valid.
+    * Due to the direct dependency ordering and polytree requirements, all dependencies for a base bundle can be resolved to a consistent sequence. This sequence is known as the *dependency order*.
+    * Base bundles may depend on mixins. Mixins are like base bundles, but they are only used as dependencies for base bundles or other mixins, and their names are always prefixed with `_mixin`. This means that mixins are not valid configurations; they only contain partial data. These are similar in idea to mixins in Python.
+
+    Base bundles merge config file types from its dependencies in the following manner (config file types are explained in [the Configuration Files section](#configuration-files)):
+    * `.list` - List files are joined in the dependency order.
+    * `.map` - Entries (key-value pairs) are collected together. If a key exists in two or more dependencies, the subsequent dependencies in the dependency order have precedence.
+    * `.ini` - Sections are collected together. If a section exists in two or more dependencies, its keys are resolved in an identical manner as mapping config files.
+
+    Base bundles vary in specificity; some apply across multiple kinds of systems, and some apply to a specific family. However, no base bundle may become more specific than a "public" system variant; since there is no concrete definition, the policy for Linux distribution base bundles is used to illustrate:
+    * Each family of Linux distributions should have their own base bundle (e.g. Debian, Fedora)
+    * Each distribution within that family can have their own base bundle ONLY if they cannot be combined (e.g. Debian and Ubuntu)
+    * Each version for a distribution can have their own base bundle ONLY if the versions in question cannot be combined and should be supported simultaneously (e.g. Debian testing and stable, Ubuntu LTS and regular stables)
+    * Custom Linux systems for personal or limited use **should not** have a base bundle.
+
+    Among the multiple base bundles and mixins, here are a few noteworthy ones:
+    * `common` - The base bundle used by all other base bundles. It contains most, if not all, of the feature-implementing configuration.
+    * `linux_rooted` - The base bundle used by Linux base bundles that build against system libraries.
+    * `linux_portable` - The base bundle used for building with minimal dependency on system libraries. It is more versatile than `linux_rooted` since it is less likely to break due to system library incompatibility.
+* *User bundles* - Bundles intended for use in building. They cannot have dependencies, so they must contain all configuration data. They are usually generated from base bundles, from which they can be modified by the user. Unlike base bundles, all patches used must be contained within the user bundle.
+
+Config bundles can only contain the following files:
+
+* `pruning.list` - [See the Source File Processors section](#source-file-processors)
+* `domain_regex.list` - [See the Source File Processors section](#source-file-processors)
+* `domain_substitution.list` - [See the Source File Processors section](#source-file-processors)
+* `extra_deps.ini` - Extra archives to download and unpack into the buildspace tree. This includes code not bundled in the Chromium source code archive that is specific to a non-Linux platform. On platforms such as macOS, this also includes a pre-built LLVM toolchain for covenience (which can be removed and built from source if desired).
+* `gn_flags.map` - GN arguments to set before building.
+* `patch_order.list` - The series of patches to apply with paths relative to the `patches/` directory (whether they be in `resources/` or the bundle itself).
+* `version.ini` - Tracks the the Chromium version to use, the ungoogled-chromium revision, and any configuration-specific version information.
+* `basebundlemeta.ini` *(Base config bundles only)* - See the description of base bundles above.
+* `patches/` *(User config bundles only)* - Contains the patches referenced by `patch_order.list`. [See the Patches section](#patches) for more details.
+
+### Source File Processors
+
+Source file processors are utilities that directly manipulate the Chromium source tree before building. Currently, there are two such utilities: binary pruning, and domain substitution.
+
+**Binary Pruning**: Strips binaries from the source code. This includes pre-built executables, shared libraries, and other forms of machine code. Most are substituted with system or user-provided equivalents, or are built from source; those binaries that cannot be removed do not contain machine code.
+
+The list of files to remove are determined by the config file `pruning.list`. This config file is generated by `developer_utilities/update_lists.py`.
+
+**Domain Substitution**: Replaces Google and several other web domain names in the Chromium source code with non-existant alternatives ending in `qjz9zk`. These changes are mainly used as a backup measure to to detect potentially unpatched requests to Google. Note that domain substitution is a crude process, and *may not be easily undone*.
+
+With a few patches from ungoogled-chromium, any requests with these domain names sent via `net::URLRequest` in the Chromium code are blocked and notify the user via a info bar. 
+
+Similar to binary pruning, the list of files to modify are listed in `domain_substitution.list`; it is also updated with `developer_utilities/update_lists.py`.
+
+The regular expressions to use are listed in `domain_regex.list`; the search and replacement expressions are delimited with a pound (`#`) symbol. The restrictions for the entries are as follows:
+* All replacement expressions must end in the TLD `qjz9zk`.
+* The search and replacement expressions must have a one-to-one correspondance: no two search expressions can match the same string, and no two replacement expressions can result in the same string.
+
+### Patches
+
+All of ungoogled-chromium's patches for the Chromium source code are located in `resources/patches`. The patches in this directory are referenced by base config bundles' `patch_order.list` config file. When a user config bundle is created, only the patches required by the user bundle's `patch_order.list` config file are copied from `resources/patches` into the user bundle's `patches/` directory.
+
+A file with the extension `.patch` is patch using the [unified format](https://en.wikipedia.org/wiki/Diff_utility#Unified_format). The requirements and recommendations for patch files are as follows:
+
+* All paths in the hunk headers must begin after the first slash (which corresponds to the argument `-p1` for GNU patch).
+* All patches must apply cleanly (i.e. no fuzz).
+* It is recommended that hunk paths have the `a/` and `b/` prefixes, and a context of 3 (like the git default).
+* All patches must be encoded in UTF-8 (i.e. same encoding as config files).
+
+Patches are grouped into the following directories:
+
+* `debian/` - Patches from Debian's Chromium
+    * Patches are not modified unless they conflict with Inox's patches
     * These patches are not Debian-specific. For those, see the `resources/debian/patches` directory
 * `inox-patchset/` - Contains a modified subset of patches from Inox patchset.
     * Some patches such as those that change branding are omitted
-    * Patches are not touched unless they conflict with Debian's patches
+    * Patches are not modified unless they do not apply cleanly onto the version of Chromium being built
     * Patches are from [inox-patchset's GitHub](//github.com/gcarq/inox-patchset)
     * [Inox patchset's license](//github.com/gcarq/inox-patchset/blob/master/LICENSE)
-* `iridium-browser` - Contains a modified subset of patches from Iridium Browser.
+* `iridium-browser/` - Contains a modified subset of patches from Iridium Browser.
     * Some patches such as those that change branding or URLs to point to Iridium's own servers are omitted
-    * Patches are not touched unless they conflict with Debian's or Inox's patches
+    * Patches are not modified unless they conflict with Debian's or Inox's patches
     * Patches are from the `patchview` branch of Iridium's Git repository. [Git webview of the patchview branch](//git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
-* `ungoogled-chromium/` - Patches from ungoogled-chromium developers.
+* `opensuse/` - Patches from openSUSE's Chromium
+* `ubuntu/` -  Patches from Ubuntu's Chromium
+* `ungoogled-chromium/` - Patches by ungoogled-chromium developers
+    * `macos/` - Patches specific to macOS
+    * `windows/` - Patches specific to Windows
+
+## Packaging
+
+Packaging is the process of producing a distributable package for end-users. This entails building the source code and packaging the build outputs.
+
+**IMPORTANT**: Packaging and configuration are distinct concepts. The names used in each are meaningful only within their respective contexts. However, there may be some implicit minor coupling between packaging types and configuration bundles due to the nature of their purposes and implementation.
+
+Building the source code consists of the following steps:
+
+1. Apply patches
+2. Build GN via `tools/gn/bootstrap/bootstrap.py`
+3. Run `gn gen` with the GN flags
+4. Build Chromium via `ninja`
+
+Packaging consists of packaging types; each type has differing package outputs and invocation requirements. Some packaging types divide the building and package generation steps; some have it all-in-one. The current packaging types are as follows:
+
+* `debian` - Builds Debian `.deb.` packages for Debian and derivative systems. There are different variants of Debian packaging scripts known as *flavors*. The current flavors are:
+    * `standard` - For building with a derivative of the `linux_rooted` base bundle.
+    * `minimal` - For building with a derivative of the `linux_portable` base bundle.
+* `linux_simple` - Builds a compressed tar archive for Linux.
+* `macos` - Builds a `.dmg` for macOS.
+
+The directories in `resources/packaging` correspond to the packaging type names. The only exception is `shared`, which is reserved for files shared among multiple packaging types.
+
+## buildkit
+
+buildkit is a Python 3 library and CLI application for building ungoogled-chromium. Its main purpose is to setup the buildspace tree and any requested building or packaging scripts from the `resources/` directory.
+
+Use `buildkit-launcher.py` to invoke the buildkit CLI. Pass in `-h` or `--help` for usage details.
+
+For examples of using buildkit's CLI, see [BUILDING.md](BUILDING.md).
+
+There is currently no API documentation for buildkit. However, all public classes, functions, and methods have docstrings that explain their usage and behavior.
+
+## Buildspace
+
+Buildspace is a directory that contains all intermediate and final files for building. Its default location is in the repository directory as `buildspace/`. The directory structure is as follows:
+
+* `tree` - The Chromium source tree, which also contains build intermediates.
+* `downloads` - Directory containing all files download; this is currently the Chromium source code archive and any potential extra dependencies.
+* `user_bundle` - The user config bundle used for building.
+* Packaged build artifacts
+
+    (The directory may contain additional files if developer utilities are used)
