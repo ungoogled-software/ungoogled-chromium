@@ -623,7 +623,7 @@ class ExtraDepsIni(IniConfigFile):
     _passthrough_properties = (*_required_keys, *_optional_keys)
 
     _schema = schema.Schema(schema_inisections({
-        schema.And(str, len): schema_dictcast({
+        schema.Optional(schema.And(str, len)): schema_dictcast({
             **{x: schema.And(str, len) for x in _required_keys},
             **{schema.Optional(x): schema.And(str, len) for x in _optional_keys},
             schema.Or(*_hashes): schema.And(str, len),
