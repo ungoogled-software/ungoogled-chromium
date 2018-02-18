@@ -67,7 +67,7 @@ Packages will appear under `buildspace/`.
 
 #### Notes for Debian derivatives
 
-Ubuntu 17.10 (artful): Same as Debian 9 (stretch)
+Ubuntu 17.10 (artful): Same as Debian 9 except the `ubuntu_artful` base bundle is used.
 
 Ubuntu 16.04 (xenial), Debian 8.0 (jessie), and other older versions: See [Other Linux distributions](#other-linux-distributions)
 

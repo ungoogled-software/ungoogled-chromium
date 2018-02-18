@@ -34,10 +34,11 @@ mkdir -p buildspace/downloads
 
 **IMPORTANT**: Make sure domain substitution has not been applied before continuing. Otherwise, the resulting patches will require domain substitution.
 
-1. Generate a temporary patch order list for a given base bundle. For the `common` base bundle: `developer_utilities/generate_patch_order.py common`
-2. Run `source $ROOT/developer_utilities/set_quilt_vars.sh`
+1. Setup a buildspace tree without domain substitution. For the `common` base bundle: `./buildkit-launcher.py getsrc -b common`
+2. Generate a temporary patch order list for a given base bundle. For the `common` base bundle: `developer_utilities/generate_patch_order.py common`
+3. Run `source $ROOT/developer_utilities/set_quilt_vars.sh`
     * This will setup quilt to modify patches directly in `resources/`
-3. Use `quilt` to update the patches from the buildspace tree. The general procedure is as follows:
+4. Use `quilt` to update the patches from the buildspace tree. The general procedure is as follows:
     1. Make sure all patches are unapplied: `quilt pop -a`. Check the status with `quilt top`
     2. Apply a single patch: `quilt push`
     3. If there are hunk offsets or fuzz, refresh the patch and go back to Step 2: `quilt refresh`
