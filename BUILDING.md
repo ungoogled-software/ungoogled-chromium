@@ -148,6 +148,7 @@ The buildspace tree can be relocated to another system for building if necessary
 
 ```
 cd buildspace/tree
+chmod +x ungoogled_packaging/build.sh
 ./ungoogled_packaging/build.sh
 ```
 
