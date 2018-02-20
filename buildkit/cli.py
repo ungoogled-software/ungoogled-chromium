@@ -285,6 +285,29 @@ def _add_genpkg_linux_simple(subparsers):
               'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
+def _add_genpkg_windows(subparsers):
+    """Generate Microsoft Windows packaging files"""
+    def _callback(args):
+        from .packaging import windows as packaging_windows
+        try:
+            packaging_windows.generate_packaging(args.bundle, args.output)
+        except FileExistsError as exc:
+            get_logger().error('Output directory is not empty: %s', exc)
+            raise _CLIError()
+        except FileNotFoundError as exc:
+            get_logger().error(
+                'Parent directories do not exist for path: %s', exc)
+            raise _CLIError()
+    parser = subparsers.add_parser(
+        'windows', help=_add_genpkg_windows.__doc__,
+        description=_add_genpkg_windows.__doc__)
+    parser.add_argument(
+        '-o', '--output', type=Path, default=BUILDSPACE_TREE_PACKAGING,
+        help=('The directory to store packaging files. '
+              'It must not already exist, but the parent directories must exist. '
+              'Default: %(default)s'))
+    parser.set_defaults(callback=_callback)
+
 def _add_genpkg_macos(subparsers):
     """Generate macOS packaging files"""
     def _callback(args):
@@ -319,6 +342,7 @@ def _add_genpkg(subparsers):
     subsubparsers.required = True # Workaround for http://bugs.python.org/issue9253#msg186387
     _add_genpkg_debian(subsubparsers)
     _add_genpkg_linux_simple(subsubparsers)
+    _add_genpkg_windows(subsubparsers)
     _add_genpkg_macos(subsubparsers)
 
 def main(arg_list=None):
