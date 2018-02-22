@@ -139,11 +139,11 @@ def _add_getsrc(subparsers):
             source_retrieval.retrieve_and_extract(
                 args.bundle, args.downloads, args.tree, prune_binaries=args.prune_binaries,
                 show_progress=args.show_progress)
-        except FileExistsError:
-            get_logger().error('Buildspace tree is not empty: %s', args.tree)
+        except FileExistsError as exc:
+            get_logger().error('Directory is not empty: %s', exc)
             raise _CLIError()
         except FileNotFoundError as exc:
-            get_logger().error('Directory of file not found: %s', exc)
+            get_logger().error('Directory or file not found: %s', exc)
             raise _CLIError()
         except NotADirectoryError as exc:
             get_logger().error('Path is not a directory: %s', exc)

@@ -14,7 +14,7 @@ import urllib.request
 import hashlib
 from pathlib import Path, PurePosixPath
 
-from .common import ENCODING, BuildkitAbort, get_logger, dir_empty
+from .common import ENCODING, BuildkitAbort, get_logger, ensure_empty_dir
 
 # Constants
 
@@ -246,8 +246,7 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     May raise undetermined exceptions during archive unpacking.
     """
-    if buildspace_tree.exists() and not dir_empty(buildspace_tree):
-        raise FileExistsError(buildspace_tree)
+    ensure_empty_dir(buildspace_tree) # FileExistsError, FileNotFoundError
     if not buildspace_downloads.exists():
         raise FileNotFoundError(buildspace_downloads)
     if not buildspace_downloads.is_dir():
