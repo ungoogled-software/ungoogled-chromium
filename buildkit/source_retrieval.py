@@ -238,8 +238,10 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
     buildspace_tree is the path to the buildspace tree.
 
     Raises FileExistsError when the buildspace tree already exists and is not empty
-    Raises FileNotFoundError when buildspace/downloads does not exist.
-    Raises NotADirectoryError if buildspace/downloads is not a directory.
+    Raises FileNotFoundError when buildspace/downloads does not exist or through
+    another system operation.
+    Raises NotADirectoryError if buildspace/downloads is not a directory or through
+    another system operation.
     Raises source_retrieval.NotAFileError when the archive path exists but is not a regular file.
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     May raise undetermined exceptions during archive unpacking.
