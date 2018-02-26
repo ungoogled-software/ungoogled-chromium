@@ -30,11 +30,10 @@ source=(https://commondatastorage.googleapis.com/chromium-browser-official/chrom
         chromium-launcher-$_launcher_ver.tar.gz::https://github.com/foutrelis/chromium-launcher/archive/v$_launcher_ver.tar.gz
         chromium-$pkgver.txt::https://chromium.googlesource.com/chromium/src.git/+/$pkgver?format=TEXT
         #https://raw.githubusercontent.com/gcarq/inox-patchset/$pkgver/product_logo_{16,22,24,32,48,64,128,256}.png
-        # Patches
-$ungoog{patch_urls})
-sha256sums=('146afbab37982c52251e5c71b6e19e6e7053b527217fe1da9966c794478c29ce'
+        'ungoogled-chromium::git+https://github.com/Eloston/ungoogled-chromium.git')
+sha256sums=('5fd0218759231ac00cc729235823592f6fd1e4a00ff64780a5fed7ab210f1860'
             '4dc3428f2c927955d9ae117f2fb24d098cc6dd67adb760ac9c82b522ec8b0587'
-            'cc3a328836af87f3a262ac7a7bc848e0f3a4b2f9f0346ef76b9b059c6f6d32bc'
+            'e73f69942af1ba730a700151973fa6309b0586ff45bf35a7fea43f52b54a9cb5'
             #'71471fa4690894420f9e04a2e9a622af620d92ac2714a35f9a4c4e90fa3968dd'
             #'4a533acefbbc1567b0d74a1c0903e9179b8c59c1beabe748850795815366e509'
             #'7b88830c5e0e9819f514ad68aae885d427541a907e25607e47dee1b0f38975fd'
@@ -43,7 +42,7 @@ sha256sums=('146afbab37982c52251e5c71b6e19e6e7053b527217fe1da9966c794478c29ce'
             #'53a1e8da18069eb4d6ab3af9c923c22a0f020241a4839c3140e3601052ddf6ff'
             #'896993987d4ef9f0ac7db454f288117316c2c80ed0b6764019afd760db222dad'
             #'3df9b3bbdc07fde63d9e400954dcc6ab6e0e5454f0ef6447570eef0549337354'
-$ungoog{patch_hashes})
+            'SKIP')
 
 # Possible replacements are listed in build/linux/unbundle/replace_gn_files.py
 # Keys are the names in the above script; values are the dependencies in Arch
@@ -77,6 +76,16 @@ readonly _unwanted_bundled_libs=(
 depends+=(${_system_libs[@]} freetype2 harfbuzz)
 
 prepare() {
+  cd "$srcdir/ungoogled-chromium"
+
+  git checkout develop
+
+  msg2 'Processing sources'
+  python3 buildkit-launcher.py genbun -u "$srcdir/chromium-$pkgver/ungoogled" archlinux
+  python3 buildkit-launcher.py prubin -u "$srcdir/chromium-$pkgver/ungoogled" -t "$srcdir/chromium-$pkgver"
+  python3 buildkit-launcher.py subdom -u "$srcdir/chromium-$pkgver/ungoogled" -t "$srcdir/chromium-$pkgver"
+  cp "$srcdir/chromium-$pkgver/ungoogled/patch_order.list" "$srcdir/chromium-$pkgver/ungoogled/patches/series"
+
   cd "$srcdir/chromium-$pkgver"
 
   msg2 'Applying build patches'
@@ -90,7 +99,7 @@ prepare() {
   echo "LASTCHANGE=$_chrome_build_hash-" >build/util/LASTCHANGE
 
   # Apply patches
-$ungoog{patch_commands}
+  env QUILT_PATCHES="$srcdir/chromium-$pkgver/ungoogled/patches" quilt push -a
 
   # Remove compiler flags not supported by our system clang
   sed -i \
