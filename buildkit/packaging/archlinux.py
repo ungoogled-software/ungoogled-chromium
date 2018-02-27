@@ -18,12 +18,6 @@ from ._common import (
 # Private definitions
 
 # PKGBUILD constants
-_TEMPLATE_URL = ('https://raw.githubusercontent.com/Eloston/ungoogled-chromium/{specifier}/'
-                 'resources/patches/{path}')
-_PATCHES_PREFIX = 'ungoogled-patches-$pkgver'
-_URL_INDENTATION = 8
-_HASHES_INDENTATION = 12
-_COMMAND_INDENTATION = 2
 _FLAGS_INDENTATION = 4
 
 def _get_packaging_resources(shared=False):
@@ -48,29 +42,6 @@ def _get_current_commit():
         raise BuildkitAbort()
     return result.stdout.strip('\n')
 
-def _generate_patch_urls(patch_iter, specifier=_get_current_commit()):
-    """Returns formatted download URLs for patches for the PKGBUILD"""
-    indentation = ' ' * _URL_INDENTATION
-    return '\n'.join(map(lambda x: '{}{}/{}::{}'.format(
-        indentation, _PATCHES_PREFIX, x, _TEMPLATE_URL.format(
-            specifier=specifier, path=x)), patch_iter))
-
-def _generate_patch_hashes(patch_path_iter):
-    """Returns hashes for patches for the PKGBUILD"""
-    def _hash_generator(patch_path_iter):
-        for patch_path in patch_path_iter:
-            with patch_path.open('rb') as file_obj:
-                yield hashlib.sha256(file_obj.read()).hexdigest()
-    indentation = ' ' * _HASHES_INDENTATION
-    return '\n'.join(map(
-        lambda x: indentation + "'{}'".format(x), _hash_generator(patch_path_iter)))
-
-def _generate_patch_commands(patch_iter):
-    """Returns commands for applying patches in the PKGBUILD"""
-    indentation = ' ' * _COMMAND_INDENTATION
-    return '\n'.join(map(lambda x: indentation + 'patch -Np1 -i ../{}/{}'.format(
-        _PATCHES_PREFIX, x), patch_iter))
-
 def _generate_gn_flags(flags_items_iter):
     """Returns GN flags for the PKGBUILD"""
     indentation = ' ' * _FLAGS_INDENTATION
@@ -94,9 +65,6 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
         chromium_version=config_bundle.version.chromium_version,
         release_revision=config_bundle.version.release_revision,
         build_output=build_output,
-        patch_urls=_generate_patch_urls(config_bundle.patches),
-        patch_hashes=_generate_patch_hashes(config_bundle.patches.patch_iter()),
-        patch_commands=_generate_patch_commands(config_bundle.patches),
         gn_flags=_generate_gn_flags(sorted(config_bundle.gn_flags.items())),
     )
 
