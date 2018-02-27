@@ -13,11 +13,12 @@ from pathlib import Path
 
 from ..common import PACKAGING_DIR, BuildkitAbort, get_logger, get_resources_dir, ensure_empty_dir
 from ._common import (
-    DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, process_templates)
+    SHARED_PACKAGING, process_templates)
 
 # Private definitions
 
 # PKGBUILD constants
+ARCHLINUX_BUILD_OUTPUT = Path('out/Release')
 _FLAGS_INDENTATION = 4
 
 def _get_packaging_resources(shared=False):
@@ -49,7 +50,7 @@ def _generate_gn_flags(flags_items_iter):
 
 # Public definitions
 
-def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUTPUT):
+def generate_packaging(config_bundle, output_dir, build_output=ARCHLINUX_BUILD_OUTPUT):
     """
     Generates the archlinux packaging into output_dir
 
