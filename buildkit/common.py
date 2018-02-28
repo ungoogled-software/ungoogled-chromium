@@ -7,8 +7,9 @@
 """Common code and constants"""
 
 import os
-import pathlib
 import logging
+import subprocess
+from pathlib import Path
 
 # Constants
 
@@ -69,12 +70,12 @@ def get_resources_dir():
     """
     env_value = os.environ.get(_ENV_FORMAT.format('RESOURCES'))
     if env_value:
-        path = pathlib.Path(env_value)
+        path = Path(env_value)
         get_logger().debug(
             'Using %s environment variable value: %s', _ENV_FORMAT.format('RESOURCES'), path)
     else:
         # Assume that this resides in the repository
-        path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
+        path = Path(__file__).absolute().parent.parent / 'resources'
     if not path.is_dir():
         raise NotADirectoryError(str(path))
     return path
@@ -105,3 +106,20 @@ def ensure_empty_dir(path, parents=False):
     except FileExistsError as exc:
         if not dir_empty(path):
             raise exc
+
+def get_current_commit():
+    """
+    Returns a string of the current commit hash.
+
+    It assumes "git" is in PATH, and that buildkit is run within a git repository.
+
+    Raises BuildkitAbort if invoking git fails.
+    """
+    result = subprocess.run(['git', 'rev-parse', '--verify', 'HEAD'],
+                            stdout=subprocess.PIPE, universal_newlines=True,
+                            cwd=str(Path(__file__).resolve().parent))
+    if result.returncode:
+        get_logger().error('Unexpected return code %s', result.returncode)
+        get_logger().error('Command output: %s', result.stdout)
+        raise BuildkitAbort()
+    return result.stdout.strip('\n')

@@ -26,7 +26,7 @@ from . import domain_substitution
 from .common import (
     CONFIG_BUNDLES_DIR, BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE,
     BUILDSPACE_TREE_PACKAGING, BUILDSPACE_USER_BUNDLE,
-    BuildkitAbort, get_resources_dir, get_logger)
+    BuildkitAbort, get_resources_dir, get_logger, get_current_commit)
 from .config import ConfigBundle
 
 # Classes
@@ -242,8 +242,13 @@ def _add_genpkg_archlinux(subparsers):
     """Generate Arch Linux packaging files"""
     def _callback(args):
         from .packaging import archlinux as packaging_archlinux
+        if args.repo_commit:
+            repo_version = get_current_commit()
+        else:
+            repo_version = None
         try:
-            packaging_archlinux.generate_packaging(args.bundle, args.output)
+            packaging_archlinux.generate_packaging(args.bundle, args.output,
+                                                   repo_version=repo_version)
         except FileExistsError as exc:
             get_logger().error('Output directory is not empty: %s', exc)
             raise _CLIError()
@@ -259,6 +264,13 @@ def _add_genpkg_archlinux(subparsers):
         help=('The directory to store packaging files. '
               'It must not already exist, but the parent directories must exist. '
               'Default: %(default)s'))
+    parser.add_argument(
+        '--repo-commit', action='store_true',
+        help=("Use the current git repo's commit hash to specify the "
+              "ungoogled-chromium repo to download instead of a tag determined "
+              "by the config bundle's version config file. Requires git to be "
+              "in PATH and buildkit to be invoked inside of a clone of "
+              "ungoogled-chromium's git repository."))
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg_debian(subparsers):
