@@ -21,7 +21,7 @@ def _get_packaging_resources(shared=False):
         return get_resources_dir() / PACKAGING_DIR / 'windows'
 
 def _copy_from_resources(name, output_dir, shared=False):
-    shutil.copyfile(
+    shutil.copy(
         str(_get_packaging_resources(shared=shared) / name),
         str(output_dir / name))
 

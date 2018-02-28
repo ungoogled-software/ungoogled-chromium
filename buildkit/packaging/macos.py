@@ -17,7 +17,7 @@ def _get_packaging_resources():
     return get_resources_dir() / PACKAGING_DIR / 'macos'
 
 def _copy_from_resources(name, output_dir):
-    shutil.copyfile(
+    shutil.copy(
         str(_get_packaging_resources() / name),
         str(output_dir / name))
 
