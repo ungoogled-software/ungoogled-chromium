@@ -47,6 +47,7 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
 
     ensure_empty_dir(output_dir) # Raises FileNotFoundError, FileExistsError
     (output_dir / 'scripts').mkdir()
+    (output_dir / 'archive_include').mkdir()
 
     # Build and packaging scripts
     _copy_from_resources('build.sh.in', output_dir)
