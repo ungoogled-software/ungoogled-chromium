@@ -191,13 +191,38 @@ A `.dmg` should appear in `buildspace/`
 
 ### Arch Linux
 
-**This is a WIP**
+**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue (after checking the status page in the Wiki first).
 
-For now, see the instructions for Other Linux distributions.
+There are two methods to build for Arch Linux outlined in the following sections.
+
+#### Use PKGBUILD
+
+These steps are for using a PKGBUILD to create a package. The PKGBUILD handles downloading, unpacking, building, and packaging (which uses a copy of buildkit internally).
+
+Requirements: Python 3 is needed to generate the PKGBUILD. The PKGBUILD contains build dependency information.
+
+Generate the PKGBUILD:
+
+```
+mkdir -p buildspace/tree
+python3 buildkit-launcher.py genpkg -b archlinux archlinux
+```
+
+A PKGBUILD will be generated in `buildspace/tree/ungoogled_packaging`. It is a standalone file that can be relocated as necessary.
+
+#### Create a compressed tar archive
+
+These steps create an archive of the build outputs.
+
+Requirements: Same as the build dependencies in the PKGBUILD (which can be seen in `resources/packaging/archlinux/PKGBUILD.in`).
+
+The instructions are the same as [Other Linux distributions](#other-linux-distributions), except that the `archlinux` base bundle is used in the `genbun` command.
 
 ### Other Linux distributions
 
 These are for building on Linux distributions that do not have support already. It builds without distribution-optimized flags and patches for maximum compatibility.
+
+**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue (after checking the status page in the Wiki first).
 
 #### Requirements
 
