@@ -2,7 +2,7 @@
 
 ## IMPORTANT - Please read this section first
 
-**Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses)
+**Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses). *Please check the status before attempting a build or posting an issue*.
 
 **Choosing branches**: The `master` branch contains stable code, and `develop` is for unstable code. Please do not use `develop` unless you know what you are doing.
 
@@ -73,9 +73,7 @@ Ubuntu 16.04 (xenial), Debian 8.0 (jessie), and other older versions: See [Other
 
 ### Windows
 
-**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue.
-
-Curent Status: **BROKEN**
+**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue (after checking the status page in the Wiki first).
 
 Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/64.0.3282.168/docs/windows_build_instructions.md#system-requirements). These instructions are tested on Windows 10 Home x64.
 
@@ -153,7 +151,7 @@ TODO: Add packaging script
 
 ### macOS
 
-**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue.
+**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue (after checking the status page in the Wiki first).
 
 Tested on macOS 10.11-10.13
 
