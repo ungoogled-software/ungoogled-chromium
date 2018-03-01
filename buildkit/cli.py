@@ -26,7 +26,7 @@ from . import domain_substitution
 from .common import (
     CONFIG_BUNDLES_DIR, BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE,
     BUILDSPACE_TREE_PACKAGING, BUILDSPACE_USER_BUNDLE,
-    BuildkitAbort, get_resources_dir, get_logger, get_current_commit)
+    BuildkitAbort, get_resources_dir, get_logger)
 from .config import ConfigBundle
 
 # Classes
@@ -242,13 +242,10 @@ def _add_genpkg_archlinux(subparsers):
     """Generate Arch Linux packaging files"""
     def _callback(args):
         from .packaging import archlinux as packaging_archlinux
-        if args.repo_commit:
-            repo_version = get_current_commit()
-        else:
-            repo_version = None
         try:
-            packaging_archlinux.generate_packaging(args.bundle, args.output,
-                                                   repo_version=repo_version)
+            packaging_archlinux.generate_packaging(
+                args.bundle, args.output, repo_version=args.repo_commit,
+                repo_hash=args.repo_hash)
         except FileExistsError as exc:
             get_logger().error('Output directory is not empty: %s', exc)
             raise _CLIError()
@@ -265,12 +262,19 @@ def _add_genpkg_archlinux(subparsers):
               'It must not already exist, but the parent directories must exist. '
               'Default: %(default)s'))
     parser.add_argument(
-        '--repo-commit', action='store_true',
+        '--repo-commit', action='store_const', const='git', default='bundle',
         help=("Use the current git repo's commit hash to specify the "
               "ungoogled-chromium repo to download instead of a tag determined "
               "by the config bundle's version config file. Requires git to be "
               "in PATH and buildkit to be invoked inside of a clone of "
               "ungoogled-chromium's git repository."))
+    parser.add_argument(
+        '--repo-hash', default='SKIP',
+        help=('The SHA-256 hash to verify the archive of the ungoogled-chromium '
+              'repository to download within the PKGBUILD. If it is "compute", '
+              'the hash is computed by downloading the archive to memory and '
+              'computing the hash. If it is "SKIP", hash computation is skipped.'
+              'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg_debian(subparsers):

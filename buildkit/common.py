@@ -8,7 +8,6 @@
 
 import os
 import logging
-import subprocess
 from pathlib import Path
 
 # Constants
@@ -106,20 +105,3 @@ def ensure_empty_dir(path, parents=False):
     except FileExistsError as exc:
         if not dir_empty(path):
             raise exc
-
-def get_current_commit():
-    """
-    Returns a string of the current commit hash.
-
-    It assumes "git" is in PATH, and that buildkit is run within a git repository.
-
-    Raises BuildkitAbort if invoking git fails.
-    """
-    result = subprocess.run(['git', 'rev-parse', '--verify', 'HEAD'],
-                            stdout=subprocess.PIPE, universal_newlines=True,
-                            cwd=str(Path(__file__).resolve().parent))
-    if result.returncode:
-        get_logger().error('Unexpected return code %s', result.returncode)
-        get_logger().error('Command output: %s', result.stdout)
-        raise BuildkitAbort()
-    return result.stdout.strip('\n')
