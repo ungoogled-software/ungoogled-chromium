@@ -86,6 +86,8 @@ The release versioning scheme follows that of the tags. See the next section for
 
 ### Alternative installation methods
 
+Arch Linux: [Available in AUR as `ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
+
 macOS cask: Available as `eloston-chromium`
 
 ## Getting the source code
