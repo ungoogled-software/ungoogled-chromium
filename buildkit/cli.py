@@ -188,7 +188,7 @@ def _add_prubin(subparsers):
         try:
             resolved_tree = args.tree.resolve()
         except FileNotFoundError as exc:
-            logger.error('Buildspace tree does not exist: %s', exc)
+            logger.error('File or directory does not exist: %s', exc)
             raise _CLIError()
         missing_file = False
         for tree_node in args.bundle.pruning:
@@ -218,7 +218,7 @@ def _add_subdom(subparsers):
             if not args.only or args.only == 'patches':
                 domain_substitution.process_bundle_patches(args.bundle)
         except FileNotFoundError as exc:
-            get_logger().error('Buildspace tree does not exist: %s', exc)
+            get_logger().error('File or directory does not exist: %s', exc)
             raise _CLIError()
         except NotADirectoryError as exc:
             get_logger().error('Patches directory does not exist: %s', exc)
