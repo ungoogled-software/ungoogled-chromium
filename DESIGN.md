@@ -152,11 +152,12 @@ Building the source code consists of the following steps:
 
 Packaging consists of packaging types; each type has differing package outputs and invocation requirements. Some packaging types divide the building and package generation steps; some have it all-in-one. The current packaging types are as follows:
 
-* `debian` - Builds Debian `.deb.` packages for Debian and derivative systems. There are different variants of Debian packaging scripts known as *flavors*. The current flavors are:
+* `archlinux` - Generates a PKGBUILD that downloads, builds, and packages Chromium. Unlike other packaging types, this type does not use the buildspace tree; it is a standalone script that automates the entire process.
+* `debian` - Generates `debian` directories for building `.deb.` packages for Debian and derivative systems. There are different variants of Debian packaging scripts known as *flavors*. The current flavors are:
     * `standard` - For building with a derivative of the `linux_rooted` base bundle.
     * `minimal` - For building with a derivative of the `linux_portable` base bundle.
-* `linux_simple` - Builds a compressed tar archive for Linux.
-* `macos` - Builds a `.dmg` for macOS.
+* `linux_simple` - Generates two shell scripts for Linux. The first applies patches and builds Chromium. The second packages the build outputs into a compressed tar archive.
+* `macos` - Generates a shell script for macOS to build Chromium and package the build outputs into a `.dmg`.
 
 The directories in `resources/packaging` correspond to the packaging type names. The only exception is `shared`, which is reserved for files shared among multiple packaging types.
 
