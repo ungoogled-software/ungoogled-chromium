@@ -93,6 +93,8 @@ When installing the SDK, the "Debugging Tools for Windows" feature must be enabl
 
 TODO: Fix the mess and move some information elsewhere.
 
+**IMPORTANT**: Currently, the `MAX_PATH` path length restriction (which is 260 characters by default) must be lifted in order for buildkit to function properly. One such setup that works is Windows 10 (which added this option since Anniversary) with Python 3.6 or newer from the official installer (which contains the manifest files that allow use of long file paths). Other possible setups are being discussed in [Issue #345](https://github.com/Eloston/ungoogled-chromium/issues/345).
+
 1. Setup the following:
 
     * [LLVM](https://llvm.org/)
