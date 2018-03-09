@@ -206,11 +206,11 @@ Requirements: Python 3 is needed to generate the PKGBUILD. The PKGBUILD contains
 Generate the PKGBUILD:
 
 ```
-mkdir -p buildspace/tree
+mkdir buildspace
 python3 buildkit-launcher.py genpkg -b archlinux archlinux
 ```
 
-A PKGBUILD will be generated in `buildspace/tree/ungoogled_packaging`. It is a standalone file that can be relocated as necessary.
+A PKGBUILD will be generated in `buildspace`. It is a standalone file that can be relocated as necessary.
 
 #### Create a compressed tar archive
 

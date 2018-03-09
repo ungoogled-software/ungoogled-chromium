@@ -14,7 +14,7 @@ import urllib.request
 
 from pathlib import Path
 
-from ..common import BuildkitAbort, get_logger
+from ..common import ENCODING, BuildkitAbort, get_logger
 
 # Constants
 
@@ -45,10 +45,10 @@ class BuildFileStringTemplate(string.Template):
 
 def process_templates(root_dir, build_file_subs):
     """Substitute '$ungoog' strings in '.in' template files and remove the suffix"""
-    for old_path in root_dir.glob("*.in"):
+    for old_path in root_dir.glob('*.in'):
         new_path = root_dir / old_path.stem
         old_path.replace(new_path)
-        with new_path.open("r+") as new_file:
+        with new_path.open('r+', encoding=ENCODING) as new_file:
             content = BuildFileStringTemplate(new_file.read()).substitute(
                 **build_file_subs)
             new_file.seek(0)

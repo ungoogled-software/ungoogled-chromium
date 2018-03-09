@@ -239,7 +239,7 @@ def _add_subdom(subparsers):
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg_archlinux(subparsers):
-    """Generate Arch Linux packaging files"""
+    """Generates a PKGBUILD for Arch Linux"""
     def _callback(args):
         from .packaging import archlinux as packaging_archlinux
         try:
@@ -247,19 +247,19 @@ def _add_genpkg_archlinux(subparsers):
                 args.bundle, args.output, repo_version=args.repo_commit,
                 repo_hash=args.repo_hash)
         except FileExistsError as exc:
-            get_logger().error('Output directory is not empty: %s', exc)
+            get_logger().error('PKGBUILD already exists: %s', exc)
             raise _CLIError()
         except FileNotFoundError as exc:
             get_logger().error(
-                'Parent directories do not exist for path: %s', exc)
+                'Output path is not an existing directory: %s', exc)
             raise _CLIError()
     parser = subparsers.add_parser(
         'archlinux', help=_add_genpkg_archlinux.__doc__,
         description=_add_genpkg_archlinux.__doc__)
     parser.add_argument(
-        '-o', '--output', type=Path, default=BUILDSPACE_TREE_PACKAGING,
+        '-o', '--output', type=Path, default='buildspace',
         help=('The directory to store packaging files. '
-              'It must not already exist, but the parent directories must exist. '
+              'It must exist and not already contain a PKGBUILD file. '
               'Default: %(default)s'))
     parser.add_argument(
         '--repo-commit', action='store_const', const='git', default='bundle',
@@ -273,7 +273,7 @@ def _add_genpkg_archlinux(subparsers):
         help=('The SHA-256 hash to verify the archive of the ungoogled-chromium '
               'repository to download within the PKGBUILD. If it is "compute", '
               'the hash is computed by downloading the archive to memory and '
-              'computing the hash. If it is "SKIP", hash computation is skipped.'
+              'computing the hash. If it is "SKIP", hash computation is skipped. '
               'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 

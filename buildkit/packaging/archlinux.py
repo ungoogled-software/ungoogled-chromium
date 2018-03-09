@@ -6,11 +6,9 @@
 
 """Arch Linux-specific build files generation code"""
 
-import shutil
-
-from ..common import PACKAGING_DIR, BuildkitAbort, get_resources_dir, ensure_empty_dir, get_logger
+from ..common import ENCODING, PACKAGING_DIR, BuildkitAbort, get_resources_dir, get_logger
 from ._common import (
-    DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, process_templates,
+    DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, BuildFileStringTemplate,
     get_current_commit, get_remote_file_hash)
 
 # Private definitions
@@ -25,11 +23,6 @@ def _get_packaging_resources(shared=False):
     else:
         return get_resources_dir() / PACKAGING_DIR / 'archlinux'
 
-def _copy_from_resources(name, output_dir, shared=False):
-    shutil.copy(
-        str(_get_packaging_resources(shared=shared) / name),
-        str(output_dir / name))
-
 def _generate_gn_flags(flags_items_iter):
     """Returns GN flags for the PKGBUILD"""
     indentation = ' ' * _FLAGS_INDENTATION
@@ -43,7 +36,7 @@ def generate_packaging(config_bundle, output_dir, repo_version='bundle',
     Generates an Arch Linux PKGBUILD into output_dir
 
     config_bundle is the config.ConfigBundle to use for configuration
-    output_dir is the pathlib.Path directory that will be created to contain packaging files
+    output_dir is the pathlib.Path to a directory that will contain the PKGBUILD.
     repo_version is a string that specifies the ungoogled-chromium repository to
     download for use within the PKGBUILD. The string 'bundle' causes the use of
     config_bundle's version config file, and 'git' uses the current commit hash
@@ -55,8 +48,8 @@ def generate_packaging(config_bundle, output_dir, repo_version='bundle',
     is 'SKIP', hash computation is skipped in the PKGBUILD.
     build_output is a pathlib.Path for building intermediates and outputs to be stored
 
-    Raises FileExistsError if output_dir already exists and is not empty.
-    Raises FileNotFoundError if the parent directories for output_dir do not exist.
+    Raises FileExistsError if a file named PKGBUILD already exists in output_dir
+    Raises FileNotFoundError if output_dir is not an existing directory.
     """
     if repo_version == 'bundle':
         repo_version = config_bundle.version.version_string
@@ -64,7 +57,7 @@ def generate_packaging(config_bundle, output_dir, repo_version='bundle',
         repo_version = get_current_commit()
     repo_url = _REPO_URL_TEMPLATE.format(repo_version)
     if repo_hash == 'compute':
-        get_logger().debug('Downloading archive for hash computation...')
+        get_logger().debug('Downloading archive into memory for hash computation...')
         repo_hash = get_remote_file_hash(repo_url)
         get_logger().debug('Computed hash: %s', repo_hash)
     elif repo_hash == 'SKIP':
@@ -82,8 +75,15 @@ def generate_packaging(config_bundle, output_dir, repo_version='bundle',
         gn_flags=_generate_gn_flags(sorted(config_bundle.gn_flags.items())),
     )
 
-    ensure_empty_dir(output_dir) # Raises FileNotFoundError, FileExistsError
+    if not output_dir.is_dir():
+        raise FileNotFoundError(output_dir)
+    pkgbuild_path = output_dir / 'PKGBUILD'
+    if pkgbuild_path.exists():
+        raise FileExistsError(pkgbuild_path)
 
-    # Build and packaging scripts
-    _copy_from_resources('PKGBUILD.in', output_dir)
-    process_templates(output_dir, build_file_subs)
+    # Generate PKGBUILD
+    with (_get_packaging_resources() / 'PKGBUILD.in').open(encoding=ENCODING) as file_obj:
+        content = BuildFileStringTemplate(file_obj.read()).substitute(
+            **build_file_subs)
+    with pkgbuild_path.open('w', encoding=ENCODING) as file_obj:
+        file_obj.write(content)
