@@ -1,0 +1,218 @@
+# Derived from PKGBUILD for Inox
+# Original Inox PKGBUILD authors:
+# Maintainer: Michael Egger <gcarq@archlinux.info>
+# Contributor: Evangelos Foutras <evangelos@foutrelis.com>
+# Contributor: Pierre Schmitz <pierre@archlinux.de>
+# Contributor: Jan "heftig" Steffens <jan.steffens@gmail.com>
+# Contributor: Daniel J Griffiths <ghost1227@archlinux.us>
+
+pkgname=ungoogled-chromium
+pkgver=$ungoog{chromium_version}
+pkgrel=$ungoog{release_revision}
+_launcher_ver=5
+pkgdesc="Modifications to Google Chromium for removing Google integration and enhancing privacy, control, and transparency"
+arch=('x86_64')
+url="https://github.com/Eloston/ungoogled-chromium"
+license=('BSD')
+depends=('gtk3' 'nss' 'alsa-lib' 'xdg-utils' 'libxss' 'libcups' 'libgcrypt'
+         'ttf-font' 'systemd' 'dbus' 'libpulse' 'pciutils' 'json-glib'
+         'desktop-file-utils' 'hicolor-icon-theme' 'libevent')
+makedepends=('python2' 'gperf' 'yasm' 'mesa' 'ninja' 'git' 'libva'
+             'clang' 'llvm' 'lld' 'quilt')
+optdepends=('pepper-flash: support for Flash content'
+            'kdialog: needed for file dialogs in KDE'
+            'gnome-keyring: for storing passwords in GNOME keyring'
+            'kwallet: for storing passwords in KWallet'
+            'libva-intel-driver: for hardware video acceleration with Intel GPUs'
+            'libva-mesa-driver: for hardware video acceleration with AMD/ATI GPUs'
+            'libva-vdpau-driver: for hardware video acceleration with NVIDIA GPUs')
+provides=('chromium')
+conflicts=('chromium' 'inox' 'iridium')
+source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-$pkgver.tar.xz
+        chromium-launcher-$_launcher_ver.tar.gz::https://github.com/foutrelis/chromium-launcher/archive/v$_launcher_ver.tar.gz
+        chromium-$pkgver.txt::https://chromium.googlesource.com/chromium/src.git/+/$pkgver?format=TEXT
+        '$ungoog{repo_url}')
+sha256sums=('5fd0218759231ac00cc729235823592f6fd1e4a00ff64780a5fed7ab210f1860'
+            '4dc3428f2c927955d9ae117f2fb24d098cc6dd67adb760ac9c82b522ec8b0587'
+            'e73f69942af1ba730a700151973fa6309b0586ff45bf35a7fea43f52b54a9cb5'
+            '$ungoog{repo_hash}')
+
+# Possible replacements are listed in build/linux/unbundle/replace_gn_files.py
+# Keys are the names in the above script; values are the dependencies in Arch
+readonly -A _system_libs=(
+  #[ffmpeg]=ffmpeg            # https://crbug.com/731766
+  [flac]=flac
+  #[fontconfig]=fontconfig    # Enable for M65
+  #[freetype]=freetype2       # Using 'use_system_freetype=true' until M65
+  #[harfbuzz-ng]=harfbuzz     # Using 'use_system_harfbuzz=true' until M65
+  [icu]=icu
+  [libdrm]=
+  [libevent]=libevent
+  [libjpeg]=libjpeg
+  #[libpng]=libpng            # https://crbug.com/752403#c10
+  [libvpx]=libvpx
+  [libwebp]=libwebp
+  #[libxml]=libxml2           # https://crbug.com/736026
+  [libxslt]=libxslt
+  [opus]=opus
+  [re2]=re2
+  [snappy]=snappy
+  [yasm]=
+  [zlib]=minizip
+)
+readonly _unwanted_bundled_libs=(
+  ${!_system_libs[@]}
+  ${_system_libs[libjpeg]+libjpeg_turbo}
+  freetype
+  harfbuzz-ng
+)
+depends+=(${_system_libs[@]} freetype2 harfbuzz)
+
+prepare() {
+  cd "$srcdir/ungoogled-chromium-$ungoog{repo_version}"
+
+  msg2 'Processing sources'
+  python3 buildkit-launcher.py genbun -u "$srcdir/chromium-$pkgver/ungoogled" archlinux
+  python3 buildkit-launcher.py prubin -u "$srcdir/chromium-$pkgver/ungoogled" -t "$srcdir/chromium-$pkgver"
+  python3 buildkit-launcher.py subdom -u "$srcdir/chromium-$pkgver/ungoogled" -t "$srcdir/chromium-$pkgver"
+  cp "$srcdir/chromium-$pkgver/ungoogled/patch_order.list" "$srcdir/chromium-$pkgver/ungoogled/patches/series"
+
+  cd "$srcdir/chromium-$pkgver"
+
+  msg2 'Applying build patches'
+  # https://crbug.com/710701
+  local _chrome_build_hash=$(base64 -d ../chromium-$pkgver.txt |
+    grep -Po '^parent \K[0-9a-f]{40}$')
+  if [[ -z $_chrome_build_hash ]]; then
+    error "Unable to find Chrome build hash."
+    return 1
+  fi
+  echo "LASTCHANGE=$_chrome_build_hash-" >build/util/LASTCHANGE
+
+  # Apply patches
+  env QUILT_PATCHES="$srcdir/chromium-$pkgver/ungoogled/patches" quilt push -a
+
+  # Remove compiler flags not supported by our system clang
+  sed -i \
+    -e '/"-Wno-enum-compare-switch"/d' \
+    -e '/"-Wno-null-pointer-arithmetic"/d' \
+    -e '/"-Wno-tautological-unsigned-zero-compare"/d' \
+    -e '/"-Wno-tautological-constant-compare"/d' \
+    build/config/compiler/BUILD.gn
+
+  # Use Python 2
+  find . -name '*.py' -exec sed -i -r 's|/usr/bin/python$|&2|g' {} +
+
+  # There are still a lot of relative calls which need a workaround
+  mkdir -p "$srcdir/python2-path"
+  ln -s /usr/bin/python2 "$srcdir/python2-path/python"
+
+  # Remove bundled libraries for which we will use the system copies; this
+  # *should* do what the remove_bundled_libraries.py script does, with the
+  # added benefit of not having to list all the remaining libraries
+  local _lib
+  for _lib in ${_unwanted_bundled_libs[@]}; do
+    find -type f -path "*third_party/$_lib/*" \
+      \! -path "*third_party/$_lib/chromium/*" \
+      \! -path "*third_party/$_lib/google/*" \
+      \! -path './base/third_party/icu/*' \
+      \! -path './third_party/freetype/src/src/psnames/pstables.h' \
+      \! -path './third_party/yasm/run_yasm.py' \
+      \! -regex '.*\.\(gn\|gni\|isolate\)' \
+      -delete
+  done
+
+  python2 build/linux/unbundle/replace_gn_files.py \
+    --system-libraries "${!_system_libs[@]}"
+}
+
+build() {
+  make -C chromium-launcher-$_launcher_ver
+
+  cd "$srcdir/chromium-$pkgver"
+
+  if check_buildoption ccache y; then
+    # Avoid falling back to preprocessor mode when sources contain time macros
+    export CCACHE_SLOPPINESS=time_macros
+  fi
+
+  export PATH="$srcdir/python2-path:$PATH"
+  export TMPDIR="$srcdir/temp"
+  mkdir -p "$TMPDIR"
+  mkdir -p $ungoog{build_output}
+
+  export CC=clang
+  export CXX=clang++
+  export AR=llvm-ar
+  export NM=llvm-nm
+
+  local _flags=(
+$ungoog{gn_flags}
+  )
+
+  if check_option strip y; then
+    # https://chromium-review.googlesource.com/c/chromium/src/+/712575
+    # _flags+=('exclude_unwind_tables=true')
+    CFLAGS+='   -fno-unwind-tables -fno-asynchronous-unwind-tables'
+    CXXFLAGS+=' -fno-unwind-tables -fno-asynchronous-unwind-tables'
+    CPPFLAGS+=' -DNO_UNWIND_TABLES'
+  fi
+
+  msg2 'Building GN'
+  python2 tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s -j 4 --no-clean
+  msg2 'Configuring Chromium'
+  $ungoog{build_output}/gn gen $ungoog{build_output} --args="${_flags[*]}" \
+    --script-executable=/usr/bin/python2 --fail-on-unused-args
+
+  msg2 'Building Chromium'
+  ninja -C $ungoog{build_output} chrome chrome_sandbox chromedriver widevinecdmadapter
+}
+
+package() {
+  cd chromium-launcher-$_launcher_ver
+  make PREFIX=/usr DESTDIR="$pkgdir" install
+  install -Dm644 LICENSE \
+    "$pkgdir/usr/share/licenses/chromium/LICENSE.launcher"
+
+  cd "$srcdir/chromium-$pkgver"
+
+  install -D $ungoog{build_output}/chrome "$pkgdir/usr/lib/chromium/chromium"
+  install -Dm4755 $ungoog{build_output}/chrome_sandbox "$pkgdir/usr/lib/chromium/chrome-sandbox"
+  install -D $ungoog{build_output}/chromedriver "$pkgdir/usr/lib/chromium/chromedriver"
+  ln -s /usr/lib/$pkgname/chromedriver "$pkgdir/usr/bin/chromedriver"
+
+  install -Dm644 chrome/installer/linux/common/desktop.template \
+    "$pkgdir/usr/share/applications/chromium.desktop"
+  install -Dm644 chrome/app/resources/manpage.1.in \
+    "$pkgdir/usr/share/man/man1/chromium.1"
+  sed -i \
+    -e "s/@@MENUNAME@@/Chromium/g" \
+    -e "s/@@PACKAGE@@/chromium/g" \
+    -e "s/@@USR_BIN_SYMLINK_NAME@@/chromium/g" \
+    "$pkgdir/usr/share/applications/chromium.desktop" \
+    "$pkgdir/usr/share/man/man1/chromium.1"
+
+  cp \
+    $ungoog{build_output}/{chrome_{100,200}_percent,resources}.pak \
+    $ungoog{build_output}/{*.bin,libwidevinecdmadapter.so} \
+    "$pkgdir/usr/lib/chromium/"
+  install -Dm644 -t "$pkgdir/usr/lib/chromium/locales" $ungoog{build_output}/locales/*.pak
+
+  if [[ -z ${_system_libs[icu]+set} ]]; then
+    cp $ungoog{build_output}/icudtl.dat "$pkgdir/usr/lib/chromium/"
+  fi
+
+  for size in 22 24 48 64 128 256; do
+    install -Dm644 "chrome/app/theme/chromium/product_logo_$size.png" \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/chromium.png"
+  done
+
+  for size in 16 32; do
+    install -Dm644 "chrome/app/theme/default_100_percent/chromium/product_logo_$size.png" \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/chromium.png"
+  done
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/chromium/LICENSE"
+}
+
+# vim:set ts=2 sw=2 et:

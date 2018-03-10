@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -1234,6 +1234,10 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1234,6 +1234,10 @@
       "Enable stacking in tab strip",
       "Forces tabs to be stacked in the tab strip. Otherwise, they follow default behavior.",
       kOsAll, SINGLE_VALUE_TYPE("enable-stacked-tab-strip")},
@@ -13,27 +13,144 @@
      {"enable-metrics",
       "Record metrics",
       "Record histograms and user actions.",
---- a/chrome/browser/ui/search_engines/search_engine_tab_helper.cc
-+++ b/chrome/browser/ui/search_engines/search_engine_tab_helper.cc
-@@ -4,6 +4,7 @@
- 
- #include "chrome/browser/ui/search_engines/search_engine_tab_helper.h"
- 
-+#include "base/command_line.h"
- #include "base/memory/ptr_util.h"
- #include "base/metrics/histogram_macros.h"
- #include "chrome/browser/profiles/profile.h"
-@@ -105,6 +106,13 @@ void SearchEngineTabHelper::PageHasOpenS
-       web_contents()->GetMainFrame())
+--- a/chrome/renderer/chrome_render_frame_observer.cc
++++ b/chrome/renderer/chrome_render_frame_observer.cc
+@@ -138,9 +138,10 @@
+   if (!render_frame->IsMainFrame())
      return;
  
-+  // Abort now if search engines shouldn't be added automatically
+-#if defined(SAFE_BROWSING_CSD)
+   const base::CommandLine& command_line =
+       *base::CommandLine::ForCurrentProcess();
++  should_autocollect_ = !command_line.HasSwitch("disable-search-engine-collection");
++#if defined(SAFE_BROWSING_CSD)
+   if (!command_line.HasSwitch(switches::kDisableClientSidePhishingDetection))
+     SetClientSidePhishingDetection(true);
+ #endif
+@@ -326,14 +327,16 @@
+   if (frame->Parent())
+     return;
+ 
+-  GURL osdd_url = frame->GetDocument().OpenSearchDescriptionURL();
+-  if (!osdd_url.is_empty()) {
+-    chrome::mojom::OpenSearchDescriptionDocumentHandlerAssociatedPtr
+-        osdd_handler;
+-    render_frame()->GetRemoteAssociatedInterfaces()->GetInterface(
+-        &osdd_handler);
+-    osdd_handler->PageHasOpenSearchDescriptionDocument(
+-        frame->GetDocument().Url(), osdd_url);
++  if (should_autocollect_) {
++    GURL osdd_url = frame->GetDocument().OpenSearchDescriptionURL();
++    if (!osdd_url.is_empty()) {
++      chrome::mojom::OpenSearchDescriptionDocumentHandlerAssociatedPtr
++          osdd_handler;
++      render_frame()->GetRemoteAssociatedInterfaces()->GetInterface(
++          &osdd_handler);
++      osdd_handler->PageHasOpenSearchDescriptionDocument(
++          frame->GetDocument().Url(), osdd_url);
++    }
+   }
+ }
+ 
+--- a/chrome/renderer/chrome_render_frame_observer.h
++++ b/chrome/renderer/chrome_render_frame_observer.h
+@@ -93,6 +93,7 @@
+   // Have the same lifetime as us.
+   translate::TranslateHelper* translate_helper_;
+   safe_browsing::PhishingClassifierDelegate* phishing_classifier_;
++  bool should_autocollect_; // Whether to autocollect search engines
+ 
+ 
+ #if !defined(OS_ANDROID)
+--- a/components/search_engines/template_url_service.cc
++++ b/components/search_engines/template_url_service.cc
+@@ -194,6 +194,12 @@
+          template_url->type() == TemplateURL::OMNIBOX_API_EXTENSION;
+ }
+ 
++bool ShouldAutocollect() {
 +  const base::CommandLine& command_line =
-+      *base::CommandLine::ForCurrentProcess();
-+  if (command_line.HasSwitch("disable-search-engine-collection")) {
-+    return;
-+  }
++    *base::CommandLine::ForCurrentProcess();
++  return !command_line.HasSwitch("disable-search-engine-collection");
++}
 +
-   // Make sure that the page is the current page and other basic checks.
-   // When |page_url| has file: scheme, this method doesn't work because of
-   // http://b/issue?id=863583. For that reason, this doesn't check and allow
+ }  // namespace
+ 
+ // TemplateURLService::LessWithPrefix -----------------------------------------
+@@ -233,6 +239,7 @@
+     rappor::RapporServiceImpl* rappor_service,
+     const base::Closure& dsp_change_callback)
+     : prefs_(prefs),
++      should_autocollect_(true),
+       search_terms_data_(std::move(search_terms_data)),
+       web_data_service_(web_data_service),
+       client_(std::move(client)),
+@@ -261,6 +268,7 @@
+ TemplateURLService::TemplateURLService(const Initializer* initializers,
+                                        const int count)
+     : prefs_(nullptr),
++      should_autocollect_(true),
+       search_terms_data_(new SearchTermsData),
+       web_data_service_(nullptr),
+       google_url_tracker_(nullptr),
+@@ -315,7 +323,7 @@
+   if (existing_url) {
+     // We already have a TemplateURL for this keyword. Only allow it to be
+     // replaced if the TemplateURL can be replaced.
+-    return CanReplace(existing_url);
++    return should_autocollect_ && CanReplace(existing_url);
+   }
+ 
+   // We don't have a TemplateURL with keyword.  We still may not allow this
+@@ -324,8 +332,8 @@
+   // that may interfere with search queries).  An easy heuristic for this is
+   // whether the user has a TemplateURL that has been manually modified (e.g.,
+   // renamed) connected to the same host.
+-  return !url.is_valid() || url.host().empty() ||
+-      CanAddAutogeneratedKeywordForHost(url.host());
++  return should_autocollect_ && (!url.is_valid() || url.host().empty() ||
++      CanAddAutogeneratedKeywordForHost(url.host()));
+ }
+ 
+ bool TemplateURLService::IsPrepopulatedOrCreatedByPolicy(
+@@ -1286,6 +1294,8 @@
+ 
+ void TemplateURLService::Init(const Initializer* initializers,
+                               int num_initializers) {
++  should_autocollect_ = ShouldAutocollect();
++
+   if (client_)
+     client_->SetOwner(this);
+ 
+@@ -1517,16 +1527,17 @@
+     const std::string& host) const {
+   const TemplateURLSet* urls = provider_map_->GetURLsForHost(host);
+   if (!urls)
+-    return true;
++    return should_autocollect_;
+   for (TemplateURLSet::const_iterator i(urls->begin()); i != urls->end(); ++i) {
+     if (!(*i)->safe_for_autoreplace())
+       return false;
+   }
+-  return true;
++  return should_autocollect_;
+ }
+ 
+ bool TemplateURLService::CanReplace(const TemplateURL* t_url) const {
+-  return !ShowInDefaultList(t_url) && t_url->safe_for_autoreplace();
++  return should_autocollect_ && !ShowInDefaultList(t_url) &&
++      t_url->safe_for_autoreplace();
+ }
+ 
+ TemplateURL* TemplateURLService::FindNonExtensionTemplateURLForKeyword(
+--- a/components/search_engines/template_url_service.h
++++ b/components/search_engines/template_url_service.h
+@@ -740,6 +740,8 @@
+   // ---------- Browser state related members ---------------------------------
+   PrefService* prefs_;
+ 
++  bool should_autocollect_; // Whether search engines should be auto-collected
++
+   std::unique_ptr<SearchTermsData> search_terms_data_;
+ 
+   // ---------- Dependencies on other components ------------------------------

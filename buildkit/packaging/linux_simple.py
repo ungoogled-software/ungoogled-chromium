@@ -21,7 +21,7 @@ def _get_packaging_resources(shared=False):
         return get_resources_dir() / PACKAGING_DIR / 'linux_simple'
 
 def _copy_from_resources(name, output_dir, shared=False):
-    shutil.copyfile(
+    shutil.copy(
         str(_get_packaging_resources(shared=shared) / name),
         str(output_dir / name))
 
@@ -46,6 +46,8 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
     )
 
     ensure_empty_dir(output_dir) # Raises FileNotFoundError, FileExistsError
+    (output_dir / 'scripts').mkdir()
+    (output_dir / 'archive_include').mkdir()
 
     # Build and packaging scripts
     _copy_from_resources('build.sh.in', output_dir)

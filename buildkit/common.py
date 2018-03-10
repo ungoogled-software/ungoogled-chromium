@@ -7,8 +7,8 @@
 """Common code and constants"""
 
 import os
-import pathlib
 import logging
+from pathlib import Path
 
 # Constants
 
@@ -69,12 +69,12 @@ def get_resources_dir():
     """
     env_value = os.environ.get(_ENV_FORMAT.format('RESOURCES'))
     if env_value:
-        path = pathlib.Path(env_value)
+        path = Path(env_value)
         get_logger().debug(
             'Using %s environment variable value: %s', _ENV_FORMAT.format('RESOURCES'), path)
     else:
         # Assume that this resides in the repository
-        path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
+        path = Path(__file__).absolute().parent.parent / 'resources'
     if not path.is_dir():
         raise NotADirectoryError(str(path))
     return path

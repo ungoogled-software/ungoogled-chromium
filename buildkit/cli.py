@@ -33,7 +33,6 @@ from .config import ConfigBundle
 
 class _CLIError(RuntimeError):
     """Custom exception for printing argument parser errors from callbacks"""
-    pass
 
 class NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-methods
     """argparse.ArgumentParser action handler with more verbose logging"""
@@ -140,14 +139,14 @@ def _add_getsrc(subparsers):
             source_retrieval.retrieve_and_extract(
                 args.bundle, args.downloads, args.tree, prune_binaries=args.prune_binaries,
                 show_progress=args.show_progress)
-        except FileExistsError:
-            get_logger().error('Buildspace tree is not empty: %s', args.tree)
+        except FileExistsError as exc:
+            get_logger().error('Directory is not empty: %s', exc)
             raise _CLIError()
-        except FileNotFoundError:
-            get_logger().error('Buildspace downloads does not exist: %s', args.downloads)
+        except FileNotFoundError as exc:
+            get_logger().error('Directory or file not found: %s', exc)
             raise _CLIError()
-        except NotADirectoryError:
-            get_logger().error('Buildspace downloads is not a directory: %s', args.downloads)
+        except NotADirectoryError as exc:
+            get_logger().error('Path is not a directory: %s', exc)
             raise _CLIError()
         except source_retrieval.NotAFileError as exc:
             get_logger().error('Archive path is not a regular file: %s', exc)
@@ -189,7 +188,7 @@ def _add_prubin(subparsers):
         try:
             resolved_tree = args.tree.resolve()
         except FileNotFoundError as exc:
-            logger.error('Buildspace tree does not exist: %s', exc)
+            logger.error('File or directory does not exist: %s', exc)
             raise _CLIError()
         missing_file = False
         for tree_node in args.bundle.pruning:
@@ -217,9 +216,9 @@ def _add_subdom(subparsers):
             if not args.only or args.only == 'tree':
                 domain_substitution.process_tree_with_bundle(args.bundle, args.tree)
             if not args.only or args.only == 'patches':
-                pass
+                domain_substitution.process_bundle_patches(args.bundle)
         except FileNotFoundError as exc:
-            get_logger().error('Buildspace tree does not exist: %s', exc)
+            get_logger().error('File or directory does not exist: %s', exc)
             raise _CLIError()
         except NotADirectoryError as exc:
             get_logger().error('Patches directory does not exist: %s', exc)
@@ -237,6 +236,45 @@ def _add_subdom(subparsers):
         '-t', '--tree', type=Path, default=BUILDSPACE_TREE,
         help=('The buildspace tree path to apply domain substitution. '
               'Not applicable when --only is "patches". Default: %(default)s'))
+    parser.set_defaults(callback=_callback)
+
+def _add_genpkg_archlinux(subparsers):
+    """Generates a PKGBUILD for Arch Linux"""
+    def _callback(args):
+        from .packaging import archlinux as packaging_archlinux
+        try:
+            packaging_archlinux.generate_packaging(
+                args.bundle, args.output, repo_version=args.repo_commit,
+                repo_hash=args.repo_hash)
+        except FileExistsError as exc:
+            get_logger().error('PKGBUILD already exists: %s', exc)
+            raise _CLIError()
+        except FileNotFoundError as exc:
+            get_logger().error(
+                'Output path is not an existing directory: %s', exc)
+            raise _CLIError()
+    parser = subparsers.add_parser(
+        'archlinux', help=_add_genpkg_archlinux.__doc__,
+        description=_add_genpkg_archlinux.__doc__)
+    parser.add_argument(
+        '-o', '--output', type=Path, default='buildspace',
+        help=('The directory to store packaging files. '
+              'It must exist and not already contain a PKGBUILD file. '
+              'Default: %(default)s'))
+    parser.add_argument(
+        '--repo-commit', action='store_const', const='git', default='bundle',
+        help=("Use the current git repo's commit hash to specify the "
+              "ungoogled-chromium repo to download instead of a tag determined "
+              "by the config bundle's version config file. Requires git to be "
+              "in PATH and buildkit to be invoked inside of a clone of "
+              "ungoogled-chromium's git repository."))
+    parser.add_argument(
+        '--repo-hash', default='SKIP',
+        help=('The SHA-256 hash to verify the archive of the ungoogled-chromium '
+              'repository to download within the PKGBUILD. If it is "compute", '
+              'the hash is computed by downloading the archive to memory and '
+              'computing the hash. If it is "SKIP", hash computation is skipped. '
+              'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg_debian(subparsers):
@@ -286,6 +324,29 @@ def _add_genpkg_linux_simple(subparsers):
               'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
+def _add_genpkg_windows(subparsers):
+    """Generate Microsoft Windows packaging files"""
+    def _callback(args):
+        from .packaging import windows as packaging_windows
+        try:
+            packaging_windows.generate_packaging(args.bundle, args.output)
+        except FileExistsError as exc:
+            get_logger().error('Output directory is not empty: %s', exc)
+            raise _CLIError()
+        except FileNotFoundError as exc:
+            get_logger().error(
+                'Parent directories do not exist for path: %s', exc)
+            raise _CLIError()
+    parser = subparsers.add_parser(
+        'windows', help=_add_genpkg_windows.__doc__,
+        description=_add_genpkg_windows.__doc__)
+    parser.add_argument(
+        '-o', '--output', type=Path, default=BUILDSPACE_TREE_PACKAGING,
+        help=('The directory to store packaging files. '
+              'It must not already exist, but the parent directories must exist. '
+              'Default: %(default)s'))
+    parser.set_defaults(callback=_callback)
+
 def _add_genpkg_macos(subparsers):
     """Generate macOS packaging files"""
     def _callback(args):
@@ -318,8 +379,10 @@ def _add_genpkg(subparsers):
     # However, the top-level argparse.ArgumentParser will be passed the callback.
     subsubparsers = parser.add_subparsers(title='Available packaging types', dest='packaging')
     subsubparsers.required = True # Workaround for http://bugs.python.org/issue9253#msg186387
+    _add_genpkg_archlinux(subsubparsers)
     _add_genpkg_debian(subsubparsers)
     _add_genpkg_linux_simple(subsubparsers)
+    _add_genpkg_windows(subsubparsers)
     _add_genpkg_macos(subsubparsers)
 
 def main(arg_list=None):

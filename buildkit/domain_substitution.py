@@ -67,7 +67,7 @@ def substitute_domains_in_patches(regex_iter, file_set, patch_iter, log_warnings
             try:
                 patchset = unidiff.PatchSet(file_obj.read())
             except unidiff.errors.UnidiffParseError:
-                get_logger().exception('Could not parase patch: %s', patch_path)
+                get_logger().exception('Could not parse patch: %s', patch_path)
                 raise BuildkitAbort()
             file_subs = 0
             for patchedfile in patchset:

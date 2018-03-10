@@ -33,6 +33,7 @@ PRUNING_INCLUDE_PATTERNS = [
 
 # pathlib.Path.match() paths to exclude from binary pruning
 PRUNING_EXCLUDE_PATTERNS = [
+    'chrome/common/win/eventlog_messages.mc', # TODO: False positive textfile
     'components/dom_distiller/core/data/distillable_page_model.bin',
     'components/dom_distiller/core/data/distillable_page_model_new.bin',
     'components/dom_distiller/core/data/long_page_model.bin',

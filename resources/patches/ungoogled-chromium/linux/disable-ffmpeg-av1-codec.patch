@@ -1,0 +1,59 @@
+# Only use FFmpeg AV1 codec if the decoder is enabled
+#
+# This fixes building with system FFmpeg libraries without AV1 codec support because
+# in version 64, AV1 decoder is disabled by default.
+
+--- a/media/ffmpeg/ffmpeg_common.cc
++++ b/media/ffmpeg/ffmpeg_common.cc
+@@ -189,8 +189,10 @@ static VideoCodec CodecIDToVideoCodec(AV
+       return kCodecVP8;
+     case AV_CODEC_ID_VP9:
+       return kCodecVP9;
++#if BUILDFLAG(ENABLE_AV1_DECODER)
+     case AV_CODEC_ID_AV1:
+       return kCodecAV1;
++#endif
+     default:
+       DVLOG(1) << "Unknown video CodecID: " << codec_id;
+   }
+@@ -213,8 +215,10 @@ AVCodecID VideoCodecToCodecID(VideoCodec
+       return AV_CODEC_ID_VP8;
+     case kCodecVP9:
+       return AV_CODEC_ID_VP9;
++#if BUILDFLAG(ENABLE_AV1_DECODER)
+     case kCodecAV1:
+       return AV_CODEC_ID_AV1;
++#endif
+     default:
+       DVLOG(1) << "Unknown VideoCodec: " << video_codec;
+   }
+@@ -498,10 +502,12 @@ bool AVStreamToVideoDecoderConfig(const
+       format = PIXEL_FORMAT_YV12;
+       profile = VP9PROFILE_PROFILE0;
+       break;
++#if BUILDFLAG(ENABLE_AV1_DECODER)
+     case kCodecAV1:
+       format = PIXEL_FORMAT_I420;
+       profile = AV1PROFILE_PROFILE0;
+       break;
++#endif
+ #if BUILDFLAG(ENABLE_HEVC_DEMUXING)
+     case kCodecHEVC:
+       profile = HEVCPROFILE_MAIN;
+--- a/media/BUILD.gn
++++ b/media/BUILD.gn
+@@ -12,12 +12,14 @@ import("//media/media_options.gni")
+ import("//testing/libfuzzer/fuzzer_test.gni")
+ import("//testing/test.gni")
+ import("//third_party/ffmpeg/ffmpeg_options.gni")
++import("//third_party/libaom/options.gni")
+ 
+ buildflag_header("media_features") {
+   header = "media_features.h"
+ 
+   flags = [
+     "ENABLE_AC3_EAC3_AUDIO_DEMUXING=$enable_ac3_eac3_audio_demuxing",
++    "ENABLE_AV1_DECODER=$enable_av1_decoder",
+     "ENABLE_CBCS_ENCRYPTION_SCHEME=$enable_cbcs_encryption_scheme",
+     "ENABLE_CDM_HOST_VERIFICATION=$enable_cdm_host_verification",
+     "ENABLE_HEVC_DEMUXING=$enable_hevc_demuxing",

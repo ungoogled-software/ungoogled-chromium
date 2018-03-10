@@ -6,10 +6,15 @@
 
 """Common code for build files generators"""
 
-import string
+import hashlib
 import re
+import string
+import subprocess
+import urllib.request
 
 from pathlib import Path
+
+from ..common import ENCODING, BuildkitAbort, get_logger
 
 # Constants
 
@@ -40,12 +45,34 @@ class BuildFileStringTemplate(string.Template):
 
 def process_templates(root_dir, build_file_subs):
     """Substitute '$ungoog' strings in '.in' template files and remove the suffix"""
-    for old_path in root_dir.glob("*.in"):
+    for old_path in root_dir.glob('*.in'):
         new_path = root_dir / old_path.stem
         old_path.replace(new_path)
-        with new_path.open("r+") as new_file:
+        with new_path.open('r+', encoding=ENCODING) as new_file:
             content = BuildFileStringTemplate(new_file.read()).substitute(
                 **build_file_subs)
             new_file.seek(0)
             new_file.write(content)
             new_file.truncate()
+
+def get_current_commit():
+    """
+    Returns a string of the current commit hash.
+
+    It assumes "git" is in PATH, and that buildkit is run within a git repository.
+
+    Raises BuildkitAbort if invoking git fails.
+    """
+    result = subprocess.run(['git', 'rev-parse', '--verify', 'HEAD'],
+                            stdout=subprocess.PIPE, universal_newlines=True,
+                            cwd=str(Path(__file__).resolve().parent))
+    if result.returncode:
+        get_logger().error('Unexpected return code %s', result.returncode)
+        get_logger().error('Command output: %s', result.stdout)
+        raise BuildkitAbort()
+    return result.stdout.strip('\n')
+
+def get_remote_file_hash(url, hash_type='sha256'):
+    """Downloads and returns a hash of a file at the given url"""
+    with urllib.request.urlopen(url) as file_obj:
+        return hashlib.new(hash_type, file_obj.read()).hexdigest()
