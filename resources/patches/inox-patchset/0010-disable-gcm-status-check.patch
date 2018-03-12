@@ -1,29 +1,73 @@
 --- a/components/gcm_driver/gcm_channel_status_request.cc
 +++ b/components/gcm_driver/gcm_channel_status_request.cc
-@@ -23,8 +23,10 @@ namespace gcm {
+@@ -23,8 +23,6 @@
  
  namespace {
  
-+#if 0
- const char kRequestContentType[] = "application/octet-stream";
- const char kGCMChannelTag[] = "gcm_channel";
-+#endif
+-const char kRequestContentType[] = "application/octet-stream";
+-const char kGCMChannelTag[] = "gcm_channel";
  const int kDefaultPollIntervalSeconds = 60 * 60;  // 60 minutes.
  const int kMinPollIntervalSeconds = 30 * 60;  // 30 minutes.
  
-@@ -57,6 +59,7 @@ int GCMChannelStatusRequest::min_poll_in
+@@ -57,61 +55,8 @@
  }
  
  void GCMChannelStatusRequest::Start() {
-+#if 0
-   DCHECK(!url_fetcher_.get());
- 
-   GURL request_url(channel_status_request_url_);
-@@ -112,6 +115,9 @@ void GCMChannelStatusRequest::Start() {
-   url_fetcher_->SetLoadFlags(net::LOAD_DO_NOT_SEND_COOKIES |
-                              net::LOAD_DO_NOT_SAVE_COOKIES);
-   url_fetcher_->Start();
-+#endif
+-  DCHECK(!url_fetcher_.get());
+-
+-  GURL request_url(channel_status_request_url_);
+-
+-  sync_pb::ExperimentStatusRequest proto_data;
+-  proto_data.add_experiment_name(kGCMChannelTag);
+-  std::string upload_data;
+-  if (!proto_data.SerializeToString(&upload_data)) {
+-     NOTREACHED();
+-  }
+-
+-  net::NetworkTrafficAnnotationTag traffic_annotation =
+-      net::DefineNetworkTrafficAnnotation("gcm_channel_status_request", R"(
+-        semantics {
+-          sender: "GCM Driver"
+-          description:
+-            "Google Chrome interacts with Google Cloud Messaging to receive "
+-            "push messages for various browser features, as well as on behalf "
+-            "of websites and extensions. The channel status request "
+-            "periodically confirms with Google servers whether the feature "
+-            "should be enabled."
+-          trigger:
+-            "Periodically when Chrome has established an active Google Cloud "
+-            "Messaging subscription. The first request will be issued a minute "
+-            "after the first subscription activates. Subsequent requests will "
+-            "be issued each hour with a jitter of 15 minutes. Google can "
+-            "adjust this interval when it deems necessary."
+-          data:
+-            "A user agent string containing the Chrome version, channel and "
+-            "platform will be sent to the server. No user identifier is sent "
+-            "along with the request."
+-          destination: GOOGLE_OWNED_SERVICE
+-        }
+-        policy {
+-          cookies_allowed: NO
+-          setting:
+-            "Support for interacting with Google Cloud Messaging is enabled by "
+-            "default, and there is no configuration option to completely "
+-            "disable it. Websites wishing to receive push messages must "
+-            "acquire express permission from the user for the 'Notification' "
+-            "permission."
+-          policy_exception_justification:
+-            "Not implemented, considered not useful."
+-        })");
+-
+-  url_fetcher_ = net::URLFetcher::Create(request_url, net::URLFetcher::POST,
+-                                         this, traffic_annotation);
+-  data_use_measurement::DataUseUserData::AttachToFetcher(
+-      url_fetcher_.get(), data_use_measurement::DataUseUserData::GCM_DRIVER);
+-  url_fetcher_->SetRequestContext(request_context_getter_.get());
+-  url_fetcher_->AddExtraRequestHeader("User-Agent: " + user_agent_);
+-  url_fetcher_->SetUploadData(kRequestContentType, upload_data);
+-  url_fetcher_->SetLoadFlags(net::LOAD_DO_NOT_SEND_COOKIES |
+-                             net::LOAD_DO_NOT_SAVE_COOKIES);
+-  url_fetcher_->Start();
 +  // Simulate an empty response and disable GCM.
 +  callback_.Run(false, false, 0);
  }

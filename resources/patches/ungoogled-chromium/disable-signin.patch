@@ -26,19 +26,50 @@
  // Shows either the help app or the appropriate help page for |source|. If
  // |browser| is NULL and the help page is used (vs the app), the help page is
  // shown in the last active browser. If there is no such browser, a new browser
-@@ -386,6 +380,7 @@
+@@ -386,46 +380,6 @@
  #if !defined(OS_ANDROID)
  void ShowBrowserSignin(Browser* browser,
                         signin_metrics::AccessPoint access_point) {
-+#if 0
-   Profile* original_profile = browser->profile()->GetOriginalProfile();
-   SigninManagerBase* manager =
-       SigninManagerFactory::GetForProfile(original_profile);
-@@ -426,6 +421,7 @@
-             false));
-     DCHECK_GT(browser->tab_strip_model()->count(), 0);
-   }
-+#endif 
+-  Profile* original_profile = browser->profile()->GetOriginalProfile();
+-  SigninManagerBase* manager =
+-      SigninManagerFactory::GetForProfile(original_profile);
+-  DCHECK(manager->IsSigninAllowed());
+-
+-  // If the browser's profile is an incognito profile, make sure to use
+-  // a browser window from the original profile. The user cannot sign in
+-  // from an incognito window.
+-  auto displayer =
+-      std::make_unique<ScopedTabbedBrowserDisplayer>(original_profile);
+-  browser = displayer->browser();
+-
+-#if defined(OS_CHROMEOS)
+-  // ChromeOS doesn't have the avatar bubble.
+-  const bool can_show_avatar_bubble = false;
+-#else
+-  // The sign-in modal dialog is presented as a tab-modal dialog (which is
+-  // automatically dismissed when the page navigates). Displaying the dialog on
+-  // a new tab that loads any page will lead to it being dismissed as soon as
+-  // the new tab is loaded. So the sign-in dialog must only be presented on top
+-  // of an existing tab.
+-  //
+-  // If ScopedTabbedBrowserDisplayer had to create a (non-incognito) Browser*,
+-  // it won't have any tabs yet. Fallback to the full-tab sign-in flow in this
+-  // case.
+-  const bool can_show_avatar_bubble = !browser->tab_strip_model()->empty();
+-#endif  // defined(OS_CHROMEOS)
+-
+-  if (can_show_avatar_bubble) {
+-    browser->window()->ShowAvatarBubbleFromAvatarButton(
+-        BrowserWindow::AVATAR_BUBBLE_MODE_SIGNIN,
+-        signin::ManageAccountsParams(), access_point, false);
+-  } else {
+-    NavigateToSingletonTab(
+-        browser,
+-        signin::GetPromoURLForTab(
+-            access_point, signin_metrics::Reason::REASON_SIGNIN_PRIMARY_ACCOUNT,
+-            false));
+-    DCHECK_GT(browser->tab_strip_model()->count(), 0);
+-  }
  }
  
  void ShowBrowserSigninOrSettings(Browser* browser,

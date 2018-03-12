@@ -1,6 +1,6 @@
 --- a/chrome/browser/extensions/component_loader.cc
 +++ b/chrome/browser/extensions/component_loader.cc
-@@ -421,11 +421,6 @@ void ComponentLoader::AddWebStoreApp() {
+@@ -421,11 +421,6 @@
    if (!IsNormalSession())
      return;
  #endif
@@ -12,7 +12,7 @@
  }
  
  scoped_refptr<const Extension> ComponentLoader::CreateExtension(
-@@ -480,11 +475,6 @@ void ComponentLoader::AddDefaultComponen
+@@ -480,11 +475,6 @@
      Add(IDR_BOOKMARKS_MANIFEST,
          base::FilePath(FILE_PATH_LITERAL("bookmark_manager")));
    }
@@ -24,7 +24,7 @@
  #endif  // defined(OS_CHROMEOS)
  
    if (!skip_session_components) {
-@@ -560,13 +550,6 @@ void ComponentLoader::AddDefaultComponen
+@@ -560,13 +550,6 @@
  
      AddHangoutServicesExtension();
      AddImageLoaderExtension();
@@ -40,7 +40,7 @@
  #if defined(OS_CHROMEOS)
 --- a/chrome/browser/extensions/external_component_loader.cc
 +++ b/chrome/browser/extensions/external_component_loader.cc
-@@ -31,9 +31,6 @@ ExternalComponentLoader::~ExternalCompon
+@@ -31,9 +31,6 @@
  
  void ExternalComponentLoader::StartLoading() {
    auto prefs = std::make_unique<base::DictionaryValue>();
@@ -52,41 +52,67 @@
    {
 --- a/chrome/browser/extensions/webstore_installer.cc
 +++ b/chrome/browser/extensions/webstore_installer.cc
-@@ -580,6 +580,7 @@ void WebstoreInstaller::DownloadNextPend
+@@ -580,28 +580,6 @@
  void WebstoreInstaller::DownloadCrx(
      const std::string& extension_id,
      InstallSource source) {
-+#if 0
-   download_url_ = GetWebstoreInstallURL(extension_id, source);
-   MaybeAppendAuthUserParameter(approval_->authuser, &download_url_);
- 
-@@ -602,6 +603,7 @@ void WebstoreInstaller::DownloadCrx(
-       GetExtensionFileTaskRunner().get(), FROM_HERE,
-       base::BindOnce(&GetDownloadFilePath, download_directory, extension_id),
-       base::BindOnce(&WebstoreInstaller::StartDownload, this, extension_id));
-+#endif /* 0 */
+-  download_url_ = GetWebstoreInstallURL(extension_id, source);
+-  MaybeAppendAuthUserParameter(approval_->authuser, &download_url_);
+-
+-  base::FilePath user_data_dir;
+-  PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
+-  base::FilePath download_path = user_data_dir.Append(kWebstoreDownloadFolder);
+-
+-  base::FilePath download_directory(g_download_directory_for_tests ?
+-      *g_download_directory_for_tests : download_path);
+-
+-#if defined(OS_CHROMEOS)
+-  // Do not use drive for extension downloads.
+-  if (drive::util::IsUnderDriveMountPoint(download_directory)) {
+-    download_directory = DownloadPrefs::FromBrowserContext(
+-        profile_)->GetDefaultDownloadDirectoryForProfile();
+-  }
+-#endif
+-
+-  base::PostTaskAndReplyWithResult(
+-      GetExtensionFileTaskRunner().get(), FROM_HERE,
+-      base::BindOnce(&GetDownloadFilePath, download_directory, extension_id),
+-      base::BindOnce(&WebstoreInstaller::StartDownload, this, extension_id));
  }
  
  // http://crbug.com/165634
-@@ -750,6 +752,7 @@ void WebstoreInstaller::UpdateDownloadPr
+@@ -750,28 +728,6 @@
  }
  
  void WebstoreInstaller::StartCrxInstaller(const DownloadItem& download) {
-+#if 0
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-   DCHECK(!crx_installer_.get());
- 
-@@ -772,6 +775,7 @@ void WebstoreInstaller::StartCrxInstalle
-   crx_installer_->set_allow_silent_install(true);
- 
-   crx_installer_->InstallCrx(download.GetFullPath());
-+#endif /* 0 */
+-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+-  DCHECK(!crx_installer_.get());
+-
+-  // The clock may be backward, e.g. daylight savings time just happenned.
+-  if (download.GetEndTime() >= download.GetStartTime()) {
+-    UMA_HISTOGRAM_TIMES("Extensions.WebstoreDownload.FileDownload",
+-                        download.GetEndTime() - download.GetStartTime());
+-  }
+-  ExtensionService* service = ExtensionSystem::Get(profile_)->
+-      extension_service();
+-  CHECK(service);
+-
+-  const Approval* approval = GetAssociatedApproval(download);
+-  DCHECK(approval);
+-
+-  crx_installer_ = download_crx_util::CreateCrxInstaller(profile_, download);
+-
+-  crx_installer_->set_expected_id(approval->extension_id);
+-  crx_installer_->set_is_gallery_install(true);
+-  crx_installer_->set_allow_silent_install(true);
+-
+-  crx_installer_->InstallCrx(download.GetFullPath());
  }
  
  void WebstoreInstaller::ReportFailure(const std::string& error,
 --- a/chrome/browser/extensions/component_extensions_whitelist/whitelist.cc
 +++ b/chrome/browser/extensions/component_extensions_whitelist/whitelist.cc
-@@ -26,7 +26,6 @@ namespace extensions {
+@@ -26,7 +26,6 @@
  
  bool IsComponentExtensionWhitelisted(const std::string& extension_id) {
    const char* const kAllowed[] = {
