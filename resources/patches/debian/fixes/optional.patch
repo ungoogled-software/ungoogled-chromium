@@ -1,0 +1,47 @@
+description: Optional<std::vector<T>> with T non-copyable is not handled by gcc 7
+author: chromium 66 authors
+bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80654
+
+--- a/base/optional.h
++++ b/base/optional.h
+@@ -7,11 +7,31 @@
+ 
+ #include <type_traits>
+ #include <utility>
++#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 7
++#include <vector>
++#endif
+ 
+ #include "base/logging.h"
+ 
+ namespace base {
+ 
++#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 7
++// Workaround for g++7 and earlier family.
++// Due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80654, without this
++// Optional<std::vector<T>> where T is non-copyable causes a compile error.
++// As we know it is not trivially copy constructible, explicitly declare so.
++template <typename T>
++struct is_trivially_copy_constructible
++    : std::is_trivially_copy_constructible<T> {}; 
++
++template <typename... T>
++struct is_trivially_copy_constructible<std::vector<T...>> : std::false_type {}; 
++#else
++// Otherwise use std::is_trivially_copy_constructible as is.
++template <typename T>
++using is_trivially_copy_constructible = std::is_trivially_copy_constructible<T>;
++#endif
++
+ // Specification:
+ // http://en.cppreference.com/w/cpp/utility/optional/in_place_t
+ struct in_place_t {};
+@@ -106,7 +126,7 @@
+ // compiler generated constexpr {copy,move} constructors). Note that
+ // placement-new is prohibited in constexpr.
+ template <typename T,
+-          bool = std::is_trivially_copy_constructible<T>::value,
++          bool = is_trivially_copy_constructible<T>::value,
+           bool = std::is_trivially_move_constructible<T>::value>
+ struct OptionalStorage : OptionalStorageBase<T> {
+   // This is no trivially {copy,move} constructible case. Other cases are
