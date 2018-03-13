@@ -49,7 +49,7 @@ mkdir -p buildspace/downloads # Alternatively, buildspace/ can be a symbolic lin
 ./buildkit-launcher.py genbun debian_stretch
 ./buildkit-launcher.py getsrc
 ./buildkit-launcher.py subdom
-./buildkit-launcher.py genpkg debian --flavor standard
+./buildkit-launcher.py genpkg debian --flavor stretch
 ```
 TODO: Investigate using dpkg-source to build a source package
 
