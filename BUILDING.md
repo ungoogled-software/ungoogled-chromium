@@ -272,7 +272,7 @@ Packages will appear in `buildspace/`
 Builds a compressed tar archive
 
 ```
-./buildkit-launcher.py genpkg linux_portable
+./buildkit-launcher.py genpkg linux_simple
 # The buildspace tree can be relocated to another system for building
 cd buildspace/tree
 # Use "export CLANG_BASE_PATH=/path/to/llvm_root" to set the LLVM and Clang installation path
