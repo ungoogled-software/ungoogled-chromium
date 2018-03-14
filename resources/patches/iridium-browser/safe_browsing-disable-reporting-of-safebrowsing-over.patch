@@ -13,55 +13,179 @@ This prevents trk:148 (phishing) and trk:149 (malware).
 
 --- a/chrome/browser/safe_browsing/client_side_detection_service.cc
 +++ b/chrome/browser/safe_browsing/client_side_detection_service.cc
-@@ -60,11 +60,13 @@ namespace {
+@@ -60,12 +60,6 @@
      REPORT_RESULT_MAX
    };
  
-+#if 0
-   void UpdateEnumUMAHistogram(MalwareReportTypes report_type) {
-     DCHECK(report_type >= 0 && report_type < REPORT_RESULT_MAX);
-     UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports",
-                               report_type, REPORT_RESULT_MAX);
-   }
-+#endif
- 
+-  void UpdateEnumUMAHistogram(MalwareReportTypes report_type) {
+-    DCHECK(report_type >= 0 && report_type < REPORT_RESULT_MAX);
+-    UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports",
+-                              report_type, REPORT_RESULT_MAX);
+-  }
+-
  }  // namespace
  
-@@ -269,6 +271,10 @@ void ClientSideDetectionService::StartCl
+ const int ClientSideDetectionService::kInitialClientModelFetchDelayMs = 10000;
+@@ -269,83 +263,8 @@
      return;
    }
  
-+#if 1
+-  // Fill in metadata about which model we used.
+-  if (is_extended_reporting) {
+-    request->set_model_filename(model_loader_extended_->name());
+-    request->mutable_population()->set_user_population(
+-        ChromeUserPopulation::EXTENDED_REPORTING);
+-  } else {
+-    request->set_model_filename(model_loader_standard_->name());
+-    request->mutable_population()->set_user_population(
+-        ChromeUserPopulation::SAFE_BROWSING);
+-  }
+-  DVLOG(2) << "Starting report for hit on model " << request->model_filename();
+-
+-  std::string request_data;
+-  if (!request->SerializeToString(&request_data)) {
+-    UMA_HISTOGRAM_COUNTS("SBClientPhishing.RequestNotSerialized", 1);
+-    DVLOG(1) << "Unable to serialize the CSD request. Proto file changed?";
+-    if (!callback.is_null())
+-      callback.Run(GURL(request->url()), false);
+-    return;
+-  }
+-
+-  net::NetworkTrafficAnnotationTag traffic_annotation =
+-      net::DefineNetworkTrafficAnnotation(
+-          "safe_browsing_client_side_phishing_detector", R"(
+-          semantics {
+-            sender: "Safe Browsing Client-Side Phishing Detector"
+-            description:
+-              "If the client-side phishing detector determines that the "
+-              "current page contents are similar to phishing pages, it will "
+-              "send a request to Safe Browsing to ask for a final verdict. If "
+-              "Safe Browsing agrees the page is dangerous, Chrome will show a "
+-              "full-page interstitial warning."
+-            trigger:
+-              "Whenever the clinet-side detector machine learning model "
+-              "computes a phishy-ness score above a threshold, after page-load."
+-            data:
+-              "Top-level page URL without CGI parameters, boolean and double "
+-              "features extracted from DOM, such as the number of resources "
+-              "loaded in the page, if certain likely phishing and social "
+-              "engineering terms found on the page, etc."
+-            destination: GOOGLE_OWNED_SERVICE
+-          }
+-          policy {
+-            cookies_allowed: YES
+-            cookies_store: "Safe browsing cookie store"
+-            setting:
+-              "Users can enable or disable this feature by toggling 'Protect "
+-              "you and your device from dangerous sites' in Chrome settings "
+-              "under Privacy. This feature is enabled by default."
+-            chrome_policy {
+-              SafeBrowsingEnabled {
+-                policy_options {mode: MANDATORY}
+-                SafeBrowsingEnabled: false
+-              }
+-            }
+-          })");
+-  std::unique_ptr<net::URLFetcher> fetcher(net::URLFetcher::Create(
+-      0 /* ID used for testing */, GetClientReportUrl(kClientReportPhishingUrl),
+-      net::URLFetcher::POST, this, traffic_annotation));
+-  net::URLFetcher* fetcher_ptr = fetcher.get();
+-  data_use_measurement::DataUseUserData::AttachToFetcher(
+-      fetcher_ptr, data_use_measurement::DataUseUserData::SAFE_BROWSING);
+-
+-  // Remember which callback and URL correspond to the current fetcher object.
+-  std::unique_ptr<ClientPhishingReportInfo> info(new ClientPhishingReportInfo);
+-  info->fetcher = std::move(fetcher);
+-  info->callback = callback;
+-  info->phishing_url = GURL(request->url());
+-  client_phishing_reports_[fetcher_ptr] = std::move(info);
+-
+-  fetcher_ptr->SetLoadFlags(net::LOAD_DISABLE_CACHE);
+-  fetcher_ptr->SetRequestContext(request_context_getter_.get());
+-  fetcher_ptr->SetUploadData("application/octet-stream", request_data);
+-  fetcher_ptr->Start();
+-
+-  // Record that we made a request
+-  phishing_report_times_.push(base::Time::Now());
 +  if (!callback.is_null())
 +    callback.Run(GURL(request->url()), false);
-+#else
-   // Fill in metadata about which model we used.
-   if (is_extended_reporting) {
-     request->set_model_filename(model_loader_extended_->name());
-@@ -346,6 +352,7 @@ void ClientSideDetectionService::StartCl
- 
-   // Record that we made a request
-   phishing_report_times_.push(base::Time::Now());
-+#endif
  }
  
  void ClientSideDetectionService::StartClientReportMalwareRequest(
-@@ -360,6 +367,10 @@ void ClientSideDetectionService::StartCl
+@@ -360,74 +279,8 @@
      return;
    }
  
-+#if 1
+-  std::string request_data;
+-  if (!request->SerializeToString(&request_data)) {
+-    UpdateEnumUMAHistogram(REPORT_FAILED_SERIALIZATION);
+-    DVLOG(1) << "Unable to serialize the CSD request. Proto file changed?";
+-    if (!callback.is_null())
+-      callback.Run(GURL(request->url()), GURL(request->url()), false);
+-    return;
+-  }
+-
+-  net::NetworkTrafficAnnotationTag traffic_annotation =
+-      net::DefineNetworkTrafficAnnotation(
+-          "safe_browsing_client_side_malware_detector", R"(
+-          semantics {
+-            sender: "Safe Browsing Client-Side Malware Detector"
+-            description:
+-              "If the client-side malware detector determines that a requested "
+-              "page's IP is in the blacklisted malware IPs, it will send a "
+-              "request to Safe Browsing to ask for a final verdict. If Safe "
+-              "Browsing agrees the page is dangerous, Chrome will show a "
+-              "full-page interstitial warning."
+-            trigger:
+-              "Whenever the IP of the page is in malware blacklist."
+-            data:
+-              "Top-level page URL without CGI parameters, its non-https "
+-              "referrer, URLs of resources that match IP blacklist."
+-            destination: GOOGLE_OWNED_SERVICE
+-          }
+-          policy {
+-            cookies_allowed: YES
+-            cookies_store: "Safe browsing cookie store"
+-            setting:
+-              "Users can enable or disable this feature by toggling 'Protect "
+-              "you and your device from dangerous sites' in Chrome settings "
+-              "under Privacy. This feature is enabled by default."
+-            chrome_policy {
+-              SafeBrowsingEnabled {
+-                policy_options {mode: MANDATORY}
+-                SafeBrowsingEnabled: false
+-              }
+-            }
+-          })");
+-  std::unique_ptr<net::URLFetcher> fetcher(net::URLFetcher::Create(
+-      0 /* ID used for testing */, GetClientReportUrl(kClientReportMalwareUrl),
+-      net::URLFetcher::POST, this, traffic_annotation));
+-  net::URLFetcher* fetcher_ptr = fetcher.get();
+-  data_use_measurement::DataUseUserData::AttachToFetcher(
+-      fetcher_ptr, data_use_measurement::DataUseUserData::SAFE_BROWSING);
+-
+-  // Remember which callback and URL correspond to the current fetcher object.
+-  std::unique_ptr<ClientMalwareReportInfo> info(new ClientMalwareReportInfo);
+-  info->fetcher = std::move(fetcher);
+-  info->callback = callback;
+-  info->original_url = GURL(request->url());
+-  client_malware_reports_[fetcher_ptr] = std::move(info);
+-
+-  fetcher_ptr->SetLoadFlags(net::LOAD_DISABLE_CACHE);
+-  fetcher_ptr->SetRequestContext(request_context_getter_.get());
+-  fetcher_ptr->SetUploadData("application/octet-stream", request_data);
+-  fetcher_ptr->Start();
+-
+-  UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports",
+-                            REPORT_SENT, REPORT_RESULT_MAX);
+-
+-  UMA_HISTOGRAM_COUNTS("SBClientMalware.IPBlacklistRequestPayloadSize",
+-                       request_data.size());
+-
+-  // Record that we made a malware request
+-  malware_report_times_.push(base::Time::Now());
 +  if (!callback.is_null())
 +    callback.Run(GURL(request->url()), GURL(request->url()), false);
-+#else
-   std::string request_data;
-   if (!request->SerializeToString(&request_data)) {
-     UpdateEnumUMAHistogram(REPORT_FAILED_SERIALIZATION);
-@@ -428,6 +439,7 @@ void ClientSideDetectionService::StartCl
- 
-   // Record that we made a malware request
-   malware_report_times_.push(base::Time::Now());
-+#endif
  }
  
  

@@ -16,9 +16,9 @@ url="https://github.com/Eloston/ungoogled-chromium"
 license=('BSD')
 depends=('gtk3' 'nss' 'alsa-lib' 'xdg-utils' 'libxss' 'libcups' 'libgcrypt'
          'ttf-font' 'systemd' 'dbus' 'libpulse' 'pciutils' 'json-glib'
-         'desktop-file-utils' 'hicolor-icon-theme' 'libevent')
-makedepends=('python2' 'gperf' 'yasm' 'mesa' 'ninja' 'git' 'libva'
-             'clang' 'llvm' 'lld' 'quilt')
+         'desktop-file-utils' 'hicolor-icon-theme')
+makedepends=('python2' 'gperf' 'yasm' 'mesa' 'ninja' 'git' 'clang'
+             'llvm' 'lld' 'libva' 'quilt')
 optdepends=('pepper-flash: support for Flash content'
             'kdialog: needed for file dialogs in KDE'
             'gnome-keyring: for storing passwords in GNOME keyring'
@@ -27,7 +27,7 @@ optdepends=('pepper-flash: support for Flash content'
             'libva-mesa-driver: for hardware video acceleration with AMD/ATI GPUs'
             'libva-vdpau-driver: for hardware video acceleration with NVIDIA GPUs')
 provides=('chromium')
-conflicts=('chromium' 'inox' 'iridium')
+conflicts=('chromium')
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-$pkgver.tar.xz
         chromium-launcher-$_launcher_ver.tar.gz::https://github.com/foutrelis/chromium-launcher/archive/v$_launcher_ver.tar.gz
         chromium-$pkgver.txt::https://chromium.googlesource.com/chromium/src.git/+/$pkgver?format=TEXT
@@ -40,11 +40,11 @@ sha256sums=('5fd0218759231ac00cc729235823592f6fd1e4a00ff64780a5fed7ab210f1860'
 # Possible replacements are listed in build/linux/unbundle/replace_gn_files.py
 # Keys are the names in the above script; values are the dependencies in Arch
 readonly -A _system_libs=(
-  #[ffmpeg]=ffmpeg            # https://crbug.com/731766
+  [ffmpeg]=ffmpeg
   [flac]=flac
-  #[fontconfig]=fontconfig    # Enable for M65
-  #[freetype]=freetype2       # Using 'use_system_freetype=true' until M65
-  #[harfbuzz-ng]=harfbuzz     # Using 'use_system_harfbuzz=true' until M65
+  [fontconfig]=fontconfig
+  [freetype]=freetype2
+  [harfbuzz-ng]=harfbuzz
   [icu]=icu
   [libdrm]=
   [libevent]=libevent
@@ -63,19 +63,20 @@ readonly -A _system_libs=(
 readonly _unwanted_bundled_libs=(
   ${!_system_libs[@]}
   ${_system_libs[libjpeg]+libjpeg_turbo}
-  freetype
-  harfbuzz-ng
 )
-depends+=(${_system_libs[@]} freetype2 harfbuzz)
+depends+=(${_system_libs[@]})
 
 prepare() {
-  cd "$srcdir/ungoogled-chromium-$ungoog{repo_version}"
+  local _tree="$srcdir/chromium-$pkgver"
+  local _user_bundle="$srcdir/chromium-$pkgver/ungoogled"
+
+  cd "$srcdir/$pkgname-$pkgver-$pkgrel"
 
   msg2 'Processing sources'
-  python3 buildkit-launcher.py genbun -u "$srcdir/chromium-$pkgver/ungoogled" archlinux
-  python3 buildkit-launcher.py prubin -u "$srcdir/chromium-$pkgver/ungoogled" -t "$srcdir/chromium-$pkgver"
-  python3 buildkit-launcher.py subdom -u "$srcdir/chromium-$pkgver/ungoogled" -t "$srcdir/chromium-$pkgver"
-  cp "$srcdir/chromium-$pkgver/ungoogled/patch_order.list" "$srcdir/chromium-$pkgver/ungoogled/patches/series"
+  python buildkit-launcher.py genbun -u "$_user_bundle" archlinux
+  python buildkit-launcher.py prubin -u "$_user_bundle" -t "$_tree"
+  python buildkit-launcher.py subdom -u "$_user_bundle" -t "$_tree"
+  ln -s ../patch_order.list "$_user_bundle/patches/series"
 
   cd "$srcdir/chromium-$pkgver"
 
@@ -90,7 +91,7 @@ prepare() {
   echo "LASTCHANGE=$_chrome_build_hash-" >build/util/LASTCHANGE
 
   # Apply patches
-  env QUILT_PATCHES="$srcdir/chromium-$pkgver/ungoogled/patches" quilt push -a
+  env QUILT_PATCHES="$_user_bundle/patches" quilt push -a
 
   # Remove compiler flags not supported by our system clang
   sed -i \
@@ -116,7 +117,7 @@ prepare() {
       \! -path "*third_party/$_lib/chromium/*" \
       \! -path "*third_party/$_lib/google/*" \
       \! -path './base/third_party/icu/*' \
-      \! -path './third_party/freetype/src/src/psnames/pstables.h' \
+      \! -path './third_party/pdfium/third_party/freetype/include/pstables.h' \
       \! -path './third_party/yasm/run_yasm.py' \
       \! -regex '.*\.\(gn\|gni\|isolate\)' \
       -delete
@@ -150,16 +151,9 @@ build() {
 $ungoog{gn_flags}
   )
 
-  if check_option strip y; then
-    # https://chromium-review.googlesource.com/c/chromium/src/+/712575
-    # _flags+=('exclude_unwind_tables=true')
-    CFLAGS+='   -fno-unwind-tables -fno-asynchronous-unwind-tables'
-    CXXFLAGS+=' -fno-unwind-tables -fno-asynchronous-unwind-tables'
-    CPPFLAGS+=' -DNO_UNWIND_TABLES'
-  fi
 
   msg2 'Building GN'
-  python2 tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s -j 4 --no-clean
+  python2 tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s --no-clean
   msg2 'Configuring Chromium'
   $ungoog{build_output}/gn gen $ungoog{build_output} --args="${_flags[*]}" \
     --script-executable=/usr/bin/python2 --fail-on-unused-args
@@ -178,7 +172,6 @@ package() {
 
   install -D $ungoog{build_output}/chrome "$pkgdir/usr/lib/chromium/chromium"
   install -Dm4755 $ungoog{build_output}/chrome_sandbox "$pkgdir/usr/lib/chromium/chrome-sandbox"
-  install -D $ungoog{build_output}/chromedriver "$pkgdir/usr/lib/chromium/chromedriver"
   ln -s /usr/lib/$pkgname/chromedriver "$pkgdir/usr/bin/chromedriver"
 
   install -Dm644 chrome/installer/linux/common/desktop.template \
@@ -194,7 +187,7 @@ package() {
 
   cp \
     $ungoog{build_output}/{chrome_{100,200}_percent,resources}.pak \
-    $ungoog{build_output}/{*.bin,libwidevinecdmadapter.so} \
+    $ungoog{build_output}/{*.bin,chromedriver,libwidevinecdmadapter.so} \
     "$pkgdir/usr/lib/chromium/"
   install -Dm644 -t "$pkgdir/usr/lib/chromium/locales" $ungoog{build_output}/locales/*.pak
 

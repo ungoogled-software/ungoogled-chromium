@@ -76,7 +76,7 @@ Other platforms are discussed and tracked in GitHub's Issue Tracker. Learn more 
 
 ### Contributor binaries
 
-These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not reproducible, their functionality cannot be guaranteed.
+**IMPORTANT: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed.**
 
 [All downloads](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
 

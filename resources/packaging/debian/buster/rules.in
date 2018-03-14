@@ -11,8 +11,8 @@ export CLANG_BASE_PATH=/usr/lib/llvm-5.0
 # more verbose linker output
 defines+=target_extra_ldflags=\"-Wl,--stats\"
 
-# avoid error in v8's garbage collector (see http://gcc.gnu.org/bugzilla/show_bug.cgi?id=68853)
-defines+=target_extra_cxxflags=\"-fno-delete-null-pointer-checks -Wno-deprecated-declarations\"
+# extra flags to reduce warnings that aren't very useful
+defines+=target_extra_cxxflags=\"-Wno-deprecated-declarations -Wno-dangling-else -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable\"
 
 # set the appropriate cpu architecture
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
@@ -27,7 +27,10 @@ defines+=host_cpu=\"arm64\"
 endif
 ifeq (armhf,$(DEB_HOST_ARCH))
 defines+=host_cpu=\"arm\" \
-	 arm_use_neon=false
+                 arm_use_neon=false \
+                 blink_symbol_level=1 \
+                 symbol_level=1 \
+
 endif
 
 # auto-inserted gn flags
@@ -59,10 +62,7 @@ override_dh_auto_configure:
 	# use system flot
 	for file in $(flotpaths); do ln -sf $$file third_party/flot; done
 	# strip out system third_party libraries
-	cp third_party/freetype/src/src/psnames/pstables.h .
 	./debian/scripts/unbundle
-	mkdir -p third_party/freetype/src/src/psnames
-	mv pstables.h third_party/freetype/src/src/psnames
 
 override_dh_auto_build-arch: $ungoog{build_output}/gn
 	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args

@@ -1,6 +1,6 @@
 --- a/components/autofill/core/browser/autofill_download_manager.cc
 +++ b/components/autofill/core/browser/autofill_download_manager.cc
-@@ -158,8 +158,7 @@ std::string RequestTypeToString(Autofill
+@@ -158,8 +158,7 @@
  }
  
  GURL GetRequestUrl(AutofillDownloadManager::RequestType request_type) {
@@ -10,19 +10,41 @@
  }
  
  std::ostream& operator<<(std::ostream& out,
-@@ -299,6 +298,7 @@ bool AutofillDownloadManager::StartUploa
+@@ -299,38 +298,6 @@
  
  bool AutofillDownloadManager::StartRequest(
      const FormRequestData& request_data) {
-+#if 0
-   net::URLRequestContextGetter* request_context =
-       driver_->GetURLRequestContext();
-   DCHECK(request_context);
-@@ -330,6 +330,7 @@ bool AutofillDownloadManager::StartReque
-                                      variations::SignedIn::kNo, &headers);
-   fetcher->SetExtraRequestHeaders(headers.ToString());
-   fetcher->Start();
-+#endif
- 
+-  net::URLRequestContextGetter* request_context =
+-      driver_->GetURLRequestContext();
+-  DCHECK(request_context);
+-  GURL request_url = GetRequestUrl(request_data.request_type);
+-
+-  // Id is ignored for regular chrome, in unit test id's for fake fetcher
+-  // factory will be 0, 1, 2, ...
+-  std::unique_ptr<net::URLFetcher> owned_fetcher = net::URLFetcher::Create(
+-      fetcher_id_for_unittest_++, request_url, net::URLFetcher::POST, this,
+-      GetNetworkTrafficAnnotation(request_data.request_type));
+-  net::URLFetcher* fetcher = owned_fetcher.get();
+-  data_use_measurement::DataUseUserData::AttachToFetcher(
+-      fetcher, data_use_measurement::DataUseUserData::AUTOFILL);
+-  url_fetchers_[fetcher] =
+-      std::make_pair(std::move(owned_fetcher), request_data);
+-  fetcher->SetAutomaticallyRetryOn5xx(false);
+-  fetcher->SetRequestContext(request_context);
+-  fetcher->SetUploadData("text/proto", request_data.payload);
+-  fetcher->SetLoadFlags(net::LOAD_DO_NOT_SAVE_COOKIES |
+-                        net::LOAD_DO_NOT_SEND_COOKIES);
+-  // Add Chrome experiment state to the request headers.
+-  net::HttpRequestHeaders headers;
+-  // Note: It's OK to pass SignedIn::kNo if it's unknown, as it does not affect
+-  // transmission of experiments coming from the variations server.
+-  variations::AppendVariationHeaders(fetcher->GetOriginalURL(),
+-                                     driver_->IsIncognito()
+-                                         ? variations::InIncognito::kYes
+-                                         : variations::InIncognito::kNo,
+-                                     variations::SignedIn::kNo, &headers);
+-  fetcher->SetExtraRequestHeaders(headers.ToString());
+-  fetcher->Start();
+-
    return true;
  }

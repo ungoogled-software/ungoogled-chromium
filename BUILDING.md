@@ -49,7 +49,7 @@ mkdir -p buildspace/downloads # Alternatively, buildspace/ can be a symbolic lin
 ./buildkit-launcher.py genbun debian_stretch
 ./buildkit-launcher.py getsrc
 ./buildkit-launcher.py subdom
-./buildkit-launcher.py genpkg debian --flavor standard
+./buildkit-launcher.py genpkg debian --flavor stretch
 ```
 TODO: Investigate using dpkg-source to build a source package
 
@@ -245,7 +245,7 @@ First, setup the source tree:
 
 ```
 mkdir -p buildspace/downloads
-./buildkit-launcher.py genbun linux_simple
+./buildkit-launcher.py genbun linux_portable
 ./buildkit-launcher.py subdom
 ```
 
@@ -272,7 +272,7 @@ Packages will appear in `buildspace/`
 Builds a compressed tar archive
 
 ```
-./buildkit-launcher.py genpkg linux_simple
+./buildkit-launcher.py genpkg linux_portable
 # The buildspace tree can be relocated to another system for building
 cd buildspace/tree
 # Use "export CLANG_BASE_PATH=/path/to/llvm_root" to set the LLVM and Clang installation path

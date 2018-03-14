@@ -154,7 +154,7 @@ Packaging consists of packaging types; each type has differing package outputs a
 
 * `archlinux` - Generates a PKGBUILD that downloads, builds, and packages Chromium. Unlike other packaging types, this type does not use the buildspace tree; it is a standalone script that automates the entire process.
 * `debian` - Generates `debian` directories for building `.deb.` packages for Debian and derivative systems. There are different variants of Debian packaging scripts known as *flavors*. The current flavors are:
-    * `standard` - For building with a derivative of the `linux_rooted` base bundle.
+    * (debian codename here) - For building on the Debian version with the corresponding code name. They are derived from Debian's `chromium` package, with only a few modifications. Older codenames are built upon newer ones. These packaging types are intended to be used with derivatives of the `linux_rooted` base bundle.
     * `minimal` - For building with a derivative of the `linux_portable` base bundle.
 * `linux_simple` - Generates two shell scripts for Linux. The first applies patches and builds Chromium. The second packages the build outputs into a compressed tar archive.
 * `macos` - Generates a shell script for macOS to build Chromium and package the build outputs into a `.dmg`.
