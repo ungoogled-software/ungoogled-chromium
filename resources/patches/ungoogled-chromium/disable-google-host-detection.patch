@@ -2,7 +2,7 @@
 
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -393,28 +393,6 @@ void GetIdentityFromURL(const GURL& url,
+@@ -397,28 +397,6 @@
  }
  
  bool HasGoogleHost(const GURL& url) {
@@ -33,7 +33,7 @@
  
 --- a/components/variations/net/variations_http_headers.cc
 +++ b/components/variations/net/variations_http_headers.cc
-@@ -18,28 +18,6 @@ namespace variations {
+@@ -19,27 +19,6 @@
  
  namespace {
  
@@ -56,13 +56,12 @@
 -    "googleweblight.com",
 -};
 -
--const char kChromeUMAEnabled[] = "X-Chrome-UMA-Enabled";
 -const char kClientData[] = "X-Client-Data";
 -
  // The result of checking if a URL should have variations headers appended.
  // This enum is used to record UMA histogram values, and should not be
  // reordered.
-@@ -56,28 +34,6 @@ enum URLValidationResult {
+@@ -56,28 +35,6 @@
  // Checks whether headers should be appended to the |url|, based on the domain
  // of |url|. |url| is assumed to be valid, and to have an http/https scheme.
  bool IsGoogleDomain(const GURL& url) {
@@ -91,9 +90,9 @@
    return false;
  }
  
-@@ -93,35 +49,10 @@ void AppendVariationHeaders(const GURL&
-                             bool uma_enabled,
-                             bool is_signed_in,
+@@ -92,30 +49,10 @@
+                             InIncognito incognito,
+                             SignedIn signed_in,
                              net::HttpRequestHeaders* headers) {
 -  // Note the criteria for attaching client experiment headers:
 -  // 1. We only transmit to Google owned domains which can evaluate experiments.
@@ -102,18 +101,14 @@
 -  //         exactly www.googleadservices.com or
 -  //         international TLD domains *.google.<TLD> or *.youtube.<TLD>.
 -  // 2. Only transmit for non-Incognito profiles.
--  // 3. For the X-Chrome-UMA-Enabled bit, only set it if UMA is in fact enabled
--  //    for this install of Chrome.
--  // 4. For the X-Client-Data header, only include non-empty variation IDs.
--  if (incognito || !internal::ShouldAppendVariationHeaders(url))
+-  // 3. For the X-Client-Data header, only include non-empty variation IDs.
+-  if ((incognito == InIncognito::kYes) ||
+-      !internal::ShouldAppendVariationHeaders(url))
 -    return;
--
--  if (uma_enabled)
--    headers->SetHeaderIfMissing(kChromeUMAEnabled, "1");
 -
 -  const std::string variation_ids_header =
 -      VariationsHttpHeaderProvider::GetInstance()->GetClientDataHeader(
--          is_signed_in);
+-          signed_in == SignedIn::kYes);
 -  if (!variation_ids_header.empty()) {
 -    // Note that prior to M33 this header was named X-Chrome-Variations.
 -    headers->SetHeaderIfMissing(kClientData, variation_ids_header);
@@ -122,14 +117,13 @@
  
  std::set<std::string> GetVariationHeaderNames() {
    std::set<std::string> headers;
--  headers.insert(kChromeUMAEnabled);
 -  headers.insert(kClientData);
    return headers;
  }
  
 --- a/chrome/browser/page_load_metrics/page_load_metrics_util.cc
 +++ b/chrome/browser/page_load_metrics/page_load_metrics_util.cc
-@@ -164,9 +164,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
+@@ -164,9 +164,7 @@
  }
  
  bool IsGoogleSearchHostname(const GURL& url) {
@@ -142,7 +136,7 @@
  bool IsGoogleSearchResultUrl(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -455,11 +455,6 @@ base::string16 TemplateURLRef::SearchTer
+@@ -455,11 +455,6 @@
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -156,7 +150,7 @@
  
 --- a/components/google/core/browser/google_util.cc
 +++ b/components/google/core/browser/google_util.cc
-@@ -41,118 +41,16 @@ namespace {
+@@ -41,118 +41,16 @@
  
  bool gUseMockLinkDoctorBaseURLForTesting = false;
  
@@ -276,7 +270,7 @@
  }
  
  void SetMockLinkDoctorBaseURLForTesting() {
-@@ -166,119 +64,50 @@ std::string GetGoogleLocale(const std::s
+@@ -166,119 +64,50 @@
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {

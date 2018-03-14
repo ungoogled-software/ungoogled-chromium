@@ -1,6 +1,6 @@
-From a57aa298ed3c3b76056d6e24fb09db05dca2f465 Mon Sep 17 00:00:00 2001
+From 281edc278272f0650fc190c8539d443ac59157bc Mon Sep 17 00:00:00 2001
 From: Daniel Charles <daniel.charles@intel.com>
-Date: Thu, 25 Jan 2018 13:01:37 -0800
+Date: Thu, 08 Feb 2018 02:36:51 +0000
 Subject: [PATCH] vaapi initialization: move it to vaapi_wrapper
 
 vaapi loading of libraries happens on the Pre and Post Sandbox
@@ -10,18 +10,28 @@ and i965_drv_video shared libraries to vaapi_wrapper.
 When calling PreSandbox function in vaapi_wrapper libva will open
 i965_drv_video shared library and both will be available for use
 
-BUG=chromium:785117
-TEST="video initialization of h/w dec/enc, VAVDA/VAVEA/VAJDA subjective"
-TEST="testing and include unittests and autotests"
+BUG=785117
+TEST=video initialization of h/w dec/enc, VAVDA/VAVEA/VAJDA subjective
+     testing and include unittests and autotests
 
 Cq-Include-Trybots: master.tryserver.chromium.android:android_optional_gpu_tests_rel;master.tryserver.chromium.linux:linux_optional_gpu_tests_rel;master.tryserver.chromium.mac:mac_optional_gpu_tests_rel;master.tryserver.chromium.win:win_optional_gpu_tests_rel
 Change-Id: I862bb49f1167d7437e80387882cb9081ad53f54b
 Signed-off-by: Daniel Charles <daniel.charles@intel.com>
+Reviewed-on: https://chromium-review.googlesource.com/666138
+Commit-Queue: Miguel Casas <mcasas@chromium.org>
+Reviewed-by: Kenneth Russell <kbr@chromium.org>
+Reviewed-by: Antoine Labour <piman@chromium.org>
+Reviewed-by: Dongseong Hwang <dongseong.hwang@intel.com>
+Reviewed-by: Pawel Osciak <posciak@chromium.org>
+Reviewed-by: Jorge Lucangeli Obes <jorgelo@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#535274}
 ---
 
+diff --git a/content/gpu/gpu_sandbox_hook_linux.cc b/content/gpu/gpu_sandbox_hook_linux.cc
+index e69e23e..5c4013c 100644
 --- a/content/gpu/gpu_sandbox_hook_linux.cc
 +++ b/content/gpu/gpu_sandbox_hook_linux.cc
-@@ -28,10 +28,6 @@
+@@ -29,10 +29,6 @@
  #include "services/service_manager/sandbox/linux/bpf_gpu_policy_linux.h"
  #include "services/service_manager/sandbox/linux/sandbox_linux.h"
  
@@ -32,7 +42,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  using sandbox::bpf_dsl::Policy;
  using sandbox::syscall_broker::BrokerFilePermission;
  using sandbox::syscall_broker::BrokerProcess;
-@@ -47,22 +43,6 @@ inline bool IsChromeOS() {
+@@ -48,22 +44,6 @@
  #endif
  }
  
@@ -55,7 +65,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  inline bool IsArchitectureArm() {
  #if defined(ARCH_CPU_ARM_FAMILY)
    return true;
-@@ -87,14 +67,6 @@ inline bool UseLibV4L2() {
+@@ -88,14 +68,6 @@
  #endif
  }
  
@@ -70,7 +80,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  constexpr int dlopen_flag = RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE;
  
  void AddV4L2GpuWhitelist(
-@@ -259,51 +231,6 @@ void LoadV4L2Libraries() {
+@@ -270,50 +242,6 @@
    }
  }
  
@@ -79,8 +89,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 -  if (IsArchitectureX86_64() || IsArchitectureI386()) {
 -    // Accelerated video dlopen()'s some shared objects
 -    // inside the sandbox, so preload them now.
--    if (options.vaapi_accelerated_video_encode_enabled ||
--        options.accelerated_video_decode_enabled) {
+-    if (IsAcceleratedVideoEnabled(options)) {
 -      if (IsLibVAVersion2()) {
 -        if (IsArchitectureX86_64()) {
 -          dlopen("/usr/lib64/va/drivers/i965_drv_video.so", dlopen_flag);
@@ -122,7 +131,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  bool LoadLibrariesForGpu(
      const service_manager::SandboxSeccompBPF::Options& options) {
    if (IsChromeOS()) {
-@@ -316,7 +243,6 @@ bool LoadLibrariesForGpu(
+@@ -326,7 +254,6 @@
      if (options.use_amd_specific_policies)
        return LoadAmdGpuLibraries();
    }
@@ -130,9 +139,23 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
    return true;
  }
  
+diff --git a/media/gpu/vaapi/vaapi_wrapper.cc b/media/gpu/vaapi/vaapi_wrapper.cc
+index bc3d735..7421a74 100644
 --- a/media/gpu/vaapi/vaapi_wrapper.cc
 +++ b/media/gpu/vaapi/vaapi_wrapper.cc
-@@ -163,9 +163,6 @@ class VADisplayState {
+@@ -48,6 +48,11 @@
+ using media_gpu_vaapi::kModuleVa_x11;
+ #endif
+ using media_gpu_vaapi::InitializeStubs;
++using media_gpu_vaapi::IsVaInitialized;
++#if defined(USE_X11)
++using media_gpu_vaapi::IsVa_x11Initialized;
++#endif
++using media_gpu_vaapi::IsVa_drmInitialized;
+ using media_gpu_vaapi::StubPathMap;
+ 
+ #define LOG_VA_ERROR_AND_REPORT(va_error, err_msg)                  \
+@@ -166,9 +171,6 @@
    void SetDrmFd(base::PlatformFile fd) { drm_fd_.reset(HANDLE_EINTR(dup(fd))); }
  
   private:
@@ -142,7 +165,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
    // Protected by |va_lock_|.
    int refcount_;
  
-@@ -200,43 +197,12 @@ void VADisplayState::PreSandboxInitializ
+@@ -203,41 +205,17 @@
      VADisplayState::Get()->SetDrmFd(drm_file.GetPlatformFile());
  }
  
@@ -181,12 +204,15 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  
 -  static bool result = PostSandboxInitialization();
 -  if (!result)
--    return false;
--
-   if (refcount_++ > 0)
-     return true;
++  if (!IsVaInitialized() ||
++#if defined(USE_X11)
++      !IsVa_x11Initialized() ||
++#endif
++      !IsVa_drmInitialized())
+     return false;
  
-@@ -1367,6 +1333,34 @@ void VaapiWrapper::DeinitializeVpp() {
+   if (refcount_++ > 0)
+@@ -1169,6 +1147,38 @@
  // static
  void VaapiWrapper::PreSandboxInitialization() {
    VADisplayState::PreSandboxInitialization();
@@ -200,6 +226,10 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 +  paths[kModuleVa_x11].push_back(std::string("libva-x11.so.") + va_suffix);
 +#endif
 +
++  // InitializeStubs dlopen() VA-API libraries
++  // libva.so
++  // libva-x11.so (X11)
++  // libva-drm.so (X11 and Ozone).
 +  static bool result = InitializeStubs(paths);
 +  if (!result) {
 +    static const char kErrorMsg[] = "Failed to initialize VAAPI libs";
@@ -211,13 +241,13 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 +    DVLOG(1) << kErrorMsg;
 +#endif
 +  }
-+  // next command will dlopen all necessary libraries for
-+  // va-api to function properly, to know:
-+  // libva.so
++
++  // VASupportedProfiles::Get creates VADisplayState and in so doing
++  // driver associated libraries are dlopen(), to know:
 +  // i965_drv_video.so
 +  // hybrid_drv_video.so (platforms that support it)
-+  // libva-x11.so (X11) or libva-drm.so (Ozone).
++  // libcmrt.so (platforms that support it)
 +  VASupportedProfiles::Get();
  }
  
- }  // namespace media
+ VaapiWrapper::VaapiWrapper()
