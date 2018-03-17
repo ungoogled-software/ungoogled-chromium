@@ -23,7 +23,7 @@ Contents:
 * [Windows](#windows)
 * [macOS](#macos)
 * [Arch Linux](#arch-linux)
-* [OpenSUSE](#OpenSUSE)
+* [OpenSUSE](#opensuse)
 * [Other Linux distributions](#other-linux-distributions)
 
 ### Debian and its derivatives
