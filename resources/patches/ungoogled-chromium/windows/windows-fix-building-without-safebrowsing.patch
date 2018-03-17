@@ -3,7 +3,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -290,8 +290,6 @@ split_static_library("browser") {
+@@ -304,8 +304,6 @@ split_static_library("browser") {
      "component_updater/subresource_filter_component_installer.h",
      "component_updater/supervised_user_whitelist_installer.cc",
      "component_updater/supervised_user_whitelist_installer.h",
@@ -12,13 +12,14 @@
      "component_updater/third_party_module_list_component_installer_win.cc",
      "component_updater/third_party_module_list_component_installer_win.h",
      "conflicts/enumerate_input_method_editors_win.cc",
-@@ -1566,10 +1564,10 @@ split_static_library("browser") {
+@@ -1599,11 +1597,11 @@ split_static_library("browser") {
      "//chrome/browser/metrics:expired_histograms_array",
      "//chrome/browser/metrics/variations:chrome_ui_string_overrider_factory",
      "//chrome/browser/net:probe_message_proto",
 -    "//chrome/browser/safe_browsing",
      "//chrome/browser/ssl:proto",
      "//chrome/browser/ui",
+     "//chrome/browser/ui/webui/bluetooth_internals",
      "//chrome/common/net",
 +    "//chrome/common/safe_browsing",
      "//chrome/installer/util:with_no_strings",
@@ -26,7 +27,7 @@
      "//components/app_modal",
 --- a/chrome/browser/extensions/BUILD.gn
 +++ b/chrome/browser/extensions/BUILD.gn
-@@ -797,7 +797,6 @@ static_library("extensions") {
+@@ -808,7 +808,6 @@ static_library("extensions") {
      "//chrome/browser/devtools",
      "//chrome/browser/media/router",
      "//chrome/browser/media/router/discovery",
@@ -41,9 +42,9 @@
      "//chrome/browser/engagement:mojo_bindings",
      "//chrome/browser/media:mojo_bindings",
 -    "//chrome/browser/safe_browsing",
+     "//chrome/browser/ui/webui/bluetooth_internals",
      "//chrome/browser/ui/webui/interventions_internals:mojo_bindings",
      "//chrome/browser/ui/webui/omnibox:mojo_bindings",
-     "//chrome/browser/ui/webui/usb_internals:mojo_bindings",
 --- a/chrome/browser/chrome_browser_main_win.cc
 +++ b/chrome/browser/chrome_browser_main_win.cc
 @@ -45,9 +45,6 @@
@@ -56,7 +57,7 @@
  #include "chrome/browser/ui/simple_message_box.h"
  #include "chrome/browser/ui/uninstall_browser_prompt.h"
  #include "chrome/browser/win/browser_util.h"
-@@ -383,16 +380,6 @@ void ShowCloseBrowserFirstMessageBox() {
+@@ -384,16 +381,6 @@ void ShowCloseBrowserFirstMessageBox() {
        l10n_util::GetStringUTF16(IDS_UNINSTALL_CLOSE_APP));
  }
  
@@ -73,7 +74,7 @@
  }  // namespace
  
  int DoUninstallTasks(bool chrome_still_running) {
-@@ -523,23 +510,6 @@ void ChromeBrowserMainPartsWin::PostBrow
+@@ -526,23 +513,6 @@ void ChromeBrowserMainPartsWin::PostBrow
  
    InitializeChromeElf();
  
@@ -99,7 +100,7 @@
    content::BrowserThread::PostDelayedTask(
 --- a/chrome/browser/ui/webui/settings/chrome_cleanup_handler.cc
 +++ b/chrome/browser/ui/webui/settings/chrome_cleanup_handler.cc
-@@ -227,8 +227,6 @@ void ChromeCleanupHandler::HandleStartCl
+@@ -293,8 +293,6 @@ void ChromeCleanupHandler::HandleStartCl
    // The state is propagated to all open tabs and should be consistent.
    DCHECK_EQ(controller_->logs_enabled(), allow_logs_upload);
  
@@ -110,8 +111,8 @@
  
 --- a/chrome/browser/ui/webui/settings/md_settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/md_settings_ui.cc
-@@ -48,9 +48,6 @@
- #include "content/public/browser/web_ui_data_source.h"
+@@ -50,9 +50,6 @@
+ #include "printing/features/features.h"
  
  #if defined(OS_WIN)
 -#include "chrome/browser/safe_browsing/chrome_cleaner/chrome_cleaner_controller_win.h"
@@ -120,11 +121,11 @@
  #if defined(GOOGLE_CHROME_BUILD)
  #include "chrome/grit/chrome_unscaled_resources.h"
  #endif
-@@ -196,13 +193,6 @@ MdSettingsUI::MdSettingsUI(content::WebU
+@@ -203,13 +200,6 @@ MdSettingsUI::MdSettingsUI(content::WebU
    bool chromeCleanupEnabled = false;
    bool userInitiatedCleanupsEnabled = false;
  
--  AddSettingsPageUIHandler(base::MakeUnique<ChromeCleanupHandler>(profile));
+-  AddSettingsPageUIHandler(std::make_unique<ChromeCleanupHandler>(profile));
 -
 -  safe_browsing::ChromeCleanerController* cleaner_controller =
 -      safe_browsing::ChromeCleanerController::GetInstance();
@@ -132,9 +133,9 @@
 -  userInitiatedCleanupsEnabled = safe_browsing::UserInitiatedCleanupsEnabled();
 -
  #if defined(GOOGLE_CHROME_BUILD)
-   if (cleaner_controller->IsPoweredByPartner())
-     html_source->AddBoolean("cleanupPoweredByPartner", true);
-@@ -312,14 +302,6 @@ MdSettingsUI::MdSettingsUI(content::WebU
+   html_source->AddResourcePath("partner-logo.svg", IDR_CHROME_CLEANUP_PARTNER);
+ #if BUILDFLAG(OPTIMIZE_WEBUI)
+@@ -320,14 +310,6 @@ MdSettingsUI::MdSettingsUI(content::WebU
  
    content::WebUIDataSource::Add(web_ui->GetWebContents()->GetBrowserContext(),
                                  html_source);
@@ -149,19 +150,17 @@
  }
  
  MdSettingsUI::~MdSettingsUI() {
-@@ -350,19 +332,4 @@ void MdSettingsUI::DocumentOnLoadComplet
+@@ -358,17 +340,4 @@ void MdSettingsUI::DocumentOnLoadComplet
                        base::Time::Now() - load_start_time_);
  }
  
 -#if defined(OS_WIN)
--void MdSettingsUI::UpdateCleanupDataSource(bool cleanupEnabled,
--                                           bool partnerPowered) {
+-void MdSettingsUI::UpdateCleanupDataSource(bool cleanupEnabled) {
 -  DCHECK(web_ui());
 -  Profile* profile = Profile::FromWebUI(web_ui());
 -
 -  std::unique_ptr<base::DictionaryValue> update(new base::DictionaryValue);
 -  update->SetBoolean("chromeCleanupEnabled", cleanupEnabled);
--  update->SetBoolean("cleanupPoweredByPartner", partnerPowered);
 -
 -  content::WebUIDataSource::Update(profile, chrome::kChromeUISettingsHost,
 -                                   std::move(update));
@@ -187,7 +186,7 @@
    base::Time load_start_time_;
  
 -#if defined(OS_WIN)
--  void UpdateCleanupDataSource(bool cleanupEnabled, bool partnerPowered);
+-  void UpdateCleanupDataSource(bool cleanupEnabled);
 -  std::unique_ptr<safe_browsing::ChromeCleanerStateChangeObserver>
 -      cleanup_observer_;
 -#endif
@@ -237,7 +236,7 @@
      "//chrome/browser:resources",
 --- a/chrome/browser/chrome_browser_main.cc
 +++ b/chrome/browser/chrome_browser_main.cc
-@@ -222,7 +222,6 @@
+@@ -230,7 +230,6 @@
  #include "base/trace_event/trace_event_etw_export_win.h"
  #include "base/win/win_util.h"
  #include "chrome/browser/chrome_browser_main_win.h"
@@ -245,7 +244,7 @@
  #include "chrome/browser/component_updater/third_party_module_list_component_installer_win.h"
  #include "chrome/browser/downgrade/user_data_downgrade.h"
  #include "chrome/browser/first_run/upgrade_util_win.h"
-@@ -555,7 +554,6 @@ void RegisterComponentsForUpdate(PrefSer
+@@ -566,7 +565,6 @@ void RegisterComponentsForUpdate(PrefSer
  
  #if defined(OS_WIN)
  #if defined(GOOGLE_CHROME_BUILD)
@@ -263,7 +262,7 @@
  #include "components/search_engines/template_url_prepopulate_data.h"
  #include "components/signin/core/browser/profile_management_switches.h"
  #include "components/ssl_config/ssl_config_service_manager.h"
-@@ -269,9 +268,6 @@
+@@ -270,9 +269,6 @@
  
  #if defined(OS_WIN)
  #include "chrome/browser/apps/app_launch_for_metro_restart_win.h"
@@ -273,7 +272,7 @@
  #include "chrome/browser/ui/desktop_ios_promotion/desktop_ios_promotion_util.h"
  #endif
  
-@@ -437,7 +433,6 @@ void RegisterLocalState(PrefRegistrySimp
+@@ -456,7 +452,6 @@ void RegisterLocalState(PrefRegistrySimp
  
  #if defined(OS_WIN)
    app_metro_launch::RegisterPrefs(registry);
@@ -281,15 +280,15 @@
    desktop_ios_promotion::RegisterLocalPrefs(registry);
    password_manager::PasswordManager::RegisterLocalPrefs(registry);
  #endif
-@@ -492,7 +487,6 @@ void RegisterProfilePrefs(user_prefs::Pr
+@@ -511,7 +506,6 @@ void RegisterProfilePrefs(user_prefs::Pr
    ProtocolHandlerRegistry::RegisterProfilePrefs(registry);
    PushMessagingAppIdentifier::RegisterProfilePrefs(registry);
    RegisterBrowserUserPrefs(registry);
 -  safe_browsing::RegisterProfilePrefs(registry);
    secure_origin_whitelist::RegisterProfilePrefs(registry);
+   SafeBrowsingTriggeredPopupBlocker::RegisterProfilePrefs(registry);
    SessionStartupPref::RegisterProfilePrefs(registry);
-   signin::RegisterAccountConsistencyProfilePrefs(registry);
-@@ -619,12 +613,8 @@ void RegisterProfilePrefs(user_prefs::Pr
+@@ -639,12 +633,8 @@ void RegisterProfilePrefs(user_prefs::Pr
  #endif
  
  #if defined(OS_WIN)
