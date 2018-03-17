@@ -227,7 +227,7 @@ Tested on OpenSUSE Leap 42.3
 
 #### Setting up the build environment
 
-Install ninja, if not done so already: `# sudo zypper install ninja` 
+Install ninja and quilt, if not done so already: `# sudo zypper install ninja quilt` 
 
 Follow the following guide to set up Python 3.6.4: [https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7](https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7) 
 
