@@ -23,6 +23,7 @@ Contents:
 * [Windows](#windows)
 * [macOS](#macos)
 * [Arch Linux](#arch-linux)
+* [OpenSUSE](#opensuse)
 * [Other Linux distributions](#other-linux-distributions)
 
 ### Debian and its derivatives
@@ -219,6 +220,52 @@ These steps create an archive of the build outputs.
 Requirements: Same as the build dependencies in the PKGBUILD (which can be seen in `resources/packaging/archlinux/PKGBUILD.in`).
 
 The instructions are the same as [Other Linux distributions](#other-linux-distributions), except that the `archlinux` base bundle is used in the `genbun` command.
+
+### OpenSUSE
+
+Tested on OpenSUSE Leap 42.3
+
+#### Setting up the build environment
+
+Install ninja and quilt, if not done so already: `# sudo zypper install ninja quilt` 
+
+Follow the following guide to set up Python 3.6.4: [https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7](https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7) 
+
+As of Chromium 65.0.3325.162, clang/llvm version 5 or greater is required to avoid compiler errors.
+
+Since Leap 42.3 only offers clang 3.8 in the base repos, add the following repository in YaST (YaST --> Software Repositories): `http://download.opensuse.org/repositories/home:/frispete:/llvm/openSUSE_Leap_42.3/` and give it a name such as LLVM 5.
+
+Then go to YaST --> Software Management and click on the Repositories tab. From there, select the LLVM 5 repo that was just added. 
+
+If given the option, elect to switch system packages to the versions in the LLVM repository. Additionally, ensure the following packages are selected from the LLVM repo:
+* clang
+* libclang5
+* lld 
+* llvm
+* llvm5-gold
+* libllvm5
+
+#### Setting up the buildspace tree and packaging files
+
+Before executing the following commands, make sure you are using python 3.6 as was mentioned in the build environment section of this guide.
+
+```
+mkdir -p buildspace/downloads
+./buildkit-launcher.py genbun opensuse
+./buildkit-launcher.py subdom
+./buildkit-launcher.py genpkg opensuse
+```
+
+Before proceeding to the build chromium, open a new tab or otherwise exit the python 3.6 virtual environment, as it will cause errors in the next step.
+
+#### Invoking build
+
+```
+cd buildspace/tree
+./ungoogled_packaging/build.sh
+```
+
+The binaries for chromium will be located in the folder `out/Default`
 
 ### Other Linux distributions
 
