@@ -138,7 +138,7 @@ def _add_getsrc(subparsers):
         try:
             source_retrieval.retrieve_and_extract(
                 args.bundle, args.downloads, args.tree, prune_binaries=args.prune_binaries,
-                show_progress=args.show_progress)
+                show_progress=args.show_progress, windows_llvm_path=args.windows_llvm_path)
         except FileExistsError as exc:
             get_logger().error('Directory is not empty: %s', exc)
             raise _CLIError()
@@ -179,6 +179,10 @@ def _add_getsrc(subparsers):
     parser.add_argument(
         '--hide-progress-bar', action='store_false', dest='show_progress',
         help='Hide the download progress.')
+    parser.add_argument(
+        '--windows-llvm-path', type=Path,
+        help='Path to LLVM install for the Windows bundle. If omitted on the Windows '
+        'platform, the script will attempt to auto-locate the installed system LLVM.')
     parser.set_defaults(callback=_callback)
 
 def _add_prubin(subparsers):
