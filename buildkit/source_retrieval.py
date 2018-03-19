@@ -12,6 +12,7 @@ import os
 import tarfile
 import urllib.request
 import hashlib
+import platform
 from pathlib import Path, PurePosixPath
 
 from .common import ENCODING, BuildkitAbort, get_logger, ensure_empty_dir
@@ -228,7 +229,7 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
                           Path(dep_properties.strip_leading_dirs))
 
 def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
-                         prune_binaries=True, show_progress=True):
+                         prune_binaries=True, show_progress=True, windows_llvm_path=None):
     """
     Downloads, checks, and unpacks the Chromium source code and extra dependencies
     defined in the config bundle into the buildspace tree.
@@ -263,3 +264,11 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
         logger = get_logger()
         for path in remaining_files:
             logger.warning('File not found during source pruning: %s', path)
+
+    uname = platform.uname()
+    # detect native python and WSL
+    is_windows_runtime = uname.system == 'Windows' or 'Microsoft' in uname.release
+    if is_windows_runtime:
+        from .source_retrieval_win import setup_llvm_windows
+        setup_llvm_windows(buildspace_tree=buildspace_tree,
+            user_llvm_path=windows_llvm_path)
