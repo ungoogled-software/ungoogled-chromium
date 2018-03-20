@@ -25,8 +25,8 @@ from . import source_retrieval
 from . import domain_substitution
 from .common import (
     CONFIG_BUNDLES_DIR, BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE,
-    BUILDSPACE_TREE_PACKAGING, BUILDSPACE_USER_BUNDLE,
-    BuildkitAbort, get_resources_dir, get_logger)
+    BUILDSPACE_TREE_PACKAGING, BUILDSPACE_USER_BUNDLE, SEVENZIP_USE_REGISTRY,
+    BuildkitAbort, ExtractorEnum, get_resources_dir, get_logger)
 from .config import ConfigBundle
 
 # Classes
@@ -136,14 +136,14 @@ def _add_getsrc(subparsers):
     """Downloads, checks, and unpacks the necessary files into the buildspace tree"""
     def _callback(args):
         try:
-            user_binaries = {}
-            if args.tar_path is not None:
-                user_binaries['tar'] = args.tar_path
-            if args.sevenz_path is not None:
-                user_binaries['7z'] = args.sevenz_path
+            extractors = {
+                ExtractorEnum.SEVENZIP: args.sevenz_path,
+                ExtractorEnum.TAR: args.tar_path,
+            }
             source_retrieval.retrieve_and_extract(
-                args.bundle, args.downloads, args.tree, prune_binaries=args.prune_binaries,
-                show_progress=args.show_progress, user_binaries=user_binaries)
+                config_bundle=args.bundle, buildspace_downloads=args.downloads,
+                buildspace_tree=args.tree, prune_binaries=args.prune_binaries,
+                show_progress=args.show_progress, extractors=extractors)
         except FileExistsError as exc:
             get_logger().error('Directory is not empty: %s', exc)
             raise _CLIError()
@@ -185,9 +185,14 @@ def _add_getsrc(subparsers):
         '--hide-progress-bar', action='store_false', dest='show_progress',
         help='Hide the download progress.')
     parser.add_argument(
-        '--tar-path', help='Path to the tar binary.')
+        '--tar-path', default='tar',
+        help=('(Linux and macOS only) Command or path to the BSD or GNU tar '
+              'binary for extraction. Default: %(default)s'))
     parser.add_argument(
-        '--7z-path', help='Path to the 7z.exe binary.', dest='sevenz_path')
+        '--7z-path', dest='sevenz_path', default=SEVENZIP_USE_REGISTRY,
+        help=('(Windows only) Command or path to the 7-Zip 7z.exe binary. If '
+              '"_use_registry" is specified, determine the path from the registry. '
+              'Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_prubin(subparsers):

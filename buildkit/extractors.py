@@ -14,7 +14,22 @@ import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 
-from .common import ENCODING, BuildkitAbort, get_logger, ensure_empty_dir, is_windows_platform
+from .common import (
+    SEVENZIP_USE_REGISTRY, BuildkitAbort, PlatformEnum, ExtractorEnum, get_logger,
+    get_running_platform)
+
+DEFAULT_EXTRACTORS = {
+    ExtractorEnum.SEVENZIP: SEVENZIP_USE_REGISTRY,
+    ExtractorEnum.TAR: 'tar',
+}
+
+def _find_extractor_binary(extractor_cmd):
+    """Returns a string path to the binary; None if it couldn't be found"""
+    if not extractor_cmd:
+        return None
+    if Path(extractor_cmd).is_file():
+        return extractor_cmd
+    return shutil.which(extractor_cmd)
 
 def _process_relative_to(unpack_root, relative_to):
     """
@@ -23,7 +38,9 @@ def _process_relative_to(unpack_root, relative_to):
     """
     relative_root = unpack_root / relative_to
     if not relative_root.is_dir():
-        raise Exception('Could not find relative_to directory in extracted files: {}', relative_to)
+        get_logger().error(
+            'Could not find relative_to directory in extracted files: %s', relative_to)
+        raise BuildkitAbort()
     for src_path in relative_root.iterdir():
         dest_path = unpack_root / src_path.name
         src_path.rename(dest_path)
@@ -33,56 +50,65 @@ def _prune_tree(unpack_root, ignore_files):
     """
     Run through the list of pruned files, delete them, and remove them from the set
     """
-    deleted_files = []
+    deleted_files = set()
     for relative_file in ignore_files:
-        file = unpack_root / relative_file
-        if not file.is_file():
+        file_path = unpack_root / relative_file
+        if not file_path.is_file():
             continue
-        file.unlink()
-        deleted_files.append((Path(relative_file).as_posix()))
-    for d in deleted_files:
-        ignore_files.remove(d)
+        file_path.unlink()
+        deleted_files.add(Path(relative_file).as_posix())
+    for deleted_path in deleted_files:
+        ignore_files.remove(deleted_path)
 
-def _extract_tar_file_7z(binary, tar_path, buildspace_tree, unpack_dir, ignore_files, relative_to):
+def _extract_tar_with_7z(binary, archive_path, buildspace_tree, unpack_dir, ignore_files, #pylint: disable=too-many-arguments
+                         relative_to):
+    get_logger().debug('Using 7-zip extractor')
     out_dir = buildspace_tree / unpack_dir
-    cmd1 = [binary, 'x', str(tar_path), '-so']
-    cmd2 = [binary, 'x', '-si', '-aoa', '-ttar', '-o{}'.format(str(out_dir))]
-    cmdline = '{} | {}'.format(' '.join(cmd1), ' '.join(cmd2))
-    get_logger().debug("7z command line: {}".format(cmdline))
+    if not relative_to is None and (out_dir / relative_to).exists():
+        get_logger().error(
+            'Temporary unpacking directory already exists: %s', out_dir / relative_to)
+        raise BuildkitAbort()
+    cmd1 = (binary, 'x', str(archive_path), '-so')
+    cmd2 = (binary, 'x', '-si', '-aoa', '-ttar', '-o{}'.format(str(out_dir)))
+    get_logger().debug('7z command line: %s | %s',
+                       ' '.join(cmd1), ' '.join(cmd2))
 
-    p1 = subprocess.Popen(cmd1, stdout=subprocess.PIPE)
-    p2 = subprocess.Popen(cmd2, stdin=p1.stdout, stdout=subprocess.PIPE)
-    p1.stdout.close()
-    (stdout_data, stderr_data) = p2.communicate()
-    if p2.returncode != 0:
-        get_logger().debug('stdout: {}'.format(stdout_data))
-        get_logger().debug('stderr: {}'.format(stderr_data))
-        raise Exception('7z commands returned non-zero status: {}'.format(p2.returncode))
+    proc1 = subprocess.Popen(cmd1, stdout=subprocess.PIPE)
+    proc2 = subprocess.Popen(cmd2, stdin=proc1.stdout, stdout=subprocess.PIPE)
+    proc1.stdout.close()
+    (stdout_data, stderr_data) = proc2.communicate()
+    if proc2.returncode != 0:
+        get_logger().error('7z commands returned non-zero status: %s', proc2.returncode)
+        get_logger().debug('stdout: %s', stdout_data)
+        get_logger().debug('stderr: %s', stderr_data)
+        raise BuildkitAbort()
 
-    if relative_to is not None:
+    if not relative_to is None:
         _process_relative_to(out_dir, relative_to)
 
     _prune_tree(out_dir, ignore_files)
 
-def _extract_tar_file_tar(binary, tar_path, buildspace_tree, unpack_dir, ignore_files, relative_to):
+def _extract_tar_with_tar(binary, archive_path, buildspace_tree, unpack_dir, #pylint: disable=too-many-arguments
+                          ignore_files, relative_to):
+    get_logger().debug('Using BSD or GNU tar extractor')
     out_dir = buildspace_tree / unpack_dir
     out_dir.mkdir(exist_ok=True)
-    cmd = [binary, '-xf', str(tar_path), '-C', str(out_dir)]
-    cmdline = ' '.join(cmd)
-    get_logger().debug("tar command line: {}".format(cmdline))
+    cmd = (binary, '-xf', str(archive_path), '-C', str(out_dir))
+    get_logger().debug('tar command line: %s', ' '.join(cmd))
     result = subprocess.run(cmd)
     if result.returncode != 0:
-        raise Exception('tar command returned {}'.format(result.returncode))
+        get_logger().error('tar command returned %s', result.returncode)
+        raise BuildkitAbort()
 
     # for gnu tar, the --transform option could be used. but to keep compatibility with
     # bsdtar on macos, we just do this ourselves
-    if relative_to is not None:
+    if not relative_to is None:
         _process_relative_to(out_dir, relative_to)
 
     _prune_tree(out_dir, ignore_files)
 
-def _extract_tar_file_python(tar_path, buildspace_tree, unpack_dir, ignore_files, relative_to):
-
+def _extract_tar_with_python(archive_path, buildspace_tree, unpack_dir, ignore_files, relative_to):
+    get_logger().debug('Using pure Python tar extractor')
     class NoAppendList(list):
         """Hack to workaround memory issues with large tar files"""
         def append(self, obj):
@@ -103,7 +129,7 @@ def _extract_tar_file_python(tar_path, buildspace_tree, unpack_dir, ignore_files
         get_logger().exception('Unexpected exception during symlink support check.')
         raise BuildkitAbort()
 
-    with tarfile.open(str(tar_path)) as tar_file_obj:
+    with tarfile.open(str(archive_path)) as tar_file_obj:
         tar_file_obj.members = NoAppendList()
         for tarinfo in tar_file_obj:
             try:
@@ -134,11 +160,12 @@ def _extract_tar_file_python(tar_path, buildspace_tree, unpack_dir, ignore_files
                 get_logger().exception('Exception thrown for tar member: %s', tarinfo.name)
                 raise BuildkitAbort()
 
-def extract_tar_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relative_to, user_binaries):
+def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, relative_to, #pylint: disable=too-many-arguments
+                     extractors=None):
     """
-    One-time tar extraction function
+    Extract regular or compressed tar archive into the buildspace tree.
 
-    tar_path is the pathlib.Path to the archive to unpack
+    archive_path is the pathlib.Path to the archive to unpack
     buildspace_tree is a pathlib.Path to the buildspace tree.
     unpack_dir is a pathlib.Path relative to buildspace_tree to unpack the archive.
     It must already exist.
@@ -147,56 +174,90 @@ def extract_tar_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relati
     Files that have been ignored are removed from the set.
     relative_to is a pathlib.Path for directories that should be stripped relative to the
     root of the archive.
-    user_binaries is a dict of user-provided utility binaries, if available
+    extractors is a dictionary of PlatformEnum to a command or path to the
+    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
 
     Raises BuildkitAbort if unexpected issues arise during unpacking.
     """
-
-    def lookup_binary(name):
-        return user_binaries.get(name) or shutil.which(name)
-
-    tar_bin = lookup_binary('tar')
-    sevenz_bin = lookup_binary('7z')
     resolved_tree = buildspace_tree.resolve()
-    common_args = [tar_path, resolved_tree, unpack_dir, ignore_files, relative_to]
+    if extractors is None:
+        extractors = DEFAULT_EXTRACTORS
 
-    if is_windows_platform():
-        if sevenz_bin is not None:
-            _extract_tar_file_7z(sevenz_bin, *common_args)
-        else:
-            get_logger().info('7z.exe not found. Using built-in Python extractor')
-            _extract_tar_file_python(*common_args)
+    current_platform = get_running_platform()
+    if current_platform == PlatformEnum.WINDOWS:
+        # TODO: Add option to get 7z.exe path from registry at path
+        # "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\7zFM.exe"
+        sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
+        if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
+            raise NotImplementedError()
+        sevenzip_bin = _find_extractor_binary(sevenzip_cmd)
+        if not sevenzip_bin is None:
+            _extract_tar_with_7z(
+                binary=sevenzip_bin, archive_path=archive_path, buildspace_tree=resolved_tree,
+                unpack_dir=unpack_dir, ignore_files=ignore_files, relative_to=relative_to)
+            return
+    elif current_platform == PlatformEnum.UNIX:
+        # NOTE: 7-zip isn't an option because it doesn't preserve file permissions
+        tar_bin = _find_extractor_binary(extractors.get(ExtractorEnum.TAR))
+        if not tar_bin is None:
+            _extract_tar_with_tar(
+                binary=tar_bin, archive_path=archive_path, buildspace_tree=resolved_tree,
+                unpack_dir=unpack_dir, ignore_files=ignore_files, relative_to=relative_to)
+            return
     else:
-        if tar_bin is not None:
-            _extract_tar_file_tar(tar_bin, *common_args)
-        else:
-             # we dont try 7z on unix because it doesnt preserve file permissions
-            get_logger().info('tar command not found. Using built-in Python extractor')
-            _extract_tar_file_python(*common_args)
+        # This is not a normal code path, so make it clear.
+        raise NotImplementedError(current_platform)
+    # Fallback to Python-based extractor on all platforms
+    _extract_tar_with_python(
+        archive_path=archive_path, buildspace_tree=resolved_tree, unpack_dir=unpack_dir,
+        ignore_files=ignore_files, relative_to=relative_to)
 
-def extract_7z_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relative_to, user_binaries):
-
+def extract_with_7z(archive_path, buildspace_tree, unpack_dir, ignore_files, relative_to, #pylint: disable=too-many-arguments
+                    extractors=None):
     """
-    One-time 7zip extraction function
+    (Windows only) Extract archives with 7-zip into the buildspace tree.
+    Only supports archives with one layer of unpacking, unlike compressed tar archives.
 
-    Same arguments as extract_tar_file
+    archive_path is the pathlib.Path to the archive to unpack
+    buildspace_tree is a pathlib.Path to the buildspace tree.
+    unpack_dir is a pathlib.Path relative to buildspace_tree to unpack the archive.
+    It must already exist.
+
+    ignore_files is a set of paths as strings that should not be extracted from the archive.
+    Files that have been ignored are removed from the set.
+    relative_to is a pathlib.Path for directories that should be stripped relative to the
+    root of the archive.
+    extractors is a dictionary of PlatformEnum to a command or path to the
+    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
+
+    Raises BuildkitAbort if unexpected issues arise during unpacking.
     """
-    sevenz_bin = user_binaries.get('7z') or shutil.which('7z')
-    if sevenz_bin is None:
-        raise Exception('Unable to locate 7z binary')
+    # TODO: Add option to get 7z.exe path from registry at path
+    # "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\7zFM.exe"
+    # TODO: It would be nice to extend this to support arbitrary standard IO chaining of 7z
+    # instances, so _extract_tar_with_7z and other future formats could use this.
+    if extractors is None:
+        extractors = DEFAULT_EXTRACTORS
+    sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
+    if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
+        raise NotImplementedError()
+    sevenzip_bin = _find_extractor_binary(sevenzip_cmd)
     resolved_tree = buildspace_tree.resolve()
-    common_args = [tar_path, resolved_tree, unpack_dir, ignore_files, relative_to]
 
     out_dir = resolved_tree / unpack_dir
-    cmd = [sevenz_bin, 'x', str(tar_path), '-aoa', '-o{}'.format(str(out_dir))]
-    cmdline = ' '.join(cmd)
-    get_logger().debug("7z command line: {}".format(cmdline))
+    if not relative_to is None and (out_dir / relative_to).exists():
+        get_logger().error(
+            'Temporary unpacking directory already exists: %s', out_dir / relative_to)
+        raise BuildkitAbort()
+    cmd = (sevenzip_bin, 'x', str(archive_path), '-aoa', '-o{}'.format(str(out_dir)))
+    get_logger().debug('7z command line: %s', ' '.join(cmd))
 
     result = subprocess.run(cmd)
     if result.returncode != 0:
-        raise Exception('7z command returned {}'.format(result.returncode))
+        get_logger().error('7z command returned %s', result.returncode)
+        raise BuildkitAbort()
 
-    if relative_to is not None:
+    if not relative_to is None:
         _process_relative_to(out_dir, relative_to)
 
     _prune_tree(out_dir, ignore_files)

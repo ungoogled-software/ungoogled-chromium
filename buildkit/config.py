@@ -18,7 +18,7 @@ import shutil
 from pathlib import Path
 
 from .common import (
-    ENCODING, CONFIG_BUNDLES_DIR, BuildkitAbort,
+    ENCODING, CONFIG_BUNDLES_DIR, BuildkitAbort, ExtractorEnum,
     get_logger, get_resources_dir, ensure_empty_dir)
 from .third_party import schema
 
@@ -619,13 +619,14 @@ class ExtraDepsIni(IniConfigFile):
 
     _hashes = ('md5', 'sha1', 'sha256', 'sha512')
     _required_keys = ('version', 'url', 'download_name')
-    _optional_keys = ('strip_leading_dirs','extractor')
-    _passthrough_properties = (*_required_keys, *_optional_keys)
+    _optional_keys = ('strip_leading_dirs')
+    _passthrough_properties = (*_required_keys, *_optional_keys, 'extractor')
 
     _schema = schema.Schema(schema_inisections({
         schema.Optional(schema.And(str, len)): schema_dictcast({
             **{x: schema.And(str, len) for x in _required_keys},
             **{schema.Optional(x): schema.And(str, len) for x in _optional_keys},
+            schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP),
             schema.Or(*_hashes): schema.And(str, len),
         })
     }))
