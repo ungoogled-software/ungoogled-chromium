@@ -15,6 +15,7 @@ import hashlib
 from pathlib import Path, PurePosixPath
 
 from .common import ENCODING, BuildkitAbort, get_logger, ensure_empty_dir
+from .extractors import extract_tar_file, extract_7z_file
 
 # Constants
 
@@ -31,78 +32,6 @@ class NotAFileError(OSError):
 class HashMismatchError(Exception):
     """Exception for computed hashes not matching expected hashes"""
     pass
-
-# Methods and supporting code
-
-def _extract_tar_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relative_to):
-    """
-    Improved one-time tar extraction function
-
-    tar_path is the pathlib.Path to the archive to unpack
-    buildspace_tree is a pathlib.Path to the buildspace tree.
-    unpack_dir is a pathlib.Path relative to buildspace_tree to unpack the archive.
-    It must already exist.
-
-    ignore_files is a set of paths as strings that should not be extracted from the archive.
-    Files that have been ignored are removed from the set.
-    relative_to is a pathlib.Path for directories that should be stripped relative to the
-    root of the archive.
-
-    Raises BuildkitAbort if unexpected issues arise during unpacking.
-    """
-
-    class NoAppendList(list):
-        """Hack to workaround memory issues with large tar files"""
-        def append(self, obj):
-            pass
-
-    # Simple hack to check if symlinks are supported
-    try:
-        os.symlink('', '')
-    except FileNotFoundError:
-        # Symlinks probably supported
-        symlink_supported = True
-    except OSError:
-        # Symlinks probably not supported
-        get_logger().info('System does not support symlinks. Ignoring them.')
-        symlink_supported = False
-    except BaseException:
-        # Unexpected exception
-        get_logger().exception('Unexpected exception during symlink support check.')
-        raise BuildkitAbort()
-
-    resolved_tree = buildspace_tree.resolve()
-
-    with tarfile.open(str(tar_path)) as tar_file_obj:
-        tar_file_obj.members = NoAppendList()
-        for tarinfo in tar_file_obj:
-            try:
-                if relative_to is None:
-                    tree_relative_path = unpack_dir / PurePosixPath(tarinfo.name)
-                else:
-                    tree_relative_path = unpack_dir / PurePosixPath(tarinfo.name).relative_to(
-                        relative_to) # pylint: disable=redefined-variable-type
-                try:
-                    ignore_files.remove(tree_relative_path.as_posix())
-                except KeyError:
-                    destination = resolved_tree / tree_relative_path
-                    if tarinfo.issym() and not symlink_supported:
-                        # In this situation, TarFile.makelink() will try to create a copy of the
-                        # target. But this fails because TarFile.members is empty
-                        # But if symlinks are not supported, it's safe to assume that symlinks
-                        # aren't needed. The only situation where this happens is on Windows.
-                        continue
-                    if tarinfo.islnk():
-                        # Derived from TarFile.extract()
-                        new_target = resolved_tree / unpack_dir / PurePosixPath(
-                            tarinfo.linkname).relative_to(relative_to)
-                        tarinfo._link_target = new_target.as_posix() # pylint: disable=protected-access
-                    if destination.is_symlink():
-                        destination.unlink()
-                    tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
-            except BaseException:
-                get_logger().exception('Exception thrown for tar member: %s', tarinfo.name)
-                raise BuildkitAbort()
 
 class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
     """Hook for urllib.request.urlretrieve to log progress information to console"""
@@ -155,7 +84,7 @@ def _chromium_hashes_generator(hashes_path):
             get_logger().warning('Skipping unknown hash algorithm: %s', hash_name)
 
 def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree,
-                           show_progress, pruning_set):
+                           show_progress, pruning_set, user_binaries):
     """
     Download, check, and extract the Chromium source code into the buildspace tree.
 
@@ -194,11 +123,12 @@ def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree,
         if not hasher.hexdigest().lower() == hash_hex.lower():
             raise HashMismatchError(source_archive)
     get_logger().info('Extracting archive...')
-    _extract_tar_file(source_archive, buildspace_tree, Path(), pruning_set,
-                      Path('chromium-{}'.format(config_bundle.version.chromium_version)))
+    extract_tar_file(source_archive, buildspace_tree, Path(), pruning_set,
+                      Path('chromium-{}'.format(config_bundle.version.chromium_version)),
+                      user_binaries)
 
 def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
-                      pruning_set):
+                      pruning_set, user_binaries):
     """
     Download, check, and extract extra dependencies into the buildspace tree.
 
@@ -224,11 +154,23 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(dep_archive)
         get_logger().info('Extracting archive...')
-        _extract_tar_file(dep_archive, buildspace_tree, Path(dep_name), pruning_set,
-                          Path(dep_properties.strip_leading_dirs))
+        extractors = {'7z': extract_7z_file, 'tar': extract_tar_file}
+        extractor_name = dep_properties.extractor or 'tar'
+        extractor_fn = extractors.get(extractor_name)
+        if extractor_fn is None:
+            raise Exception('Unknown extractor: {}. Supported values: {}'
+                .format(extractor_name, [k for k in extractors.keys()]))
+
+        if dep_properties.strip_leading_dirs is None:
+            strip_leading_dirs_path = None
+        else:
+            strip_leading_dirs_path = Path(dep_properties.strip_leading_dirs)
+
+        extractor_fn(dep_archive, buildspace_tree, Path(dep_name), pruning_set,
+                          strip_leading_dirs_path, user_binaries)
 
 def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
-                         prune_binaries=True, show_progress=True):
+                         prune_binaries=True, show_progress=True, user_binaries={}):
     """
     Downloads, checks, and unpacks the Chromium source code and extra dependencies
     defined in the config bundle into the buildspace tree.
@@ -256,9 +198,9 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
     else:
         remaining_files = set()
     _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
-                           remaining_files)
+                           remaining_files, user_binaries)
     _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
-                      remaining_files)
+                      remaining_files, user_binaries)
     if remaining_files:
         logger = get_logger()
         for path in remaining_files:

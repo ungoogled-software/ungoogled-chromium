@@ -136,9 +136,14 @@ def _add_getsrc(subparsers):
     """Downloads, checks, and unpacks the necessary files into the buildspace tree"""
     def _callback(args):
         try:
+            user_binaries = {}
+            if args.tar_path is not None:
+                user_binaries['tar'] = args.tar_path
+            if args.sevenz_path is not None:
+                user_binaries['7z'] = args.sevenz_path
             source_retrieval.retrieve_and_extract(
                 args.bundle, args.downloads, args.tree, prune_binaries=args.prune_binaries,
-                show_progress=args.show_progress)
+                show_progress=args.show_progress, user_binaries=user_binaries)
         except FileExistsError as exc:
             get_logger().error('Directory is not empty: %s', exc)
             raise _CLIError()
@@ -179,6 +184,10 @@ def _add_getsrc(subparsers):
     parser.add_argument(
         '--hide-progress-bar', action='store_false', dest='show_progress',
         help='Hide the download progress.')
+    parser.add_argument(
+        '--tar-path', help='Path to the tar binary.')
+    parser.add_argument(
+        '--7z-path', help='Path to the 7z.exe binary.', dest='sevenz_path')
     parser.set_defaults(callback=_callback)
 
 def _add_prubin(subparsers):

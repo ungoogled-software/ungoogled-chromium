@@ -619,7 +619,7 @@ class ExtraDepsIni(IniConfigFile):
 
     _hashes = ('md5', 'sha1', 'sha256', 'sha512')
     _required_keys = ('version', 'url', 'download_name')
-    _optional_keys = ('strip_leading_dirs',)
+    _optional_keys = ('strip_leading_dirs','extractor')
     _passthrough_properties = (*_required_keys, *_optional_keys)
 
     _schema = schema.Schema(schema_inisections({

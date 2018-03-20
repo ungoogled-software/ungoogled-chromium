@@ -8,6 +8,7 @@
 
 import os
 import logging
+import platform
 from pathlib import Path
 
 # Constants
@@ -105,3 +106,12 @@ def ensure_empty_dir(path, parents=False):
     except FileExistsError as exc:
         if not dir_empty(path):
             raise exc
+
+def is_windows_platform():
+    """
+    Returns True if we are running on a Windows platform, either natively or
+    inside WSL/MSYS2
+    """
+    uname = platform.uname()
+    # detect native python and WSL
+    return uname.system == 'Windows' or 'Microsoft' in uname.release
