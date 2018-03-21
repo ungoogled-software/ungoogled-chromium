@@ -23,6 +23,33 @@ DEFAULT_EXTRACTORS = {
     ExtractorEnum.TAR: 'tar',
 }
 
+def _read_registry_value(key, sub_key, value):
+    """
+    Reads a value from the Windows registry
+    """
+    import winreg
+    key_handle = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, sub_key)
+    v = winreg.QueryValueEx(key_handle, value)[0]
+    key_handle.Close()
+    return v
+
+def _locate_7z_windows():
+    """
+    Locate the install location of 7-zip from the Windows registry
+    """
+    import winreg
+    key = winreg.HKEY_LOCAL_MACHINE
+    sub_key = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\7zFM.exe'
+    try:
+        install_path = Path(_read_registry_value(key, sub_key, 'Path'))
+    except Exception as e:
+        raise Exception('Could not locate 7-zip in registry') from e
+
+    bin_path = install_path / '7z.exe'
+    get_logger().info('Detected 7-zip at {}'.format(str(bin_path)))
+
+    return bin_path
+
 def _find_extractor_binary(extractor_cmd):
     """Returns a string path to the binary; None if it couldn't be found"""
     if not extractor_cmd:
@@ -185,11 +212,9 @@ def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, re
 
     current_platform = get_running_platform()
     if current_platform == PlatformEnum.WINDOWS:
-        # TODO: Add option to get 7z.exe path from registry at path
-        # "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\7zFM.exe"
         sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
         if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
-            raise NotImplementedError()
+            sevenzip_cmd = str(_locate_7z_windows())
         sevenzip_bin = _find_extractor_binary(sevenzip_cmd)
         if not sevenzip_bin is None:
             _extract_tar_with_7z(
@@ -232,15 +257,13 @@ def extract_with_7z(archive_path, buildspace_tree, unpack_dir, ignore_files, rel
 
     Raises BuildkitAbort if unexpected issues arise during unpacking.
     """
-    # TODO: Add option to get 7z.exe path from registry at path
-    # "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\7zFM.exe"
     # TODO: It would be nice to extend this to support arbitrary standard IO chaining of 7z
     # instances, so _extract_tar_with_7z and other future formats could use this.
     if extractors is None:
         extractors = DEFAULT_EXTRACTORS
     sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
     if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
-        raise NotImplementedError()
+        sevenzip_cmd = str(_locate_7z_windows())
     sevenzip_bin = _find_extractor_binary(sevenzip_cmd)
     resolved_tree = buildspace_tree.resolve()
 
