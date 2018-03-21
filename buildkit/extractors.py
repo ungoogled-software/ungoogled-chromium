@@ -23,34 +23,26 @@ DEFAULT_EXTRACTORS = {
     ExtractorEnum.TAR: 'tar',
 }
 
-def _read_registry_value(key, sub_key, value):
+def _find_7z_by_registry():
     """
-    Reads a value from the Windows registry
-    """
-    import winreg
-    key_handle = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, sub_key)
-    v = winreg.QueryValueEx(key_handle, value)[0]
-    key_handle.Close()
-    return v
+    Return a string to 7-zip's 7z.exe from the Windows Registry.
 
-def _locate_7z_windows():
+    Raises BuildkitAbort if it fails.
     """
-    Locate the install location of 7-zip from the Windows registry
-    """
-    import winreg
-    key = winreg.HKEY_LOCAL_MACHINE
-    sub_key = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\7zFM.exe'
+    import winreg #pylint: disable=import-error
+    sub_key_7zfm = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\7zFM.exe'
     try:
-        install_path = Path(_read_registry_value(key, sub_key, 'Path'))
-    except Exception as e:
-        raise Exception('Could not locate 7-zip in registry') from e
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, sub_key_7zfm) as key_handle:
+            sevenzipfm_dir = winreg.QueryValueEx(key_handle, 'Path')[0]
+    except OSError:
+        get_logger().exception('Unable to locate 7-zip from the Windows Registry')
+        raise BuildkitAbort()
+    sevenzip_path = Path(sevenzipfm_dir / '7z.exe')
+    if not sevenzip_path.is_file():
+        get_logger().error('7z.exe not found at path from registry: %s', sevenzip_path)
+    return sevenzip_path
 
-    bin_path = install_path / '7z.exe'
-    get_logger().info('Detected 7-zip at {}'.format(str(bin_path)))
-
-    return bin_path
-
-def _find_extractor_binary(extractor_cmd):
+def _find_extractor_by_cmd(extractor_cmd):
     """Returns a string path to the binary; None if it couldn't be found"""
     if not extractor_cmd:
         return None
@@ -214,8 +206,8 @@ def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, re
     if current_platform == PlatformEnum.WINDOWS:
         sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
         if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
-            sevenzip_cmd = str(_locate_7z_windows())
-        sevenzip_bin = _find_extractor_binary(sevenzip_cmd)
+            sevenzip_cmd = str(_find_7z_by_registry())
+        sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
         if not sevenzip_bin is None:
             _extract_tar_with_7z(
                 binary=sevenzip_bin, archive_path=archive_path, buildspace_tree=resolved_tree,
@@ -223,7 +215,7 @@ def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, re
             return
     elif current_platform == PlatformEnum.UNIX:
         # NOTE: 7-zip isn't an option because it doesn't preserve file permissions
-        tar_bin = _find_extractor_binary(extractors.get(ExtractorEnum.TAR))
+        tar_bin = _find_extractor_by_cmd(extractors.get(ExtractorEnum.TAR))
         if not tar_bin is None:
             _extract_tar_with_tar(
                 binary=tar_bin, archive_path=archive_path, buildspace_tree=resolved_tree,
@@ -263,8 +255,11 @@ def extract_with_7z(archive_path, buildspace_tree, unpack_dir, ignore_files, rel
         extractors = DEFAULT_EXTRACTORS
     sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
     if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
-        sevenzip_cmd = str(_locate_7z_windows())
-    sevenzip_bin = _find_extractor_binary(sevenzip_cmd)
+        if not get_running_platform() == PlatformEnum.WINDOWS:
+            get_logger().error('"%s" for 7-zip is only available on Windows', sevenzip_cmd)
+            raise BuildkitAbort()
+        sevenzip_cmd = str(_find_7z_by_registry())
+    sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
     resolved_tree = buildspace_tree.resolve()
 
     out_dir = resolved_tree / unpack_dir
