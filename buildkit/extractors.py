@@ -232,8 +232,8 @@ def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, re
 def extract_with_7z(archive_path, buildspace_tree, unpack_dir, ignore_files, relative_to, #pylint: disable=too-many-arguments
                     extractors=None):
     """
-    (Windows only) Extract archives with 7-zip into the buildspace tree.
-    Only supports archives with one layer of unpacking, unlike compressed tar archives.
+    Extract archives with 7-zip into the buildspace tree.
+    Only supports archives with one layer of unpacking, so compressed tar archives don't work.
 
     archive_path is the pathlib.Path to the archive to unpack
     buildspace_tree is a pathlib.Path to the buildspace tree.

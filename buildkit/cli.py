@@ -190,9 +190,8 @@ def _add_getsrc(subparsers):
               'binary for extraction. Default: %(default)s'))
     parser.add_argument(
         '--7z-path', dest='sevenz_path', default=SEVENZIP_USE_REGISTRY,
-        help=('(Windows only) Command or path to the 7-Zip 7z.exe binary. If '
-              '"_use_registry" is specified, determine the path from the registry. '
-              'Default: %(default)s'))
+        help=('Command or path to 7-Zip\'s "7z" binary. If "_use_registry" is '
+              'specified, determine the path from the registry. Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_prubin(subparsers):
