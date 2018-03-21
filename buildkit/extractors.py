@@ -37,7 +37,7 @@ def _find_7z_by_registry():
     except OSError:
         get_logger().exception('Unable to locate 7-zip from the Windows Registry')
         raise BuildkitAbort()
-    sevenzip_path = Path(sevenzipfm_dir / '7z.exe')
+    sevenzip_path = Path(sevenzipfm_dir) / '7z.exe'
     if not sevenzip_path.is_file():
         get_logger().error('7z.exe not found at path from registry: %s', sevenzip_path)
     return sevenzip_path
