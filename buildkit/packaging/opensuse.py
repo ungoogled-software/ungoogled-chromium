@@ -6,6 +6,7 @@
 
 """OpenSUSE-specific build files generation code"""
 
+import os
 import shutil
 
 from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir, ensure_empty_dir
@@ -41,14 +42,14 @@ def _get_spec_format_patch_series(seriesPath):
         patchList = seriesFile.readlines()
     i = 1
     for patchFile in patchList:
-        patchString += 'Patch{0!d}:         patches/{1}\n'.format(i, patchFile)
+        patchString += 'Patch{0}:         patches/{1}\n'.format(i, patchFile)
         i += 1
     return { 'patchString': patchString, 'numPatches': len(patchList) }
 
 def _get_patch_apply_spec_cmd(numPatches):
     patchApplyString = ''
     for i in range(1, numPatches + 1):
-        patchApplyString += '%patch{0!d} -p1\n'.format(i)
+        patchApplyString += '%patch{0} -p1\n'.format(i)
     return patchApplyString
 
 # Public definitions
@@ -76,7 +77,7 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
 
     build_file_subs = dict(
         build_output=build_output,
-        gn_flags=_get_parsed_gn_flags(config_bundle.gn_flags)
+        gn_flags=_get_parsed_gn_flags(config_bundle.gn_flags),
         gn_args_string=' '.join(
             '{}={}'.format(flag, value) for flag, value in config_bundle.gn_flags.items()),
         numbered_patch_list=patchInfo['patchString'],
