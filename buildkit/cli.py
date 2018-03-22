@@ -25,8 +25,8 @@ from . import source_retrieval
 from . import domain_substitution
 from .common import (
     CONFIG_BUNDLES_DIR, BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE,
-    BUILDSPACE_TREE_PACKAGING, BUILDSPACE_USER_BUNDLE,
-    BuildkitAbort, get_resources_dir, get_logger)
+    BUILDSPACE_TREE_PACKAGING, BUILDSPACE_USER_BUNDLE, SEVENZIP_USE_REGISTRY,
+    BuildkitAbort, ExtractorEnum, get_resources_dir, get_logger)
 from .config import ConfigBundle
 
 # Classes
@@ -136,9 +136,14 @@ def _add_getsrc(subparsers):
     """Downloads, checks, and unpacks the necessary files into the buildspace tree"""
     def _callback(args):
         try:
+            extractors = {
+                ExtractorEnum.SEVENZIP: args.sevenz_path,
+                ExtractorEnum.TAR: args.tar_path,
+            }
             source_retrieval.retrieve_and_extract(
-                args.bundle, args.downloads, args.tree, prune_binaries=args.prune_binaries,
-                show_progress=args.show_progress)
+                config_bundle=args.bundle, buildspace_downloads=args.downloads,
+                buildspace_tree=args.tree, prune_binaries=args.prune_binaries,
+                show_progress=args.show_progress, extractors=extractors)
         except FileExistsError as exc:
             get_logger().error('Directory is not empty: %s', exc)
             raise _CLIError()
@@ -179,6 +184,14 @@ def _add_getsrc(subparsers):
     parser.add_argument(
         '--hide-progress-bar', action='store_false', dest='show_progress',
         help='Hide the download progress.')
+    parser.add_argument(
+        '--tar-path', default='tar',
+        help=('(Linux and macOS only) Command or path to the BSD or GNU tar '
+              'binary for extraction. Default: %(default)s'))
+    parser.add_argument(
+        '--7z-path', dest='sevenz_path', default=SEVENZIP_USE_REGISTRY,
+        help=('Command or path to 7-Zip\'s "7z" binary. If "_use_registry" is '
+              'specified, determine the path from the registry. Default: %(default)s'))
     parser.set_defaults(callback=_callback)
 
 def _add_prubin(subparsers):

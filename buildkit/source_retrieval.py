@@ -8,13 +8,13 @@
 Module for the downloading, checking, and unpacking of necessary files into the buildspace tree
 """
 
-import os
-import tarfile
 import urllib.request
 import hashlib
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
-from .common import ENCODING, BuildkitAbort, get_logger, ensure_empty_dir
+from .common import (
+    ENCODING, ExtractorEnum, get_logger, ensure_empty_dir)
+from .extractors import extract_tar_file, extract_with_7z
 
 # Constants
 
@@ -31,78 +31,6 @@ class NotAFileError(OSError):
 class HashMismatchError(Exception):
     """Exception for computed hashes not matching expected hashes"""
     pass
-
-# Methods and supporting code
-
-def _extract_tar_file(tar_path, buildspace_tree, unpack_dir, ignore_files, relative_to):
-    """
-    Improved one-time tar extraction function
-
-    tar_path is the pathlib.Path to the archive to unpack
-    buildspace_tree is a pathlib.Path to the buildspace tree.
-    unpack_dir is a pathlib.Path relative to buildspace_tree to unpack the archive.
-    It must already exist.
-
-    ignore_files is a set of paths as strings that should not be extracted from the archive.
-    Files that have been ignored are removed from the set.
-    relative_to is a pathlib.Path for directories that should be stripped relative to the
-    root of the archive.
-
-    Raises BuildkitAbort if unexpected issues arise during unpacking.
-    """
-
-    class NoAppendList(list):
-        """Hack to workaround memory issues with large tar files"""
-        def append(self, obj):
-            pass
-
-    # Simple hack to check if symlinks are supported
-    try:
-        os.symlink('', '')
-    except FileNotFoundError:
-        # Symlinks probably supported
-        symlink_supported = True
-    except OSError:
-        # Symlinks probably not supported
-        get_logger().info('System does not support symlinks. Ignoring them.')
-        symlink_supported = False
-    except BaseException:
-        # Unexpected exception
-        get_logger().exception('Unexpected exception during symlink support check.')
-        raise BuildkitAbort()
-
-    resolved_tree = buildspace_tree.resolve()
-
-    with tarfile.open(str(tar_path)) as tar_file_obj:
-        tar_file_obj.members = NoAppendList()
-        for tarinfo in tar_file_obj:
-            try:
-                if relative_to is None:
-                    tree_relative_path = unpack_dir / PurePosixPath(tarinfo.name)
-                else:
-                    tree_relative_path = unpack_dir / PurePosixPath(tarinfo.name).relative_to(
-                        relative_to) # pylint: disable=redefined-variable-type
-                try:
-                    ignore_files.remove(tree_relative_path.as_posix())
-                except KeyError:
-                    destination = resolved_tree / tree_relative_path
-                    if tarinfo.issym() and not symlink_supported:
-                        # In this situation, TarFile.makelink() will try to create a copy of the
-                        # target. But this fails because TarFile.members is empty
-                        # But if symlinks are not supported, it's safe to assume that symlinks
-                        # aren't needed. The only situation where this happens is on Windows.
-                        continue
-                    if tarinfo.islnk():
-                        # Derived from TarFile.extract()
-                        new_target = resolved_tree / unpack_dir / PurePosixPath(
-                            tarinfo.linkname).relative_to(relative_to)
-                        tarinfo._link_target = new_target.as_posix() # pylint: disable=protected-access
-                    if destination.is_symlink():
-                        destination.unlink()
-                    tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
-            except BaseException:
-                get_logger().exception('Exception thrown for tar member: %s', tarinfo.name)
-                raise BuildkitAbort()
 
 class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
     """Hook for urllib.request.urlretrieve to log progress information to console"""
@@ -154,14 +82,16 @@ def _chromium_hashes_generator(hashes_path):
         else:
             get_logger().warning('Skipping unknown hash algorithm: %s', hash_name)
 
-def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree,
-                           show_progress, pruning_set):
+def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree, #pylint: disable=too-many-arguments
+                           show_progress, pruning_set, extractors=None):
     """
     Download, check, and extract the Chromium source code into the buildspace tree.
 
     Arguments of the same name are shared with retreive_and_extract().
     pruning_set is a set of files to be pruned. Only the files that are ignored during
     extraction are removed from the set.
+    extractors is a dictionary of PlatformEnum to a command or path to the
+    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
 
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     Raises source_retrieval.NotAFileError when the archive name exists but is not a file.
@@ -194,17 +124,22 @@ def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree,
         if not hasher.hexdigest().lower() == hash_hex.lower():
             raise HashMismatchError(source_archive)
     get_logger().info('Extracting archive...')
-    _extract_tar_file(source_archive, buildspace_tree, Path(), pruning_set,
-                      Path('chromium-{}'.format(config_bundle.version.chromium_version)))
+    extract_tar_file(
+        archive_path=source_archive, buildspace_tree=buildspace_tree, unpack_dir=Path(),
+        ignore_files=pruning_set,
+        relative_to=Path('chromium-{}'.format(config_bundle.version.chromium_version)),
+        extractors=extractors)
 
-def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
-                      pruning_set):
+def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show_progress, #pylint: disable=too-many-arguments,too-many-locals
+                      pruning_set, extractors=None):
     """
     Download, check, and extract extra dependencies into the buildspace tree.
 
     Arguments of the same name are shared with retreive_and_extract().
     pruning_set is a set of files to be pruned. Only the files that are ignored during
     extraction are removed from the set.
+    extractors is a dictionary of PlatformEnum to a command or path to the
+    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
 
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     Raises source_retrieval.NotAFileError when the archive name exists but is not a file.
@@ -224,18 +159,35 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(dep_archive)
         get_logger().info('Extracting archive...')
-        _extract_tar_file(dep_archive, buildspace_tree, Path(dep_name), pruning_set,
-                          Path(dep_properties.strip_leading_dirs))
+        extractor_name = dep_properties.extractor or ExtractorEnum.TAR
+        if extractor_name == ExtractorEnum.SEVENZIP:
+            extractor_func = extract_with_7z
+        elif extractor_name == ExtractorEnum.TAR:
+            extractor_func = extract_tar_file
+        else:
+            # This is not a normal code path
+            raise NotImplementedError(extractor_name)
 
-def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
-                         prune_binaries=True, show_progress=True):
+        if dep_properties.strip_leading_dirs is None:
+            strip_leading_dirs_path = None
+        else:
+            strip_leading_dirs_path = Path(dep_properties.strip_leading_dirs)
+
+        extractor_func(
+            archive_path=dep_archive, buildspace_tree=buildspace_tree,
+            unpack_dir=Path(dep_name), ignore_files=pruning_set,
+            relative_to=strip_leading_dirs_path, extractors=extractors)
+
+def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #pylint: disable=too-many-arguments
+                         prune_binaries=True, show_progress=True, extractors=None):
     """
     Downloads, checks, and unpacks the Chromium source code and extra dependencies
     defined in the config bundle into the buildspace tree.
-    Currently for extra dependencies, only compressed tar files are supported.
 
     buildspace_downloads is the path to the buildspace downloads directory, and
     buildspace_tree is the path to the buildspace tree.
+    extractors is a dictionary of PlatformEnum to a command or path to the
+    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
 
     Raises FileExistsError when the buildspace tree already exists and is not empty
     Raises FileNotFoundError when buildspace/downloads does not exist or through
@@ -255,10 +207,14 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree,
         remaining_files = set(config_bundle.pruning)
     else:
         remaining_files = set()
-    _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
-                           remaining_files)
-    _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show_progress,
-                      remaining_files)
+    _setup_chromium_source(
+        config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
+        buildspace_tree=buildspace_tree, show_progress=show_progress,
+        pruning_set=remaining_files, extractors=extractors)
+    _setup_extra_deps(
+        config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
+        buildspace_tree=buildspace_tree, show_progress=show_progress,
+        pruning_set=remaining_files, extractors=extractors)
     if remaining_files:
         logger = get_logger()
         for path in remaining_files:

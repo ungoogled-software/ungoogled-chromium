@@ -92,19 +92,10 @@ When installing the SDK, the "Debugging Tools for Windows" feature must be enabl
 
 ##### Other build requirements
 
-TODO: Fix the mess and move some information elsewhere.
-
 **IMPORTANT**: Currently, the `MAX_PATH` path length restriction (which is 260 characters by default) must be lifted in order for buildkit to function properly. One such setup that works is Windows 10 (which added this option since Anniversary) with Python 3.6 or newer from the official installer (which contains the manifest files that allow use of long file paths). Other possible setups are being discussed in [Issue #345](https://github.com/Eloston/ungoogled-chromium/issues/345).
 
 1. Setup the following:
 
-    * [LLVM](https://llvm.org/)
-        * TODO: Document matching Google's clang version by downloading a snapshot from `CLANG_REVISION`. As of 64.0.3282.168, this is r318667, with download URL http://prereleases.llvm.org/win-snapshots/LLVM-6.0.0-r318667-win64.exe (from [LLVM Snapshot Builds](http://llvm.org/builds/))
-        * The LLVM installer can be opened up with 7-Zip and unpacked into third_party/llvm-build/Release+Asserts in the buildspace tree.
-        * NOTE: When LLVM 6.0.0 gets released, this should be used instead of the snapshot build.
-        * NOTE: Using LLVM 5.0 with `is_clang=true` will result in errors like `cannot mangle this built-in __float128` from [Chromium Issue 780311](https://bugs.chromium.org/p/chromium/issues/detail?id=780311).
-        * NOTE: Using Visual Studio exclusively with `is_clang=false` will cause multiple build failures due to hard-coded dependencies to `clang-cl.exe`
-        * NOTE: Using `is_clang=false` while LLVM is located in the default location will cause errors due to includes between Visual C++ and LLVM being different (e.g. `(function signature): overriding virtual function has less restrictive exception specification than base class virtual member function (function signature)` with `third_party/openvr/src/src/json/json.h`)
     * Python 2 for scripts in Chromium
     * Python 3 for buildkit
     * [Ninja](https://ninja-build.org/)
@@ -150,7 +141,7 @@ The buildspace tree can be relocated to another system for building if necessary
 
     Then run `ungoogled_packaging\build.bat` in the buildspace tree.
 
-TODO: Add packaging script
+TODO: Add packaging script to be invoked as `ungoogled_packaging\package.bat`.
 
 ### macOS
 
