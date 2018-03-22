@@ -38,6 +38,10 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
     Raises FileExistsError if output_dir already exists and is not empty.
     Raises FileNotFoundError if the parent directories for output_dir do not exist.
     """
+    build_file_subs = dict(
+        build_output=build_output,
+        version_string=config_bundle.version.version_string
+    )
 
     ensure_empty_dir(output_dir) # Raises FileNotFoundError, FileExistsError
     (output_dir / 'scripts').mkdir()
@@ -46,6 +50,7 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
     _copy_from_resources('build.bat', output_dir)
     _copy_from_resources('apply_patches.sh', output_dir)
     _copy_from_resources(LIST_BUILD_OUTPUTS, output_dir / 'scripts', shared=True)
+    process_templates(output_dir, build_file_subs)
 
     # GN flags
     config_bundle.gn_flags.write(output_dir / 'args.gn')

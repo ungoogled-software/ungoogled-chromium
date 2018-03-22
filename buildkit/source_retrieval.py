@@ -145,10 +145,9 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
     Raises source_retrieval.NotAFileError when the archive name exists but is not a file.
     May raise undetermined exceptions during archive unpacking.
     """
-    for raw_dep_name in config_bundle.extra_deps:
-        dep_name = raw_dep_name.split(':')[0]
-        get_logger().info('Downloading extra dependency "%s" ...', raw_dep_name)
-        dep_properties = config_bundle.extra_deps[raw_dep_name]
+    for dep_name in config_bundle.extra_deps:
+        get_logger().info('Downloading extra dependency "%s" ...', dep_name)
+        dep_properties = config_bundle.extra_deps[dep_name]
         dep_archive = buildspace_downloads / dep_properties.download_name
         _download_if_needed(dep_archive, dep_properties.url, show_progress)
         get_logger().info('Verifying hashes...')
@@ -159,7 +158,7 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
             hasher = hashlib.new(hash_name, data=archive_data)
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(dep_archive)
-        get_logger().info('Extracting archive...')
+        get_logger().info('Extracting to %s ...', dep_properties.output_path)
         extractor_name = dep_properties.extractor or ExtractorEnum.TAR
         if extractor_name == ExtractorEnum.SEVENZIP:
             extractor_func = extract_with_7z
@@ -176,7 +175,7 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
 
         extractor_func(
             archive_path=dep_archive, buildspace_tree=buildspace_tree,
-            unpack_dir=Path(dep_name), ignore_files=pruning_set,
+            unpack_dir=Path(dep_properties.output_path), ignore_files=pruning_set,
             relative_to=strip_leading_dirs_path, extractors=extractors)
 
 def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #pylint: disable=too-many-arguments
