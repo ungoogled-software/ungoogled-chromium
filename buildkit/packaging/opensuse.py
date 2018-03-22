@@ -10,7 +10,7 @@ import shutil
 
 from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir, ensure_empty_dir
 from ._common import (
-    DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, LIST_BUILD_OUTPUTS, process_templates)
+    ENCODING, DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, LIST_BUILD_OUTPUTS, process_templates)
 
 # Private definitions
 
@@ -25,6 +25,32 @@ def _copy_from_resources(name, output_dir, shared=False):
         str(_get_packaging_resources(shared=shared) / name),
         str(output_dir / name))
 
+def _escape_string(value):
+    return value.replace('"', '\\"')
+
+def _get_parsed_gn_flags(gn_flags):
+    def _shell_line_generator(gn_flags):
+        for key, value in gn_flags.items():
+            yield "myconf_gn+=" + _escape_string(key) + "=" + _escape_string(value)
+    return os.linesep.join(_shell_line_generator(gn_flags))
+
+def _get_spec_format_patch_series(seriesPath):
+    patchString = '' 
+    patchList = []
+    with seriesPath.open(encoding=ENCODING) as seriesFile:
+        patchList = seriesFile.readlines()
+    i = 1
+    for patchFile in patchList:
+        patchString += 'Patch{0!d}:         patches/{1}\n'.format(i, patchFile)
+        i += 1
+    return { 'patchString': patchString, 'numPatches': len(patchList) }
+
+def _get_patch_apply_spec_cmd(numPatches):
+    patchApplyString = ''
+    for i in range(1, numPatches + 1):
+        patchApplyString += '%patch{0!d} -p1\n'.format(i)
+    return patchApplyString
+
 # Public definitions
 
 def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUTPUT):
@@ -38,25 +64,33 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
     Raises FileExistsError if output_dir already exists and is not empty.
     Raises FileNotFoundError if the parent directories for output_dir do not exist.
     """
-    build_file_subs = dict(
-        build_output=build_output,
-        gn_args_string=' '.join(
-            '{}={}'.format(flag, value) for flag, value in config_bundle.gn_flags.items()),
-        version_string=config_bundle.version.version_string
-    )
 
     ensure_empty_dir(output_dir) # Raises FileNotFoundError, FileExistsError
     (output_dir / 'scripts').mkdir()
     (output_dir / 'archive_include').mkdir()
+    
+    # Patches
+    config_bundle.patches.export_patches(output_dir / PATCHES_DIR)
+    
+    patchInfo = _get_spec_format_patch_series(output_dir / PATCHES_DIR / 'series')
+
+    build_file_subs = dict(
+        build_output=build_output,
+        gn_flags=_get_parsed_gn_flags(config_bundle.gn_flags)
+        gn_args_string=' '.join(
+            '{}={}'.format(flag, value) for flag, value in config_bundle.gn_flags.items()),
+        numbered_patch_list=patchInfo['patchString'],
+        apply_patches_cmd=_get_patch_apply_spec_cmd(patchInfo['numPatches']),
+        version_string=config_bundle.version.version_string
+    )
 
     # Build and packaging scripts
     _copy_from_resources('build.sh.in', output_dir)
     _copy_from_resources('package.sh.in', output_dir)
+    _copy_from_resources('ungoogled-chromium.spec.in', output_dir)
     _copy_from_resources(LIST_BUILD_OUTPUTS, output_dir / 'scripts', shared=True)
     process_templates(output_dir, build_file_subs)
 
     # Other resources to package
     _copy_from_resources('README', output_dir / 'archive_include')
 
-    # Patches
-    config_bundle.patches.export_patches(output_dir / PATCHES_DIR)

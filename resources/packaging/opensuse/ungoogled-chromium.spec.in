@@ -1,0 +1,175 @@
+#
+# spec file for package chromium
+#
+# Copyright (c) 2018 SUSE LINUX GmbH, Nuernberg, Germany.
+#
+# All modifications and additions to the file contributed by third parties
+# remain the property of their copyright owners, unless otherwise agreed
+# upon. The license for this file, and modifications and additions to the
+# file, is the same license as for the pristine package itself (unless the
+# license for the pristine package is not an Open Source License, in which
+# case the license is the MIT License). An "Open Source License" is a
+# license that conforms to the Open Source Definition (Version 1.9)
+# published by the Open Source Initiative.
+
+# Please submit bugfixes or comments via http://bugs.opensuse.org/
+#
+
+Name:           ungoogled-chromium
+Version:        65.0.3325.162
+Release:        0
+Summary:        Google's open source browser project
+License:        BSD-3-Clause AND LGPL-2.1-or-later
+Group:          Productivity/Networking/Web/Browsers
+Url:            http://code.google.com/p/chromium/
+Source0:        http://commondatastorage.googleapis.com/chromium-browser-official/%{rname}-%{version}.tar.xz
+# Toolchain definitions
+Source1:        BUILD.gn
+Source30:       master_preferences
+Source100:      chromium-browser.sh
+Source101:      chromium-browser.desktop
+Source102:      chromium-browser.xml
+Source103:      chromium.default
+Source104:      chromium-icons.tar.bz2
+# PATCH-FEATURE-UPSTREAM https://bugs.chromium.org/p/chromium/issues/detail?id=654190
+Source105:      chromium-browser.appdata.xml
+
+# Patches
+$ungoog{numbered_patch_list}
+
+# Setup for build 
+%prep
+%setup -q -n %{rname}-%{version}
+
+$ungoog{apply_patches_cmd}
+
+%build
+export CC=clang
+export CXX=clang++
+
+# do not eat all memory
+ninjaproc="%{?jobs:%{jobs}}"
+echo "Available memory:"
+cat /proc/meminfo
+echo "System limits:"
+ulimit -a
+if test -n "$ninjaproc" -a "$ninjaproc" -gt 1 ; then
+    mem_per_process=1600000
+    max_mem=$(awk '/MemTotal/ { print $2 }' /proc/meminfo)
+    max_jobs="$(($max_mem / $mem_per_process))"
+    test "$ninjaproc" -gt "$max_jobs" && ninjaproc="$max_jobs" && echo "Warning: Reducing number of jobs to $max_jobs because of memory limits"
+    test "$ninjaproc" -le 0 && ninjaproc=1 && echo "Warning: Do not use the parallel build at all becuse of memory limits"
+fi
+
+myconf_gn=""
+$ungoog{gn_flags}
+
+tools/gn/bootstrap/bootstrap.py -s -v --gn-gen-args "${myconf_gn}"
+
+$ungoog{build_output}/gn gen $ungoog{build_output} --args="${myconf_gn}"
+
+ninja -v -j $ninjaproc -C $ungoog{build_output} chrome chrome_sandbox chromedriver
+
+%install
+mkdir -p %{buildroot}%{_libdir}/chromium
+mkdir -p %{buildroot}%{_libexecdir}/
+mkdir -p %{buildroot}%{_bindir}
+install -m 755 %{SOURCE100} %{buildroot}%{_bindir}/chromium
+
+# x86_64 capable systems need this
+sed -i "s|%{_libexecdir}/chromium|%{_libdir}/chromium|g" %{buildroot}%{_bindir}/chromium
+
+mkdir -p %{buildroot}%{_mandir}/man1/
+pushd out/Default
+
+# Install the file %{_sysconfdir}/default/chromium which defines the chromium flags
+mkdir -p %{buildroot}%{_sysconfdir}/default
+install -m 644 %{SOURCE103} %{buildroot}%{_sysconfdir}/default/chromium
+
+# Recent Chromium builds now wants to have the sandbox in the same directory. So let's create a symlink to the one in %{_prefix}/lib
+cp -a chrome_sandbox %{buildroot}%{_libexecdir}/
+ln -s -f %{_libexecdir}/chrome_sandbox %{buildroot}/%{_libdir}/chromium/chrome-sandbox
+
+cp -a *.bin *.pak locales xdg-mime %{buildroot}%{_libdir}/chromium/
+%if !%{with system_icu}
+cp -a icudtl.dat %{buildroot}%{_libdir}/chromium/
+%endif
+
+mkdir -p %{buildroot}%{_libdir}/chromium/swiftshader
+cp -a swiftshader/*.so %{buildroot}%{_libdir}/chromium/swiftshader/
+
+# chromedriver
+cp -a chromedriver %{buildroot}%{_libdir}/chromium/
+
+# Patch xdg-settings to use the chromium version of xdg-mime as that the system one is not KDE4 compatible
+sed "s|xdg-mime|%{_libdir}/chromium/xdg-mime|g" xdg-settings > %{buildroot}%{_libdir}/chromium/xdg-settings
+
+cp -a resources.pak %{buildroot}%{_libdir}/chromium/
+cp -a chrome %{buildroot}%{_libdir}/chromium/chromium
+popd
+
+mkdir -p %{buildroot}%{_datadir}/icons/
+pushd %{buildroot}%{_datadir}/icons/
+tar -xjf %{SOURCE104}
+mv oxygen hicolor
+popd
+
+mkdir -p %{buildroot}%{_datadir}/applications/
+desktop-file-install --dir %{buildroot}%{_datadir}/applications %{SOURCE101}
+
+mkdir -p %{buildroot}%{_datadir}/appdata/
+cp -a %{SOURCE105} %{buildroot}%{_datadir}/appdata/
+
+mkdir -p %{buildroot}%{_datadir}/gnome-control-center/default-apps/
+cp -a %{SOURCE102} %{buildroot}%{_datadir}/gnome-control-center/default-apps/
+
+# link to browser plugin path.  Plugin patch doesn't work. Why?
+mkdir -p %{buildroot}%{_libdir}/browser-plugins
+pushd %{buildroot}%{_libdir}/chromium
+ln -s ../browser-plugins plugins
+
+# Install the master_preferences file
+mkdir -p %{buildroot}%{_sysconfdir}/chromium
+install -m 0644 %{SOURCE30} %{buildroot}%{_sysconfdir}/chromium
+
+# Set the right attributes
+chmod 755 %{buildroot}%{_libdir}/chromium/xdg-settings
+chmod 755 %{buildroot}%{_libdir}/chromium/xdg-mime
+
+%verifyscript
+%verify_permissions -e %{_libexecdir}/chrome_sandbox
+
+%post
+%icon_theme_cache_post
+%desktop_database_post
+%set_permissions %{_libexecdir}/chrome_sandbox
+/sbin/ldconfig %{_libdir}/chromium
+
+%postun
+%icon_theme_cache_postun
+%desktop_database_postun
+/sbin/ldconfig %{_libdir}/chromium
+
+%files
+%verify(not mode) %{_libexecdir}/chrome_sandbox
+%doc AUTHORS LICENSE
+%config %{_sysconfdir}/chromium
+%config(noreplace) %{_sysconfdir}/default/chromium
+%dir %{_datadir}/gnome-control-center
+%dir %{_datadir}/gnome-control-center/default-apps
+%{_libdir}/chromium/
+%dir %{_libdir}/chromium/swiftshader/
+%{_libdir}/chromium/swiftshader/*.so
+%{_datadir}/applications/*.desktop
+%dir %{_datadir}/appdata/
+%{_datadir}/appdata/chromium-browser.appdata.xml
+%{_datadir}/gnome-control-center/default-apps/chromium-browser.xml
+%{_datadir}/icons/hicolor/
+%{_libexecdir}/chrome_sandbox
+%exclude %{_libdir}/chromium/chromedriver
+%{_bindir}/chromium
+
+%files -n chromedriver
+%{_libdir}/chromium/chromedriver
+
+%changelog
