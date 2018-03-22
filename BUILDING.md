@@ -98,18 +98,10 @@ When installing the SDK, the "Debugging Tools for Windows" feature must be enabl
 
     * Python 2 for scripts in Chromium
     * Python 3 for buildkit
-    * [Ninja](https://ninja-build.org/)
     * [MSYS2](https://www.msys2.org/) *(recommended, not required)* - MSYS2 provides both git and [quilt](https://savannah.nongnu.org/projects/quilt/); the latter provides a convenient system to apply and manage patches.
         * After installing and updating all packages to the latest version, install git and quilt: `pacman -S git quilt`
-    * [gperf from GNUWin32](http://gnuwin32.sourceforge.net/packages/gperf.htm)
-    * [bison from GNUWin32](http://gnuwin32.sourceforge.net/packages/bison.htm)
-        * Get the Binaries, Developer files, Sources, and Dependencies
-        * **NOTE**: Make sure to place gperf and bison in a path without spaces, otherwise the build will fail.
 
-2. Make sure the following are accessible in `PATH` (the PATH overrides feature can be used on the directories containing the actual executable):
-
-    * Python 2 as `python`
-    * Ninja as `ninja`
+2. Make sure Python 2 is accessible in `PATH` as `python`.
 
 #### Setting up the buildspace tree and packaging files
 
@@ -134,12 +126,7 @@ The buildspace tree can be relocated to another system for building if necessary
     ./ungoogled_packaging/apply_patches.sh
     ```
 
-3. In a new CMD instance, ensure the following are in `%PATH%`:
-
-    * Python 2 as `python`
-    * Ninja as `ninja`
-
-    Then run `ungoogled_packaging\build.bat` in the buildspace tree.
+3. In a new CMD instance, ensure Python 2 is available as `python`. Then run `ungoogled_packaging\build.bat` in the buildspace tree.
 
 TODO: Add packaging script to be invoked as `ungoogled_packaging\package.bat`.
 
