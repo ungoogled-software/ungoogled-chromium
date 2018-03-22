@@ -6,8 +6,10 @@
 
 """Common code and constants"""
 
+import enum
 import os
 import logging
+import platform
 from pathlib import Path
 
 # Constants
@@ -23,6 +25,8 @@ BUILDSPACE_TREE = 'buildspace/tree'
 BUILDSPACE_TREE_PACKAGING = 'buildspace/tree/ungoogled_packaging'
 BUILDSPACE_USER_BUNDLE = 'buildspace/user_bundle'
 
+SEVENZIP_USE_REGISTRY = '_use_registry'
+
 _ENV_FORMAT = "BUILDKIT_{}"
 
 # Public classes
@@ -36,6 +40,16 @@ class BuildkitAbort(BuildkitError):
 
     It should only be caught by the user of buildkit's library interface.
     """
+
+class PlatformEnum(enum.Enum):
+    """Enum for platforms that need distinction for certain functionality"""
+    UNIX = 'unix' # Currently covers anything that isn't Windows
+    WINDOWS = 'windows'
+
+class ExtractorEnum: #pylint: disable=too-few-public-methods
+    """Enum for extraction binaries"""
+    SEVENZIP = '7z'
+    TAR = 'tar'
 
 # Public methods
 
@@ -105,3 +119,17 @@ def ensure_empty_dir(path, parents=False):
     except FileExistsError as exc:
         if not dir_empty(path):
             raise exc
+
+def get_running_platform():
+    """
+    Returns a PlatformEnum value indicating the platform that buildkit is running on.
+
+    NOTE: Platform detection should only be used when no cross-platform alternative is available.
+    """
+    uname = platform.uname()
+    # detect native python and WSL
+    if uname.system == 'Windows' or 'Microsoft' in uname.release:
+        return PlatformEnum.WINDOWS
+    else:
+        # Only Windows and UNIX-based platforms need to be distinguished right now.
+        return PlatformEnum.UNIX

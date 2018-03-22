@@ -96,9 +96,6 @@ When installing the SDK, the "Debugging Tools for Windows" feature must be enabl
 
 1. Setup the following:
 
-    * [LLVM](https://llvm.org/) 6.0.0 or newer.
-        * To use LLVM's pre-built binary, download the `Clang for Windows (64-bit)` version and unpack it with 7-zip into third_party/llvm-build/Release+Asserts in the buildspace tree.
-        * *Developer note*: If the current stable version of LLVM is causing problems with the build, try matching Google's LLVM version (defined by the `CLANG_REVISION` variable in by downloading a snapshot build at the version specified by `CLANG_REVISION` and `VERSION` constants in `tools/clang/scripts/update.py`. For example, revision 123456 of LLVM 9.8.7 64-bit Windows would be: `http://prereleases.llvm.org/win-snapshots/LLVM-9.8.7-r123456-win64.exe` (link derived from [LLVM Snapshot Builds](http://llvm.org/builds/))
     * Python 2 for scripts in Chromium
     * Python 3 for buildkit
     * [Ninja](https://ninja-build.org/)
