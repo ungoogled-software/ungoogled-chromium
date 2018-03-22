@@ -47,7 +47,7 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
     (output_dir / 'scripts').mkdir()
 
     # Build and packaging scripts
-    _copy_from_resources('build.bat', output_dir)
+    _copy_from_resources('build.bat.in', output_dir)
     _copy_from_resources('apply_patches.sh', output_dir)
     _copy_from_resources(LIST_BUILD_OUTPUTS, output_dir / 'scripts', shared=True)
     process_templates(output_dir, build_file_subs)
