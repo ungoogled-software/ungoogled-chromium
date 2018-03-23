@@ -158,7 +158,7 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
             hasher = hashlib.new(hash_name, data=archive_data)
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(dep_archive)
-        get_logger().info('Extracting archive...')
+        get_logger().info('Extracting to %s ...', dep_properties.output_path)
         extractor_name = dep_properties.extractor or ExtractorEnum.TAR
         if extractor_name == ExtractorEnum.SEVENZIP:
             extractor_func = extract_with_7z
@@ -175,7 +175,7 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
 
         extractor_func(
             archive_path=dep_archive, buildspace_tree=buildspace_tree,
-            unpack_dir=Path(dep_name), ignore_files=pruning_set,
+            unpack_dir=Path(dep_properties.output_path), ignore_files=pruning_set,
             relative_to=strip_leading_dirs_path, extractors=extractors)
 
 def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #pylint: disable=too-many-arguments

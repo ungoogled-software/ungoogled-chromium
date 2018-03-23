@@ -2,27 +2,23 @@
 
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 
-:: Used by GN files with patch; uncomment BOTH and set to proper values
-:: Absolute path to gperf.exe or executable name if in %PATH%
-::set GPERF_EXE_PATH=gperf.exe
-:: Absolute path to gperf.exe or executable name if in %PATH%
-::set BISON_EXE_PATH=bison.exe
-
 :: TODO: Chromium somehow knows which vcvars*.bat to invoke. Perhaps it's possible to use that code here?
 :: Set proper Visual Studio environment variables to build GN
-:: The following lines are default paths to vcvars*.bat for the given Visual Studio edition and version
-:: Either uncomment an applicable line, or add an invocation to the proper vcvars64.bat
-:: Visual Studio 2017 Community Native x64
-::"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
-:: Visual Studio 2017 Community x64_x86 Cross
-::"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsamd64_x86.bat"
+FOR /F "tokens=* USEBACKQ" %%F IN (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) DO (
+SET VS_PATH=%%F
+)
+
+call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
 
 :: Make %TMP% and %TEMP% directories so Ninja won't fail
 mkdir %TMP%
 mkdir %TEMP%
 
+cd "%~dp0/.."
 mkdir $ungoog{build_output}
-python tools\gn\bootstrap\bootstrap.py -o $ungoog{build_output}\gn.exe -s
-copy %~dp0\args.gn $ungoog{build_output}
-$ungoog{build_output}\gn.exe gen $ungoog{build_output} --fail-on-unused-args
-ninja -C $ungoog{build_output} chrome chromedriver
+copy ungoogled_packaging\args.gn $ungoog{build_output}
+
+path %PATH%;%cd%\third_party\ninja
+call python tools\gn\bootstrap\bootstrap.py -o $ungoog{build_output}\gn.exe -s
+call $ungoog{build_output}\gn.exe gen $ungoog{build_output} --fail-on-unused-args
+call third_party\ninja\ninja.exe -C $ungoog{build_output} chrome chromedriver
