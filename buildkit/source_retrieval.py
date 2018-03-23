@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .common import (
     ENCODING, ExtractorEnum, get_logger, ensure_empty_dir)
-from .extractors import extract_tar_file, extract_with_7z
+from .extraction import extract_tar_file, extract_with_7z
 
 # Constants
 
