@@ -47,10 +47,11 @@ Most of the **additional** features are as follows:
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
 * Added menu item under "More tools" to clear the HTTP authentication cache on-demand
 * Add new command-line switches and `chrome://flags` entries:
-    * `--extension-mime-request-handling` - Change how extension MIME types (CRX and user scripts) are handled. Acceptable values are `download-as-regular-file` or `install-always`. Leave unset to use normal behavior. It is also configurable under `chrome://flags`
-    * `--enable-stacked-tab-strip` and `--enable-tab-adjust-layout` - These flags adjust the tab strip behavior. `--enable-stacked-tab-strip` is also configurable in `chrome://flags` Please note that they are not well tested, so proceed with caution.
+    * `--disable-beforeunload` - (Not in `chrome://flags`) Disables JavaScript dialog boxes triggered by `beforeunload`
     * `--disable-search-engine-collection` - Disable automatic search engine scraping from webpages.
-    * `--disable-beforeunload` - Disables JavaScript dialog boxes triggered by `beforeunload` (not in `chrome://flags`)
+    * `--enable-stacked-tab-strip` and `--enable-tab-adjust-layout` - These flags adjust the tab strip behavior. `--enable-stacked-tab-strip` is also configurable in `chrome://flags` Please note that they are not well tested, so proceed with caution.
+    * `--extension-mime-request-handling` - Change how extension MIME types (CRX and user scripts) are handled. Acceptable values are `download-as-regular-file` or `install-always`. Leave unset to use normal behavior. It is also configurable under `chrome://flags`
+    * `--set-ipv6-probe-false` - (Not in `chrome://flags`) Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
     * See the [FAQ](FAQ.md#why-is-safe-browsing-disabled)
@@ -59,7 +60,7 @@ Most of the **additional** features are as follows:
 * Add more URL schemes allowed for saving
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
     * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
-* (Iridium and Inox feature change) Prevent pinging of IPv6 address when detecting the availability of IPv6
+* (Iridium and Inox feature change) Prevent pinging of IPv6 address when detecting the availability of IPv6. See the `--set-ipv6-probe-false` flag above to adjust the behavior instead.
 * Support for building Linux packages for multiple distributions (work in progress)
 * Windows support
     * Does not set the Zone Identifier on downloaded files
