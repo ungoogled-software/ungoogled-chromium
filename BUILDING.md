@@ -108,10 +108,10 @@ Setting up via CMD:
 
 ```
 mkdir buildspace\downloads
-python3 buildkit-launcher.py genbun windows
-python3 buildkit-launcher.py getsrc
-python3 buildkit-launcher.py subdom
-python3 buildkit-launcher.py genpkg windows
+py buildkit-launcher.py genbun windows
+py buildkit-launcher.py getsrc
+py buildkit-launcher.py subdom
+py buildkit-launcher.py genpkg windows
 ```
 
 The buildspace tree can be relocated to another system for building if necessary.
@@ -121,7 +121,7 @@ The buildspace tree can be relocated to another system for building if necessary
 1. In a CMD instance, apply patches:
 
     ```
-    python3 buildspace\tree\ungoogled_packaging\scripts\apply_patch_series.py
+    py buildspace\tree\ungoogled_packaging\scripts\apply_patch_series.py
     ```
 
 2. Run build script:
