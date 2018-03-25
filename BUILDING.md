@@ -96,12 +96,11 @@ When installing the SDK, the "Debugging Tools for Windows" feature must be enabl
 
 1. Setup the following:
 
-    * Python 2 for scripts in Chromium
-    * Python 3 for buildkit
-    * [MSYS2](https://www.msys2.org/) *(recommended, not required)* - MSYS2 provides both git and [quilt](https://savannah.nongnu.org/projects/quilt/); the latter provides a convenient system to apply and manage patches.
-        * After installing and updating all packages to the latest version, install git and quilt: `pacman -S git quilt`
+    * 7-zip
+    * Python 2.7 for scripts in Chromium
+    * Python 3.5+ for buildkit
 
-2. Make sure Python 2 is accessible in `PATH` as `python`.
+2. Make sure Python 2.7 is accessible in `PATH` as `python`.
 
 #### Setting up the buildspace tree and packaging files
 
@@ -109,24 +108,27 @@ Setting up via CMD:
 
 ```
 mkdir buildspace\downloads
-py buildkit-launcher.py genbun windows
-py buildkit-launcher.py getsrc
-py buildkit-launcher.py subdom
-py buildkit-launcher.py genpkg windows
+python3 buildkit-launcher.py genbun windows
+python3 buildkit-launcher.py getsrc
+python3 buildkit-launcher.py subdom
+python3 buildkit-launcher.py genpkg windows
 ```
 
 The buildspace tree can be relocated to another system for building if necessary.
 
 #### Invoking build
 
-1. Read and follow the instructions in the comments of `ungoogled_packaging\build.bat` (which resides in the buildspace tree)
-2. Apply patches via MSYS2 shell in the buildspace tree:
+1. In a CMD instance, apply patches:
 
     ```
-    ./ungoogled_packaging/apply_patches.sh
+    python3 buildspace\tree\ungoogled_packaging\scripts\apply_patch_series.py
     ```
 
-3. In a new CMD instance, ensure Python 2 is available as `python`. Then run `ungoogled_packaging\build.bat` in the buildspace tree.
+2. Run build script:
+
+    ```
+    buildspace\tree\ungoogled_packaging\build.bat
+    ```
 
 TODO: Add packaging script to be invoked as `ungoogled_packaging\package.bat`.
 
@@ -144,9 +146,8 @@ Tested on macOS 10.11-10.13
 
 #### Setting up the build environment
 
-1. Install Quilt via Homebrew: `brew install quilt`
-2. Install Ninja via Homebrew: `brew install ninja`
-3. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
+1. Install Ninja via Homebrew: `brew install ninja`
+2. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
 
 #### Setting up the buildspace tree and packaging files
 
