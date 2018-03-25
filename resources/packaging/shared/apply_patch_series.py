@@ -83,7 +83,7 @@ def main(arg_list=None):
     if not series_path.is_file():
         raise FileNotFoundError(str(series_path))
 
-    windows_patch_bin_path = (script_path.parent /
+    windows_patch_bin_path = (packaging_path.parent /
                               'third_party' / 'git' / 'usr' / 'bin' / 'patch.exe')
     patch_bin_path = Path(shutil.which('patch') or windows_patch_bin_path)
 
