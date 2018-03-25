@@ -20,6 +20,7 @@ from ..common import ENCODING, BuildkitAbort, get_logger
 
 SHARED_PACKAGING = 'shared'
 LIST_BUILD_OUTPUTS = 'list_build_outputs.py'
+APPLY_PATCH_SERIES = 'apply_patch_series.py'
 DEFAULT_BUILD_OUTPUT = Path('out/Default')
 
 # Classes

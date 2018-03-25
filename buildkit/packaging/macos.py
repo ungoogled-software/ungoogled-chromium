@@ -9,16 +9,19 @@
 import shutil
 
 from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir, ensure_empty_dir
-from ._common import DEFAULT_BUILD_OUTPUT, process_templates
+from ._common import DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, APPLY_PATCH_SERIES, process_templates
 
 # Private definitions
 
-def _get_packaging_resources():
-    return get_resources_dir() / PACKAGING_DIR / 'macos'
+def _get_packaging_resources(shared=False):
+    if shared:
+        return get_resources_dir() / PACKAGING_DIR / SHARED_PACKAGING
+    else:
+        return get_resources_dir() / PACKAGING_DIR / 'macos'
 
-def _copy_from_resources(name, output_dir):
+def _copy_from_resources(name, output_dir, shared=False):
     shutil.copy(
-        str(_get_packaging_resources() / name),
+        str(_get_packaging_resources(shared=shared) / name),
         str(output_dir / name))
 
 # Public definitions
@@ -42,6 +45,9 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
     )
 
     ensure_empty_dir(output_dir) # Raises FileNotFoundError, FileExistsError
+    (output_dir / 'scripts').mkdir()
+
+    _copy_from_resources(APPLY_PATCH_SERIES, output_dir / 'scripts', shared=True)
 
     # Build script
     _copy_from_resources('build.sh.in', output_dir)
