@@ -189,6 +189,8 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #
     buildspace_tree is the path to the buildspace tree.
     extractors is a dictionary of PlatformEnum to a command or path to the
     extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
+    disable_ssl_verification is a boolean indicating if certificate verification
+    should be disabled for downloads using HTTPS.
 
     Raises FileExistsError when the buildspace tree already exists and is not empty
     Raises FileNotFoundError when buildspace/downloads does not exist or through
@@ -199,10 +201,6 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     May raise undetermined exceptions during archive unpacking.
     """
-    if disable_ssl_verification:
-        import ssl
-        get_logger().info('Disabling SSL verification')
-        ssl._create_default_https_context = ssl._create_unverified_context
     ensure_empty_dir(buildspace_tree) # FileExistsError, FileNotFoundError
     if not buildspace_downloads.exists():
         raise FileNotFoundError(buildspace_downloads)
@@ -212,14 +210,24 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #
         remaining_files = set(config_bundle.pruning)
     else:
         remaining_files = set()
-    _setup_chromium_source(
-        config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
-        buildspace_tree=buildspace_tree, show_progress=show_progress,
-        pruning_set=remaining_files, extractors=extractors)
-    _setup_extra_deps(
-        config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
-        buildspace_tree=buildspace_tree, show_progress=show_progress,
-        pruning_set=remaining_files, extractors=extractors)
+    if disable_ssl_verification:
+        import ssl
+        # TODO: Properly implement disabling SSL certificate verification
+        orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
+        ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access
+    try:
+        _setup_chromium_source(
+            config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
+            buildspace_tree=buildspace_tree, show_progress=show_progress,
+            pruning_set=remaining_files, extractors=extractors)
+        _setup_extra_deps(
+            config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
+            buildspace_tree=buildspace_tree, show_progress=show_progress,
+            pruning_set=remaining_files, extractors=extractors)
+    finally:
+        # Try to reduce damage of hack by reverting original HTTPS context ASAP
+        if disable_ssl_verification:
+            ssl._create_default_https_context = orig_https_context #pylint: disable=protected-access
     if remaining_files:
         logger = get_logger()
         for path in remaining_files:
