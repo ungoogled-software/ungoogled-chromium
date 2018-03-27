@@ -153,7 +153,8 @@ def _add_getsrc(subparsers):
             source_retrieval.retrieve_and_extract(
                 config_bundle=args.bundle, buildspace_downloads=args.downloads,
                 buildspace_tree=args.tree, prune_binaries=args.prune_binaries,
-                show_progress=args.show_progress, extractors=extractors)
+                show_progress=args.show_progress, extractors=extractors,
+                disable_ssl_verification=args.disable_ssl_verification)
         except FileExistsError as exc:
             get_logger().error('Directory is not empty: %s', exc)
             raise _CLIError()
@@ -202,6 +203,7 @@ def _add_getsrc(subparsers):
         '--7z-path', dest='sevenz_path', default=SEVENZIP_USE_REGISTRY,
         help=('Command or path to 7-Zip\'s "7z" binary. If "_use_registry" is '
               'specified, determine the path from the registry. Default: %(default)s'))
+    parser.add_argument('--disable-ssl-verification', action='store_true')
     parser.set_defaults(callback=_callback)
 
 def _add_prubin(subparsers):
