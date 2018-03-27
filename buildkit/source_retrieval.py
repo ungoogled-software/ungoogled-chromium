@@ -179,7 +179,8 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
             relative_to=strip_leading_dirs_path, extractors=extractors)
 
 def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #pylint: disable=too-many-arguments
-                         prune_binaries=True, show_progress=True, extractors=None):
+                         prune_binaries=True, show_progress=True, extractors=None,
+                         disable_ssl_verification=False):
     """
     Downloads, checks, and unpacks the Chromium source code and extra dependencies
     defined in the config bundle into the buildspace tree.
@@ -198,6 +199,10 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     May raise undetermined exceptions during archive unpacking.
     """
+    if disable_ssl_verification:
+        import ssl
+        get_logger().info('Disabling SSL verification')
+        ssl._create_default_https_context = ssl._create_unverified_context
     ensure_empty_dir(buildspace_tree) # FileExistsError, FileNotFoundError
     if not buildspace_downloads.exists():
         raise FileNotFoundError(buildspace_downloads)
