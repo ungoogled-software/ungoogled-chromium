@@ -124,13 +124,9 @@ The buildspace tree can be relocated to another system for building if necessary
     py buildspace\tree\ungoogled_packaging\scripts\apply_patch_series.py
     ```
 
-2. Run build script:
-
-    ```
-    buildspace\tree\ungoogled_packaging\build.bat
-    ```
-
-TODO: Add packaging script to be invoked as `ungoogled_packaging\package.bat`.
+2. Run build script: `buildspace\tree\ungoogled_packaging\build.bat`
+3. Run packaging script: `buildspace\tree\ungoogled_packaging\package.bat`
+    * A zip archive will be created in `buildspace\tree\ungoogled_packaging\`
 
 ### macOS
 
@@ -244,7 +240,9 @@ cd buildspace/tree
 ./ungoogled_packaging/build.sh
 ```
 
-The binaries for chromium will be located in the folder `out/Default`
+The binaries for chromium will be located in the folder `out/Default`.
+
+To create a `.tar.xz` archive of the build outputs, run `./ungoogled_packaging/package.sh`. An archive will appear in `ungoogled_packaging/`.
 
 ### Other Linux distributions
 
@@ -307,7 +305,7 @@ cd buildspace/tree
 ./ungoogled_packaging/build.sh
 ./ungoogled_packaging/package.sh
 ```
-A compressed tar archive will appear in `buildspace/`
+A compressed tar archive will appear in `buildspace/tree/ungoogled_packaging/`
 
 ## Advanced building information
 

@@ -10,7 +10,7 @@ import shutil
 
 from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir, ensure_empty_dir
 from ._common import (
-    DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, LIST_BUILD_OUTPUTS, APPLY_PATCH_SERIES,
+    DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, PROCESS_BUILD_OUTPUTS, APPLY_PATCH_SERIES,
     process_templates)
 
 # Private definitions
@@ -49,7 +49,8 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
 
     # Build and packaging scripts
     _copy_from_resources('build.bat.in', output_dir)
-    _copy_from_resources(LIST_BUILD_OUTPUTS, output_dir / 'scripts', shared=True)
+    _copy_from_resources('package.bat.in', output_dir)
+    _copy_from_resources(PROCESS_BUILD_OUTPUTS, output_dir / 'scripts', shared=True)
     _copy_from_resources(APPLY_PATCH_SERIES, output_dir / 'scripts', shared=True)
     process_templates(output_dir, build_file_subs)
 
