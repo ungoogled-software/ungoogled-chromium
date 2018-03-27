@@ -10,7 +10,8 @@ import shutil
 
 from ..common import PACKAGING_DIR, PATCHES_DIR, get_resources_dir, ensure_empty_dir
 from ._common import (
-    DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, LIST_BUILD_OUTPUTS, APPLY_PATCH_SERIES, process_templates)
+    DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, LIST_BUILD_OUTPUTS, APPLY_PATCH_SERIES,
+    process_templates)
 
 # Private definitions
 
