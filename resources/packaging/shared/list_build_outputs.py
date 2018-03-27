@@ -43,6 +43,23 @@ def files_generator(cfg_path, buildspace_tree, build_outputs, cpu_arch):
                 continue
             yield file_path.relative_to(resolved_build_outputs)
 
+def files_generator_main(platform, build_outputs, tree, cpu_arch):
+    # --tree
+    if not tree.exists():
+        raise Exception('Could not find buildspace tree: %s' % tree)
+
+    # --build-outputs
+    if not (tree / build_outputs).exists():
+        raise Exception('Could not find build outputs: %s' % (
+            tree / build_outputs))
+
+    # --platform
+    cfg_path = tree / 'chrome/tools/build/{}/FILES.cfg'.format(platform)
+    if not cfg_path.exists():
+        raise Exception('Could not find FILES.cfg at %s' % cfg_path)
+
+    return files_generator(cfg_path, tree, build_outputs, cpu_arch)
+
 def main(arg_list=None):
     """CLI entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -59,23 +76,8 @@ def main(arg_list=None):
                               'This is the same as the "arch" key in FILES.cfg. '
                               'Default (from platform.architecture()): %(default)s'))
     args = parser.parse_args(args=arg_list)
-
-    # --tree
-    if not args.tree.exists():
-        parser.error('Could not find buildspace tree: %s' % args.tree)
-
-    # --build-outputs
-    if not (args.tree / args.build_outputs).exists():
-        parser.error('Could not find build outputs: %s' % (
-            args.tree / args.build_outputs))
-
-    # --platform
-    cfg_path = args.tree / 'chrome/tools/build/{}/FILES.cfg'.format(args.platform)
-    if not cfg_path.exists():
-        parser.error('Could not find FILES.cfg at %s' % cfg_path)
-
-    sys.stdout.writelines('%s\n' % x for x in files_generator(
-        cfg_path, args.tree, args.build_outputs, args.cpu_arch))
+    generator = files_generator_main(args.platform, args.build_outputs, args.tree, args.cpu_arch)
+    sys.stdout.writelines('%s\n' % x for x in generator)
 
 if __name__ == "__main__":
     main()

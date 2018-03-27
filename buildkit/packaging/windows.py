@@ -49,6 +49,7 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
 
     # Build and packaging scripts
     _copy_from_resources('build.bat.in', output_dir)
+    _copy_from_resources('make_zip_file.py', output_dir / 'scripts')
     _copy_from_resources(LIST_BUILD_OUTPUTS, output_dir / 'scripts', shared=True)
     _copy_from_resources(APPLY_PATCH_SERIES, output_dir / 'scripts', shared=True)
     process_templates(output_dir, build_file_subs)
