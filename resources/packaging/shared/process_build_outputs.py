@@ -91,7 +91,10 @@ def _handle_archive(args):
     """
     Create an archive of the build outputs. Supports zip and compressed tar archives.
     """
-    if args.output.suffixes[-1].lower() == '.zip':
+    if not args.output.suffixes:
+        args.parser.error('Output name has no suffix: %s' % args.output.name)
+        return
+    elif args.output.suffixes[-1].lower() == '.zip':
         import zipfile
         with zipfile.ZipFile(str(args.output), 'w', zipfile.ZIP_DEFLATED) as output_zip:
             for relative_path in _files_generator_by_args(args):
@@ -101,9 +104,17 @@ def _handle_archive(args):
             for include_path in _include_paths(args, recursive=False):
                 output_zip.write(
                     str(include_path), str(args.output.stem / include_path.name))
-    elif args.output.suffixes[-2].lower() == '.tar':
+    elif '.tar' in args.output.name.lower():
+        if len(args.output.suffixes) >= 2 and args.output.suffixes[-2].lower() == '.tar':
+            tar_mode = 'w:%s' % args.output.suffixes[-1][1:]
+        elif args.output.suffixes[-1].lower() == '.tar':
+            tar_mode = 'w'
+        else:
+            args.parser.error(
+                'Could not detect tar format for output: %s' % args.output.name)
+            return
         import tarfile
-        with tarfile.open(str(args.output), 'w:%s' % args.output.suffixes[-1][1:]) as output_tar:
+        with tarfile.open(str(args.output), tar_mode) as output_tar:
             for relative_path in _files_generator_by_args(args):
                 output_tar.add(
                     str(args.tree / args.build_outputs / relative_path),
@@ -112,6 +123,8 @@ def _handle_archive(args):
                 output_tar.add(
                     str(include_path),
                     str(args.output.with_suffix('').stem / include_path.name))
+    else:
+        args.parser.error('Unknown archive extension with name: %s' % args.output.name)
 
 def main(arg_list=None):
     """CLI entrypoint"""
@@ -139,11 +152,11 @@ def main(arg_list=None):
               ' by the file extension. Currently supported types: .zip and'
               ' .tar.{gz,bz2,xz}'))
     parser_archive.add_argument(
-        '--include-file', type=Path, metavar='PATH', dest='append',
+        '--include-file', type=Path, metavar='PATH', dest='append', default=tuple(),
         help=('File to include in the root of the archive. Specify'
               ' multiple times to include multiple files.'))
     parser_archive.add_argument(
-        '--include-dir', type=Path, metavar='PATH', dest='append',
+        '--include-dir', type=Path, metavar='PATH', dest='append', default=tuple(),
         help=('Contents of specified directory to include at the root of the'
               ' archive. For zip files, these contents must only be regular'
               ' files. Specify multiple times to include multiple dirs.'))
