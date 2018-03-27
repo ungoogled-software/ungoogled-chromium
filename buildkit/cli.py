@@ -68,6 +68,10 @@ class NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-meth
 
 # Methods
 
+def _default_user_bundle_path():
+    """Returns the default path to the buildspace user bundle."""
+    return os.getenv('BUILDKIT_USER_BUNDLE', default=BUILDSPACE_USER_BUNDLE)
+
 def setup_bundle_group(parser):
     """Helper to add arguments for loading a config bundle to argparse.ArgumentParser"""
     config_group = parser.add_mutually_exclusive_group()
@@ -79,7 +83,7 @@ def setup_bundle_group(parser):
               'Default value is nothing; a user bundle is used by default'))
     config_group.add_argument(
         '-u', '--user-bundle', metavar='PATH', dest='bundle',
-        default=os.getenv('BUILDKIT_USER_BUNDLE', default=BUILDSPACE_USER_BUNDLE),
+        default=_default_user_bundle_path(),
         type=lambda x: ConfigBundle(Path(x)),
         help=('The path to a user bundle to use. '
               'Mutually exclusive with --base-bundle. Use BUILDKIT_USER_BUNDLE '
@@ -130,7 +134,7 @@ def _add_genbun(subparsers):
         help=_add_genbun.__doc__, description=_add_genbun.__doc__)
     parser.add_argument(
         '-u', '--user-bundle', metavar='PATH', dest='user_bundle_path',
-        type=Path, default=BUILDSPACE_USER_BUNDLE,
+        type=Path, default=_default_user_bundle_path(),
         help=('The output path for the user config bundle. '
               'The path must not already exist. '))
     parser.add_argument(
