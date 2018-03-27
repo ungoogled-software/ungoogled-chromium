@@ -15,9 +15,13 @@ buildkit has optional environment variables. They are as follows:
 
 * BUILDKIT_RESOURCES - Path to the resources/ directory. Defaults to
 the one in buildkit's parent directory.
+* BUILDKIT_USER_BUNDLE - Path to the user config bundle. Without it, commands
+ that need a bundle default to buildspace/user_bundle. This value can be
+ overridden per-command with the --user-bundle option.
 """
 
 import argparse
+import os
 from pathlib import Path
 
 from . import config
@@ -71,13 +75,15 @@ def setup_bundle_group(parser):
         '-b', '--base-bundle', metavar='NAME', dest='bundle', default=argparse.SUPPRESS,
         action=NewBaseBundleAction,
         help=('The base config bundle name to use (located in resources/config_bundles). '
-              'Mutually exclusive with --user-bundle-path. '
-              'Default value is nothing; a default is specified by --user-bundle-path.'))
+              'Mutually exclusive with --user-bundle. '
+              'Default value is nothing; a user bundle is used by default'))
     config_group.add_argument(
-        '-u', '--user-bundle', metavar='PATH', dest='bundle', default=BUILDSPACE_USER_BUNDLE,
+        '-u', '--user-bundle', metavar='PATH', dest='bundle',
+        default=os.getenv('BUILDKIT_USER_BUNDLE', default=BUILDSPACE_USER_BUNDLE),
         type=lambda x: ConfigBundle(Path(x)),
         help=('The path to a user bundle to use. '
-              'Mutually exclusive with --base-bundle-name. Default: %(default)s'))
+              'Mutually exclusive with --base-bundle. Use BUILDKIT_USER_BUNDLE '
+              'to override the default value. Current default: %(default)s'))
 
 def _add_bunnfo(subparsers):
     """Gets info about base bundles."""
