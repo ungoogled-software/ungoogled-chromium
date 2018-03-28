@@ -122,7 +122,7 @@ def _handle_archive(args):
             for include_path in _include_paths(args):
                 output_tar.add(
                     str(include_path),
-                    str(args.output.with_suffix('').stem / include_path.name))
+                    str(Path(args.output.with_suffix('').stem) / include_path.name))
     else:
         args.parser.error('Unknown archive extension with name: %s' % args.output.name)
 
@@ -152,11 +152,11 @@ def main(arg_list=None):
               ' by the file extension. Currently supported types: .zip and'
               ' .tar.{gz,bz2,xz}'))
     parser_archive.add_argument(
-        '--include-file', type=Path, metavar='PATH', action='append', default=tuple(),
+        '--include-file', type=Path, metavar='PATH', action='append', default=list(),
         help=('File to include in the root of the archive. Specify'
               ' multiple times to include multiple files.'))
     parser_archive.add_argument(
-        '--include-dir', type=Path, metavar='PATH', action='append', default=tuple(),
+        '--include-dir', type=Path, metavar='PATH', action='append', default=list(),
         help=('Contents of specified directory to include at the root of the'
               ' archive. For zip files, these contents must only be regular'
               ' files. Specify multiple times to include multiple dirs.'))
