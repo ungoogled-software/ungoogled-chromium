@@ -202,7 +202,7 @@ Tested on OpenSUSE Leap 42.3
 
 #### Setting up the build environment
 
-Install ninja and quilt, if not done so already: `# sudo zypper install ninja quilt` 
+Install ninja, if not done so already: `# sudo zypper install ninja` 
 
 Follow the following guide to set up Python 3.6.4: [https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7](https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7) 
 
@@ -254,14 +254,13 @@ These are for building on Linux distributions that do not have support already. 
 
 Debian-based: `# apt install packaging-dev python3 ninja-build`
 
-* If not building a `.deb` package, replace `packaging-dev` with `quilt python clang llvm-dev`
+* If not building a `.deb` package, replace `packaging-dev` with `python clang llvm-dev`
 
 Other:
 
 * Python 3 (tested on 3.5) for buildkit
 * Python 2 (tested on 2.7) for building GN and running other build-time scripts
 * [Ninja](//ninja-build.org/) for running the build command
-* [Quilt](//savannah.nongnu.org/projects/quilt/) for applying patches
 
 #### Setting up the buildspace tree
 
@@ -322,7 +321,7 @@ Here are the essential building requirements:
 * Python 3 (tested on 3.5) for running buildkit
 * Python 2 (tested on 2.7) for building GN and running other scripts
 * [Ninja](//ninja-build.org/) for running the build command
-* [Quilt](//savannah.nongnu.org/projects/quilt/) is recommended for patch management.
+* (For developers) [Quilt](//savannah.nongnu.org/projects/quilt/) is recommended for patch management.
     * [python-quilt](//github.com/bjoernricks/python-quilt) can be used as well.
 
 Alternatively, [depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools) can provide Python 2 and Ninja.
