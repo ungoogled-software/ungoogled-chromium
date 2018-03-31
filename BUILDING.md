@@ -96,20 +96,11 @@ When installing the SDK, the "Debugging Tools for Windows" feature must be enabl
 
 1. Setup the following:
 
-    * Python 2 for scripts in Chromium
-    * Python 3 for buildkit
-    * [Ninja](https://ninja-build.org/)
-    * [MSYS2](https://www.msys2.org/) *(recommended, not required)* - MSYS2 provides both git and [quilt](https://savannah.nongnu.org/projects/quilt/); the latter provides a convenient system to apply and manage patches.
-        * After installing and updating all packages to the latest version, install git and quilt: `pacman -S git quilt`
-    * [gperf from GNUWin32](http://gnuwin32.sourceforge.net/packages/gperf.htm)
-    * [bison from GNUWin32](http://gnuwin32.sourceforge.net/packages/bison.htm)
-        * Get the Binaries, Developer files, Sources, and Dependencies
-        * **NOTE**: Make sure to place gperf and bison in a path without spaces, otherwise the build will fail.
+    * 7-zip
+    * Python 2.7 for scripts in Chromium
+    * Python 3.5+ for buildkit
 
-2. Make sure the following are accessible in `PATH` (the PATH overrides feature can be used on the directories containing the actual executable):
-
-    * Python 2 as `python`
-    * Ninja as `ninja`
+2. Make sure Python 2.7 is accessible in `PATH` as `python`.
 
 #### Setting up the buildspace tree and packaging files
 
@@ -127,21 +118,15 @@ The buildspace tree can be relocated to another system for building if necessary
 
 #### Invoking build
 
-1. Read and follow the instructions in the comments of `ungoogled_packaging\build.bat` (which resides in the buildspace tree)
-2. Apply patches via MSYS2 shell in the buildspace tree:
+1. In a CMD instance, apply patches:
 
     ```
-    ./ungoogled_packaging/apply_patches.sh
+    py buildspace\tree\ungoogled_packaging\scripts\apply_patch_series.py
     ```
 
-3. In a new CMD instance, ensure the following are in `%PATH%`:
-
-    * Python 2 as `python`
-    * Ninja as `ninja`
-
-    Then run `ungoogled_packaging\build.bat` in the buildspace tree.
-
-TODO: Add packaging script to be invoked as `ungoogled_packaging\package.bat`.
+2. Run build script: `buildspace\tree\ungoogled_packaging\build.bat`
+3. Run packaging script: `buildspace\tree\ungoogled_packaging\package.bat`
+    * A zip archive will be created in `buildspace\tree\ungoogled_packaging\`
 
 ### macOS
 
@@ -157,9 +142,8 @@ Tested on macOS 10.11-10.13
 
 #### Setting up the build environment
 
-1. Install Quilt via Homebrew: `brew install quilt`
-2. Install Ninja via Homebrew: `brew install ninja`
-3. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
+1. Install Ninja via Homebrew: `brew install ninja`
+2. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
 
 #### Setting up the buildspace tree and packaging files
 
@@ -218,7 +202,7 @@ Tested on OpenSUSE Leap 42.3
 
 #### Setting up the build environment
 
-Install ninja and quilt, if not done so already: `# sudo zypper install ninja quilt` 
+Install ninja, if not done so already: `# sudo zypper install ninja` 
 
 Follow the following guide to set up Python 3.6.4: [https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7](https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7) 
 
@@ -256,7 +240,9 @@ cd buildspace/tree
 ./ungoogled_packaging/build.sh
 ```
 
-The binaries for chromium will be located in the folder `out/Default`
+The binaries for chromium will be located in the folder `out/Default`.
+
+To create a `.tar.xz` archive of the build outputs, run `./ungoogled_packaging/package.sh`. An archive will appear in `ungoogled_packaging/`.
 
 ### Other Linux distributions
 
@@ -268,14 +254,13 @@ These are for building on Linux distributions that do not have support already. 
 
 Debian-based: `# apt install packaging-dev python3 ninja-build`
 
-* If not building a `.deb` package, replace `packaging-dev` with `quilt python clang llvm-dev`
+* If not building a `.deb` package, replace `packaging-dev` with `python clang llvm-dev`
 
 Other:
 
 * Python 3 (tested on 3.5) for buildkit
 * Python 2 (tested on 2.7) for building GN and running other build-time scripts
 * [Ninja](//ninja-build.org/) for running the build command
-* [Quilt](//savannah.nongnu.org/projects/quilt/) for applying patches
 
 #### Setting up the buildspace tree
 
@@ -310,7 +295,7 @@ Packages will appear in `buildspace/`
 Builds a compressed tar archive
 
 ```
-./buildkit-launcher.py genpkg linux_portable
+./buildkit-launcher.py genpkg linux_simple
 # The buildspace tree can be relocated to another system for building
 cd buildspace/tree
 # Use "export CLANG_BASE_PATH=/path/to/llvm_root" to set the LLVM and Clang installation path
@@ -319,7 +304,7 @@ cd buildspace/tree
 ./ungoogled_packaging/build.sh
 ./ungoogled_packaging/package.sh
 ```
-A compressed tar archive will appear in `buildspace/`
+A compressed tar archive will appear in `buildspace/tree/ungoogled_packaging/`
 
 ## Advanced building information
 
@@ -336,7 +321,7 @@ Here are the essential building requirements:
 * Python 3 (tested on 3.5) for running buildkit
 * Python 2 (tested on 2.7) for building GN and running other scripts
 * [Ninja](//ninja-build.org/) for running the build command
-* [Quilt](//savannah.nongnu.org/projects/quilt/) is recommended for patch management.
+* (For developers) [Quilt](//savannah.nongnu.org/projects/quilt/) is recommended for patch management.
     * [python-quilt](//github.com/bjoernricks/python-quilt) can be used as well.
 
 Alternatively, [depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools) can provide Python 2 and Ninja.

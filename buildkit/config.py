@@ -618,7 +618,7 @@ class ExtraDepsIni(IniConfigFile):
     """Representation of an extra_deps.ini file"""
 
     _hashes = ('md5', 'sha1', 'sha256', 'sha512')
-    _required_keys = ('version', 'url', 'download_name')
+    _required_keys = ('version', 'url', 'download_name', 'output_path')
     _optional_keys = ('strip_leading_dirs',)
     _passthrough_properties = (*_required_keys, *_optional_keys, 'extractor')
 
@@ -631,7 +631,7 @@ class ExtraDepsIni(IniConfigFile):
         })
     }))
 
-    class _ExtraDepsSection: #pylint: disable=too-few-public-methods
+    class _ExtraDepsProperties: #pylint: disable=too-few-public-methods
         def __init__(self, section_dict, passthrough_properties, hashes):
             self._section_dict = section_dict
             self._passthrough_properties = passthrough_properties
@@ -656,7 +656,7 @@ class ExtraDepsIni(IniConfigFile):
         Returns an object with keys as attributes and
         values already pre-processed strings
         """
-        return self._ExtraDepsSection(
+        return self._ExtraDepsProperties(
             self._config_data[section], self._passthrough_properties,
             self._hashes)
 

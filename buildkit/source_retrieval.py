@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .common import (
     ENCODING, ExtractorEnum, get_logger, ensure_empty_dir)
-from .extractors import extract_tar_file, extract_with_7z
+from .extraction import extract_tar_file, extract_with_7z
 
 # Constants
 
@@ -158,7 +158,7 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
             hasher = hashlib.new(hash_name, data=archive_data)
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(dep_archive)
-        get_logger().info('Extracting archive...')
+        get_logger().info('Extracting to %s ...', dep_properties.output_path)
         extractor_name = dep_properties.extractor or ExtractorEnum.TAR
         if extractor_name == ExtractorEnum.SEVENZIP:
             extractor_func = extract_with_7z
@@ -175,11 +175,12 @@ def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show
 
         extractor_func(
             archive_path=dep_archive, buildspace_tree=buildspace_tree,
-            unpack_dir=Path(dep_name), ignore_files=pruning_set,
+            unpack_dir=Path(dep_properties.output_path), ignore_files=pruning_set,
             relative_to=strip_leading_dirs_path, extractors=extractors)
 
 def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #pylint: disable=too-many-arguments
-                         prune_binaries=True, show_progress=True, extractors=None):
+                         prune_binaries=True, show_progress=True, extractors=None,
+                         disable_ssl_verification=False):
     """
     Downloads, checks, and unpacks the Chromium source code and extra dependencies
     defined in the config bundle into the buildspace tree.
@@ -188,6 +189,8 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #
     buildspace_tree is the path to the buildspace tree.
     extractors is a dictionary of PlatformEnum to a command or path to the
     extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
+    disable_ssl_verification is a boolean indicating if certificate verification
+    should be disabled for downloads using HTTPS.
 
     Raises FileExistsError when the buildspace tree already exists and is not empty
     Raises FileNotFoundError when buildspace/downloads does not exist or through
@@ -207,14 +210,24 @@ def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #
         remaining_files = set(config_bundle.pruning)
     else:
         remaining_files = set()
-    _setup_chromium_source(
-        config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
-        buildspace_tree=buildspace_tree, show_progress=show_progress,
-        pruning_set=remaining_files, extractors=extractors)
-    _setup_extra_deps(
-        config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
-        buildspace_tree=buildspace_tree, show_progress=show_progress,
-        pruning_set=remaining_files, extractors=extractors)
+    if disable_ssl_verification:
+        import ssl
+        # TODO: Properly implement disabling SSL certificate verification
+        orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
+        ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access
+    try:
+        _setup_chromium_source(
+            config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
+            buildspace_tree=buildspace_tree, show_progress=show_progress,
+            pruning_set=remaining_files, extractors=extractors)
+        _setup_extra_deps(
+            config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
+            buildspace_tree=buildspace_tree, show_progress=show_progress,
+            pruning_set=remaining_files, extractors=extractors)
+    finally:
+        # Try to reduce damage of hack by reverting original HTTPS context ASAP
+        if disable_ssl_verification:
+            ssl._create_default_https_context = orig_https_context #pylint: disable=protected-access
     if remaining_files:
         logger = get_logger()
         for path in remaining_files:

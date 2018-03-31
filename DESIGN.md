@@ -171,6 +171,12 @@ For examples of using buildkit's CLI, see [BUILDING.md](BUILDING.md).
 
 There is currently no API documentation for buildkit. However, all public classes, functions, and methods have docstrings that explain their usage and behavior.
 
+### buildkit design philosophy
+
+buildkit should be simple and transparent instead of limited and intelligent when it is reasonable. As an analogy, buildkit should be like git in terms of the scope and behavior of functionality (e.g. subcommands) and as a system in whole.
+
+buildkit should be as configuration- and platform-agnostic as possible. If there is some new functionality that is configuration-dependent or would require extending the configuration system (e.g. adding new config file types), it is preferred for this to be added to packaging scripts (in which scripts shared among packaging types are preferred over those for specific types).
+
 ## Buildspace
 
 Buildspace is a directory that contains all intermediate and final files for building. Its default location is in the repository directory as `buildspace/`. The directory structure is as follows:

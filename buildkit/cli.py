@@ -15,9 +15,13 @@ buildkit has optional environment variables. They are as follows:
 
 * BUILDKIT_RESOURCES - Path to the resources/ directory. Defaults to
 the one in buildkit's parent directory.
+* BUILDKIT_USER_BUNDLE - Path to the user config bundle. Without it, commands
+ that need a bundle default to buildspace/user_bundle. This value can be
+ overridden per-command with the --user-bundle option.
 """
 
 import argparse
+import os
 from pathlib import Path
 
 from . import config
@@ -64,6 +68,10 @@ class NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-meth
 
 # Methods
 
+def _default_user_bundle_path():
+    """Returns the default path to the buildspace user bundle."""
+    return os.getenv('BUILDKIT_USER_BUNDLE', default=BUILDSPACE_USER_BUNDLE)
+
 def setup_bundle_group(parser):
     """Helper to add arguments for loading a config bundle to argparse.ArgumentParser"""
     config_group = parser.add_mutually_exclusive_group()
@@ -71,13 +79,15 @@ def setup_bundle_group(parser):
         '-b', '--base-bundle', metavar='NAME', dest='bundle', default=argparse.SUPPRESS,
         action=NewBaseBundleAction,
         help=('The base config bundle name to use (located in resources/config_bundles). '
-              'Mutually exclusive with --user-bundle-path. '
-              'Default value is nothing; a default is specified by --user-bundle-path.'))
+              'Mutually exclusive with --user-bundle. '
+              'Default value is nothing; a user bundle is used by default'))
     config_group.add_argument(
-        '-u', '--user-bundle', metavar='PATH', dest='bundle', default=BUILDSPACE_USER_BUNDLE,
+        '-u', '--user-bundle', metavar='PATH', dest='bundle',
+        default=_default_user_bundle_path(),
         type=lambda x: ConfigBundle(Path(x)),
         help=('The path to a user bundle to use. '
-              'Mutually exclusive with --base-bundle-name. Default: %(default)s'))
+              'Mutually exclusive with --base-bundle. Use BUILDKIT_USER_BUNDLE '
+              'to override the default value. Current default: %(default)s'))
 
 def _add_bunnfo(subparsers):
     """Gets info about base bundles."""
@@ -124,7 +134,7 @@ def _add_genbun(subparsers):
         help=_add_genbun.__doc__, description=_add_genbun.__doc__)
     parser.add_argument(
         '-u', '--user-bundle', metavar='PATH', dest='user_bundle_path',
-        type=Path, default=BUILDSPACE_USER_BUNDLE,
+        type=Path, default=_default_user_bundle_path(),
         help=('The output path for the user config bundle. '
               'The path must not already exist. '))
     parser.add_argument(
@@ -143,7 +153,8 @@ def _add_getsrc(subparsers):
             source_retrieval.retrieve_and_extract(
                 config_bundle=args.bundle, buildspace_downloads=args.downloads,
                 buildspace_tree=args.tree, prune_binaries=args.prune_binaries,
-                show_progress=args.show_progress, extractors=extractors)
+                show_progress=args.show_progress, extractors=extractors,
+                disable_ssl_verification=args.disable_ssl_verification)
         except FileExistsError as exc:
             get_logger().error('Directory is not empty: %s', exc)
             raise _CLIError()
@@ -192,6 +203,9 @@ def _add_getsrc(subparsers):
         '--7z-path', dest='sevenz_path', default=SEVENZIP_USE_REGISTRY,
         help=('Command or path to 7-Zip\'s "7z" binary. If "_use_registry" is '
               'specified, determine the path from the registry. Default: %(default)s'))
+    parser.add_argument(
+        '--disable-ssl-verification', action='store_true',
+        help='Disables certification verification for downloads using HTTPS.')
     parser.set_defaults(callback=_callback)
 
 def _add_prubin(subparsers):
