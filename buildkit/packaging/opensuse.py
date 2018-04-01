@@ -32,7 +32,7 @@ def _escape_string(value):
 def _get_parsed_gn_flags(gn_flags):
     def _shell_line_generator(gn_flags):
         for key, value in gn_flags.items():
-            yield "myconf_gn+=\"" + _escape_string(key) + "=" + _escape_string(value) + "\""
+            yield "myconf_gn+=\" " + _escape_string(key) + "=" + _escape_string(value) + "\""
     return os.linesep.join(_shell_line_generator(gn_flags))
 
 def _get_spec_format_patch_series(seriesPath):
@@ -42,7 +42,9 @@ def _get_spec_format_patch_series(seriesPath):
         patchList = seriesFile.readlines()
     i = 1
     for patchFile in patchList:
-        patchString += 'Patch{0}:         patches/{1}'.format(i, patchFile)
+        lastSlashPos = patchFile.rfind('/')
+        patchFile = patchFile[lastSlashPos + 1:]
+        patchString += 'Patch{0}:         {1}'.format(i, patchFile)
         i += 1
     return { 'patchString': patchString, 'numPatches': len(patchList) }
 
@@ -91,11 +93,18 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
 
     # Build and packaging scripts
     _copy_from_resources('build.sh.in', output_dir)
-    _copy_from_resources('package.sh.in', output_dir)
+    _copy_from_resources('setup.sh.in', output_dir)
     _copy_from_resources('ungoogled-chromium.spec.in', output_dir)
     _copy_from_resources(PROCESS_BUILD_OUTPUTS, output_dir / 'scripts', shared=True)
     process_templates(output_dir, build_file_subs)
 
     # Other resources to package
     _copy_from_resources('README', output_dir / 'archive_include')
+    _copy_from_resources('master_preferences', output_dir)
+    _copy_from_resources('chromium-browser.sh', output_dir)
+    _copy_from_resources('chromium-browser.desktop', output_dir)
+    _copy_from_resources('chromium-browser.xml', output_dir)
+    _copy_from_resources('chromium.default', output_dir)
+    _copy_from_resources('chromium-browser.appdata.xml', output_dir)
+    _copy_from_resources('chromium-icons.tar.bz2', output_dir)
 

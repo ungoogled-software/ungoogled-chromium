@@ -120,7 +120,6 @@ BuildRequires:  pkgconfig(liboil-0.3) >= 0.3.15
 BuildRequires:  pkgconfig(libpci)
 BuildRequires:  pkgconfig(libpulse)
 BuildRequires:  pkgconfig(libssl)
-BuildRequires:  pkgconfig(libtcmalloc)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(libwebp)
 BuildRequires:  pkgconfig(libxslt)
@@ -194,6 +193,19 @@ BuildRequires:  pkgconfig(vpx) >= 1.6.1
 %endif
 BuildRequires:  clang >= 3.9.0
 
+%description
+Chromium is the open-source project behind Google Chrome. We invite you to join us in our effort to help build a safer, faster, and more stable way for all Internet users to experience the web, and to create a powerful platform for developing a new generation of web applications.
+
+%package -n chromedriver
+Summary:        WebDriver for Google Chrome/Chromium
+License:        BSD-3-Clause
+Group:          Development/Tools/Other
+Requires:       %{name} = %{version}
+
+%description -n chromedriver
+WebDriver is an open source tool for automated testing of webapps across many browsers. It provides capabilities for navigating to web pages, user input, JavaScript execution, and more. ChromeDriver is a standalone server which implements WebDriver's wire protocol for Chromium. It is being developed by members of the Chromium and WebDriver teams.
+
+
 # Setup for build 
 %prep
 #%setup -q -n %{rname}-%{version}
@@ -202,7 +214,7 @@ rm -rf ungoogled-chromium-%{version}
 mv $ungoog{unpacked_src_dir} .
 mv tree ungoogled-chromium-%{version}
 cd ungoogled-chromium-%{version}
-mv ungoogled_packaging/patches/* %{_topdir}/SOURCES 
+#mv ungoogled_packaging/patches %{_topdir}/SOURCES 
 
 $ungoog{apply_patches_cmd}
 
@@ -357,6 +369,7 @@ keeplibs+=(
     third_party/freetype
     third_party/harfbuzz-ng
 )
+%endif
 %if !%{with system_icu}
 keeplibs+=( third_party/icu )
 %endif
@@ -386,20 +399,6 @@ ARCH_FLAGS="`echo %{optflags} | sed -e 's/^-g / /g' -e 's/ -g / /g' -e 's/ -g$//
 export CXXFLAGS="${ARCH_FLAGS} -std=c++17"
 export CC=clang
 export CXX=clang++
-
-# do not eat all memory
-ninjaproc="%{?jobs:%{jobs}}"
-echo "Available memory:"
-cat /proc/meminfo
-echo "System limits:"
-ulimit -a
-if test -n "$ninjaproc" -a "$ninjaproc" -gt 1 ; then
-    mem_per_process=1600000
-    max_mem=$(awk '/MemTotal/ { print $2 }' /proc/meminfo)
-    max_jobs="$(($max_mem / $mem_per_process))"
-    test "$ninjaproc" -gt "$max_jobs" && ninjaproc="$max_jobs" && echo "Warning: Reducing number of jobs to $max_jobs because of memory limits"
-    test "$ninjaproc" -le 0 && ninjaproc=1 && echo "Warning: Do not use the parallel build at all becuse of memory limits"
-fi
 
 # Set system libraries to be used
 gn_system_libraries=(
@@ -446,9 +445,9 @@ $ungoog{gn_flags}
 
 tools/gn/bootstrap/bootstrap.py -s -v --gn-gen-args "${myconf_gn}"
 
-$ungoog{build_output}/gn gen $ungoog{build_output} --args="${myconf_gn}"
+out/Release/gn gen $ungoog{build_output} --args="${myconf_gn}"
 
-ninja -v -j $ninjaproc -C $ungoog{build_output} chrome chrome_sandbox chromedriver
+ninja -v -C $ungoog{build_output} chrome chrome_sandbox chromedriver
 
 %install
 cd ungoogled-chromium-%{version}
@@ -530,7 +529,6 @@ chmod 755 %{buildroot}%{_libdir}/chromium/xdg-mime
 
 %files
 %verify(not mode) %{_libexecdir}/chrome_sandbox
-%doc AUTHORS LICENSE
 %config %{_sysconfdir}/chromium
 %config(noreplace) %{_sysconfdir}/default/chromium
 %dir %{_datadir}/gnome-control-center
