@@ -1,0 +1,130 @@
+From: csagan5 <32685696+csagan5@users.noreply.github.com>
+Date: Fri, 30 Mar 2018 10:09:03 +0200
+Subject: Add fingerprinting mitigation for getClientRects,
+ getBoundingClientRect
+
+Scale the result of Range::getClientRects and Element::getBoundingClientRect
+by a random +/-5% of the original value for each float in the Rect/Quad.
+The random value is generated once for each Document and re-used for all the
+attached elements.
+The rationale is that such value, albeit constant within the rendered Document,
+is within the same order of magniture of the floating point precision being
+used for fingerprinting and sufficient to poison the well.
+
+See also: http://www.gsd.inesc-id.pt/~mpc/pubs/fingerprinting-trustcom2016.pdf
+---
+ third_party/WebKit/Source/core/dom/Document.cpp | 14 ++++++++++++++
+ third_party/WebKit/Source/core/dom/Document.h   |  5 +++++
+ third_party/WebKit/Source/core/dom/Element.cpp  |  7 +++++++
+ third_party/WebKit/Source/core/dom/Range.cpp    |  8 +++++++-
+ 4 files changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/third_party/WebKit/Source/core/dom/Document.cpp b/third_party/WebKit/Source/core/dom/Document.cpp
+--- a/third_party/WebKit/Source/core/dom/Document.cpp
++++ b/third_party/WebKit/Source/core/dom/Document.cpp
+@@ -271,6 +271,8 @@
+ #include "services/service_manager/public/cpp/interface_provider.h"
+ #include "third_party/WebKit/common/page/page_visibility_state.mojom-blink.h"
+ 
++#include "base/rand_util.h"
++
+ #ifndef NDEBUG
+ using WeakDocumentSet =
+     blink::PersistentHeapHashSet<blink::WeakMember<blink::Document>>;
+@@ -730,6 +732,10 @@ Document::Document(const DocumentInit& initializer,
+ #ifndef NDEBUG
+   liveDocumentSet().insert(this);
+ #endif
++
++  // add ±5% noise against fingerprinting
++  shuffleFactorX_ = 1 + (base::RandDouble() - 0.5) * 0.05;
++  shuffleFactorY_ = 1 + (base::RandDouble() - 0.5) * 0.05;
+ }
+ 
+ Document::~Document() {
+@@ -756,6 +762,14 @@ Range* Document::CreateRangeAdjustedToTreeScope(const TreeScope& tree_scope,
+                        Position::BeforeNode(*shadow_host));
+ }
+ 
++double Document::GetShuffleFactorX() {
++	return shuffleFactorX_;
++}
++
++double Document::GetShuffleFactorY() {
++	return shuffleFactorY_;
++}
++
+ SelectorQueryCache& Document::GetSelectorQueryCache() {
+   if (!selector_query_cache_)
+     selector_query_cache_ = std::make_unique<SelectorQueryCache>();
+diff --git a/third_party/WebKit/Source/core/dom/Document.h b/third_party/WebKit/Source/core/dom/Document.h
+--- a/third_party/WebKit/Source/core/dom/Document.h
++++ b/third_party/WebKit/Source/core/dom/Document.h
+@@ -407,6 +407,9 @@ class CORE_EXPORT Document : public ContainerNode,
+   String origin() const;
+   String suborigin() const;
+ 
++  double GetShuffleFactorX();
++  double GetShuffleFactorY();
++
+   String visibilityState() const;
+   mojom::PageVisibilityState GetPageVisibilityState() const;
+   bool hidden() const;
+@@ -1671,6 +1674,8 @@ class CORE_EXPORT Document : public ContainerNode,
+ 
+   double start_time_;
+ 
++  double shuffleFactorX_, shuffleFactorY_;
++
+   TraceWrapperMember<ScriptRunner> script_runner_;
+ 
+   HeapVector<Member<ScriptElementBase>> current_script_stack_;
+diff --git a/third_party/WebKit/Source/core/dom/Element.cpp b/third_party/WebKit/Source/core/dom/Element.cpp
+--- a/third_party/WebKit/Source/core/dom/Element.cpp
++++ b/third_party/WebKit/Source/core/dom/Element.cpp
+@@ -1227,6 +1227,11 @@ DOMRectList* Element::getClientRects() {
+   DCHECK(element_layout_object);
+   GetDocument().AdjustFloatQuadsForScrollAndAbsoluteZoom(
+       quads, *element_layout_object);
++
++  for (FloatQuad& quad : quads) {
++    quad.Scale(GetDocument().GetShuffleFactorX(), GetDocument().GetShuffleFactorY());
++  }
++
+   return DOMRectList::Create(quads);
+ }
+ 
+@@ -1244,6 +1249,8 @@ DOMRect* Element::getBoundingClientRect() {
+   DCHECK(element_layout_object);
+   GetDocument().AdjustFloatRectForScrollAndAbsoluteZoom(result,
+                                                         *element_layout_object);
++  result.Scale(GetDocument().GetShuffleFactorX(), GetDocument().GetShuffleFactorY());
++
+   return DOMRect::FromFloatRect(result);
+ }
+ 
+diff --git a/third_party/WebKit/Source/core/dom/Range.cpp b/third_party/WebKit/Source/core/dom/Range.cpp
+--- a/third_party/WebKit/Source/core/dom/Range.cpp
++++ b/third_party/WebKit/Source/core/dom/Range.cpp
+@@ -1589,11 +1589,17 @@ DOMRectList* Range::getClientRects() const {
+   Vector<FloatQuad> quads;
+   GetBorderAndTextQuads(quads);
+ 
++  for (FloatQuad& quad : quads) {
++    quad.Scale(owner_document_->GetShuffleFactorX(), owner_document_->GetShuffleFactorY());
++  }
++
+   return DOMRectList::Create(quads);
+ }
+ 
+ DOMRect* Range::getBoundingClientRect() const {
+-  return DOMRect::FromFloatRect(BoundingRect());
++  auto rect = BoundingRect();
++  rect.Scale(owner_document_->GetShuffleFactorX(), owner_document_->GetShuffleFactorY());
++  return DOMRect::FromFloatRect(rect);
+ }
+ 
+ // TODO(editing-dev): We should make
+-- 
+2.7.4
+
