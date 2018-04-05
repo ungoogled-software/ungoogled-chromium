@@ -13,7 +13,7 @@ Instead, let them appear just like regular ones.
 
 --- a/net/cert/ev_root_ca_metadata.cc
 +++ b/net/cert/ev_root_ca_metadata.cc
-@@ -46,6 +46,16 @@ struct EVMetadata {
+@@ -46,6 +46,15 @@ struct EVMetadata {
  
  // These certificates may be found in net/data/ssl/ev_roots.
  static const EVMetadata ev_root_ca_metadata[] = {
@@ -26,18 +26,112 @@ Instead, let them appear just like regular ones.
 +      "0",
 +    }
 +  },
-+#if 0
      // AC Camerfirma S.A. Chambers of Commerce Root - 2008
      // https://www.camerfirma.com
      {
-@@ -708,7 +718,9 @@ static const EVMetadata ev_root_ca_metad
+@@ -748,7 +757,8 @@ static const EVMetadata ev_root_ca_metad
            0xd2, 0x09, 0xb7, 0x37, 0xcb, 0xe2, 0xc1, 0x8c, 0xfb, 0x2c, 0x10,
            0xc0, 0xff, 0x0b, 0xcf, 0x0d, 0x32, 0x86, 0xfc, 0x1a, 0xa2}},
          {"2.16.840.1.114404.1.1.2.4.1", ""},
 -    }};
 +    }
-+#endif
 +};
  
  #endif  // defined(PLATFORM_USES_CHROMIUM_EV_METADATA)
  
+@@ -1053,37 +1063,35 @@ bool EVRootCAMetadata::RemoveEVCA(const
+ //
+ 
+ bool EVRootCAMetadata::IsEVPolicyOID(PolicyOID policy_oid) const {
+-  LOG(WARNING) << "Not implemented";
+   return false;
+ }
+ 
+ bool EVRootCAMetadata::IsEVPolicyOIDGivenBytes(
+     const der::Input& policy_oid) const {
+-  LOG(WARNING) << "Not implemented";
+   return false;
+ }
+ 
+ bool EVRootCAMetadata::HasEVPolicyOID(const SHA256HashValue& fingerprint,
+                                       PolicyOID policy_oid) const {
+-  LOG(WARNING) << "Not implemented";
+   return false;
+ }
+ 
+ bool EVRootCAMetadata::HasEVPolicyOIDGivenBytes(
+     const SHA256HashValue& fingerprint,
+     const der::Input& policy_oid) const {
+-  LOG(WARNING) << "Not implemented";
++  return false;
++}
++
++bool EVRootCAMetadata::IsCaBrowserForumEvOid(PolicyOID policy_oid) {
+   return false;
+ }
+ 
+ bool EVRootCAMetadata::AddEVCA(const SHA256HashValue& fingerprint,
+                                const char* policy) {
+-  LOG(WARNING) << "Not implemented";
+   return true;
+ }
+ 
+ bool EVRootCAMetadata::RemoveEVCA(const SHA256HashValue& fingerprint) {
+-  LOG(WARNING) << "Not implemented";
+   return true;
+ }
+ 
+@@ -1093,24 +1101,6 @@ EVRootCAMetadata::EVRootCAMetadata() {
+   // Constructs the object from the raw metadata in ev_root_ca_metadata.
+ #if defined(USE_NSS_CERTS)
+   crypto::EnsureNSSInit();
+-
+-  for (size_t i = 0; i < arraysize(ev_root_ca_metadata); i++) {
+-    const EVMetadata& metadata = ev_root_ca_metadata[i];
+-    for (size_t j = 0; j < arraysize(metadata.policy_oids); j++) {
+-      if (metadata.policy_oids[j][0] == '\0')
+-        break;
+-      const char* policy_oid = metadata.policy_oids[j];
+-
+-      PolicyOID policy;
+-      if (!RegisterOID(policy_oid, &policy)) {
+-        LOG(ERROR) << "Failed to register OID: " << policy_oid;
+-        continue;
+-      }
+-
+-      ev_policy_[metadata.fingerprint].push_back(policy);
+-      policy_oids_.insert(policy);
+-    }
+-  }
+ #elif defined(PLATFORM_USES_CHROMIUM_EV_METADATA) && !defined(OS_WIN)
+   for (size_t i = 0; i < arraysize(ev_root_ca_metadata); i++) {
+     const EVMetadata& metadata = ev_root_ca_metadata[i];
+--- a/net/cert/ev_root_ca_metadata.h
++++ b/net/cert/ev_root_ca_metadata.h
+@@ -20,13 +20,6 @@
+ #include "net/base/net_export.h"
+ #include "net/cert/x509_certificate.h"
+ 
+-#if defined(USE_NSS_CERTS) || defined(OS_WIN) || defined(OS_MACOSX) || \
+-    defined(OS_FUCHSIA)
+-// When not defined, the EVRootCAMetadata singleton is a dumb placeholder
+-// implementation that will fail all EV lookup operations.
+-#define PLATFORM_USES_CHROMIUM_EV_METADATA
+-#endif
+-
+ namespace base {
+ template <typename T>
+ struct LazyInstanceTraitsBase;
+@@ -68,12 +61,10 @@ class NET_EXPORT_PRIVATE EVRootCAMetadat
+   bool HasEVPolicyOIDGivenBytes(const SHA256HashValue& fingerprint,
+                                 const der::Input& policy_oid) const;
+ 
+-#if defined(PLATFORM_USES_CHROMIUM_EV_METADATA)
+   // Returns true if |policy_oid| is for 2.23.140.1.1 (CA/Browser Forum's
+   // Extended Validation Policy). This is used as a hack by the
+   // platform-specific CertVerifyProcs when doing EV verification.
+   static bool IsCaBrowserForumEvOid(PolicyOID policy_oid);
+-#endif
+ 
+   // AddEVCA adds an EV CA to the list of known EV CAs with the given policy.
+   // |policy| is expressed as a string of dotted numbers. It returns true on

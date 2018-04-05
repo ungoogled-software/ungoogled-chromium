@@ -1,0 +1,55 @@
+From 7ef426c221d11b53b6de507b398e35e8d7b3cc94 Mon Sep 17 00:00:00 2001
+From: Tom Anderson <thomasanderson@chromium.org>
+Date: Wed, 4 Apr 2018 01:23:26 +0000
+Subject: [PATCH] Fix frame buttons rendering too large when using
+ OSX-Arc-White GTK theme
+
+The check for GTK 3.20 was incorrect as the issue it was trying to fix
+was still occurring on GTK 3.20+ systems.  This CL adds the correct,
+but more complex, check.
+
+Verified on these configurations:
+{GTK 3.18, GTK 3.22} X
+{Breeze, Adwaita, OSX-Arc-White, Greybird} X
+{scale=1, scale=2} X
+{fullscreen, restored}
+
+BUG=821881
+R=thestig
+
+Change-Id: I05afa35c1452a46a1abf4c39191a13657bfd8e2c
+Reviewed-on: https://chromium-review.googlesource.com/990717
+Reviewed-by: Lei Zhang <thestig@chromium.org>
+Commit-Queue: Thomas Anderson <thomasanderson@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#547921}
+---
+ chrome/browser/ui/libgtkui/nav_button_provider_gtk3.cc | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+--- a/chrome/browser/ui/libgtkui/nav_button_provider_gtk3.cc
++++ b/chrome/browser/ui/libgtkui/nav_button_provider_gtk3.cc
+@@ -213,7 +213,23 @@ class NavButtonImageSource : public gfx:
+     // is not scaled for the (unexpected) smaller button size, and the button's
+     // edges appear cut off.  To fix this, manually set the background to scale
+     // to the button size when it would have clipped.
+-    if (GtkVersionCheck(3, 20)) {
++    //
++    // GTK's "contain" is unlike CSS's "contain".  In CSS, the image would only
++    // be downsized when it would have clipped.  In GTK, the image is always
++    // scaled to fit the drawing region (preserving aspect ratio).  Only add
++    // "contain" if clipping would occur.
++    cairo_pattern_t* cr_pattern = nullptr;
++    cairo_surface_t* cr_surface = nullptr;
++    gtk_style_context_get(button_context, button_state,
++                          GTK_STYLE_PROPERTY_BACKGROUND_IMAGE, &cr_pattern,
++                          nullptr);
++    if (cr_pattern &&
++        cairo_pattern_get_surface(cr_pattern, &cr_surface) ==
++            CAIRO_STATUS_SUCCESS &&
++        cr_surface &&
++        cairo_surface_get_type(cr_surface) == CAIRO_SURFACE_TYPE_IMAGE &&
++        (cairo_image_surface_get_width(cr_surface) > button_size_.width() ||
++         cairo_image_surface_get_height(cr_surface) > button_size_.height())) {
+       ApplyCssToContext(button_context,
+                         ".titlebutton { background-size: contain; }");
+     }

@@ -1,0 +1,117 @@
+description: build using system openjpeg
+author: Michael Gilbert <mgilbert@debian.org>
+
+--- a/third_party/pdfium/third_party/BUILD.gn
++++ b/third_party/pdfium/third_party/BUILD.gn
+@@ -368,38 +368,11 @@ config("fx_libopenjpeg_warnings") {
+   }
+ }
+ 
+-static_library("fx_libopenjpeg") {
+-  configs -= [ "//build/config/compiler:chromium_code" ]
+-  configs += [
+-    "//build/config/compiler:no_chromium_code",
+-    ":pdfium_third_party_config",
+-
+-    # Must be after no_chromium_code for warning flags to be ordered correctly.
+-    ":fx_libopenjpeg_warnings",
+-  ]
+-  sources = [
+-    "libopenjpeg20/bio.c",
+-    "libopenjpeg20/cio.c",
+-    "libopenjpeg20/dwt.c",
+-    "libopenjpeg20/event.c",
+-    "libopenjpeg20/function_list.c",
+-    "libopenjpeg20/image.c",
+-    "libopenjpeg20/invert.c",
+-    "libopenjpeg20/j2k.c",
+-    "libopenjpeg20/jp2.c",
+-    "libopenjpeg20/mct.c",
+-    "libopenjpeg20/mqc.c",
+-    "libopenjpeg20/openjpeg.c",
+-    "libopenjpeg20/opj_clock.c",
+-    "libopenjpeg20/pi.c",
+-    "libopenjpeg20/sparse_array.c",
+-    "libopenjpeg20/sparse_array.h",
+-    "libopenjpeg20/t1.c",
+-    "libopenjpeg20/t2.c",
+-    "libopenjpeg20/tcd.c",
+-    "libopenjpeg20/tgt.c",
+-    "libopenjpeg20/thread.c",
+-  ]
++pkg_config("libopenjpeg_from_pkgconfig") {
++  packages = [ "libopenjp2" ]
++}
++group("fx_libopenjpeg") {
++  public_configs = [ ":libopenjpeg_from_pkgconfig" ]
+ }
+ 
+ config("system_libpng_config") {
+--- a/third_party/pdfium/core/fxcodec/codec/codec_int.h
++++ b/third_party/pdfium/core/fxcodec/codec/codec_int.h
+@@ -15,7 +15,7 @@
+ #include <vector>
+ 
+ #include "core/fxcodec/jbig2/JBig2_Context.h"
+-#include "third_party/libopenjpeg20/openjpeg.h"
++#include <openjpeg-2.3/openjpeg.h>
+ 
+ class CPDF_ColorSpace;
+ 
+--- a/third_party/pdfium/core/fxcodec/codec/fx_codec_jpx_opj.cpp
++++ b/third_party/pdfium/core/fxcodec/codec/fx_codec_jpx_opj.cpp
+@@ -16,8 +16,6 @@
+ #include "core/fxcrt/fx_memory.h"
+ #include "core/fxcrt/fx_safe_types.h"
+ #include "third_party/base/ptr_util.h"
+-#include "third_party/libopenjpeg20/openjpeg.h"
+-#include "third_party/libopenjpeg20/opj_malloc.h"
+ 
+ namespace {
+ 
+@@ -513,7 +511,6 @@ bool CJPX_Decoder::Init(const unsigned c
+     m_Image = nullptr;
+     return false;
+   }
+-  m_Image->pdfium_use_colorspace = !!m_ColorSpace;
+ 
+   if (!m_Parameters.nb_tile_to_decode) {
+     if (!opj_set_decode_area(m_Codec, m_Image, m_Parameters.DA_x0,
+@@ -550,7 +547,7 @@ bool CJPX_Decoder::Init(const unsigned c
+     // TODO(palmer): Using |opj_free| here resolves the crash described in
+     // https://crbug.com/737033, but ultimately we need to harmonize the
+     // memory allocation strategy across OpenJPEG and its PDFium callers.
+-    opj_free(m_Image->icc_profile_buf);
++    free(m_Image->icc_profile_buf);
+     m_Image->icc_profile_buf = nullptr;
+     m_Image->icc_profile_len = 0;
+   }
+--- a/third_party/pdfium/core/fxcodec/codec/cjpx_decoder.h
++++ b/third_party/pdfium/core/fxcodec/codec/cjpx_decoder.h
+@@ -12,7 +12,7 @@
+ 
+ #include "core/fxcodec/codec/codec_int.h"
+ #include "core/fxcrt/unowned_ptr.h"
+-#include "third_party/libopenjpeg20/openjpeg.h"
++#include <openjpeg-2.3/openjpeg.h>
+ 
+ class CPDF_ColorSpace;
+ 
+--- a/third_party/pdfium/BUILD.gn
++++ b/third_party/pdfium/BUILD.gn
+@@ -21,7 +21,6 @@ config("pdfium_common_config") {
+   ldflags = []
+   include_dirs = [ "." ]
+   defines = [
+-    "OPJ_STATIC",
+     "PNG_PREFIX",
+     "PNG_USE_READ_MACROS",
+   ]
+@@ -80,7 +79,6 @@ config("pdfium_core_config") {
+   if (is_linux) {
+     if (current_cpu == "x64") {
+       defines += [ "_FX_CPU_=_FX_X64_" ]
+-      cflags += [ "-fPIC" ]
+     } else if (current_cpu == "x86") {
+       defines += [ "_FX_CPU_=_FX_X86_" ]
+     }

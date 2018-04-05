@@ -1,0 +1,48 @@
+From 5d5a062fac6f567cd8f8b2ef7e894e7623f8013e Mon Sep 17 00:00:00 2001
+From: Sahel Sharify <sahel@chromium.org>
+Date: Thu, 15 Mar 2018 17:30:49 +0000
+Subject: [PATCH] Send GSB before switching to mainthread scrolling in smooth
+ scroll path.
+
+This cl is the equivalent of https://codereview.chromium.org/2854683002 fix for smooth scrolling
+path,if the compositor handles the GSB and during the scrolling we have to switch to main thread
+since the compositor cannot handle a GSU a GSB must be sent to the main thread since the original
+GSB was handled on the compositor rather than being sent to the main thread.
+
+touchpad-scroll-impl-to-main.html is the test that forces switch from compositor thread to main
+thread in the middle of scrolling. It used to get executed with --disable-smooth-scrolling
+in this cl I've moved the test to a new virtual test suite that has default scroll animation
+value.
+
+I have removed the test expectations since I have changed the test and this might fix the flake.
+
+subpixel-accumulation.html needs scroll animation to be disabled and that's why I had to move it to
+a new test suite.
+
+Bug: 820979, 708499, 757165, 800840
+Cq-Include-Trybots: master.tryserver.blink:linux_trusty_blink_rel;master.tryserver.chromium.linux:linux_layout_tests_slimming_paint_v2
+Change-Id: I21b1f4285897d74559f6827e6a232f007dc897b0
+Reviewed-on: https://chromium-review.googlesource.com/961264
+Commit-Queue: Sahel Sharifymoghaddam <sahel@chromium.org>
+Reviewed-by: Timothy Dresser <tdresser@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#543425}
+---
+ ui/events/blink/input_handler_proxy.cc | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+--- a/ui/events/blink/input_handler_proxy.cc
++++ b/ui/events/blink/input_handler_proxy.cc
+@@ -765,7 +765,12 @@ InputHandlerProxy::HandleGestureScrollUp
+         return DID_HANDLE;
+       case cc::InputHandler::SCROLL_IGNORED:
+         return DROP_EVENT;
+-      default:
++      case cc::InputHandler::SCROLL_ON_MAIN_THREAD:
++      case cc::InputHandler::SCROLL_UNKNOWN:
++        if (input_handler_->ScrollingShouldSwitchtoMainThread()) {
++          gesture_scroll_on_impl_thread_ = false;
++          client_->GenerateScrollBeginAndSendToMainThread(gesture_event);
++        }
+         return DID_NOT_HANDLE;
+     }
+   }

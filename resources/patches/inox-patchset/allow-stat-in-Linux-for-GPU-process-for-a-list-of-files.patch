@@ -1,0 +1,81 @@
+From 6b1b6d3a8555075e23cca89335e855d55f35fba9 Mon Sep 17 00:00:00 2001
+From: Zhenyao Mo <zmo@chromium.org>
+Date: Thu, 29 Mar 2018 23:48:19 +0000
+Subject: [PATCH] Allow `stat` in Linux for GPU process for a list of files.
+
+This is to unblock certain NVidia driver's glReadPixels calls in the sandboxed
+GPU process.
+
+Note that the needed file /dev/nvidiactl is already in the list for read/write.
+
+BUG=817400
+TEST=manual
+R=tsepez@chromium.org
+
+Change-Id: I9074a8335a9c4df1487f5a288d5e284bbedf67c3
+Reviewed-on: https://chromium-review.googlesource.com/965462
+Reviewed-by: Zhenyao Mo <zmo@chromium.org>
+Reviewed-by: Tom Sepez <tsepez@chromium.org>
+Reviewed-by: Robert Sesek <rsesek@chromium.org>
+Reviewed-by: Kenneth Russell <kbr@chromium.org>
+Commit-Queue: Zhenyao Mo <zmo@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#547027}
+---
+ content/gpu/gpu_sandbox_hook_linux.cc                     |  5 ++++-
+ .../service_manager/sandbox/linux/bpf_gpu_policy_linux.cc | 15 ++++++++++++++-
+ 2 files changed, 18 insertions(+), 2 deletions(-)
+
+--- a/content/gpu/gpu_sandbox_hook_linux.cc
++++ b/content/gpu/gpu_sandbox_hook_linux.cc
+@@ -153,6 +153,7 @@ void AddStandardGpuWhiteList(std::vector
+   static const char kDriCardBasePath[] = "/dev/dri/card";
+   static const char kNvidiaCtlPath[] = "/dev/nvidiactl";
+   static const char kNvidiaDeviceBasePath[] = "/dev/nvidia";
++  static const char kNvidiaDeviceModeSetPath[] = "/dev/nvidia-modeset";
+   static const char kNvidiaParamsPath[] = "/proc/driver/nvidia/params";
+   static const char kDevShm[] = "/dev/shm/";
+ 
+@@ -172,6 +173,8 @@ void AddStandardGpuWhiteList(std::vector
+     permissions->push_back(BrokerFilePermission::ReadWrite(
+         base::StringPrintf("%s%d", kNvidiaDeviceBasePath, i)));
+   }
++  permissions->push_back(
++      BrokerFilePermission::ReadWrite(kNvidiaDeviceModeSetPath));
+   permissions->push_back(BrokerFilePermission::ReadOnly(kNvidiaParamsPath));
+ }
+ 
+@@ -262,9 +265,9 @@ sandbox::syscall_broker::BrokerCommandSe
+   sandbox::syscall_broker::BrokerCommandSet command_set;
+   command_set.set(sandbox::syscall_broker::COMMAND_ACCESS);
+   command_set.set(sandbox::syscall_broker::COMMAND_OPEN);
++  command_set.set(sandbox::syscall_broker::COMMAND_STAT);
+   if (IsChromeOS() && options.use_amd_specific_policies) {
+     command_set.set(sandbox::syscall_broker::COMMAND_READLINK);
+-    command_set.set(sandbox::syscall_broker::COMMAND_STAT);
+   }
+   return command_set;
+ }
+--- a/services/service_manager/sandbox/linux/bpf_gpu_policy_linux.cc
++++ b/services/service_manager/sandbox/linux/bpf_gpu_policy_linux.cc
+@@ -61,7 +61,20 @@ ResultExpr GpuProcessPolicy::EvaluateSys
+     case __NR_open:
+ #endif  // !defined(__aarch64__)
+     case __NR_faccessat:
+-    case __NR_openat: {
++    case __NR_openat:
++#if defined(__NR_stat)
++    case __NR_stat:
++#endif
++#if defined(__NR_stat64)
++    case __NR_stat64:
++#endif
++#if defined(__NR_fstatat)
++    case __NR_fstatat:
++#endif
++#if defined(__NR_newfstatat)
++    case __NR_newfstatat:
++#endif
++    {
+       auto* broker_process = SandboxLinux::GetInstance()->broker_process();
+       DCHECK(broker_process);
+       return Trap(BrokerProcess::SIGSYS_Handler, broker_process);
