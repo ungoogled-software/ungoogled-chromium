@@ -197,7 +197,11 @@ def compute_lists(buildspace_tree, search_regex):
             continue
         relative_path = path.relative_to(buildspace_tree)
         if path.is_symlink():
-            resolved_relative_posix = path.resolve().relative_to(buildspace_tree).as_posix()
+            try:
+                resolved_relative_posix = path.resolve().relative_to(buildspace_tree).as_posix()
+            except ValueError:
+                # Symlink leads out of the buildspace tree
+                continue
             if resolved_relative_posix in pruning_set:
                 pruning_set.add(relative_path.as_posix())
             else:
