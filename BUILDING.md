@@ -202,7 +202,9 @@ Tested on OpenSUSE Leap 42.3
 
 #### Setting up the build environment
 
-Install ninja, if not done so already: `# sudo zypper install ninja` 
+Install the following packages : `# sudo zypper install perl-Switch dirac-devel hunspell-devel imlib2-devel libdc1394 libdc1394-devel libavcodec-devel yasm-devel libexif-devel libtheora-devel schroedinger-devel minizip-devel python-beautifulsoup4 python-simplejson libvdpau-devel slang-devel libjack-devel libavformat-devel SDL-devel ninja binutils-gold bison cups-devel desktop-file-utils fdupes flex gperf hicolor-icon-theme libcap-devel libelf-devel libgcrypt-devel libgsm libgsm-devel libjpeg-devel libpng-devel libva-devel ncurses-devel pam-devel pkgconfig re2-devel snappy-devel update-desktop-files util-linux wdiff alsa Mesa-dri-devel cairo-devel libavutil-devel libavfilter-devel libdrm2 libdrm-devel libwebp-devel libxslt-devel libopus-devel rpm-build` 
+
+**Note**: There may be additional package requirements besides those listed above, if so they will be listed when using `rpmbuild` to create the ungoogled-chromium package. 
 
 Follow the following guide to set up Python 3.6.4: [https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7](https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7) 
 
@@ -227,22 +229,37 @@ Before executing the following commands, make sure you are using python 3.6 as w
 ```
 mkdir -p buildspace/downloads
 ./buildkit-launcher.py genbun opensuse
+./buildkit-launcher.py getsrc
 ./buildkit-launcher.py subdom
 ./buildkit-launcher.py genpkg opensuse
 ```
 
-Before proceeding to the build chromium, open a new tab or otherwise exit the python 3.6 virtual environment, as it will cause errors in the next step.
+Before proceeding to the build chromium, open a new tab or otherwise exit the python 3.6 virtual environment, as it will cause errors in the next steps.
 
-#### Invoking build
+#### Setting up environment for RPM build
+
+Note: This section only has to be performed once.
+
+Execute the following commands:
+```
+mkdir -p ~/rpm/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+cat <<EOF >~/.rpmmacros
+%HOME       %{expand:%%(cd; pwd)}
+%_topdir    %{HOME}/rpm
+EOF
+```
+
+#### Invoking build and installing package
 
 ```
 cd buildspace/tree
-./ungoogled_packaging/build.sh
+./ungoogled_packaging/setup.sh
+cd ~/rpm
+rpmbuild -v -bb --clean SPECS/ungoogled-chromium.spec
 ```
 
-The binaries for chromium will be located in the folder `out/Default`.
-
-To create a `.tar.xz` archive of the build outputs, run `./ungoogled_packaging/package.sh`. An archive will appear in `ungoogled_packaging/`.
+The RPM will be located in `~/rpm/RPMS/{arch}/` once rpmbuild has finished. It can be installed with the command `sudo rpm -i {path to RPM}`
 
 ### Other Linux distributions
 
