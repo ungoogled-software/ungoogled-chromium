@@ -105,7 +105,9 @@ These instructions are platform-specific.
 
 1. [Download the latest Google Chrome for Linux (.deb file)](https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb)
 2. Inside `data.tar.xz`, extract `./opt/google/chrome/libwidevinecdm.so`
-3. Using the extracted `libwidevinecdm.so`, replace the existing file of the same name bundled with ungoogled-chromium
+3. Place `libwidevinecdm.so` next to the `libwidevinecdmadapter.so` file bundled with ungoogled-chromium. Replace the existing `libwidevinecdm.so`, if it already exists.
+    * For installable distribution packages, `libwidevinecdmadapter.so` is generally located in `/usr/lib/chromium`. For extracted archives, this is among the extracted files.
+    * If `libwidevinecdmadapter.so` is not present from the distribution package, install the Widevine CDM adapter package. For Debian packages, this is the `ungoogled-chromium-widevine` package.
 
 ### Windows
 
