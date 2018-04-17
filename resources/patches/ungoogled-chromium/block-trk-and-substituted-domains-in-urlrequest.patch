@@ -1,0 +1,641 @@
+# Block all URLRequest requests with 'qjz9zk' as the domain name or with a 'trk:' scheme.
+# An info bar is displayed unless the --disable-trkbar command-line flag or the chrome://flag option is used.
+# This patch is a heavily modified version of Iridium's patch 'net: add "trk:" scheme and help identify URLs being retrieved"
+
+--- a/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
++++ b/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
+@@ -25,6 +25,7 @@ ChromeAutocompleteSchemeClassifier::GetI
+   if (base::IsStringASCII(scheme) &&
+       (ProfileIOData::IsHandledProtocol(scheme) ||
+        base::LowerCaseEqualsASCII(scheme, content::kViewSourceScheme) ||
++       base::LowerCaseEqualsASCII(scheme, url::kTraceScheme) ||
+        base::LowerCaseEqualsASCII(scheme, url::kJavaScriptScheme) ||
+        base::LowerCaseEqualsASCII(scheme, url::kDataScheme))) {
+     return metrics::OmniboxInputType::URL;
+--- a/chrome/browser/history/history_utils.cc
++++ b/chrome/browser/history/history_utils.cc
+@@ -21,6 +21,7 @@ bool CanAddURLToHistory(const GURL& url)
+       url.SchemeIs(content::kChromeDevToolsScheme) ||
+       url.SchemeIs(content::kChromeUIScheme) ||
+       url.SchemeIs(content::kViewSourceScheme) ||
++      url.SchemeIs(url::kTraceScheme) ||
+       url.SchemeIs(chrome::kChromeNativeScheme) ||
+       url.SchemeIs(chrome::kChromeSearchScheme) ||
+       url.SchemeIs(dom_distiller::kDomDistillerScheme))
+--- a/chrome/browser/ui/singleton_tabs.cc
++++ b/chrome/browser/ui/singleton_tabs.cc
+@@ -101,7 +101,8 @@ int GetIndexOfExistingTab(Browser* brows
+ 
+     // Skip view-source tabs. This is needed because RewriteURLIfNecessary
+     // removes the "view-source:" scheme which leads to incorrect matching.
+-    if (tab_url.SchemeIs(content::kViewSourceScheme))
++    if (tab_url.SchemeIs(content::kViewSourceScheme) ||
++        tab_url.SchemeIs(url::kTraceScheme))
+       continue;
+ 
+     GURL rewritten_tab_url = tab_url;
+--- a/components/infobars/core/infobar_delegate.h
++++ b/components/infobars/core/infobar_delegate.h
+@@ -148,6 +148,7 @@ class InfoBarDelegate {
+     FRAMEBUST_BLOCK_INFOBAR_ANDROID = 77,
+     SURVEY_INFOBAR_ANDROID = 78,
+     NEAR_OOM_INFOBAR_ANDROID = 79,
++    TRACKING_ALERT_INFOBAR_DELEGATE = 9001,
+   };
+ 
+   // Describes navigation events, used to decide whether infobars should be
+--- a/components/omnibox/browser/autocomplete_input.cc
++++ b/components/omnibox/browser/autocomplete_input.cc
+@@ -486,7 +486,8 @@ void AutocompleteInput::ParseForEmphasiz
+   int after_scheme_and_colon = parts.scheme.end() + 1;
+   // For the view-source scheme, we should emphasize the scheme and host of the
+   // URL qualified by the view-source prefix.
+-  if (base::LowerCaseEqualsASCII(scheme_str, kViewSourceScheme) &&
++  if ((base::LowerCaseEqualsASCII(scheme_str, kViewSourceScheme) ||
++       base::LowerCaseEqualsASCII(scheme_str, url::kTraceScheme)) &&
+       (static_cast<int>(text.length()) > after_scheme_and_colon)) {
+     // Obtain the URL prefixed by view-source and parse it.
+     base::string16 real_url(text.substr(after_scheme_and_colon));
+@@ -555,7 +556,9 @@ int AutocompleteInput::NumNonHostCompone
+ bool AutocompleteInput::HasHTTPScheme(const base::string16& input) {
+   std::string utf8_input(base::UTF16ToUTF8(input));
+   url::Component scheme;
+-  if (url::FindAndCompareScheme(utf8_input, kViewSourceScheme, &scheme)) {
++  if (url::FindAndCompareScheme(utf8_input, url::kTraceScheme, &scheme)) {
++    return false;
++  } else if (url::FindAndCompareScheme(utf8_input, kViewSourceScheme, &scheme)) {
+     utf8_input.erase(0, scheme.end() + 1);
+   }
+   return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
+--- a/content/browser/browser_url_handler_impl.cc
++++ b/content/browser/browser_url_handler_impl.cc
+@@ -14,9 +14,34 @@
+ #include "content/public/common/url_constants.h"
+ #include "content/public/common/url_utils.h"
+ #include "url/gurl.h"
++#include "net/url_request/url_request.h"
++
++#include "third_party/ungoogled/util.h"
+ 
+ namespace content {
+ 
++static bool HandleTraceScheme(GURL* url, BrowserContext*) {
++  if (ungoogled::IsTrkURL(*url)) {
++    LOG(ERROR) << "Blocked URL in HandleTraceScheme: " << url->spec();
++    ungoogled::TrkNotifierType trk_notifier = net::URLRequest::GetTrkNotifier();
++    if (trk_notifier == nullptr) {
++      LOG(ERROR) << "Trk notification handler is not set.";
++    } else {
++      (*trk_notifier)("HandleTraceScheme", *url);
++    }
++    *url = GURL(url::kAboutBlankURL);
++  }
++  return false;
++}
++
++static bool ReverseTraceScheme(GURL* url, BrowserContext*) {
++  if (url->SchemeIs(url::kTraceScheme)) {
++    return false;
++  }
++  *url = GURL(url::kTraceScheme + (":" + url->spec()));
++  return true;
++}
++
+ // Handles rewriting view-source URLs for what we'll actually load.
+ static bool HandleViewSource(GURL* url, BrowserContext* browser_context) {
+   if (url->SchemeIs(kViewSourceScheme)) {
+@@ -98,6 +123,7 @@ BrowserURLHandlerImpl::BrowserURLHandler
+   // view-source: should take precedence over other rewriters, so it's
+   // important to add it before calling up to the content client.
+   AddHandlerPair(&HandleViewSource, &ReverseViewSource);
++  AddHandlerPair(&HandleTraceScheme, &ReverseTraceScheme);
+ 
+   GetContentClient()->browser()->BrowserURLHandlerCreated(this);
+ }
+--- a/content/browser/child_process_security_policy_impl.cc
++++ b/content/browser/child_process_security_policy_impl.cc
+@@ -350,6 +350,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+   RegisterPseudoScheme(kViewSourceScheme);
+   RegisterPseudoScheme(url::kHttpSuboriginScheme);
+   RegisterPseudoScheme(url::kHttpsSuboriginScheme);
++  RegisterPseudoScheme(url::kTraceScheme);
+ }
+ 
+ ChildProcessSecurityPolicyImpl::~ChildProcessSecurityPolicyImpl() {
+--- /dev/null
++++ b/third_party/ungoogled/BUILD.gn
+@@ -0,0 +1,33 @@
++# Provides low-level utilities
++source_set("util") {
++  sources = [
++    "util.cc",
++    "util.h",
++  ]
++  include_dirs = [
++    "../.."
++  ]
++}
++
++# Provides UI to notify about trk: scheme and substituted domains.
++component("trknotify") {
++  sources = [
++    "trknotify.cc",
++    "trknotify.h",
++  ]
++  if (is_android) {
++    # TODO: Implement trkbar_android and TrkBarAndroidInfoBar
++  } else {
++    sources += [
++      "trkbar.cc",
++      "trkbar.h",
++    ]
++  }
++  include_dirs = [
++    "../../",
++  ]
++  deps = [
++    "//chrome/browser/ui",
++  ]
++  # TODO: May need to depend on files in //chrome/browser/android
++}
+--- /dev/null
++++ b/third_party/ungoogled/trkbar.cc
+@@ -0,0 +1,40 @@
++/*
++ * Copyright 2018 The ungoogled-chromium and Iridium Authors
++ *
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++#include "base/strings/utf_string_conversions.h"
++#include "components/infobars/core/infobar.h"
++#include "third_party/ungoogled/trkbar.h"
++
++namespace content {
++
++void TrkBar::Create(InfoBarService* service, const GURL &url) {
++  service->AddInfoBar(service->CreateConfirmInfoBar(
++      std::unique_ptr<ConfirmInfoBarDelegate>(new TrkBar(url))
++  ));
++}
++
++bool TrkBar::ShouldExpire(const NavigationDetails&) const {
++  return false;
++}
++
++TrkBar::TrkBar(const GURL &url)
++    : ConfirmInfoBarDelegate(),
++      m_url(url) {
++}
++
++base::string16 TrkBar::GetMessageText() const {
++  return base::ASCIIToUTF16("Blocked attempted request to: " + m_url.spec());
++}
++
++int TrkBar::GetButtons() const {
++  return BUTTON_NONE;
++}
++
++infobars::InfoBarDelegate::InfoBarIdentifier TrkBar::GetIdentifier() const {
++  return TRACKING_ALERT_INFOBAR_DELEGATE;
++}
++
++}; /* namespace content */
+--- /dev/null
++++ b/third_party/ungoogled/trkbar.h
+@@ -0,0 +1,33 @@
++/*
++ * Copyright 2018 The ungoogled-chromium and Iridium Authors.
++ *
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++#ifndef UNGOOGLED_TRKBAR_H
++#define UNGOOGLED_TRKBAR_H 1
++
++#include "chrome/browser/infobars/infobar_service.h"
++#include "components/infobars/core/confirm_infobar_delegate.h"
++#include "url/gurl.h"
++
++namespace content {
++
++class TrkBar : public ConfirmInfoBarDelegate {
++ public:
++  static void Create(InfoBarService*, const GURL&);
++  bool ShouldExpire(const NavigationDetails&) const override;
++
++ private:
++  TrkBar(const GURL &);
++  base::string16 GetMessageText() const override;
++  int GetButtons() const override;
++  infobars::InfoBarDelegate::InfoBarIdentifier GetIdentifier() const override;
++
++  GURL m_url;
++  DISALLOW_COPY_AND_ASSIGN(TrkBar);
++};
++
++}; /* namespace content */
++
++#endif /* UNGOOGLED_TRKBAR_H */
+--- /dev/null
++++ b/third_party/ungoogled/trknotify.cc
+@@ -0,0 +1,54 @@
++/*
++ * Copyright 2018 The ungoogled-chromium Authors.
++ *
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++
++#include "third_party/ungoogled/trknotify.h"
++
++#include "base/strings/string_util.h"
++#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/browser_finder.h"
++#include "content/public/browser/browser_thread.h"
++#include "url/url_constants.h"
++
++#if defined(OS_ANDROID)
++//#include "chrome/browser/ui/android/infobars/infobar_android.h"
++#else
++#include "chrome/browser/infobars/infobar_service.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++
++#include "third_party/ungoogled/trkbar.h"
++#endif // defined(OS_ANDROID)
++
++namespace ungoogled {
++
++static void CreateTrkBar(const std::string& caller, const GURL& url) {
++  auto browser = chrome::FindLastActive();
++  if (browser == NULL) {
++    return;
++  }
++
++#if defined(OS_ANDROID)
++  // TODO
++  // An example is located here: https://codereview.chromium.org/580043002
++#else
++  auto service = InfoBarService::FromWebContents(
++      browser->tab_strip_model()->GetActiveWebContents());
++  content::TrkBar::Create(service, url);
++#endif
++}
++
++void TrkNotifyViaTrkBar(const std::string& caller, const GURL& url) {
++  if (g_enable_trkbar) {
++    content::BrowserThread::PostTask(content::BrowserThread::UI, FROM_HERE,
++                                     base::Bind(&CreateTrkBar, caller, url));
++  }
++}
++
++void SetTrkBarVisibilityFromCommandLine(base::CommandLine* command_line) {
++  g_enable_trkbar = !command_line->HasSwitch("disable-trkbar");
++}
++
++}; /* namespace ungoogled */
+--- /dev/null
++++ b/third_party/ungoogled/trknotify.h
+@@ -0,0 +1,23 @@
++/*
++ * Copyright 2018 The ungoogled-chromium Authors.
++ *
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++#ifndef UNGOOGLED_TRKNOTIFY_H
++#define UNGOOGLED_TRKNOTIFY_H 1
++
++#include <string>
++#include "base/command_line.h"
++#include "url/gurl.h"
++
++namespace ungoogled {
++
++static bool g_enable_trkbar = true;
++
++extern void TrkNotifyViaTrkBar(const std::string&, const GURL&);
++extern void SetTrkBarVisibilityFromCommandLine(base::CommandLine*);
++
++}; /* namespace ungoogled */
++
++#endif /* UNGOOGLED_TRKNOTIFY_H */
+--- a/net/url_request/url_request.cc
++++ b/net/url_request/url_request.cc
+@@ -43,6 +43,7 @@
+ #include "net/url_request/url_request_redirect_job.h"
+ #include "url/gurl.h"
+ #include "url/origin.h"
++#include "url/url_constants.h"
+ 
+ #if BUILDFLAG(ENABLE_REPORTING)
+ #include "net/url_request/network_error_logging_delegate.h"
+@@ -53,6 +54,8 @@ using std::string;
+ 
+ namespace net {
+ 
++static ungoogled::TrkNotifierType g_trk_notifier = nullptr;
++
+ namespace {
+ 
+ // TODO(battre): Delete this, see http://crbug.com/89321:
+@@ -444,6 +447,17 @@ void URLRequest::SetLoadFlags(int flags)
+ }
+ 
+ // static
++void URLRequest::SetTrkNotifier(ungoogled::TrkNotifierType trk_notifier) {
++  CHECK(!g_url_requests_started);
++  g_trk_notifier = trk_notifier;
++}
++
++// static
++ungoogled::TrkNotifierType URLRequest::GetTrkNotifier() {
++  return g_trk_notifier;
++}
++
++// static
+ void URLRequest::SetDefaultCookiePolicyToBlock() {
+   CHECK(!g_url_requests_started);
+   g_default_can_use_cookies = false;
+@@ -581,6 +595,16 @@ URLRequest::URLRequest(const GURL& url,
+   // Sanity check out environment.
+   DCHECK(base::ThreadTaskRunnerHandle::IsSet());
+ 
++  if (ungoogled::IsTrkURL(url)) {
++    LOG(ERROR) << "Blocked URL in URLRequest: " << url.spec();
++    if (g_trk_notifier == nullptr) {
++      LOG(ERROR) << "Trk notification handler is not set.";
++    } else {
++      (*g_trk_notifier)("URLRequest", url);
++    }
++    url_chain_[0] = GURL(url::kAboutBlankURL);
++  }
++
+   context->url_requests()->insert(this);
+   net_log_.BeginEvent(
+       NetLogEventType::REQUEST_ALIVE,
+--- a/tools/metrics/histograms/enums.xml
++++ b/tools/metrics/histograms/enums.xml
+@@ -22515,6 +22515,7 @@ Called by update_gpu_driver_bug_workarou
+   <int value="77" label="FRAMEBUST_BLOCK_INFOBAR_ANDROID"/>
+   <int value="78" label="SURVEY_INFOBAR_ANDROID"/>
+   <int value="79" label="NEAR_OOM_INFOBAR_ANDROID"/>
++  <int value="9001" label="TRACKING_ALERT_INFOBAR_DELEGATE"/>
+ </enum>
+ 
+ <enum name="InfoBarResponse">
+--- a/url/url_constants.cc
++++ b/url/url_constants.cc
+@@ -24,6 +24,7 @@ const char kHttpScheme[] = "http";
+ const char kHttpsScheme[] = "https";
+ const char kJavaScriptScheme[] = "javascript";
+ const char kMailToScheme[] = "mailto";
++const char kTraceScheme[] = "trk";
+ const char kWsScheme[] = "ws";
+ const char kWssScheme[] = "wss";
+ 
+--- a/url/url_constants.h
++++ b/url/url_constants.h
+@@ -30,6 +30,7 @@ URL_EXPORT extern const char kHttpScheme
+ URL_EXPORT extern const char kHttpsScheme[];
+ URL_EXPORT extern const char kJavaScriptScheme[];
+ URL_EXPORT extern const char kMailToScheme[];
++URL_EXPORT extern const char kTraceScheme[];
+ URL_EXPORT extern const char kWsScheme[];
+ URL_EXPORT extern const char kWssScheme[];
+ 
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -539,6 +539,10 @@ GURL FixupURL(const std::string& text, c
+     }
+   }
+ 
++  if (scheme == url::kTraceScheme) {
++    return GURL();
++  }
++
+   // We handle the file scheme separately.
+   if (scheme == url::kFileScheme)
+     return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -1221,6 +1221,9 @@ const FeatureEntry::FeatureVariation kWe
+ //
+ // When adding a new choice, add it to the end of the list.
+ const FeatureEntry kFeatureEntries[] = {
++    {"disable-trkbar", flag_descriptions::kDisableTrkbarName,
++     flag_descriptions::kDisableTrkbarDescription, kOsAll,
++     SINGLE_VALUE_TYPE("disable-trkbar")},
+     {"enable-metrics",
+      "Record metrics",
+      "Record histograms and user actions.",
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -302,6 +302,8 @@
+ #endif
+ #include "services/service_manager/public/cpp/connector.h"
+ 
++#include "third_party/ungoogled/trknotify.h"
++
+ using content::BrowserThread;
+ 
+ namespace {
+@@ -681,6 +683,8 @@ ChromeBrowserMainParts::ChromeBrowserMai
+   // a ChromeNetworkDelegate attached that selectively allows cookies again.
+   net::URLRequest::SetDefaultCookiePolicyToBlock();
+ 
++  net::URLRequest::SetTrkNotifier(&BrowserProcessImpl::RunTrkNotification);
++
+   base::StatisticsRecorder::SetRecordChecker(
+       std::make_unique<metrics::ExpiredHistogramsChecker>(
+           chrome_metrics::kExpiredHistogramsHashes,
+@@ -1008,6 +1012,8 @@ int ChromeBrowserMainParts::PreCreateThr
+                                         base::CommandLine::ForCurrentProcess(),
+                                         flags_ui::kAddSentinels);
+   }
++  ungoogled::SetTrkBarVisibilityFromCommandLine(
++      base::CommandLine::ForCurrentProcess());
+ #endif  // !defined(OS_CHROMEOS)
+   // The MaterialDesignController needs to look at command line flags, which
+   // are not available until this point. Now that they are, proceed with
+--- a/chrome/browser/flag_descriptions.cc
++++ b/chrome/browser/flag_descriptions.cc
+@@ -781,6 +781,12 @@ const char kIconNtpName[] = "Large icons
+ const char kIconNtpDescription[] =
+     "Enable the experimental New Tab page using large icons.";
+ 
++const char kDisableTrkbarName[] = "Disable 'Blocked request to ...' infobars";
++
++const char kDisableTrkbarDescription[] =
++    "Disables the 'Blocked request to ...' infobars that show for blocked "
++    "connection attempts to trk: schemes or the substituted domain qjz9zk.";
++
+ const char kIgnoreGpuBlacklistName[] = "Override software rendering list";
+ const char kIgnoreGpuBlacklistDescription[] =
+     "Overrides the built-in software rendering list and enables "
+--- a/chrome/browser/flag_descriptions.h
++++ b/chrome/browser/flag_descriptions.h
+@@ -490,6 +490,9 @@ extern const char kHtmlBasedUsernameDete
+ extern const char kIconNtpName[];
+ extern const char kIconNtpDescription[];
+ 
++extern const char kDisableTrkbarName[];
++extern const char kDisableTrkbarDescription[];
++
+ extern const char kIgnoreGpuBlacklistName[];
+ extern const char kIgnoreGpuBlacklistDescription[];
+ 
+--- /dev/null
++++ b/third_party/ungoogled/util.cc
+@@ -0,0 +1,31 @@
++/*
++ * Copyright 2018 The ungoogled-chromium Authors.
++ *
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++
++#include "third_party/ungoogled/util.h"
++
++#include "base/logging.h"
++#include "base/strings/string_util.h"
++#include "url/url_constants.h"
++
++namespace ungoogled {
++
++bool IsTrkURL(const GURL& url) {
++  return url.SchemeIs(url::kTraceScheme) ||
++         base::EndsWith(url.host(), kSubDomain, base::CompareCase::INSENSITIVE_ASCII);
++}
++
++bool AttemptTrkNotification(
++    TrkNotifierType trk_notifier, const std::string& caller, const GURL& url) {
++  LOG(ERROR) << "Blocked URL in " << caller << ": " << url.spec();
++  if (trk_notifier == nullptr) {
++    LOG(ERROR) << "Trk notification handler is not set.";
++  } else {
++    (*trk_notifier)(caller, url);
++  }
++}
++
++}; /* namespace ungoogled */
+--- /dev/null
++++ b/third_party/ungoogled/util.h
+@@ -0,0 +1,23 @@
++/*
++ * Copyright 2018 The ungoogled-chromium Authors.
++ *
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++#ifndef UNGOOGLED_UTIL_H
++#define UNGOOGLED_UTIL_H 1
++
++#include <string>
++#include "url/gurl.h"
++
++namespace ungoogled {
++
++typedef void (*TrkNotifierType)(const std::string&, const GURL&);
++
++const char kSubDomain[] = "qjz9zk";
++
++bool IsTrkURL(const GURL&);
++
++}; /* namespace ungoogled */
++
++#endif /* UNGOOGLED_UTIL_H */
+--- a/net/BUILD.gn
++++ b/net/BUILD.gn
+@@ -366,6 +366,7 @@ component("net") {
+     "//net/data/ssl/certificate_transparency:ct_log_list",
+     "//third_party/protobuf:protobuf_lite",
+     "//url:url_features",
++    "//third_party/ungoogled:util",
+   ]
+ 
+   if (include_transport_security_state_preload_list) {
+--- a/net/url_request/url_request.h
++++ b/net/url_request/url_request.h
+@@ -42,6 +42,8 @@
+ #include "url/gurl.h"
+ #include "url/origin.h"
+ 
++#include "third_party/ungoogled/util.h"
++
+ namespace base {
+ class Value;
+ }  // namespace base
+@@ -243,6 +245,9 @@ class NET_EXPORT URLRequest : public bas
+   // started. Once it was set to block all cookies, it cannot be changed back.
+   static void SetDefaultCookiePolicyToBlock();
+ 
++  static ungoogled::TrkNotifierType GetTrkNotifier();
++  static void SetTrkNotifier(ungoogled::TrkNotifierType);
++
+   // Returns true if the scheme can be handled by URLRequest. False otherwise.
+   static bool IsHandledProtocol(const std::string& scheme);
+ 
+--- a/base/BUILD.gn
++++ b/base/BUILD.gn
+@@ -1144,6 +1144,7 @@ jumbo_component("base") {
+     "//base/allocator:features",
+     "//base/third_party/dynamic_annotations",
+     "//third_party/modp_b64",
++    "//third_party/ungoogled:util",
+   ]
+ 
+   public_deps = [
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1579,6 +1579,7 @@ split_static_library("browser") {
+     "//content/public/browser",
+     "//ipc",
+     "//sql",
++    "//third_party/ungoogled:trknotify",
+   ]
+   deps = [
+     ":active_use_util",
+--- a/chrome/browser/browser_process_impl.cc
++++ b/chrome/browser/browser_process_impl.cc
+@@ -131,6 +131,7 @@
+ #include "ppapi/features/features.h"
+ #include "printing/features/features.h"
+ #include "services/preferences/public/cpp/in_process_service_factory.h"
++#include "third_party/ungoogled/trknotify.h"
+ #include "ui/base/idle/idle.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/message_center/message_center.h"
+@@ -874,6 +875,11 @@ void BrowserProcessImpl::RegisterPrefs(P
+ #endif  // defined(OS_ANDROID)
+ }
+ 
++// static
++void BrowserProcessImpl::RunTrkNotification(const std::string& caller, const GURL& url) {
++  ungoogled::TrkNotifyViaTrkBar(caller, url);
++}
++
+ DownloadRequestLimiter* BrowserProcessImpl::download_request_limiter() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   if (!download_request_limiter_.get()) {
+--- a/chrome/browser/browser_process_impl.h
++++ b/chrome/browser/browser_process_impl.h
+@@ -31,6 +31,7 @@
+ #include "ppapi/features/features.h"
+ #include "printing/features/features.h"
+ #include "services/network/public/interfaces/network_service.mojom.h"
++#include "url/gurl.h"
+ 
+ class ChromeChildProcessWatcher;
+ class ChromeDeviceClient;
+@@ -163,6 +164,10 @@ class BrowserProcessImpl : public Browse
+ 
+   static void RegisterPrefs(PrefRegistrySimple* registry);
+ 
++  // This is passed into net::URLRequest as a pointer, which
++  // should be invokable from anywhere in the browser process.
++  static void RunTrkNotification(const std::string&, const GURL&);
++
+  private:
+   // KeepAliveStateObserver implementation
+   void OnKeepAliveStateChanged(bool is_keeping_alive) override;
