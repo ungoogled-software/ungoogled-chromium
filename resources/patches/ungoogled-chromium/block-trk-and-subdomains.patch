@@ -36,17 +36,17 @@
      GURL rewritten_tab_url = tab_url;
 --- a/components/infobars/core/infobar_delegate.h
 +++ b/components/infobars/core/infobar_delegate.h
-@@ -148,6 +148,7 @@ class InfoBarDelegate {
-     FRAMEBUST_BLOCK_INFOBAR_ANDROID = 77,
+@@ -149,6 +149,7 @@ class InfoBarDelegate {
      SURVEY_INFOBAR_ANDROID = 78,
      NEAR_OOM_INFOBAR_ANDROID = 79,
+     INSTALLABLE_AMBIENT_BADGE_INFOBAR_DELEGATE = 80,
 +    TRACKING_ALERT_INFOBAR_DELEGATE = 9001,
    };
  
    // Describes navigation events, used to decide whether infobars should be
 --- a/components/omnibox/browser/autocomplete_input.cc
 +++ b/components/omnibox/browser/autocomplete_input.cc
-@@ -486,7 +486,8 @@ void AutocompleteInput::ParseForEmphasiz
+@@ -487,7 +487,8 @@ void AutocompleteInput::ParseForEmphasiz
    int after_scheme_and_colon = parts.scheme.end() + 1;
    // For the view-source scheme, we should emphasize the scheme and host of the
    // URL qualified by the view-source prefix.
@@ -56,7 +56,7 @@
        (static_cast<int>(text.length()) > after_scheme_and_colon)) {
      // Obtain the URL prefixed by view-source and parse it.
      base::string16 real_url(text.substr(after_scheme_and_colon));
-@@ -555,7 +556,9 @@ int AutocompleteInput::NumNonHostCompone
+@@ -556,7 +557,9 @@ int AutocompleteInput::NumNonHostCompone
  bool AutocompleteInput::HasHTTPScheme(const base::string16& input) {
    std::string utf8_input(base::UTF16ToUTF8(input));
    url::Component scheme;
@@ -106,10 +106,10 @@
  }
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -350,6 +350,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+@@ -348,6 +348,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+   RegisterPseudoScheme(url::kAboutScheme);
+   RegisterPseudoScheme(url::kJavaScriptScheme);
    RegisterPseudoScheme(kViewSourceScheme);
-   RegisterPseudoScheme(url::kHttpSuboriginScheme);
-   RegisterPseudoScheme(url::kHttpsSuboriginScheme);
 +  RegisterPseudoScheme(url::kTraceScheme);
  }
  
@@ -317,7 +317,7 @@
 +#endif /* UNGOOGLED_TRKNOTIFY_H */
 --- a/net/url_request/url_request.cc
 +++ b/net/url_request/url_request.cc
-@@ -43,6 +43,9 @@
+@@ -42,6 +42,9 @@
  #include "net/url_request/url_request_redirect_job.h"
  #include "url/gurl.h"
  #include "url/origin.h"
@@ -326,7 +326,7 @@
 +#include "third_party/ungoogled/util.h"
  
  #if BUILDFLAG(ENABLE_REPORTING)
- #include "net/url_request/network_error_logging_delegate.h"
+ #include "net/network_error_logging/network_error_logging_service.h"
 @@ -581,6 +584,11 @@ URLRequest::URLRequest(const GURL& url,
    // Sanity check out environment.
    DCHECK(base::ThreadTaskRunnerHandle::IsSet());
@@ -341,10 +341,10 @@
        NetLogEventType::REQUEST_ALIVE,
 --- a/tools/metrics/histograms/enums.xml
 +++ b/tools/metrics/histograms/enums.xml
-@@ -22515,6 +22515,7 @@ Called by update_gpu_driver_bug_workarou
-   <int value="77" label="FRAMEBUST_BLOCK_INFOBAR_ANDROID"/>
+@@ -22864,6 +22864,7 @@ Called by update_gpu_driver_bug_workarou
    <int value="78" label="SURVEY_INFOBAR_ANDROID"/>
    <int value="79" label="NEAR_OOM_INFOBAR_ANDROID"/>
+   <int value="80" label="INSTALLABLE_AMBIENT_BADGE_INFOBAR_DELEGATE"/>
 +  <int value="9001" label="TRACKING_ALERT_INFOBAR_DELEGATE"/>
  </enum>
  
@@ -371,7 +371,7 @@
  
 --- a/components/url_formatter/url_fixer.cc
 +++ b/components/url_formatter/url_fixer.cc
-@@ -539,6 +539,10 @@ GURL FixupURL(const std::string& text, c
+@@ -536,6 +536,10 @@ GURL FixupURL(const std::string& text, c
      }
    }
  
@@ -384,7 +384,7 @@
      return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -1221,6 +1221,9 @@ const FeatureEntry::FeatureVariation kWe
+@@ -1206,6 +1206,9 @@ const FeatureEntry::FeatureVariation kSi
  //
  // When adding a new choice, add it to the end of the list.
  const FeatureEntry kFeatureEntries[] = {
@@ -396,7 +396,7 @@
       "Record histograms and user actions.",
 --- a/chrome/browser/flag_descriptions.cc
 +++ b/chrome/browser/flag_descriptions.cc
-@@ -781,6 +781,12 @@ const char kIconNtpName[] = "Large icons
+@@ -849,6 +849,12 @@ const char kIconNtpName[] = "Large icons
  const char kIconNtpDescription[] =
      "Enable the experimental New Tab page using large icons.";
  
@@ -411,7 +411,7 @@
      "Overrides the built-in software rendering list and enables "
 --- a/chrome/browser/flag_descriptions.h
 +++ b/chrome/browser/flag_descriptions.h
-@@ -490,6 +490,9 @@ extern const char kHtmlBasedUsernameDete
+@@ -532,6 +532,9 @@ extern const char kHtmlBasedUsernameDete
  extern const char kIconNtpName[];
  extern const char kIconNtpDescription[];
  
@@ -483,7 +483,7 @@
 +#endif /* UNGOOGLED_UTIL_H */
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
-@@ -366,6 +366,7 @@ component("net") {
+@@ -367,6 +367,7 @@ component("net") {
      "//net/data/ssl/certificate_transparency:ct_log_list",
      "//third_party/protobuf:protobuf_lite",
      "//url:url_features",
@@ -493,7 +493,7 @@
    if (include_transport_security_state_preload_list) {
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -166,6 +166,7 @@ jumbo_source_set("browser") {
+@@ -172,6 +172,7 @@ jumbo_source_set("browser") {
      "//third_party/icu",
      "//third_party/libyuv",
      "//third_party/re2",
