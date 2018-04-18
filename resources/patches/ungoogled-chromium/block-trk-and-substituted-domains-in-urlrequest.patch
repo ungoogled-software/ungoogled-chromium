@@ -69,25 +69,17 @@
    return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
 --- a/content/browser/browser_url_handler_impl.cc
 +++ b/content/browser/browser_url_handler_impl.cc
-@@ -14,9 +14,34 @@
- #include "content/public/common/url_constants.h"
+@@ -15,8 +15,26 @@
  #include "content/public/common/url_utils.h"
  #include "url/gurl.h"
-+#include "net/url_request/url_request.h"
-+
-+#include "third_party/ungoogled/util.h"
  
++#include "third_party/ungoogled/util.h"
++
  namespace content {
  
 +static bool HandleTraceScheme(GURL* url, BrowserContext*) {
 +  if (ungoogled::IsTrkURL(*url)) {
 +    LOG(ERROR) << "Blocked URL in HandleTraceScheme: " << url->spec();
-+    ungoogled::TrkNotifierType trk_notifier = net::URLRequest::GetTrkNotifier();
-+    if (trk_notifier == nullptr) {
-+      LOG(ERROR) << "Trk notification handler is not set.";
-+    } else {
-+      (*trk_notifier)("HandleTraceScheme", *url);
-+    }
 +    *url = GURL(url::kAboutBlankURL);
 +  }
 +  return false;
@@ -104,7 +96,7 @@
  // Handles rewriting view-source URLs for what we'll actually load.
  static bool HandleViewSource(GURL* url, BrowserContext* browser_context) {
    if (url->SchemeIs(kViewSourceScheme)) {
-@@ -98,6 +123,7 @@ BrowserURLHandlerImpl::BrowserURLHandler
+@@ -98,6 +116,7 @@ BrowserURLHandlerImpl::BrowserURLHandler
    // view-source: should take precedence over other rewriters, so it's
    // important to add it before calling up to the content client.
    AddHandlerPair(&HandleViewSource, &ReverseViewSource);
@@ -124,7 +116,7 @@
  ChildProcessSecurityPolicyImpl::~ChildProcessSecurityPolicyImpl() {
 --- /dev/null
 +++ b/third_party/ungoogled/BUILD.gn
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,36 @@
 +# Provides low-level utilities
 +source_set("util") {
 +  sources = [
@@ -133,6 +125,9 @@
 +  ]
 +  include_dirs = [
 +    "../.."
++  ]
++  deps = [
++    "//url",
 +  ]
 +}
 +
@@ -322,52 +317,22 @@
 +#endif /* UNGOOGLED_TRKNOTIFY_H */
 --- a/net/url_request/url_request.cc
 +++ b/net/url_request/url_request.cc
-@@ -43,6 +43,7 @@
+@@ -43,6 +43,9 @@
  #include "net/url_request/url_request_redirect_job.h"
  #include "url/gurl.h"
  #include "url/origin.h"
 +#include "url/url_constants.h"
++
++#include "third_party/ungoogled/util.h"
  
  #if BUILDFLAG(ENABLE_REPORTING)
  #include "net/url_request/network_error_logging_delegate.h"
-@@ -53,6 +54,8 @@ using std::string;
- 
- namespace net {
- 
-+static ungoogled::TrkNotifierType g_trk_notifier = nullptr;
-+
- namespace {
- 
- // TODO(battre): Delete this, see http://crbug.com/89321:
-@@ -444,6 +447,17 @@ void URLRequest::SetLoadFlags(int flags)
- }
- 
- // static
-+void URLRequest::SetTrkNotifier(ungoogled::TrkNotifierType trk_notifier) {
-+  CHECK(!g_url_requests_started);
-+  g_trk_notifier = trk_notifier;
-+}
-+
-+// static
-+ungoogled::TrkNotifierType URLRequest::GetTrkNotifier() {
-+  return g_trk_notifier;
-+}
-+
-+// static
- void URLRequest::SetDefaultCookiePolicyToBlock() {
-   CHECK(!g_url_requests_started);
-   g_default_can_use_cookies = false;
-@@ -581,6 +595,16 @@ URLRequest::URLRequest(const GURL& url,
+@@ -581,6 +584,11 @@ URLRequest::URLRequest(const GURL& url,
    // Sanity check out environment.
    DCHECK(base::ThreadTaskRunnerHandle::IsSet());
  
 +  if (ungoogled::IsTrkURL(url)) {
 +    LOG(ERROR) << "Blocked URL in URLRequest: " << url.spec();
-+    if (g_trk_notifier == nullptr) {
-+      LOG(ERROR) << "Trk notification handler is not set.";
-+    } else {
-+      (*g_trk_notifier)("URLRequest", url);
-+    }
 +    url_chain_[0] = GURL(url::kAboutBlankURL);
 +  }
 +
@@ -429,35 +394,6 @@
      {"enable-metrics",
       "Record metrics",
       "Record histograms and user actions.",
---- a/chrome/browser/chrome_browser_main.cc
-+++ b/chrome/browser/chrome_browser_main.cc
-@@ -302,6 +302,8 @@
- #endif
- #include "services/service_manager/public/cpp/connector.h"
- 
-+#include "third_party/ungoogled/trknotify.h"
-+
- using content::BrowserThread;
- 
- namespace {
-@@ -681,6 +683,8 @@ ChromeBrowserMainParts::ChromeBrowserMai
-   // a ChromeNetworkDelegate attached that selectively allows cookies again.
-   net::URLRequest::SetDefaultCookiePolicyToBlock();
- 
-+  net::URLRequest::SetTrkNotifier(&BrowserProcessImpl::RunTrkNotification);
-+
-   base::StatisticsRecorder::SetRecordChecker(
-       std::make_unique<metrics::ExpiredHistogramsChecker>(
-           chrome_metrics::kExpiredHistogramsHashes,
-@@ -1008,6 +1012,8 @@ int ChromeBrowserMainParts::PreCreateThr
-                                         base::CommandLine::ForCurrentProcess(),
-                                         flags_ui::kAddSentinels);
-   }
-+  ungoogled::SetTrkBarVisibilityFromCommandLine(
-+      base::CommandLine::ForCurrentProcess());
- #endif  // !defined(OS_CHROMEOS)
-   // The MaterialDesignController needs to look at command line flags, which
-   // are not available until this point. Now that they are, proceed with
 --- a/chrome/browser/flag_descriptions.cc
 +++ b/chrome/browser/flag_descriptions.cc
 @@ -781,6 +781,12 @@ const char kIconNtpName[] = "Large icons
@@ -555,87 +491,13 @@
    ]
  
    if (include_transport_security_state_preload_list) {
---- a/net/url_request/url_request.h
-+++ b/net/url_request/url_request.h
-@@ -42,6 +42,8 @@
- #include "url/gurl.h"
- #include "url/origin.h"
- 
-+#include "third_party/ungoogled/util.h"
-+
- namespace base {
- class Value;
- }  // namespace base
-@@ -243,6 +245,9 @@ class NET_EXPORT URLRequest : public bas
-   // started. Once it was set to block all cookies, it cannot be changed back.
-   static void SetDefaultCookiePolicyToBlock();
- 
-+  static ungoogled::TrkNotifierType GetTrkNotifier();
-+  static void SetTrkNotifier(ungoogled::TrkNotifierType);
-+
-   // Returns true if the scheme can be handled by URLRequest. False otherwise.
-   static bool IsHandledProtocol(const std::string& scheme);
- 
---- a/base/BUILD.gn
-+++ b/base/BUILD.gn
-@@ -1144,6 +1144,7 @@ jumbo_component("base") {
-     "//base/allocator:features",
-     "//base/third_party/dynamic_annotations",
-     "//third_party/modp_b64",
+--- a/content/browser/BUILD.gn
++++ b/content/browser/BUILD.gn
+@@ -166,6 +166,7 @@ jumbo_source_set("browser") {
+     "//third_party/icu",
+     "//third_party/libyuv",
+     "//third_party/re2",
 +    "//third_party/ungoogled:util",
-   ]
- 
-   public_deps = [
---- a/chrome/browser/BUILD.gn
-+++ b/chrome/browser/BUILD.gn
-@@ -1579,6 +1579,7 @@ split_static_library("browser") {
-     "//content/public/browser",
-     "//ipc",
-     "//sql",
-+    "//third_party/ungoogled:trknotify",
-   ]
-   deps = [
-     ":active_use_util",
---- a/chrome/browser/browser_process_impl.cc
-+++ b/chrome/browser/browser_process_impl.cc
-@@ -131,6 +131,7 @@
- #include "ppapi/features/features.h"
- #include "printing/features/features.h"
- #include "services/preferences/public/cpp/in_process_service_factory.h"
-+#include "third_party/ungoogled/trknotify.h"
- #include "ui/base/idle/idle.h"
- #include "ui/base/l10n/l10n_util.h"
- #include "ui/message_center/message_center.h"
-@@ -874,6 +875,11 @@ void BrowserProcessImpl::RegisterPrefs(P
- #endif  // defined(OS_ANDROID)
- }
- 
-+// static
-+void BrowserProcessImpl::RunTrkNotification(const std::string& caller, const GURL& url) {
-+  ungoogled::TrkNotifyViaTrkBar(caller, url);
-+}
-+
- DownloadRequestLimiter* BrowserProcessImpl::download_request_limiter() {
-   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-   if (!download_request_limiter_.get()) {
---- a/chrome/browser/browser_process_impl.h
-+++ b/chrome/browser/browser_process_impl.h
-@@ -31,6 +31,7 @@
- #include "ppapi/features/features.h"
- #include "printing/features/features.h"
- #include "services/network/public/interfaces/network_service.mojom.h"
-+#include "url/gurl.h"
- 
- class ChromeChildProcessWatcher;
- class ChromeDeviceClient;
-@@ -163,6 +164,10 @@ class BrowserProcessImpl : public Browse
- 
-   static void RegisterPrefs(PrefRegistrySimple* registry);
- 
-+  // This is passed into net::URLRequest as a pointer, which
-+  // should be invokable from anywhere in the browser process.
-+  static void RunTrkNotification(const std::string&, const GURL&);
-+
-  private:
-   // KeepAliveStateObserver implementation
-   void OnKeepAliveStateChanged(bool is_keeping_alive) override;
+     "//third_party/zlib",
+     "//third_party/zlib/google:compression_utils",
+     "//third_party/zlib/google:zip",
