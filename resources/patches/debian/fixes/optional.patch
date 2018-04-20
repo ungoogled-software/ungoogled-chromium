@@ -1,47 +1,65 @@
-description: Optional<std::vector<T>> with T non-copyable is not handled by gcc 7
-author: chromium 66 authors
-bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80654
+description: Optional as of chromium 66 excludes copy construction from a type
+author: Michael Gilbert <mgilbert@debian.org>
 
---- a/base/optional.h
-+++ b/base/optional.h
-@@ -7,11 +7,31 @@
+--- a/content/browser/appcache/appcache_request_handler.cc
++++ b/content/browser/appcache/appcache_request_handler.cc
+@@ -639,7 +639,7 @@ AppCacheRequestHandler::MaybeCreateSubre
  
- #include <type_traits>
- #include <utility>
-+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 7
-+#include <vector>
-+#endif
+   SubresourceLoaderParams params;
+   params.loader_factory_info = factory_ptr.PassInterface();
+-  return params;
++  return std::move(params);
+ }
  
- #include "base/logging.h"
+ void AppCacheRequestHandler::MaybeCreateSubresourceLoader(
+--- a/content/browser/service_worker/service_worker_controllee_request_handler.cc
++++ b/content/browser/service_worker/service_worker_controllee_request_handler.cc
+@@ -271,7 +271,7 @@ ServiceWorkerControlleeRequestHandler::M
+   controller_info->object_info = provider_host_->GetOrCreateServiceWorkerHandle(
+       provider_host_->controller());
+   params.controller_service_worker_info = std::move(controller_info);
+-  return params;
++  return std::move(params);
+ }
  
- namespace base {
+ void ServiceWorkerControlleeRequestHandler::PrepareForMainResource(
+--- a/device/fido/device_response_converter.cc
++++ b/device/fido/device_response_converter.cc
+@@ -121,7 +121,7 @@ base::Optional<AuthenticatorGetAssertion
+     response.SetNumCredentials(it->second.GetUnsigned());
+   }
  
-+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 7
-+// Workaround for g++7 and earlier family.
-+// Due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80654, without this
-+// Optional<std::vector<T>> where T is non-copyable causes a compile error.
-+// As we know it is not trivially copy constructible, explicitly declare so.
-+template <typename T>
-+struct is_trivially_copy_constructible
-+    : std::is_trivially_copy_constructible<T> {}; 
-+
-+template <typename... T>
-+struct is_trivially_copy_constructible<std::vector<T...>> : std::false_type {}; 
-+#else
-+// Otherwise use std::is_trivially_copy_constructible as is.
-+template <typename T>
-+using is_trivially_copy_constructible = std::is_trivially_copy_constructible<T>;
-+#endif
-+
- // Specification:
- // http://en.cppreference.com/w/cpp/utility/optional/in_place_t
- struct in_place_t {};
-@@ -106,7 +126,7 @@
- // compiler generated constexpr {copy,move} constructors). Note that
- // placement-new is prohibited in constexpr.
- template <typename T,
--          bool = std::is_trivially_copy_constructible<T>::value,
-+          bool = is_trivially_copy_constructible<T>::value,
-           bool = std::is_trivially_move_constructible<T>::value>
- struct OptionalStorage : OptionalStorageBase<T> {
-   // This is no trivially {copy,move} constructible case. Other cases are
+-  return response;
++  return std::move(response);
+ }
+ 
+ base::Optional<AuthenticatorGetInfoResponse> ReadCTAPGetInfoResponse(
+@@ -241,7 +241,7 @@ base::Optional<AuthenticatorGetInfoRespo
+     response.SetPinProtocols(std::move(supported_pin_protocols));
+   }
+ 
+-  return response;
++  return std::move(response);
+ }
+ 
+ }  // namespace device
+--- a/cc/raster/playback_image_provider.cc
++++ b/cc/raster/playback_image_provider.cc
+@@ -70,7 +70,6 @@ PlaybackImageProvider::GetDecodedDrawIma
+ }
+ 
+ PlaybackImageProvider::Settings::Settings() = default;
+-PlaybackImageProvider::Settings::Settings(const Settings& other) = default;
+ PlaybackImageProvider::Settings::~Settings() = default;
+ 
+ }  // namespace cc
+--- a/cc/raster/playback_image_provider.h
++++ b/cc/raster/playback_image_provider.h
+@@ -20,7 +20,6 @@ class CC_EXPORT PlaybackImageProvider :
+  public:
+   struct CC_EXPORT Settings {
+     Settings();
+-    Settings(const Settings& other);
+     ~Settings();
+ 
+     // The set of image ids to skip during raster.

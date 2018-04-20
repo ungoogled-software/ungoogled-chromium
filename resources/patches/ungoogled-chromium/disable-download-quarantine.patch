@@ -2,15 +2,7 @@
 
 --- a/content/browser/renderer_host/pepper/pepper_file_io_host.cc
 +++ b/content/browser/renderer_host/pepper/pepper_file_io_host.cc
-@@ -21,7 +21,6 @@
- #include "content/public/browser/render_process_host.h"
- #include "content/public/browser/storage_partition.h"
- #include "content/public/common/content_client.h"
--#include "content/public/common/quarantine.h"
- #include "ipc/ipc_platform_file.h"
- #include "ppapi/c/pp_errors.h"
- #include "ppapi/c/ppb_file_io.h"
-@@ -447,7 +446,7 @@
+@@ -445,7 +445,7 @@ void PepperFileIOHost::OnLocalFileOpened
      ppapi::host::ReplyMessageContext reply_context,
      const base::FilePath& path,
      base::File::Error error_code) {
@@ -19,7 +11,7 @@
    // Quarantining a file before its contents are available is only supported on
    // Windows and Linux.
    if (!FileOpenForWrite(open_flags_) || error_code != base::File::FILE_OK) {
-@@ -467,7 +466,7 @@
+@@ -465,7 +465,7 @@ void PepperFileIOHost::OnLocalFileOpened
  #endif
  }
  
@@ -30,77 +22,36 @@
      const base::FilePath& path,
 --- a/content/browser/renderer_host/pepper/pepper_file_io_host.h
 +++ b/content/browser/renderer_host/pepper/pepper_file_io_host.h
-@@ -16,7 +16,6 @@
+@@ -15,7 +15,6 @@
+ #include "base/macros.h"
  #include "base/memory/ref_counted.h"
  #include "base/memory/weak_ptr.h"
+-#include "components/download/quarantine/quarantine.h"
  #include "content/browser/renderer_host/pepper/browser_ppapi_host_impl.h"
--#include "content/public/common/quarantine.h"
  #include "ipc/ipc_listener.h"
  #include "ipc/ipc_platform_file.h"
- #include "ppapi/c/pp_file_info.h"
-@@ -92,10 +91,6 @@
+@@ -92,10 +91,6 @@ class PepperFileIOHost : public ppapi::h
                           const base::FilePath& path,
                           base::File::Error error_code);
  
 -  void OnLocalFileQuarantined(ppapi::host::ReplyMessageContext reply_context,
 -                              const base::FilePath& path,
--                              QuarantineFileResult quarantine_result);
+-                              download::QuarantineFileResult quarantine_result);
 -
    void SendFileOpenReply(ppapi::host::ReplyMessageContext reply_context,
                           base::File::Error error_code);
  
---- a/content/common/BUILD.gn
-+++ b/content/common/BUILD.gn
-@@ -249,11 +249,6 @@
-     "presentation/presentation_struct_traits.cc",
-     "presentation/presentation_struct_traits.h",
-     "process_type.cc",
--    "quarantine/quarantine.cc",
--    "quarantine/quarantine_constants_linux.h",
--    "quarantine/quarantine_linux.cc",
--    "quarantine/quarantine_mac.mm",
--    "quarantine/quarantine_win.cc",
-     "render_widget_surface_properties.cc",
-     "render_widget_surface_properties.h",
-     "resize_params.cc",
---- a/content/common/quarantine/quarantine.cc
-+++ b/content/common/quarantine/quarantine.cc
-@@ -6,8 +6,6 @@
- 
- #include "build/build_config.h"
- 
--#if !defined(OS_WIN) && !defined(OS_MACOSX) && !defined(OS_LINUX)
--
- namespace content {
- 
- QuarantineFileResult QuarantineFile(const base::FilePath& file,
-@@ -24,5 +22,3 @@
- }
- 
- }  // namespace content
--
--#endif  // !WIN && !MAC && !LINUX
---- a/content/public/common/BUILD.gn
-+++ b/content/public/common/BUILD.gn
-@@ -196,7 +196,6 @@
-     "process_type.h",
-     "push_event_payload.h",
-     "push_subscription_options.h",
--    "quarantine.h",
-     "referrer.cc",
-     "referrer.h",
-     "renderer_preferences.cc",
 --- a/content/browser/download/base_file.cc
 +++ b/content/browser/download/base_file.cc
-@@ -22,7 +22,6 @@
- #include "content/browser/download/download_stats.h"
- #include "content/public/browser/content_browser_client.h"
- #include "content/public/browser/download_item.h"
--#include "content/public/common/quarantine.h"
+@@ -20,7 +20,6 @@
+ #include "build/build_config.h"
+ #include "components/download/public/common/download_item.h"
+ #include "components/download/public/common/download_stats.h"
+-#include "components/download/quarantine/quarantine.h"
+ #include "content/browser/download/download_interrupt_reasons_utils.h"
  #include "crypto/secure_hash.h"
  #include "net/base/net_errors.h"
- 
-@@ -438,7 +437,7 @@
+@@ -439,7 +438,7 @@ download::DownloadInterruptReason BaseFi
    return reason;
  }
  
@@ -109,12 +60,39 @@
  
  namespace {
  
-@@ -522,7 +521,7 @@
+@@ -523,7 +522,7 @@ download::DownloadInterruptReason BaseFi
    }
-   return DOWNLOAD_INTERRUPT_REASON_FILE_FAILED;
+   return download::DOWNLOAD_INTERRUPT_REASON_FILE_FAILED;
  }
 -#else  // !OS_WIN && !OS_MACOSX && !OS_LINUX
 +#else  // 1
- DownloadInterruptReason BaseFile::AnnotateWithSourceInformation(
+ download::DownloadInterruptReason BaseFile::AnnotateWithSourceInformation(
      const std::string& client_guid,
      const GURL& source_url,
+--- a/components/download/quarantine/quarantine.cc
++++ b/components/download/quarantine/quarantine.cc
+@@ -6,8 +6,6 @@
+ 
+ #include "build/build_config.h"
+ 
+-#if !defined(OS_WIN) && !defined(OS_MACOSX) && !defined(OS_LINUX)
+-
+ namespace download {
+ 
+ QuarantineFileResult QuarantineFile(const base::FilePath& file,
+@@ -24,5 +22,3 @@ bool IsFileQuarantined(const base::FileP
+ }
+ 
+ }  // namespace download
+-
+-#endif  // !WIN && !MAC && !LINUX
+--- a/content/browser/BUILD.gn
++++ b/content/browser/BUILD.gn
+@@ -46,7 +46,6 @@ jumbo_source_set("browser") {
+     "//components/discardable_memory/service",
+     "//components/download/downloader/in_progress",
+     "//components/download/public/common:public",
+-    "//components/download/quarantine",
+     "//components/filename_generation",
+     "//components/filesystem:lib",
+     "//components/leveldb:lib",

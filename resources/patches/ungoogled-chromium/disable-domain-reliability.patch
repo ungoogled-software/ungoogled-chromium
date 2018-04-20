@@ -2,11 +2,10 @@
 
 --- a/components/domain_reliability/google_configs.cc
 +++ b/components/domain_reliability/google_configs.cc
-@@ -12,607 +12,10 @@
- #include "components/domain_reliability/config.h"
+@@ -13,574 +13,10 @@
  
  namespace domain_reliability {
--
+ 
 -namespace {
 -
 -struct GoogleConfigParams {
@@ -302,6 +301,7 @@
 -    {"chromeexperiments.com", true, false, false},
 -    {"chromestatus.com", true, false, false},
 -    {"chromium.org", true, false, false},
+-    {"clients6.google.com", true, false, false},
 -    {"cloudendpointsapis.com", true, false, false},
 -    {"dartmotif.com", true, false, false},
 -    {"dartsearch.net", true, false, false},
@@ -517,39 +517,6 @@
 -    {"ad.doubleclick.net", false, false, false},
 -    {"drive.google.com", false, false, false},
 -    {"redirector.googlevideo.com", false, false, false},
--
--    // Third-party domains that have been approved for use within Google's
--    // server-side Domain Reliablity infrastructure.
--    //
--    // DO NOT ADD TO THIS WITHOUT APPROVAL FROM juliatuttle@.
--    //
--    // This is intended as a short-term stopgap to assess server-side data
--    // handling for domains that may one day use Network Error Logging with a
--    // third-party collector.
--    //
--    // To prevent this from being used too heavily, this list is limited to the
--    // initial 16 origins, and will be removed in January 2018, around three
--    // months after it was added.
--    //
--    // include_origin_specific_collector is set so that Domain Reliability will
--    // provide full URLs in at least some report uploads, which will be
--    // redirected from the same origin to Google's servers.
--    {"wistia.com", true, true, false},
--    {"wistia.net", true, true, false},
--    {"wistia.land", true, true, false},
--    {"embedwistia-a.akamaihd.net", true, true, false},
--    {"wayfair.co.uk", true, true, false},
--    {"dwellstudio.com", true, true, false},
--    {"csnstores.com", true, true, false},
--    {"jossandmain.com", true, true, false},
--    {"secure.img2.wfcdn.com", true, true, false},
--    {"secure.img3.wfcdn.com", true, true, false},
--    {"birchlane.com", true, true, false},
--    {"allmodern.com", true, true, false},
--    {"perigold.com", true, true, false},
--    {"wayfairsupply.com", true, true, false},
--    {"wayfair.ca", true, true, false},
--    {"wayfair.de", true, true, false},
 -};
 -
 -const char* const kGoogleStandardCollectors[] = {
@@ -584,11 +551,11 @@
 -    GURL::Replacements replacements;
 -    replacements.SetPathStr(kGoogleOriginSpecificCollectorPathString);
 -    config->collectors.push_back(
--        base::MakeUnique<GURL>(config->origin.ReplaceComponents(replacements)));
+-        std::make_unique<GURL>(config->origin.ReplaceComponents(replacements)));
 -  }
 -  for (size_t i = 0; i < arraysize(kGoogleStandardCollectors); i++)
 -    config->collectors.push_back(
--        base::MakeUnique<GURL>(kGoogleStandardCollectors[i]));
+-        std::make_unique<GURL>(kGoogleStandardCollectors[i]));
 -  config->success_sample_rate = 0.05;
 -  config->failure_sample_rate = 1.00;
 -  config->path_prefixes.clear();
@@ -612,7 +579,7 @@
  }  // namespace domain_reliability
 --- a/components/domain_reliability/uploader.cc
 +++ b/components/domain_reliability/uploader.cc
-@@ -82,7 +82,7 @@
+@@ -82,7 +82,7 @@ class DomainReliabilityUploaderImpl
      if (discard_uploads_)
        discarded_upload_count_++;
  
@@ -623,7 +590,7 @@
        result.status = UploadResult::SUCCESS;
 --- a/components/domain_reliability/bake_in_configs.py
 +++ b/components/domain_reliability/bake_in_configs.py
-@@ -489,7 +489,7 @@
+@@ -489,7 +489,7 @@ def origin_is_whitelisted(origin):
      domain = origin[8:-1]
    else:
      return False
@@ -634,7 +601,7 @@
  def quote_and_wrap_text(text, width=79, prefix='  "', suffix='"'):
 --- a/components/domain_reliability/BUILD.gn
 +++ b/components/domain_reliability/BUILD.gn
-@@ -7,26 +7,6 @@
+@@ -7,26 +7,6 @@ action("bake_in_configs") {
    script = "bake_in_configs.py"
  
    inputs = [
@@ -661,7 +628,7 @@
    ]
  
    output_file = "$target_gen_dir/baked_in_configs.cc"
-@@ -36,13 +16,21 @@
+@@ -36,13 +16,21 @@ action("bake_in_configs") {
  
    # The JSON file list is too long for the command line on Windows, so put
    # them in a response file.
