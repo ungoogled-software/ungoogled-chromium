@@ -1,0 +1,48 @@
+From f15e8b573ada0fcd643ae393484214b1c7c940f8 Mon Sep 17 00:00:00 2001
+From: Evangelos Foutras <evangelos@foutrelis.com>
+Date: Sat, 24 Mar 2018 00:04:33 +0000
+Subject: [PATCH] Fix crash in is_cfi=true builds with unbundled ICU
+
+Ensure ICU symbols have public visibility and are thus excluded from CFI
+checks and whole-program optimization. The former caused a startup crash
+and the latter has the potential to break virtual calls in weird ways.
+
+BUG=822820
+
+Change-Id: Ia809eefcb9e93b3c612f2381d394db83bbc67120
+Reviewed-on: https://chromium-review.googlesource.com/978008
+Reviewed-by: Peter Collingbourne <pcc@chromium.org>
+Reviewed-by: Thomas Anderson <thomasanderson@chromium.org>
+Commit-Queue: Thomas Anderson <thomasanderson@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#545638}
+---
+ build/linux/unbundle/icu.gn | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+--- a/build/linux/unbundle/icu.gn
++++ b/build/linux/unbundle/icu.gn
+@@ -17,6 +17,24 @@ config("icu_config") {
+     "USING_SYSTEM_ICU=1",
+     "ICU_UTIL_DATA_IMPL=ICU_UTIL_DATA_STATIC",
+     "UCHAR_TYPE=uint16_t",
++
++    # U_EXPORT (defined in unicode/platform.h) is used to set public visibility
++    # on classes through the U_COMMON_API and U_I18N_API macros (among others).
++    # When linking against the system ICU library, we want its symbols to have
++    # public LTO visibility. This disables CFI checks for the ICU classes and
++    # allows whole-program optimization to be applied to the rest of Chromium.
++    #
++    # Both U_COMMON_API and U_I18N_API macros would be defined to U_EXPORT only
++    # when U_COMBINED_IMPLEMENTATION is defined (see unicode/utypes.h). Because
++    # we override the default system UCHAR_TYPE (char16_t), it is not possible
++    # to use U_COMBINED_IMPLEMENTATION at this moment, meaning the U_COMMON_API
++    # and U_I18N_API macros are set to U_IMPORT which is an empty definition.
++    #
++    # Until building with UCHAR_TYPE=char16_t is supported, one way to apply
++    # public visibility (and thus public LTO visibility) to all ICU classes is
++    # to define U_IMPORT to have the same value as U_EXPORT. For more details,
++    # please see: https://crbug.com/822820
++    "U_IMPORT=U_EXPORT",
+   ]
+ }
+ 

@@ -2,16 +2,6 @@
 # In profile_impl_io_data.h/cc and reporting_service_proxy.cc the devs forgot to check if reporting was enabled before using a reporting feature
 # In printer_handler.cc, due to some combination of build flags used in the ungoogled-chromium build, MakeUnique was not pulled in
 
---- a/chrome/browser/ui/webui/print_preview/printer_handler.cc
-+++ b/chrome/browser/ui/webui/print_preview/printer_handler.cc
-@@ -8,6 +8,7 @@
- #include "chrome/browser/ui/webui/print_preview/extension_printer_handler.h"
- #include "chrome/browser/ui/webui/print_preview/pdf_printer_handler.h"
- #include "chrome/common/features.h"
-+#include "base/memory/ptr_util.h"
- 
- #if BUILDFLAG(ENABLE_SERVICE_DISCOVERY)
- #include "chrome/browser/ui/webui/print_preview/privet_printer_handler.h"
 --- a/content/browser/net/reporting_service_proxy.cc
 +++ b/content/browser/net/reporting_service_proxy.cc
 @@ -102,6 +102,7 @@ class ReportingServiceProxyImpl : public
@@ -32,7 +22,7 @@
    scoped_refptr<net::URLRequestContextGetter> request_context_getter_;
 --- a/chrome/browser/profiles/profile_impl_io_data.h
 +++ b/chrome/browser/profiles/profile_impl_io_data.h
-@@ -177,6 +177,7 @@ class ProfileImplIOData : public Profile
+@@ -179,6 +179,7 @@ class ProfileImplIOData : public Profile
        const StoragePartitionDescriptor& partition_descriptor) const override;
    chrome_browser_net::Predictor* GetPredictor() override;
  
@@ -40,7 +30,7 @@
    // Returns a net::ReportingService, if reporting should be enabled. Otherwise,
    // returns nullptr.
    // TODO(mmenke): Remove once URLRequestContextBuilders are always used to
-@@ -187,6 +188,7 @@ class ProfileImplIOData : public Profile
+@@ -189,6 +190,7 @@ class ProfileImplIOData : public Profile
    // Returns a net::ReportingPolicy, if reporting should be enabled. Otherwise,
    // returns nullptr.
    static std::unique_ptr<net::ReportingPolicy> MaybeCreateReportingPolicy();
@@ -48,44 +38,9 @@
  
    // Lazy initialization params.
    mutable std::unique_ptr<LazyParams> lazy_params_;
---- a/chrome/browser/profiles/profile_impl_io_data.cc
-+++ b/chrome/browser/profiles/profile_impl_io_data.cc
-@@ -480,7 +480,9 @@ void ProfileImplIOData::InitializeIntern
-       builder, std::move(request_interceptors),
-       std::move(profile_params->protocol_handler_interceptor));
- 
-+#if BUILDFLAG(ENABLE_REPORTING)
-   builder->set_reporting_policy(MaybeCreateReportingPolicy());
-+#endif
- }
- 
- void ProfileImplIOData::OnMainRequestContextCreated(
-@@ -615,7 +617,9 @@ net::URLRequestContext* ProfileImplIODat
-           context->host_resolver()));
-   context->SetJobFactory(std::move(top_job_factory));
- 
-+#if BUILDFLAG(ENABLE_REPORTING)
-   context->SetReportingService(MaybeCreateReportingService(context));
-+#endif
- 
-   return context;
- }
-@@ -705,6 +709,7 @@ chrome_browser_net::Predictor* ProfileIm
-   return predictor_.get();
- }
- 
-+#if BUILDFLAG(ENABLE_REPORTING)
- std::unique_ptr<net::ReportingService>
- ProfileImplIOData::MaybeCreateReportingService(
-     net::URLRequestContext* url_request_context) const {
-@@ -723,3 +728,4 @@ ProfileImplIOData::MaybeCreateReportingP
- 
-   return base::MakeUnique<net::ReportingPolicy>();
- }
-+#endif
 --- a/chrome/browser/profiles/profile_io_data.cc
 +++ b/chrome/browser/profiles/profile_io_data.cc
-@@ -637,7 +637,9 @@ void ProfileIOData::AppRequestContext::S
+@@ -630,7 +630,9 @@ void ProfileIOData::AppRequestContext::S
  void ProfileIOData::AppRequestContext::SetReportingService(
      std::unique_ptr<net::ReportingService> reporting_service) {
    reporting_service_ = std::move(reporting_service);
@@ -94,11 +49,11 @@
 +#endif
  }
  
- ProfileIOData::AppRequestContext::~AppRequestContext() {
+ void ProfileIOData::AppRequestContext::SetNetworkErrorLoggingService(
 --- a/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
-@@ -255,10 +255,12 @@ void ClearReportingCacheOnIOThread(
-     const base::Callback<bool(const GURL&)>& origin_filter) {
+@@ -268,10 +268,12 @@ void ClearReportingCacheOnIOThread(
+     const base::RepeatingCallback<bool(const GURL&)>& origin_filter) {
    DCHECK_CURRENTLY_ON(BrowserThread::IO);
  
 +#if BUILDFLAG(ENABLE_REPORTING)

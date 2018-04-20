@@ -9,7 +9,7 @@
 pkgname=ungoogled-chromium
 pkgver=$ungoog{chromium_version}
 pkgrel=$ungoog{release_revision}
-_launcher_ver=5
+_launcher_ver=6
 pkgdesc="Modifications to Google Chromium for removing Google integration and enhancing privacy, control, and transparency"
 arch=('x86_64')
 url="https://github.com/Eloston/ungoogled-chromium"
@@ -17,8 +17,8 @@ license=('BSD')
 depends=('gtk3' 'nss' 'alsa-lib' 'xdg-utils' 'libxss' 'libcups' 'libgcrypt'
          'ttf-font' 'systemd' 'dbus' 'libpulse' 'pciutils' 'json-glib'
          'desktop-file-utils' 'hicolor-icon-theme')
-makedepends=('python2' 'gperf' 'yasm' 'mesa' 'ninja' 'git' 'clang'
-             'llvm' 'lld' 'libva' 'quilt')
+makedepends=('python' 'python2' 'gperf' 'yasm' 'mesa' 'ninja' 'git'
+             'clang' 'lld' 'llvm' 'libva' 'quilt')
 optdepends=('pepper-flash: support for Flash content'
             'kdialog: needed for file dialogs in KDE'
             'gnome-keyring: for storing passwords in GNOME keyring'
@@ -30,16 +30,16 @@ provides=('chromium')
 conflicts=('chromium')
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-$pkgver.tar.xz
         chromium-launcher-$_launcher_ver.tar.gz::https://github.com/foutrelis/chromium-launcher/archive/v$_launcher_ver.tar.gz
-        chromium-$pkgver.txt::https://chromium.googlesource.com/chromium/src.git/+/$pkgver?format=TEXT
+        chromium-$pkgver.txt::https://chromium.googlesource.com/chromium/src/+/$pkgver?format=TEXT
         '$ungoog{repo_url}')
-sha256sums=('5fd0218759231ac00cc729235823592f6fd1e4a00ff64780a5fed7ab210f1860'
-            '4dc3428f2c927955d9ae117f2fb24d098cc6dd67adb760ac9c82b522ec8b0587'
-            'e73f69942af1ba730a700151973fa6309b0586ff45bf35a7fea43f52b54a9cb5'
+sha256sums=('73bfa25d41c432ba5a542b20043b62118bc8451bb9e031edc7394cc65d6b5d64'
+            '04917e3cd4307d8e31bfb0027a5dce6d086edb10ff8a716024fbb8bb0c7dccf1'
+            '0be4bc2e759d2d6136f9baa1d4624aefbababe0cbbd2d1632b76f01654d70524'
             '$ungoog{repo_hash}')
 
 # Possible replacements are listed in build/linux/unbundle/replace_gn_files.py
 # Keys are the names in the above script; values are the dependencies in Arch
-readonly -A _system_libs=(
+declare -gA _system_libs=(
   [ffmpeg]=ffmpeg
   [flac]=flac
   [fontconfig]=fontconfig
@@ -60,7 +60,7 @@ readonly -A _system_libs=(
   [yasm]=
   [zlib]=minizip
 )
-readonly _unwanted_bundled_libs=(
+_unwanted_bundled_libs=(
   ${!_system_libs[@]}
   ${_system_libs[libjpeg]+libjpeg_turbo}
 )
@@ -93,20 +93,12 @@ prepare() {
   # Apply patches
   env QUILT_PATCHES="$_user_bundle/patches" quilt push -a
 
-  # Remove compiler flags not supported by our system clang
-  sed -i \
-    -e '/"-Wno-enum-compare-switch"/d' \
-    -e '/"-Wno-null-pointer-arithmetic"/d' \
-    -e '/"-Wno-tautological-unsigned-zero-compare"/d' \
-    -e '/"-Wno-tautological-constant-compare"/d' \
-    build/config/compiler/BUILD.gn
+  # Allow building against system libraries in official builds
+  sed -i 's/OFFICIAL_BUILD/GOOGLE_CHROME_BUILD/' \
+    tools/generate_shim_headers/generate_shim_headers.py
 
-  # Use Python 2
-  find . -name '*.py' -exec sed -i -r 's|/usr/bin/python$|&2|g' {} +
-
-  # There are still a lot of relative calls which need a workaround
-  mkdir -p "$srcdir/python2-path"
-  ln -s /usr/bin/python2 "$srcdir/python2-path/python"
+  # Force script incompatible with Python 3 to use /usr/bin/python2
+  sed -i '1s|python$|&2|' third_party/dom_distiller_js/protoc_plugins/*.py
 
   # Remove bundled libraries for which we will use the system copies; this
   # *should* do what the remove_bundled_libraries.py script does, with the
@@ -137,9 +129,6 @@ build() {
     export CCACHE_SLOPPINESS=time_macros
   fi
 
-  export PATH="$srcdir/python2-path:$PATH"
-  export TMPDIR="$srcdir/temp"
-  mkdir -p "$TMPDIR"
   mkdir -p $ungoog{build_output}
 
   export CC=clang
@@ -151,6 +140,10 @@ build() {
 $ungoog{gn_flags}
   )
 
+  # Facilitate deterministic builds (taken from build/config/compiler/BUILD.gn)
+  CFLAGS+='   -Wno-builtin-macro-redefined'
+  CXXFLAGS+=' -Wno-builtin-macro-redefined'
+  CPPFLAGS+=' -D__DATE__=  -D__TIME__=  -D__TIMESTAMP__='
 
   msg2 'Building GN'
   python2 tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s --no-clean
