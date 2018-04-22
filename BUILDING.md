@@ -208,19 +208,7 @@ Install the following packages : `# sudo zypper install perl-Switch dirac-devel 
 
 Follow the following guide to set up Python 3.6.4: [https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7](https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7) 
 
-As of Chromium 65.0.3325.162, clang/llvm version 5 or greater is required to avoid compiler errors.
-
-Since Leap 42.3 only offers clang 3.8 in the base repos, add the following repository in YaST (YaST --> Software Repositories): `http://download.opensuse.org/repositories/home:/frispete:/llvm/openSUSE_Leap_42.3/` and give it a name such as LLVM 5.
-
-Then go to YaST --> Software Management and click on the Repositories tab. From there, select the LLVM 5 repo that was just added. 
-
-If given the option, elect to switch system packages to the versions in the LLVM repository. Additionally, ensure the following packages are selected from the LLVM repo:
-* clang
-* libclang5
-* lld 
-* llvm
-* llvm5-gold
-* libllvm5
+As of Chromium 66.0.3359.117, llvm, lld and clang version 6 or greater is required to avoid compiler errors.
 
 #### Setting up the buildspace tree and packaging files
 
