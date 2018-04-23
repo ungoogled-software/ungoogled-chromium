@@ -88,7 +88,8 @@ def generate_packaging(config_bundle, output_dir, build_output=DEFAULT_BUILD_OUT
             '{}={}'.format(flag, value) for flag, value in config_bundle.gn_flags.items()),
         numbered_patch_list=patch_info['patchString'],
         apply_patches_cmd=_get_patch_apply_spec_cmd(patch_info['numPatches']),
-        version_string=config_bundle.version.version_string
+        chromium_version=config_bundle.version.chromium_version,
+        release_revision=config_bundle.version.release_revision
     )
 
     # Build and packaging scripts
