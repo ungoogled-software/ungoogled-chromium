@@ -18,7 +18,7 @@ import argparse
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from buildkit.cli import NewBaseBundleAction
+from buildkit.cli import get_basebundle_verbosely
 from buildkit.common import (
     BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE, ENCODING, BuildkitAbort, get_logger, dir_empty)
 from buildkit.domain_substitution import TREE_ENCODINGS
@@ -231,27 +231,42 @@ def compute_lists(buildspace_tree, search_regex):
 def main(args_list=None):
     """CLI entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('-b', '--base-bundle', metavar='NAME', action=NewBaseBundleAction,
-                        required=True, help='The base bundle to use')
-    parser.add_argument('-p', '--pruning', metavar='PATH', type=Path, required=True,
-                        help='The path to store pruning.list')
-    parser.add_argument('-d', '--domain-substitution', metavar='PATH', type=Path, required=True,
-                        help='The path to store domain_substitution.list')
-    parser.add_argument('--tree', metavar='PATH', type=Path, default=BUILDSPACE_TREE,
-                        help=('The path to the buildspace tree to create. '
-                              'If it is not empty, the source will not be unpacked. '
-                              'Default: %s') % BUILDSPACE_TREE)
-    parser.add_argument('--downloads', metavar='PATH', type=Path, default=BUILDSPACE_DOWNLOADS,
-                        help=('The path to the buildspace downloads directory. '
-                              'It must already exist. Default: %s') % BUILDSPACE_DOWNLOADS)
-    args = parser.parse_args(args_list)
-
+    parser.add_argument(
+        '-a', '--auto-download', action='store_true',
+        help='If specified, it will download the source code and dependencies '
+             'for the --base-bundle given. Otherwise, only an existing '
+             'buildspace tree will be used.')
+    parser.add_argument(
+        '-b', '--base-bundle', metavar='NAME', type=get_basebundle_verbosely,
+        default='common', help='The base bundle to use. Default: %(default)s')
+    parser.add_argument(
+        '-p', '--pruning', metavar='PATH', type=Path,
+        default='resources/config_bundles/common/pruning.list',
+        help='The path to store pruning.list. Default: %(default)s')
+    parser.add_argument(
+        '-d', '--domain-substitution', metavar='PATH', type=Path,
+        default='resources/config_bundles/common/domain_substitution.list',
+        help='The path to store domain_substitution.list. Default: %(default)s')
+    parser.add_argument(
+        '--tree', metavar='PATH', type=Path, default=BUILDSPACE_TREE,
+        help=('The path to the buildspace tree to create. '
+              'If it is not empty, the source will not be unpacked. '
+              'Default: %(default)s'))
+    parser.add_argument(
+        '--downloads', metavar='PATH', type=Path, default=BUILDSPACE_DOWNLOADS,
+        help=('The path to the buildspace downloads directory. '
+              'It must already exist. Default: %(default)s'))
     try:
+        args = parser.parse_args(args_list)
         if args.tree.exists() and not dir_empty(args.tree):
             get_logger().info('Using existing buildspace tree at %s', args.tree)
-        else:
+        elif args.auto_download:
             source_retrieval.retrieve_and_extract(
                 args.base_bundle, args.downloads, args.tree, prune_binaries=False)
+        else:
+            get_logger().error('No buildspace tree found and --auto-download '
+                               'is not specified. Aborting.')
+            raise BuildkitAbort()
         get_logger().info('Computing lists...')
         pruning_list, domain_substitution_list = compute_lists(
             args.tree, args.base_bundle.domain_regex.search_regex)

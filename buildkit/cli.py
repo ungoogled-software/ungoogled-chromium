@@ -38,6 +38,25 @@ from .config import ConfigBundle
 class _CLIError(RuntimeError):
     """Custom exception for printing argument parser errors from callbacks"""
 
+def get_basebundle_verbosely(base_name):
+    """
+    Returns a ConfigBundle from the given base name, otherwise it logs errors and raises
+    BuildkitAbort"""
+    try:
+        return ConfigBundle.from_base_name(base_name)
+    except NotADirectoryError as exc:
+        get_logger().error('resources/ or resources/patches directories could not be found.')
+        raise BuildkitAbort()
+    except FileNotFoundError:
+        get_logger().error('The base config bundle "%s" does not exist.', base_name)
+        raise BuildkitAbort()
+    except ValueError as exc:
+        get_logger().error('Base bundle metadata has an issue: %s', exc)
+        raise BuildkitAbort()
+    except BaseException:
+        get_logger().exception('Unexpected exception caught.')
+        raise BuildkitAbort()
+
 class NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-methods
     """argparse.ArgumentParser action handler with more verbose logging"""
 
@@ -51,18 +70,8 @@ class NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-meth
 
     def __call__(self, parser, namespace, values, option_string=None):
         try:
-            base_bundle = ConfigBundle.from_base_name(values)
-        except NotADirectoryError as exc:
-            get_logger().error('resources/ or resources/patches directories could not be found.')
-            parser.exit(status=1)
-        except FileNotFoundError:
-            get_logger().error('The base config bundle "%s" does not exist.', values)
-            parser.exit(status=1)
-        except ValueError as exc:
-            get_logger().error('Base bundle metadata has an issue: %s', exc)
-            parser.exit(status=1)
-        except BaseException:
-            get_logger().exception('Unexpected exception caught.')
+            base_bundle = get_basebundle_verbosely(values)
+        except BuildkitAbort:
             parser.exit(status=1)
         setattr(namespace, self.dest, base_bundle)
 

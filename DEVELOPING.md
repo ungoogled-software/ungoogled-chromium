@@ -21,13 +21,13 @@ This is an example workflow on Linux that can be modified for your specific usag
 
 ### Downloading the source code and updating lists
 
-The utility `developer_utilities/update_lists.py` automates this process. Pass in `-h` or `--help` for availabe options.
+The utility `developer_utilities/update_lists.py` automates this process. By default, it will update the `common` base bundle automatically. Pass in `-h` or `--help` for availabe options.
 
 Here's an example for updating the `common` configuration type:
 
 ```
 mkdir -p buildspace/downloads
-./developer_utilities/update_lists.py -b common -p resources/config_bundles/common/pruning.list -d resources/config_bundles/common/domain_substitution.list
+./developer_utilities/update_lists.py --auto-download
 ```
 
 #### Updating patches
