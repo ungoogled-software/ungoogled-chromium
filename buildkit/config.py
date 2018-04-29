@@ -311,15 +311,18 @@ class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
         Raises ValueError if a key appears twice in a single map file.
         """
         new_dict = collections.OrderedDict()
+        path_keys = set()
         for mapping_path in self._path_order:
             with mapping_path.open(encoding=ENCODING) as mapping_file:
                 for line in filter(len, mapping_file.read().splitlines()):
                     key, value = line.split('=')
-                    if key in new_dict:
+                    if key in path_keys:
                         raise ValueError(
                             'Map file "%s" contains key "%s" at least twice.' %
                             (mapping_path, key))
+                    path_keys.add(key)
                     new_dict[key] = value
+            path_keys.clear()
         return new_dict
 
     def write(self, path):
