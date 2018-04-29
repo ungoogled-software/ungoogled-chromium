@@ -6,13 +6,20 @@ export DH_VERBOSE=1
 # enable all build hardening flags
 export DEB_BUILD_MAINT_OPTIONS=hardening=+all
 
-export CLANG_BASE_PATH=/usr/lib/llvm-5.0
+# use system LLVM via unbundling
+export AR=llvm-ar-6.0
+export NM=llvm-nm-6.0
+export CC=clang-6.0
+export CXX=clang++-6.0
 
 # more verbose linker output
-defines+=target_extra_ldflags=\"-Wl,--stats\"
+export LDFLAGS+=-Wl,--stats
 
 # extra flags to reduce warnings that aren't very useful
-defines+=target_extra_cxxflags=\"-Wno-deprecated-declarations -Wno-dangling-else -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable\"
+export CXXFLAGS+=-Wno-unused-function \
+                 -Wno-unused-variable \
+                 -Wno-unused-but-set-variable \
+                 -Wno-deprecated-declarations \
 
 # set the appropriate cpu architecture
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
@@ -28,8 +35,6 @@ endif
 ifeq (armhf,$(DEB_HOST_ARCH))
 defines+=host_cpu=\"arm\" \
                  arm_use_neon=false \
-                 blink_symbol_level=1 \
-                 symbol_level=1 \
 
 endif
 
@@ -41,8 +46,9 @@ $ungoog{gn_flags}
 #  can't use system ots (open text *summarizer*) since that's not google's ots (open text *sanitizer*)
 
 # handle parallel build options
+njobs=1
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
-njobs=-j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+njobs=$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
 # paths to files needed by flot
@@ -54,7 +60,7 @@ flotpaths=/usr/share/javascript/jquery/*min.js \
 
 $ungoog{build_output}/gn:
 	mkdir -p $ungoog{build_output} || true
-	./tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s $(njobs)
+	./tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s -j$(njobs)
 
 override_dh_auto_configure:
 	# output compiler information
@@ -62,15 +68,16 @@ override_dh_auto_configure:
 	# use system flot
 	for file in $(flotpaths); do ln -sf $$file third_party/flot; done
 	# strip out system third_party libraries
+	rm -f base/third_party/libevent/BUILD.gn
 	./debian/scripts/unbundle
 
 override_dh_auto_build-arch: $ungoog{build_output}/gn
 	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
-	ninja $(njobs) -C $ungoog{build_output} chrome chrome_sandbox content_shell chromedriver
+	ninja -j$(njobs) -C $ungoog{build_output} chrome chrome_sandbox content_shell chromedriver
 
 override_dh_auto_build-indep: $ungoog{build_output}/gn
 	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
-	ninja $(njobs) -C $ungoog{build_output} packed_resources
+	ninja -j$(njobs) -C $ungoog{build_output} packed_resources
 
 override_dh_auto_install-arch:
 	cp $ungoog{build_output}/chrome $ungoog{build_output}/chromium

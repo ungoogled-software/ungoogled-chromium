@@ -39,7 +39,7 @@ The final size of the sandbox with build artifacts is over 5 GB. On systems with
 
 Install base requirements: `# apt install packaging-dev python3 ninja-build`
 
-On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 5.0.
+On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 6.0 and debhelper 11.
 
 #### Setting up the buildspace tree and packaging files
 
@@ -68,9 +68,9 @@ Packages will appear under `buildspace/`.
 
 #### Notes for Debian derivatives
 
-Ubuntu 17.10 (artful): Same as Debian 9 except the `ubuntu_artful` base bundle is used.
+Ubuntu 18.04 (bionic): Same as Debian 9 except the `ubuntu_bionic` base bundle and the `buster` flavor are used.
 
-Ubuntu 16.04 (xenial), Debian 8.0 (jessie), and other older versions: See [Other Linux distributions](#other-linux-distributions)
+Ubuntu 16.04 (xenial), Ubuntu 17.10 (artful), Debian 8.0 (jessie), and other older versions: See [Other Linux distributions](#other-linux-distributions)
 
 ### Windows
 
