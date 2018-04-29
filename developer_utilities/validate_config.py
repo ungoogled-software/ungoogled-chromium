@@ -232,7 +232,7 @@ def _check_mergability(info_tuple_list, dependents, logger):
 def main():
     """CLI entrypoint"""
 
-    logger = get_logger(prepend_timestamp=False)
+    logger = get_logger(prepend_timestamp=False, log_init=False)
     warnings = True
 
     patches_dir = get_resources_dir() / PATCHES_DIR

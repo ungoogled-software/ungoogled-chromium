@@ -53,7 +53,8 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
 
 # Public methods
 
-def get_logger(name=__package__, initial_level=logging.DEBUG, prepend_timestamp=True):
+def get_logger(name=__package__, initial_level=logging.DEBUG,
+               prepend_timestamp=True, log_init=True):
     '''Gets the named logger'''
 
     logger = logging.getLogger(name)
@@ -72,10 +73,11 @@ def get_logger(name=__package__, initial_level=logging.DEBUG, prepend_timestamp=
             console_handler.setFormatter(formatter)
 
             logger.addHandler(console_handler)
-            if name is None:
-                logger.debug("Initialized root logger")
-            else:
-                logger.debug("Initialized logger '%s'", name)
+            if log_init:
+                if name is None:
+                    logger.debug("Initialized root logger")
+                else:
+                    logger.debug("Initialized logger '%s'", name)
     return logger
 
 def get_resources_dir():
