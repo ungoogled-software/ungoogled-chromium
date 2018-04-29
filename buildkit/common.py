@@ -53,7 +53,7 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
 
 # Public methods
 
-def get_logger(name=__package__, initial_level=logging.DEBUG):
+def get_logger(name=__package__, initial_level=logging.DEBUG, prepend_timestamp=True):
     '''Gets the named logger'''
 
     logger = logging.getLogger(name)
@@ -65,7 +65,10 @@ def get_logger(name=__package__, initial_level=logging.DEBUG):
             console_handler = logging.StreamHandler()
             console_handler.setLevel(initial_level)
 
-            formatter = logging.Formatter("%(asctime)s - %(levelname)s: %(message)s")
+            format_string = '%(levelname)s: %(message)s'
+            if prepend_timestamp:
+                format_string = '%(asctime)s - ' + format_string
+            formatter = logging.Formatter(format_string)
             console_handler.setFormatter(formatter)
 
             logger.addHandler(console_handler)

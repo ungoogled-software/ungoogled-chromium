@@ -22,6 +22,8 @@ from .common import (
     get_logger, get_resources_dir, ensure_empty_dir)
 from .third_party import schema
 
+# TODO: get_logger and BuildkitAbort should only be used in the CLI
+
 # Constants
 
 PRUNING_LIST = "pruning.list"
@@ -290,7 +292,10 @@ class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
         return self._config_data[key]
 
     def __iter__(self):
-        """Returns an iterator over the keys"""
+        """
+        Returns an iterator over the keys in dependency order and order
+        within each mapping file.
+        """
         return iter(self._config_data)
 
     def items(self):
@@ -300,12 +305,20 @@ class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
         return self._config_data.items()
 
     def _parse_data(self):
-        """Return a dictionary of the mapping of keys and values"""
-        new_dict = dict()
+        """
+        Return a dictionary of the mapping of keys and values
+
+        Raises ValueError if a key appears twice in a single map file.
+        """
+        new_dict = collections.OrderedDict()
         for mapping_path in self._path_order:
             with mapping_path.open(encoding=ENCODING) as mapping_file:
                 for line in filter(len, mapping_file.read().splitlines()):
                     key, value = line.split('=')
+                    if key in new_dict:
+                        raise ValueError(
+                            'Map file "%s" contains key "%s" at least twice.' %
+                            (mapping_path, key))
                     new_dict[key] = value
         return new_dict
 
@@ -319,22 +332,26 @@ class ConfigBundle(_CacheConfigMixin, RequiredConfigMixin, _ConfigABC):
     """Represents a user or base config bundle"""
 
     @classmethod
-    def from_base_name(cls, name):
+    def from_base_name(cls, name, load_depends=True):
         """
         Return a new ConfigBundle from a base config bundle name.
 
+        load_depends indicates if the base bundle's dependencies should be loaded.
+            This is generally only useful for developer utilities, where config
+            only from a specific bundle is required.
+
         Raises NotADirectoryError if the resources/ or resources/patches directories
-        could not be found.
+            could not be found.
         Raises FileNotFoundError if the base config bundle name does not exist.
         Raises ValueError if there is an issue with the base bundle's or its
-        dependencies' metadata
+            dependencies' metadata
         """
         config_bundles_dir = get_resources_dir() / CONFIG_BUNDLES_DIR
         new_bundle = cls(config_bundles_dir / name)
         pending_explore = collections.deque()
         pending_explore.appendleft(name)
         known_names = set()
-        while pending_explore:
+        while load_depends and pending_explore:
             base_bundle_name = pending_explore.pop()
             if base_bundle_name in known_names:
                 raise ValueError('Duplicate base config bundle dependency "{}"'.format(
@@ -378,29 +395,26 @@ class ConfigBundle(_CacheConfigMixin, RequiredConfigMixin, _ConfigABC):
         """
         Friendly interface to access config file objects via attributes.
 
-        Raises BuildkitAbort if a config file is missing, or if the attribute name does not exist.
+        Raises KeyError if a config file is missing.
         Raises AttributeError if the attribute name does not exist.
         """
-        try:
-            if name == 'pruning':
-                return self[PRUNING_LIST]
-            elif name == 'domain_regex':
-                return self[DOMAIN_REGEX_LIST]
-            elif name == 'domain_substitution':
-                return self[DOMAIN_SUBSTITUTION_LIST]
-            elif name == 'extra_deps':
-                return self[EXTRA_DEPS_INI]
-            elif name == 'gn_flags':
-                return self[GN_FLAGS_MAP]
-            elif name == 'patches':
-                return self[PATCH_ORDER_LIST]
-            elif name == 'version':
-                return self[VERSION_INI]
-            else:
-                raise AttributeError('ConfigBundle has no attribute "%s"' % name)
-        except KeyError as exc:
-            get_logger().error('Config file name not known: %s', exc)
-            raise BuildkitAbort()
+        if name == 'pruning':
+            return self[PRUNING_LIST]
+        elif name == 'domain_regex':
+            return self[DOMAIN_REGEX_LIST]
+        elif name == 'domain_substitution':
+            return self[DOMAIN_SUBSTITUTION_LIST]
+        elif name == 'extra_deps':
+            return self[EXTRA_DEPS_INI]
+        elif name == 'gn_flags':
+            return self[GN_FLAGS_MAP]
+        elif name == 'patches':
+            return self[PATCH_ORDER_LIST]
+        elif name == 'version':
+            return self[VERSION_INI]
+        else:
+            raise AttributeError(
+                '%s has no attribute "%s"' % type(self).__name__, name)
 
     def _parse_data(self):
         """
@@ -734,7 +748,7 @@ class PatchesConfig(ListConfigFile):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(str(self._get_patches_dir() / relative_path), str(destination))
 
-class VersionIni(RequiredConfigMixin, IniConfigFile):
+class VersionIni(IniConfigFile):
     """Representation of a version.ini file"""
 
     _schema = schema.Schema(schema_inisections({

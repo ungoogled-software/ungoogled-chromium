@@ -2,6 +2,12 @@
 
 The [GitHub Wiki](//github.com/Eloston/ungoogled-chromium/wiki) contains some additional information that changes more frequently.
 
+## Notes on updating base bundles
+
+To develop a better understanding of base bundles, have a look through [DESIGN.md](DESIGN.md) *and* the existing base bundles. Reading only DESIGN.md may make it difficult to develop intuition of the configuration system, and only exploring existing base bundles may not lead you to the whole picture.
+
+Anytime the base bundles or patches are modified, use `developer_utilities/validate_config.py` to run several sanity checking algorithms.
+
 ## Workflow of updating patches
 
 Tested on Debian 9.0 (stretch). Exact instructions should work on any other Linux or macOS system with the proper dependencies.
@@ -46,6 +52,7 @@ mkdir -p buildspace/downloads
         * When removing large chunks of code, remove each line instead of using language features to hide or remove the code. This makes the patches less susceptible to breakages when using quilt's refresh command (e.g. quilt refresh updates the line numbers based on the patch context, so it's possible for new but desirable code in the middle of the block comment to be excluded.). It also helps with readability when someone wants to see the changes made based on the patch alone.
     5. Refresh the patch: `quilt refresh`
     6. Go back to Step 2, and repeat this process until all of the patches have been fixed.
+    7. Run `developer_utilities/validate_config.py` to do a sanity check of the patches and patch order.
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 
