@@ -257,15 +257,16 @@ These are for building on Linux distributions that do not have support already. 
 
 #### Requirements
 
-Debian-based: `# apt install packaging-dev python3 ninja-build`
-
-* If not building a `.deb` package, replace `packaging-dev` with `python clang llvm-dev`
-
-Other:
+TODO: Document all libraries and tools needed to build. For now, see the build dependencies for Debian systems.
 
 * Python 3 (tested on 3.5) for buildkit
 * Python 2 (tested on 2.7) for building GN and running other build-time scripts
 * [Ninja](//ninja-build.org/) for running the build command
+* LLVM 6.0 (including Clang and LLD)
+
+For Debian-based systems, these requirements can be installed via: `# apt install packaging-dev python3 ninja-build`
+
+* If not building a `.deb` package, replace `packaging-dev` with `python clang-6.0 lld-6.0 llvm-6.0-dev`
 
 #### Setting up the buildspace tree
 
@@ -292,6 +293,7 @@ cd buildspace/tree
 # If necessary, modify AR, NM, CC, and CXX variables in debian/rules
 dpkg-buildpackage -b -uc
 ```
+
 Packages will appear in `buildspace/`
 
 **Archive**
