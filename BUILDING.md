@@ -289,8 +289,7 @@ Builds a `deb` package for any Debian-based system
 cd buildspace/tree
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
 # If necessary, change the dependencies in debian/control to accomodate your environment.
-# If necessary, modify CLANG_BASE_PATH in debian/rules to change the LLVM and Clang installation path
-# (which contains files like bin/clang++, include/llvm, etc.).
+# If necessary, modify AR, NM, CC, and CXX variables in debian/rules
 dpkg-buildpackage -b -uc
 ```
 Packages will appear in `buildspace/`
@@ -303,9 +302,8 @@ Builds a compressed tar archive
 ./buildkit-launcher.py genpkg linux_simple
 # The buildspace tree can be relocated to another system for building
 cd buildspace/tree
-# Use "export CLANG_BASE_PATH=/path/to/llvm_root" to set the LLVM and Clang installation path
-# (which contains files like bin/clang++, include/llvm, etc.).
-# If left unset, it defaults to /usr.
+# Use "export ..." for AR, NM, CC, CXX, or others to specify the compiler to use
+# It defaults to LLVM tools. See ./ungoogled_packaging/build.sh for more details
 ./ungoogled_packaging/build.sh
 ./ungoogled_packaging/package.sh
 ```
