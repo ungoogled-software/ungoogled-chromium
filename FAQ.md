@@ -55,8 +55,6 @@ There are several installation methods deriving from this URL:
     ```
     After restarting the browser, the extension should be loaded automatically.
 
-**IMPORTANT: These extensions are not updated automatically.** Make sure to use the `Update extensions now` button after enabling `Developer mode` on `chrome://extensions`, or re-download the CRX.
-
 ## Do plugins work?
 
 Yes. All plugins including PepperFlash and Widevine DRM should work. See the relevant question for specific installation instructions.
