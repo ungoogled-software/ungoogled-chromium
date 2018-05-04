@@ -55,12 +55,6 @@ There are several installation methods deriving from this URL:
     ```
     After restarting the browser, the extension should be loaded automatically.
 
-4. **User script**
-
-    You can use [this user script](http://chromium-crx.stuff.admicos.cf/get.user.js), which will add a button to the Chrome Webstore so the CRX file can be downloaded and installed.
-
-    Script written and provided by Admicos in [#134](//github.com/Eloston/ungoogled-chromium/issues/134).
-
 **IMPORTANT: These extensions are not updated automatically.** Make sure to use the `Update extensions now` button after enabling `Developer mode` on `chrome://extensions`, or re-download the CRX.
 
 ## Do plugins work?
