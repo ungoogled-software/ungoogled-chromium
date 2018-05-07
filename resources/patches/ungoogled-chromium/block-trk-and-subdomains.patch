@@ -57,88 +57,42 @@
      utf8_input.erase(0, scheme.end() + 1);
    }
    return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
---- a/content/browser/browser_url_handler_impl.cc
-+++ b/content/browser/browser_url_handler_impl.cc
-@@ -15,8 +15,26 @@
- #include "content/public/common/url_utils.h"
- #include "url/gurl.h"
- 
-+#include "third_party/ungoogled/util.h"
-+
- namespace content {
- 
-+static bool HandleTraceScheme(GURL* url, BrowserContext*) {
-+  if (ungoogled::IsTrkURL(*url)) {
-+    LOG(ERROR) << "Blocked URL in HandleTraceScheme: " << url->spec();
-+    *url = GURL(url::kAboutBlankURL);
-+  }
-+  return false;
-+}
-+
-+static bool ReverseTraceScheme(GURL* url, BrowserContext*) {
-+  if (url->SchemeIs(url::kTraceScheme)) {
-+    return false;
-+  }
-+  *url = GURL(url::kTraceScheme + (":" + url->spec()));
-+  return true;
-+}
-+
- // Handles rewriting view-source URLs for what we'll actually load.
- static bool HandleViewSource(GURL* url, BrowserContext* browser_context) {
-   if (url->SchemeIs(kViewSourceScheme)) {
-@@ -98,6 +116,7 @@ BrowserURLHandlerImpl::BrowserURLHandler
-   // view-source: should take precedence over other rewriters, so it's
-   // important to add it before calling up to the content client.
-   AddHandlerPair(&HandleViewSource, &ReverseViewSource);
-+  AddHandlerPair(&HandleTraceScheme, &ReverseTraceScheme);
- 
-   GetContentClient()->browser()->BrowserURLHandlerCreated(this);
- }
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -348,6 +348,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
-   RegisterPseudoScheme(url::kAboutScheme);
-   RegisterPseudoScheme(url::kJavaScriptScheme);
-   RegisterPseudoScheme(kViewSourceScheme);
-+  RegisterPseudoScheme(url::kTraceScheme);
- }
+@@ -336,6 +336,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+   RegisterWebSafeScheme(url::kHttpsScheme);
+   RegisterWebSafeScheme(url::kFtpScheme);
+   RegisterWebSafeScheme(url::kDataScheme);
++  RegisterWebSafeScheme(url::kTraceScheme);
+   RegisterWebSafeScheme("feed");
  
- ChildProcessSecurityPolicyImpl::~ChildProcessSecurityPolicyImpl() {
---- /dev/null
-+++ b/third_party/ungoogled/BUILD.gn
-@@ -0,0 +1,13 @@
-+# Provides low-level utilities
-+source_set("util") {
-+  sources = [
-+    "util.cc",
-+    "util.h",
-+  ]
-+  include_dirs = [
-+    "../.."
-+  ]
-+  deps = [
-+    "//url",
-+  ]
-+}
+   // TODO(nick): https://crbug.com/651534 blob: and filesystem: schemes embed
 --- a/net/url_request/url_request.cc
 +++ b/net/url_request/url_request.cc
-@@ -42,6 +42,9 @@
+@@ -15,6 +15,7 @@
+ #include "base/metrics/histogram_macros.h"
+ #include "base/rand_util.h"
+ #include "base/stl_util.h"
++#include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/synchronization/lock.h"
+ #include "base/threading/thread_task_runner_handle.h"
+@@ -42,6 +43,7 @@
  #include "net/url_request/url_request_redirect_job.h"
  #include "url/gurl.h"
  #include "url/origin.h"
 +#include "url/url_constants.h"
-+
-+#include "third_party/ungoogled/util.h"
  
  #if BUILDFLAG(ENABLE_REPORTING)
  #include "net/network_error_logging/network_error_logging_service.h"
-@@ -581,6 +584,11 @@ URLRequest::URLRequest(const GURL& url,
+@@ -581,6 +583,12 @@ URLRequest::URLRequest(const GURL& url,
    // Sanity check out environment.
    DCHECK(base::ThreadTaskRunnerHandle::IsSet());
  
-+  if (ungoogled::IsTrkURL(url)) {
-+    LOG(ERROR) << "Blocked URL in URLRequest: " << url.spec();
-+    url_chain_[0] = GURL(url::kAboutBlankURL);
++  if (!url.SchemeIs(url::kTraceScheme) &&
++      base::EndsWith(url.host(), "qjz9zk", base::CompareCase::INSENSITIVE_ASCII)) {
++    LOG(ERROR) << "Block URL in URLRequest: " << url;
++    url_chain_[0] = GURL(url::kTraceScheme + (":" + url.possibly_invalid_spec()));
 +  }
 +
    context->url_requests()->insert(this);
@@ -177,83 +131,176 @@
    // We handle the file scheme separately.
    if (scheme == url::kFileScheme)
      return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
---- /dev/null
-+++ b/third_party/ungoogled/util.cc
-@@ -0,0 +1,31 @@
-+/*
-+ * Copyright 2018 The ungoogled-chromium Authors.
-+ *
-+ * Use of this source code is governed by a BSD-style license that can be
-+ * found in the LICENSE file.
-+ */
-+
-+#include "third_party/ungoogled/util.h"
-+
-+#include "base/logging.h"
-+#include "base/strings/string_util.h"
-+#include "url/url_constants.h"
-+
-+namespace ungoogled {
-+
-+bool IsTrkURL(const GURL& url) {
-+  return url.SchemeIs(url::kTraceScheme) ||
-+         base::EndsWith(url.host(), kSubDomain, base::CompareCase::INSENSITIVE_ASCII);
-+}
-+
-+bool AttemptTrkNotification(
-+    TrkNotifierType trk_notifier, const std::string& caller, const GURL& url) {
-+  LOG(ERROR) << "Blocked URL in " << caller << ": " << url.spec();
-+  if (trk_notifier == nullptr) {
-+    LOG(ERROR) << "Trk notification handler is not set.";
-+  } else {
-+    (*trk_notifier)(caller, url);
-+  }
-+}
-+
-+}; /* namespace ungoogled */
---- /dev/null
-+++ b/third_party/ungoogled/util.h
-@@ -0,0 +1,23 @@
-+/*
-+ * Copyright 2018 The ungoogled-chromium Authors.
-+ *
-+ * Use of this source code is governed by a BSD-style license that can be
-+ * found in the LICENSE file.
-+ */
-+#ifndef UNGOOGLED_UTIL_H
-+#define UNGOOGLED_UTIL_H 1
-+
-+#include <string>
-+#include "url/gurl.h"
-+
-+namespace ungoogled {
-+
-+typedef void (*TrkNotifierType)(const std::string&, const GURL&);
-+
-+const char kSubDomain[] = "qjz9zk";
-+
-+bool IsTrkURL(const GURL&);
-+
-+}; /* namespace ungoogled */
-+
-+#endif /* UNGOOGLED_UTIL_H */
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
-@@ -367,6 +367,7 @@ component("net") {
-     "//net/data/ssl/certificate_transparency:ct_log_list",
-     "//third_party/protobuf:protobuf_lite",
-     "//url:url_features",
-+    "//third_party/ungoogled:util",
-   ]
+@@ -1735,6 +1735,8 @@ component("net") {
+       "url_request/report_sender.h",
+       "url_request/static_http_user_agent_settings.cc",
+       "url_request/static_http_user_agent_settings.h",
++      "url_request/trk_protocol_handler.cc",
++      "url_request/trk_protocol_handler.h",
+       "url_request/url_fetcher.cc",
+       "url_request/url_fetcher.h",
+       "url_request/url_fetcher_core.cc",
+--- a/android_webview/browser/net/aw_url_request_context_getter.cc
++++ b/android_webview/browser/net/aw_url_request_context_getter.cc
+@@ -58,6 +58,7 @@
+ #include "net/ssl/ssl_config_service.h"
+ #include "net/url_request/data_protocol_handler.h"
+ #include "net/url_request/file_protocol_handler.h"
++#include "net/url_request/trk_protocol_handler.h"
+ #include "net/url_request/url_request_context.h"
+ #include "net/url_request/url_request_context_builder.h"
+ #include "net/url_request/url_request_intercepting_job_factory.h"
+@@ -132,6 +133,9 @@ std::unique_ptr<net::URLRequestJobFactor
+       url::kDataScheme, std::make_unique<net::DataProtocolHandler>());
+   DCHECK(set_protocol);
+   set_protocol = aw_job_factory->SetProtocolHandler(
++      url::kTraceScheme, std::make_unique<net::TrkProtocolHandler>());
++  DCHECK(set_protocol);
++  set_protocol = aw_job_factory->SetProtocolHandler(
+       url::kBlobScheme,
+       base::WrapUnique((*protocol_handlers)[url::kBlobScheme].release()));
+   DCHECK(set_protocol);
+--- a/chrome/browser/profiles/profile_io_data.cc
++++ b/chrome/browser/profiles/profile_io_data.cc
+@@ -101,6 +101,7 @@
+ #include "net/url_request/file_protocol_handler.h"
+ #include "net/url_request/ftp_protocol_handler.h"
+ #include "net/url_request/report_sender.h"
++#include "net/url_request/trk_protocol_handler.h"
+ #include "net/url_request/url_request.h"
+ #include "net/url_request/url_request_context.h"
+ #include "net/url_request/url_request_context_builder.h"
+@@ -1327,6 +1328,9 @@ ProfileIOData::SetUpJobFactoryDefaults(
+   set_protocol = job_factory->SetProtocolHandler(
+       url::kDataScheme, std::make_unique<net::DataProtocolHandler>());
+   DCHECK(set_protocol);
++  set_protocol = job_factory->SetProtocolHandler(
++      url::kTraceScheme, std::make_unique<net::TrkProtocolHandler>());
++  DCHECK(set_protocol);
+ #if defined(OS_CHROMEOS)
+   if (profile_params_) {
+     set_protocol = job_factory->SetProtocolHandler(
+--- a/chromecast/browser/url_request_context_factory.cc
++++ b/chromecast/browser/url_request_context_factory.cc
+@@ -42,6 +42,7 @@
+ #include "net/ssl/ssl_config_service_defaults.h"
+ #include "net/url_request/data_protocol_handler.h"
+ #include "net/url_request/file_protocol_handler.h"
++#include "net/url_request/trk_protocol_handler.h"
+ #include "net/url_request/url_request_context.h"
+ #include "net/url_request/url_request_context_builder.h"
+ #include "net/url_request/url_request_context_getter.h"
+@@ -286,6 +287,9 @@ void URLRequestContextFactory::Initializ
+   set_protocol = job_factory->SetProtocolHandler(
+       url::kDataScheme, base::WrapUnique(new net::DataProtocolHandler));
+   DCHECK(set_protocol);
++  set_protocol = job_factory->SetProtocolHandler(
++      url::kTraceScheme, base::WrapUnique(new net::TrkProtocolHandler));
++  DCHECK(set_protocol);
  
-   if (include_transport_security_state_preload_list) {
---- a/content/browser/BUILD.gn
-+++ b/content/browser/BUILD.gn
-@@ -172,6 +172,7 @@ jumbo_source_set("browser") {
-     "//third_party/icu",
-     "//third_party/libyuv",
-     "//third_party/re2",
-+    "//third_party/ungoogled:util",
-     "//third_party/zlib",
-     "//third_party/zlib/google:compression_utils",
-     "//third_party/zlib/google:zip",
+   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+       switches::kEnableLocalFileAccesses)) {
+--- /dev/null
++++ b/net/url_request/trk_protocol_handler.cc
+@@ -0,0 +1,26 @@
++// Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "net/url_request/trk_protocol_handler.h"
++
++#include "base/logging.h"
++#include "net/base/net_errors.h"
++#include "net/url_request/url_request_error_job.h"
++
++namespace net {
++
++TrkProtocolHandler::TrkProtocolHandler() = default;
++
++URLRequestJob* TrkProtocolHandler::MaybeCreateJob(
++    URLRequest* request, NetworkDelegate* network_delegate) const {
++  LOG(ERROR) << "Blocked URL in TrkProtocolHandler: " << request->original_url();
++  return new URLRequestErrorJob(
++      request, network_delegate, ERR_BLOCKED_BY_CLIENT);
++}
++
++bool TrkProtocolHandler::IsSafeRedirectTarget(const GURL& location) const {
++  return true;
++}
++
++}  // namespace net
+--- /dev/null
++++ b/net/url_request/trk_protocol_handler.h
+@@ -0,0 +1,33 @@
++// Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef NET_URL_REQUEST_TRK_PROTOCOL_HANDLER_H_
++#define NET_URL_REQUEST_TRK_PROTOCOL_HANDLER_H_
++
++#include "base/compiler_specific.h"
++#include "base/macros.h"
++#include "net/base/net_export.h"
++#include "net/url_request/url_request_job_factory.h"
++
++namespace net {
++
++class URLRequestJob;
++
++// Implements a ProtocolHandler for Trk jobs.
++class NET_EXPORT TrkProtocolHandler
++    : public URLRequestJobFactory::ProtocolHandler {
++ public:
++  TrkProtocolHandler();
++  URLRequestJob* MaybeCreateJob(
++      URLRequest* request,
++      NetworkDelegate* network_delegate) const override;
++  bool IsSafeRedirectTarget(const GURL& location) const override;
++
++ private:
++  DISALLOW_COPY_AND_ASSIGN(TrkProtocolHandler);
++};
++
++}  // namespace net
++
++#endif  // NET_URL_REQUEST_TRK_PROTOCOL_HANDLER_H_
+--- a/net/url_request/url_request_context_builder.cc
++++ b/net/url_request/url_request_context_builder.cc
+@@ -41,6 +41,7 @@
+ #include "net/ssl/ssl_config_service_defaults.h"
+ #include "net/url_request/data_protocol_handler.h"
+ #include "net/url_request/static_http_user_agent_settings.h"
++#include "net/url_request/trk_protocol_handler.h"
+ #include "net/url_request/url_request_context.h"
+ #include "net/url_request/url_request_context_storage.h"
+ #include "net/url_request/url_request_intercepting_job_factory.h"
+@@ -596,6 +597,8 @@ std::unique_ptr<URLRequestContext> URLRe
+   if (data_enabled_)
+     job_factory->SetProtocolHandler(url::kDataScheme,
+                                     std::make_unique<DataProtocolHandler>());
++  job_factory->SetProtocolHandler(url::kTraceScheme,
++                                  std::make_unique<TrkProtocolHandler>());
+ 
+ #if !BUILDFLAG(DISABLE_FILE_SUPPORT)
+   if (file_enabled_) {
+--- a/url/url_util.cc
++++ b/url/url_util.cc
+@@ -49,6 +49,7 @@ const char* kSecureSchemes[] = {
+   kHttpsScheme,
+   kAboutScheme,
+   kDataScheme,
++  kTraceScheme,
+   kWssScheme,
+ };
+ 
+@@ -66,6 +67,7 @@ const char* kCORSEnabledSchemes[] = {
+   kHttpScheme,
+   kHttpsScheme,
+   kDataScheme,
++  kTraceScheme,
+ };
+ 
+ const char* kWebStorageSchemes[] = {
