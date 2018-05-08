@@ -51,6 +51,7 @@ Most of the **additional** features are as follows:
     * `--disable-search-engine-collection` - Disable automatic search engine scraping from webpages.
     * `--enable-stacked-tab-strip` and `--enable-tab-adjust-layout` - These flags adjust the tab strip behavior. `--enable-stacked-tab-strip` is also configurable in `chrome://flags` Please note that they are not well tested, so proceed with caution.
     * `--extension-mime-request-handling` - Change how extension MIME types (CRX and user scripts) are handled. Acceptable values are `download-as-regular-file` or `install-always`. Leave unset to use normal behavior. It is also configurable under `chrome://flags`
+    * `--fingerprinting-client-rects-noise` - Implements fingerprinting deception of JS APIs `getClientRects()` and `getBoundingClientRect()` by scaling their output values with a random factor in the range -5% to 5%, which are recomputed for every document instantiation.
     * `--set-ipv6-probe-false` - (Not in `chrome://flags`) Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
