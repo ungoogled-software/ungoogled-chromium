@@ -2,6 +2,12 @@
 
 The [GitHub Wiki](//github.com/Eloston/ungoogled-chromium/wiki) contains some additional information that changes more frequently.
 
+## Adding command-line flags and `chrome://flags` options
+
+See `docs/how_to_add_your_feature_flag.md` in the Chromium source tree for the steps needed. Note that updating `tools/metrics/histograms/enums.xml` is not required.
+
+For new flags, first add a constant to `third_party/ungoogled/ungoogled_switches.cc` (by modifying patch `resources/patches/ungoogled-chromium/add-third-party-ungoogled.patch`). Then, use this constant in the steps outlined above.
+
 ## Notes on updating base bundles
 
 To develop a better understanding of base bundles, have a look through [DESIGN.md](DESIGN.md) *and* the existing base bundles. Reading only DESIGN.md may make it difficult to develop intuition of the configuration system, and only exploring existing base bundles may not lead you to the whole picture.
