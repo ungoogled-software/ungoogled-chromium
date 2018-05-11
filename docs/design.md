@@ -167,7 +167,7 @@ buildkit is a Python 3 library and CLI application for building ungoogled-chromi
 
 Use `buildkit-launcher.py` to invoke the buildkit CLI. Pass in `-h` or `--help` for usage details.
 
-For examples of using buildkit's CLI, see [BUILDING.md](BUILDING.md).
+For examples of using buildkit's CLI, see [docs/building.md](docs/building.md).
 
 There is currently no API documentation for buildkit. However, all public classes, functions, and methods have docstrings that explain their usage and behavior.
 

@@ -1,6 +1,6 @@
 # Development notes and procedures
 
-The [GitHub Wiki](//github.com/Eloston/ungoogled-chromium/wiki) contains some additional information that changes more frequently.
+The [GitHub Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/) contains some additional information that changes more frequently.
 
 ## Adding command-line flags and `chrome://flags` options
 
@@ -10,7 +10,7 @@ For new flags, first add a constant to `third_party/ungoogled/ungoogled_switches
 
 ## Notes on updating base bundles
 
-To develop a better understanding of base bundles, have a look through [DESIGN.md](DESIGN.md) *and* the existing base bundles. Reading only DESIGN.md may make it difficult to develop intuition of the configuration system, and only exploring existing base bundles may not lead you to the whole picture.
+To develop a better understanding of base bundles, have a look through [docs/design.md](docs/design.md) *and* the existing base bundles. Reading only docs/design.md may make it difficult to develop intuition of the configuration system, and only exploring existing base bundles may not lead you to the whole picture.
 
 Anytime the base bundles or patches are modified, use `developer_utilities/validate_config.py` to run several sanity checking algorithms.
 
@@ -18,7 +18,7 @@ Anytime the base bundles or patches are modified, use `developer_utilities/valid
 
 Tested on Debian 9.0 (stretch). Exact instructions should work on any other Linux or macOS system with the proper dependencies.
 
-It is recommended to read the [BUILDING.md](BUILDING.md) and [DESIGN.md](DESIGN.md) documents first to gain a deeper understanding of the process.
+It is recommended to read the [docs/building.md](docs/building.md) and [docs/design.md](docs/design.md) documents first to gain a deeper understanding of the process.
 
 ### Dependencies
 

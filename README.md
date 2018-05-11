@@ -40,8 +40,8 @@ ungoogled-chromium selectively borrows many of its features from the following:
 * [Iridium Browser](//iridiumbrowser.de/)
 
 Most of the **additional** features are as follows:
-* Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution; [see DESIGN.md](DESIGN.md#source-file-processors))
-* Strip binaries from the source code (known as binary pruning; [see DESIGN.md](DESIGN.md#source-file-processors))
+* Replace many web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution; [see docs/design.md](docs/design.md#source-file-processors))
+* Strip binaries from the source code (known as binary pruning; [see docs/design.md](docs/design.md#source-file-processors))
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Disable automatic formatting of URLs in Omnibox (e.g. stripping `http://`, hiding certain parameters)
@@ -55,7 +55,7 @@ Most of the **additional** features are as follows:
     * `--set-ipv6-probe-false` - (Not in `chrome://flags`) Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
-    * See the [FAQ](FAQ.md#why-is-safe-browsing-disabled)
+    * See the [FAQ](https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq#why-is-safe-browsing-disabled)
 * Disable intranet redirect detector (extraneous DNS requests)
     * This breaks captive portal detection, but captive portals still work.
 * Add more URL schemes allowed for saving
@@ -103,15 +103,15 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 ## Frequently-asked questions
 
-[See FAQ.md](FAQ.md)
+[See the FAQ on the Wiki](https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
 
 ## Design and implementation
 
-[See DESIGN.md](DESIGN.md)
+[See docs/design.md](docs/design.md)
 
 ## Building
 
-[See BUILDING.md](BUILDING.md)
+[See docs/building.md](docs/building.md)
 
 ## Contributing, Reporting, Contacting
 

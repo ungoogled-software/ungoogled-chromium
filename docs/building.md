@@ -315,9 +315,9 @@ A compressed tar archive will appear in `buildspace/tree/ungoogled_packaging/`
 
 This section holds some information about building for unsupported systems and a rough building outline.
 
-It is recommended to have an understanding of [DESIGN.md](DESIGN.md).
+It is recommended to have an understanding of [docs/design.md](docs/design.md).
 
-**Note for unsupported systems**: There is no set procedure for building ungoogled-chromium on unsupported systems. One should already be able to build Chromium for their system before attempting to include ungoogled-chromium changes. More information about the Chromium build procedure is on [the Chromium project website](https://www.chromium.org/Home). One should also understand [DESIGN.md](DESIGN.md) before including ungoogled-chromium changes.
+**Note for unsupported systems**: There is no set procedure for building ungoogled-chromium on unsupported systems. One should already be able to build Chromium for their system before attempting to include ungoogled-chromium changes. More information about the Chromium build procedure is on [the Chromium project website](https://www.chromium.org/Home). One should also understand [docs/design.md](docs/design.md) before including ungoogled-chromium changes.
 
 ### Essential building requirements
 
