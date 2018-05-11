@@ -249,29 +249,46 @@ def _add_subdom(subparsers):
     """Substitutes domain names in buildspace tree or patches with blockable strings."""
     def _callback(args):
         try:
-            if not args.only or args.only == 'tree':
-                domain_substitution.process_tree_with_bundle(args.bundle, args.tree)
-            if not args.only or args.only == 'patches':
-                domain_substitution.process_bundle_patches(args.bundle)
+            if args.reverting:
+                domain_substitution.revert_substitution(args.cache, args.tree)
+            else:
+                domain_substitution.apply_substitution(args.bundle, args.tree, args.cache)
+        except FileExistsError as exc:
+            get_logger().error('File or directory already exists: %s', exc)
+            raise _CLIError()
         except FileNotFoundError as exc:
             get_logger().error('File or directory does not exist: %s', exc)
             raise _CLIError()
         except NotADirectoryError as exc:
             get_logger().error('Patches directory does not exist: %s', exc)
             raise _CLIError()
+        except KeyError as exc:
+            get_logger().error('%s', exc)
+            raise _CLIError()
     parser = subparsers.add_parser(
         'subdom', help=_add_subdom.__doc__, description=_add_subdom.__doc__ + (
             ' By default, it will substitute the domains on both the buildspace tree and '
             'the bundle\'s patches.'))
-    setup_bundle_group(parser)
+    subsubparsers = parser.add_subparsers(title='Available packaging types', dest='packaging')
+    subsubparsers.required = True # Workaround for http://bugs.python.org/issue9253#msg186387
     parser.add_argument(
-        '-o', '--only', choices=['tree', 'patches'],
-        help=('Specifies a component to exclusively apply domain substitution to. '
-              '"tree" is for the buildspace tree, and "patches" is for the bundle\'s patches.'))
+        '-c', '--cache', type=Path, default='buildspace/domainsubcache.tar.gz',
+        help=('The path to the domain substitution cache. For applying, this path must not '
+              'already exist. For reverting, the path must exist and will be removed '
+              'if successful. Default: %(default)s'))
     parser.add_argument(
         '-t', '--tree', type=Path, default=BUILDSPACE_TREE,
         help=('The buildspace tree path to apply domain substitution. '
               'Not applicable when --only is "patches". Default: %(default)s'))
+    apply_parser = subsubparsers.add_parser(
+        'apply', help='Apply domain substitution',
+        description='Applies domain substitution and creates the domain substitution cache.')
+    setup_bundle_group(apply_parser)
+    apply_parser.set_defaults(reverting=False)
+    reverse_parser = subsubparsers.add_parser(
+        'revert', help='Revert domain substitution',
+        description='Reverts domain substitution based only on the domain substitution cache.')
+    reverse_parser.set_defaults(reverting=True)
     parser.set_defaults(callback=_callback)
 
 def _add_genpkg_archlinux(subparsers):

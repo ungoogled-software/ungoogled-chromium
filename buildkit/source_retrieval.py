@@ -13,7 +13,7 @@ import hashlib
 from pathlib import Path
 
 from .common import (
-    ENCODING, ExtractorEnum, get_logger, ensure_empty_dir)
+    ENCODING, BuildkitError, ExtractorEnum, get_logger, ensure_empty_dir)
 from .extraction import extract_tar_file, extract_with_7z
 
 # Constants
@@ -28,7 +28,7 @@ class NotAFileError(OSError):
     """Exception for paths expected to be regular files"""
     pass
 
-class HashMismatchError(Exception):
+class HashMismatchError(BuildkitError):
     """Exception for computed hashes not matching expected hashes"""
     pass
 

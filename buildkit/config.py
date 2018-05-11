@@ -11,7 +11,6 @@ Build configuration generation implementation
 import abc
 import configparser
 import collections
-import itertools
 import re
 import shutil
 
@@ -496,132 +495,24 @@ class DomainRegexList(ListConfigFile):
     # Constants for format:
     _PATTERN_REPLACE_DELIM = '#'
 
-    # Constants for inverted regex pair validation and generation
-    _regex_group_pattern = re.compile(r'\(.+?\)')
-    _regex_group_index_pattern = re.compile(r'\\g<[1-9]>')
-    _regex_period_pattern = re.compile(r'\.')
-    _regex_period_repl = r'\.'
-    _regex_escaped_period_pattern = re.compile(r'\\\.')
-    _regex_escaped_period_repl = '.'
-    _regex_valid_name_piece = re.compile(r'^[a-zA-Z0-9\-]*$')
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Cache of compiled regex pairs
         self._compiled_regex = None
-        self._compiled_inverted_regex = None
 
     def _compile_regex(self, line):
         """Generates a regex pair tuple for the given line"""
         pattern, replacement = line.split(self._PATTERN_REPLACE_DELIM)
         return self._regex_pair_tuple(re.compile(pattern), replacement)
 
-    def _compile_inverted_regex(self, line):
-        """
-        Generates a regex pair tuple with inverted pattern and replacement for
-        the given line.
-
-        Raises BuildkitAbort if this fragile code breaks or some assumption
-        checking fails.
-        """
-        # Because domain substitution regex expressions are really simple, some
-        # hacky code was written here to generate inverted regex pairs.
-        # Assumptions about the expressions (in addition to DESIGN.md):
-        # * Search expression has one-to-one mapping of groups (denoted by parenthesis) to
-        # group number (denoted by '\g<integer>') in the replacement expression
-        # * There are no overlapping groups
-        # * There are no nested groups
-        # * All periods used are literal periods for the domain name, not the expression
-        # * There are the same number of groups in the pattern as there are substitutions
-        # in the replacement expression
-        # * Group indexes in the replacement expression are unique ordered
-        try:
-            pattern_orig, replacement_orig = line.split(self._PATTERN_REPLACE_DELIM)
-
-            # ensure there are no nested groups
-            for match in self._regex_group_pattern.finditer(pattern_orig):
-                group_str = match.group()
-                if group_str.count('(') > 1 or group_str.count(')') > 1:
-                    raise ValueError('Cannot invert pattern with nested grouping')
-            # ensure there are only domain name-valid characters outside groups
-            for domain_piece in self._regex_group_pattern.split(pattern_orig):
-                domain_piece = self._regex_escaped_period_pattern.sub('', domain_piece)
-                if not self._regex_valid_name_piece.match(domain_piece):
-                    raise ValueError('A character outside group is not alphanumeric or dash')
-            # ensure there are equal number of groups in pattern as substitutions
-            # in replacement, and that group indexes are unique and ordered
-            replacement_orig_groups = self._regex_group_index_pattern.findall(
-                replacement_orig)
-            if len(self._regex_group_pattern.findall(pattern_orig)) != len(
-                    replacement_orig_groups):
-                raise ValueError('Unequal number of groups in pattern and replacement')
-            for index, item in enumerate(replacement_orig_groups):
-                if str(index + 1) != item[3]:
-                    raise ValueError('Group indexes in replacement are not ordered')
-
-            # pattern generation
-            group_iter = self._regex_group_pattern.finditer(pattern_orig)
-            pattern = self._regex_period_pattern.sub(
-                self._regex_period_repl, replacement_orig)
-            pattern = self._regex_group_index_pattern.sub(
-                lambda x: next(group_iter).group(), pattern)
-
-            # replacement generation
-            counter = itertools.count(1)
-            replacement = self._regex_group_pattern.sub(
-                lambda x: r'\g<%s>' % next(counter), pattern_orig)
-            replacement = self._regex_escaped_period_pattern.sub(
-                self._regex_escaped_period_repl, replacement)
-
-            return self._regex_pair_tuple(re.compile(pattern), replacement)
-        except BaseException:
-            get_logger().error('Error inverting regex for line: %s', line)
-            raise BuildkitAbort()
-
-    def _check_invertible(self):
-        """
-        Returns True if the expression pairs seem to be invertible; False otherwise
-
-        One of the conflicting pairs is logged.
-        """
-        pattern_set = set()
-        replacement_set = set()
-        for line in self:
-            pattern, replacement = line.split(self._PATTERN_REPLACE_DELIM)
-            pattern_parsed = self._regex_group_pattern.sub('', pattern)
-            if pattern_parsed in pattern_set:
-                get_logger().error('Pair pattern breaks invertibility: %s', pattern)
-                return False
-            else:
-                pattern_set.add(pattern_parsed)
-            replacement_parsed = self._regex_group_index_pattern.sub('', replacement)
-            if replacement_parsed in replacement_set:
-                get_logger().error('Pair replacement breaks invertibility: %s', replacement)
-                return False
-            else:
-                replacement_set.add(replacement_parsed)
-        return True
-
-    def get_pairs(self, invert=False):
+    def get_pairs(self):
         """
         Returns a tuple of compiled regex pairs
-
-        invert specifies if the search and replacement expressions should be inverted.
-
-        If invert=True, raises ValueError if a pair isn't invertible.
-        If invert=True, may raise undetermined exceptions during pair inversion
         """
-        if invert:
-            if not self._compiled_inverted_regex:
-                if not self._check_invertible():
-                    raise ValueError('A pair is not invertible')
-                self._compiled_inverted_regex = tuple(map(self._compile_inverted_regex, self))
-            return self._compiled_inverted_regex
-        else:
-            if not self._compiled_regex:
-                self._compiled_regex = tuple(map(self._compile_regex, self))
-            return self._compiled_regex
+        if not self._compiled_regex:
+            self._compiled_regex = tuple(map(self._compile_regex, self))
+        return self._compiled_regex
 
     @property
     def search_regex(self):

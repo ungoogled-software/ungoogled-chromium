@@ -148,7 +148,7 @@ def _extract_tar_with_python(archive_path, buildspace_tree, unpack_dir, ignore_f
         get_logger().exception('Unexpected exception during symlink support check.')
         raise BuildkitAbort()
 
-    with tarfile.open(str(archive_path)) as tar_file_obj:
+    with tarfile.open(str(archive_path), 'r|%s' % archive_path.suffix[1:]) as tar_file_obj:
         tar_file_obj.members = NoAppendList()
         for tarinfo in tar_file_obj:
             try:
@@ -187,14 +187,14 @@ def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, re
     archive_path is the pathlib.Path to the archive to unpack
     buildspace_tree is a pathlib.Path to the buildspace tree.
     unpack_dir is a pathlib.Path relative to buildspace_tree to unpack the archive.
-    It must already exist.
+        It must already exist.
 
     ignore_files is a set of paths as strings that should not be extracted from the archive.
-    Files that have been ignored are removed from the set.
+        Files that have been ignored are removed from the set.
     relative_to is a pathlib.Path for directories that should be stripped relative to the
-    root of the archive.
+        root of the archive, or None if no path components should be stripped.
     extractors is a dictionary of PlatformEnum to a command or path to the
-    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
+        extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
 
     Raises BuildkitAbort if unexpected issues arise during unpacking.
     """
