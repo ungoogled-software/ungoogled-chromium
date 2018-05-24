@@ -1,0 +1,67 @@
+From 2a6309e504376b3f6890df0c1f4d47a1b66866c5 Mon Sep 17 00:00:00 2001
+From: Tom Anderson <thomasanderson@chromium.org>
+Date: Wed, 07 Mar 2018 16:10:40 -0800
+Subject: [PATCH] Format flags for llvm-ar
+
+We're planning on passing -T to llvm-ar as part of regular builds on Linux.
+However, llvm-ar is very particular in its syntax.  It requires the operation to
+be specified all in one go like "rcsDT", and forbids "-r -c -s -D -T", "rcsD T",
+or anything else that has any spaces or dashes.  This makes specifying multiple
+flags like arflags=['D', 'T'] difficult since gn will add spaces between them.
+This CL fixes the issue in our ar wrapper script to correctly format the flags
+for llvm-ar.  This issue was never seen because arflags is not set anywhere in a
+Linux build.
+
+BUG=801925
+R=thakis
+
+Change-Id: Idb710052f54487011d6dabc5f30448f78a765515
+---
+
+--- a/build/toolchain/gcc_ar_wrapper.py
++++ b/build/toolchain/gcc_ar_wrapper.py
+@@ -25,6 +25,9 @@ def main():
+                       required=True,
+                       help='The ar binary to run',
+                       metavar='PATH')
++  parser.add_argument('--arflags',
++                      required=True,
++                      help='Flags to pass to ar')
+   parser.add_argument('--output',
+                       required=True,
+                       help='Output archive file',
+@@ -34,8 +37,6 @@ def main():
+   parser.add_argument('--resource-whitelist',
+                       help='Merge all resource whitelists into a single file.',
+                       metavar='PATH')
+-  parser.add_argument('operation',
+-                      help='Operation on the archive')
+   parser.add_argument('inputs', nargs='+',
+                       help='Input files')
+   args = parser.parse_args()
+@@ -57,7 +58,13 @@ def main():
+       wrapper_utils.CombineResourceWhitelists(
+           whitelist_candidates, args.resource_whitelist)
+ 
+-  command = [args.ar] + object_mode + args.operation.split()
++  # GNU ar is forgiving with how it handles flags, but llvm-ar is more strict.
++  # Something like "ar -r -c -s -D -T libfoo.a foo.o" would work on GNU, but
++  # llvm requires "llvm-ar rcsDT libfoo.a foo.o".  The latter works on GNU too,
++  # so strip spaces and dashes from arflags to handle both cases.
++  operation = args.arflags.replace(' ', '').replace('-', '')
++
++  command = [args.ar] + object_mode + [operation]
+   if args.plugin is not None:
+     command += ['--plugin', args.plugin]
+   command.append(args.output)
+--- a/build/toolchain/gcc_toolchain.gni
++++ b/build/toolchain/gcc_toolchain.gni
+@@ -348,7 +348,7 @@ template("gcc_toolchain") {
+ 
+       # Almost all targets build with //build/config/compiler:thin_archive which
+       # adds -T to arflags.
+-      command = "$python_path \"$ar_wrapper\"$whitelist_flag --output={{output}} --ar=\"$ar\" \"{{arflags}} $extra_arflags\" @\"$rspfile\""
++      command = "$python_path \"$ar_wrapper\"$whitelist_flag --output={{output}} --ar=\"$ar\" --arflags=\"{{arflags}} $extra_arflags\" @\"$rspfile\""
+       description = "AR {{output}}"
+       rspfile_content = "{{inputs}}"
+       outputs = [
