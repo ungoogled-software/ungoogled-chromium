@@ -3,7 +3,7 @@
 
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -114,6 +114,7 @@
+@@ -117,6 +117,7 @@
  #include "services/network/public/cpp/network_switches.h"
  #include "services/service_manager/sandbox/switches.h"
  #include "third_party/libaom/av1_features.h"
@@ -11,7 +11,7 @@
  #include "ui/app_list/app_list_features.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/base/ui_base_switches.h"
-@@ -1236,6 +1237,10 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1255,6 +1256,10 @@ const FeatureEntry kFeatureEntries[] = {
       "Force punycode hostnames",
       "Force punycode in hostnames instead of Unicode when displaying Internationalized Domain Names (IDNs).",
       kOsAll, SINGLE_VALUE_TYPE("force-punycode-hostnames")},
@@ -27,32 +27,32 @@
 @@ -19,6 +19,7 @@
  #include "services/device/public/cpp/device_features.h"
  #include "services/network/public/cpp/features.h"
- #include "third_party/WebKit/public/platform/WebRuntimeFeatures.h"
+ #include "third_party/blink/public/platform/web_runtime_features.h"
 +#include "third_party/ungoogled/ungoogled_switches.h"
  #include "ui/gfx/switches.h"
  #include "ui/gl/gl_switches.h"
  #include "ui/native_theme/native_theme_features.h"
-@@ -435,6 +436,9 @@ void SetRuntimeFeaturesDefaultsAndUpdate
+@@ -449,6 +450,9 @@ void SetRuntimeFeaturesDefaultsAndUpdate
  
-   if (base::FeatureList::IsEnabled(features::kUnifiedTouchAdjustment))
-     WebRuntimeFeatures::EnableUnifiedTouchAdjustment(true);
+   WebRuntimeFeatures::EnableOffMainThreadWebSocket(
+       base::FeatureList::IsEnabled(features::kOffMainThreadWebSocket));
 +
 +  WebRuntimeFeatures::EnableFingerprintingClientRectsNoise(
 +      command_line.HasSwitch(switches::kFingerprintingClientRectsNoise));
  };
  
  }  // namespace content
---- a/third_party/WebKit/Source/core/dom/Document.cpp
-+++ b/third_party/WebKit/Source/core/dom/Document.cpp
-@@ -29,6 +29,7 @@
+--- a/third_party/blink/renderer/core/dom/document.cc
++++ b/third_party/blink/renderer/core/dom/document.cc
+@@ -31,6 +31,7 @@
  
- #include "core/dom/Document.h"
+ #include <memory>
  
 +#include "base/rand_util.h"
- #include "bindings/core/v8/ExceptionMessages.h"
- #include "bindings/core/v8/ExceptionState.h"
- #include "bindings/core/v8/ScriptController.h"
-@@ -729,6 +730,15 @@ Document::Document(const DocumentInit& i
+ #include "services/metrics/public/cpp/mojo_ukm_recorder.h"
+ #include "services/metrics/public/cpp/ukm_builders.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
+@@ -737,6 +738,15 @@ Document::Document(const DocumentInit& i
  #ifndef NDEBUG
    liveDocumentSet().insert(this);
  #endif
@@ -68,7 +68,7 @@
  }
  
  Document::~Document() {
-@@ -755,6 +765,14 @@ Range* Document::CreateRangeAdjustedToTr
+@@ -763,6 +773,14 @@ Range* Document::CreateRangeAdjustedToTr
                         Position::BeforeNode(*shadow_host));
  }
  
@@ -83,9 +83,9 @@
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
---- a/third_party/WebKit/Source/core/dom/Document.h
-+++ b/third_party/WebKit/Source/core/dom/Document.h
-@@ -406,6 +406,10 @@ class CORE_EXPORT Document : public Cont
+--- a/third_party/blink/renderer/core/dom/document.h
++++ b/third_party/blink/renderer/core/dom/document.h
+@@ -408,6 +408,10 @@ class CORE_EXPORT Document : public Cont
  
    String origin() const;
  
@@ -96,7 +96,7 @@
    String visibilityState() const;
    mojom::PageVisibilityState GetPageVisibilityState() const;
    bool hidden() const;
-@@ -1663,6 +1667,9 @@ class CORE_EXPORT Document : public Cont
+@@ -1670,6 +1674,9 @@ class CORE_EXPORT Document : public Cont
  
    double start_time_;
  
@@ -106,9 +106,9 @@
    TraceWrapperMember<ScriptRunner> script_runner_;
  
    HeapVector<Member<ScriptElementBase>> current_script_stack_;
---- a/third_party/WebKit/Source/core/dom/Element.cpp
-+++ b/third_party/WebKit/Source/core/dom/Element.cpp
-@@ -1327,6 +1327,11 @@ DOMRectList* Element::getClientRects() {
+--- a/third_party/blink/renderer/core/dom/element.cc
++++ b/third_party/blink/renderer/core/dom/element.cc
+@@ -1348,6 +1348,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustFloatQuadsForScrollAndAbsoluteZoom(
        quads, *element_layout_object);
@@ -120,7 +120,7 @@
    return DOMRectList::Create(quads);
  }
  
-@@ -1344,6 +1349,9 @@ DOMRect* Element::getBoundingClientRect(
+@@ -1365,6 +1370,9 @@ DOMRect* Element::getBoundingClientRect(
    DCHECK(element_layout_object);
    GetDocument().AdjustFloatRectForScrollAndAbsoluteZoom(result,
                                                          *element_layout_object);
@@ -130,9 +130,9 @@
    return DOMRect::FromFloatRect(result);
  }
  
---- a/third_party/WebKit/Source/core/dom/Range.cpp
-+++ b/third_party/WebKit/Source/core/dom/Range.cpp
-@@ -1589,11 +1589,21 @@ DOMRectList* Range::getClientRects() con
+--- a/third_party/blink/renderer/core/dom/range.cc
++++ b/third_party/blink/renderer/core/dom/range.cc
+@@ -1575,11 +1575,21 @@ DOMRectList* Range::getClientRects() con
    Vector<FloatQuad> quads;
    GetBorderAndTextQuads(quads);
  
@@ -155,9 +155,9 @@
  }
  
  // TODO(editing-dev): We should make
---- a/third_party/WebKit/Source/platform/runtime_enabled_features.json5
-+++ b/third_party/WebKit/Source/platform/runtime_enabled_features.json5
-@@ -432,6 +432,9 @@
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -477,6 +477,9 @@
        status: "stable",
      },
      {
@@ -167,10 +167,10 @@
        name: "FocusOptions",
        status: "stable",
      },
---- a/third_party/WebKit/Source/platform/exported/WebRuntimeFeatures.cpp
-+++ b/third_party/WebKit/Source/platform/exported/WebRuntimeFeatures.cpp
-@@ -506,4 +506,8 @@ void WebRuntimeFeatures::EnableMojoBlobU
-   RuntimeEnabledFeatures::SetMojoBlobURLsEnabled(enable);
+--- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
++++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
+@@ -518,4 +518,8 @@ void WebRuntimeFeatures::EnableOffMainTh
+   RuntimeEnabledFeatures::SetOffMainThreadWebSocketEnabled(enable);
  }
  
 +void WebRuntimeFeatures::EnableFingerprintingClientRectsNoise(bool enable) {
@@ -178,19 +178,19 @@
 +}
 +
  }  // namespace blink
---- a/third_party/WebKit/public/platform/WebRuntimeFeatures.h
-+++ b/third_party/WebKit/public/platform/WebRuntimeFeatures.h
-@@ -188,6 +188,7 @@ class WebRuntimeFeatures {
-   BLINK_PLATFORM_EXPORT static void EnableCodeCacheAfterExecute(bool);
+--- a/third_party/blink/public/platform/web_runtime_features.h
++++ b/third_party/blink/public/platform/web_runtime_features.h
+@@ -189,6 +189,7 @@ class WebRuntimeFeatures {
    BLINK_PLATFORM_EXPORT static void EnableUnifiedTouchAdjustment(bool);
    BLINK_PLATFORM_EXPORT static void EnableMojoBlobURLs(bool);
+   BLINK_PLATFORM_EXPORT static void EnableOffMainThreadWebSocket(bool);
 +  BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
  
   private:
    WebRuntimeFeatures();
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -1811,6 +1811,7 @@ jumbo_split_static_library("browser") {
+@@ -1813,6 +1813,7 @@ jumbo_split_static_library("browser") {
      "//third_party/metrics_proto",
      "//third_party/re2",
      "//third_party/smhasher:cityhash",
@@ -210,15 +210,15 @@
      "//third_party/zlib/google:zip",
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -205,6 +205,7 @@
+@@ -209,6 +209,7 @@
  #include "storage/browser/fileapi/sandbox_file_system_backend.h"
- #include "third_party/WebKit/public/common/page/launching_process_state.h"
- #include "third_party/WebKit/public/public_features.h"
+ #include "third_party/blink/public/common/page/launching_process_state.h"
+ #include "third_party/blink/public/public_buildflags.h"
 +#include "third_party/ungoogled/ungoogled_switches.h"
  #include "third_party/skia/include/core/SkBitmap.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/base/ui_base_switches.h"
-@@ -2589,6 +2590,7 @@ void RenderProcessHostImpl::PropagateBro
+@@ -2763,6 +2764,7 @@ void RenderProcessHostImpl::PropagateBro
      switches::kEnableWebGLImageChromium,
      switches::kEnableWebVR,
      switches::kExplicitlyAllowedPorts,
@@ -229,17 +229,17 @@
 --- a/content/child/BUILD.gn
 +++ b/content/child/BUILD.gn
 @@ -126,6 +126,7 @@ target(link_target_type, "child") {
-     "//third_party/WebKit/public:scaled_resources",
-     "//third_party/WebKit/public/common",
+     "//third_party/blink/public:scaled_resources",
+     "//third_party/blink/public/common",
      "//third_party/ced",
 +    "//third_party/ungoogled:switches",
      "//third_party/zlib/google:compression_utils",
      "//ui/base",
      "//ui/events/gestures/blink",
---- a/third_party/WebKit/Source/platform/BUILD.gn
-+++ b/third_party/WebKit/Source/platform/BUILD.gn
-@@ -1562,6 +1562,7 @@ jumbo_component("platform") {
-     "//third_party/WebKit/public:offscreen_canvas_mojo_bindings_blink",
+--- a/third_party/blink/renderer/platform/BUILD.gn
++++ b/third_party/blink/renderer/platform/BUILD.gn
+@@ -1558,6 +1558,7 @@ jumbo_component("platform") {
+     "//third_party/blink/public:offscreen_canvas_mojo_bindings_blink",
      "//third_party/ced",
      "//third_party/icu",
 +    "//third_party/ungoogled:switches",

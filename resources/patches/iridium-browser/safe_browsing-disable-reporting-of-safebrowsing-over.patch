@@ -13,23 +13,29 @@ This prevents trk:148 (phishing) and trk:149 (malware).
 
 --- a/chrome/browser/safe_browsing/client_side_detection_service.cc
 +++ b/chrome/browser/safe_browsing/client_side_detection_service.cc
-@@ -63,12 +63,6 @@ namespace {
-     REPORT_RESULT_MAX
-   };
+@@ -62,12 +62,6 @@ enum MalwareReportTypes {
+   REPORT_RESULT_MAX
+ };
  
--  void UpdateEnumUMAHistogram(MalwareReportTypes report_type) {
--    DCHECK(report_type >= 0 && report_type < REPORT_RESULT_MAX);
--    UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports",
--                              report_type, REPORT_RESULT_MAX);
--  }
+-void UpdateEnumUMAHistogram(MalwareReportTypes report_type) {
+-  DCHECK(report_type >= 0 && report_type < REPORT_RESULT_MAX);
+-  UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports", report_type,
+-                            REPORT_RESULT_MAX);
+-}
 -
  }  // namespace
  
  const int ClientSideDetectionService::kInitialClientModelFetchDelayMs = 10000;
-@@ -282,83 +276,8 @@ void ClientSideDetectionService::StartCl
-     return;
-   }
+@@ -277,90 +271,9 @@ void ClientSideDetectionService::StartCl
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   std::unique_ptr<ClientPhishingRequest> request(verdict);
  
+-  if (!enabled_) {
+-    if (!callback.is_null())
+-      callback.Run(GURL(request->url()), false);
+-    return;
+-  }
+-
 -  // Fill in metadata about which model we used.
 -  if (is_extended_reporting) {
 -    request->set_model_filename(model_loader_extended_->name());
@@ -39,7 +45,9 @@ This prevents trk:148 (phishing) and trk:149 (malware).
 -    request->set_model_filename(model_loader_standard_->name());
 -    request->mutable_population()->set_user_population(
 -        ChromeUserPopulation::SAFE_BROWSING);
--  }
++  if (!callback.is_null())
++    callback.Run(GURL(request->url()), false);
+   }
 -  DVLOG(2) << "Starting report for hit on model " << request->model_filename();
 -
 -  std::string request_data;
@@ -86,36 +94,41 @@ This prevents trk:148 (phishing) and trk:149 (malware).
 -              }
 -            }
 -          })");
--  std::unique_ptr<net::URLFetcher> fetcher(net::URLFetcher::Create(
--      0 /* ID used for testing */, GetClientReportUrl(kClientReportPhishingUrl),
--      net::URLFetcher::POST, this, traffic_annotation));
--  net::URLFetcher* fetcher_ptr = fetcher.get();
--  data_use_measurement::DataUseUserData::AttachToFetcher(
--      fetcher_ptr, data_use_measurement::DataUseUserData::SAFE_BROWSING);
+-  auto resource_request = std::make_unique<network::ResourceRequest>();
+-  resource_request->url = GetClientReportUrl(kClientReportPhishingUrl);
+-  resource_request->method = "POST";
+-  resource_request->load_flags = net::LOAD_DISABLE_CACHE;
+-  auto loader = network::SimpleURLLoader::Create(std::move(resource_request),
+-                                                 traffic_annotation);
+-  loader->AttachStringForUpload(request_data, "application/octet-stream");
+-  loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
+-      url_loader_factory_.get(),
+-      base::BindOnce(&ClientSideDetectionService::OnURLLoaderComplete,
+-                     base::Unretained(this), loader.get()));
 -
 -  // Remember which callback and URL correspond to the current fetcher object.
 -  std::unique_ptr<ClientPhishingReportInfo> info(new ClientPhishingReportInfo);
--  info->fetcher = std::move(fetcher);
+-  auto* loader_ptr = loader.get();
+-  info->loader = std::move(loader);
 -  info->callback = callback;
 -  info->phishing_url = GURL(request->url());
--  client_phishing_reports_[fetcher_ptr] = std::move(info);
--
--  fetcher_ptr->SetLoadFlags(net::LOAD_DISABLE_CACHE);
--  fetcher_ptr->SetRequestContext(request_context_getter_.get());
--  fetcher_ptr->SetUploadData("application/octet-stream", request_data);
--  fetcher_ptr->Start();
+-  client_phishing_reports_[loader_ptr] = std::move(info);
 -
 -  // Record that we made a request
 -  phishing_report_times_.push(base::Time::Now());
-+  if (!callback.is_null())
-+    callback.Run(GURL(request->url()), false);
  }
  
  void ClientSideDetectionService::StartClientReportMalwareRequest(
-@@ -373,74 +292,8 @@ void ClientSideDetectionService::StartCl
-     return;
-   }
+@@ -369,81 +282,8 @@ void ClientSideDetectionService::StartCl
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   std::unique_ptr<ClientMalwareRequest> request(verdict);
  
+-  if (!enabled_) {
+-    if (!callback.is_null())
+-      callback.Run(GURL(request->url()), GURL(request->url()), false);
+-    return;
+-  }
+-
 -  std::string request_data;
 -  if (!request->SerializeToString(&request_data)) {
 -    UpdateEnumUMAHistogram(REPORT_FAILED_SERIALIZATION);
@@ -157,27 +170,28 @@ This prevents trk:148 (phishing) and trk:149 (malware).
 -              }
 -            }
 -          })");
--  std::unique_ptr<net::URLFetcher> fetcher(net::URLFetcher::Create(
--      0 /* ID used for testing */, GetClientReportUrl(kClientReportMalwareUrl),
--      net::URLFetcher::POST, this, traffic_annotation));
--  net::URLFetcher* fetcher_ptr = fetcher.get();
--  data_use_measurement::DataUseUserData::AttachToFetcher(
--      fetcher_ptr, data_use_measurement::DataUseUserData::SAFE_BROWSING);
+-  auto resource_request = std::make_unique<network::ResourceRequest>();
+-  resource_request->url = GetClientReportUrl(kClientReportMalwareUrl);
+-  resource_request->method = "POST";
+-  resource_request->load_flags = net::LOAD_DISABLE_CACHE;
+-  auto loader = network::SimpleURLLoader::Create(std::move(resource_request),
+-                                                 traffic_annotation);
+-  loader->AttachStringForUpload(request_data, "application/octet-stream");
+-  loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
+-      url_loader_factory_.get(),
+-      base::BindOnce(&ClientSideDetectionService::OnURLLoaderComplete,
+-                     base::Unretained(this), loader.get()));
 -
 -  // Remember which callback and URL correspond to the current fetcher object.
 -  std::unique_ptr<ClientMalwareReportInfo> info(new ClientMalwareReportInfo);
--  info->fetcher = std::move(fetcher);
+-  auto* loader_ptr = loader.get();
+-  info->loader = std::move(loader);
 -  info->callback = callback;
 -  info->original_url = GURL(request->url());
--  client_malware_reports_[fetcher_ptr] = std::move(info);
+-  client_malware_reports_[loader_ptr] = std::move(info);
 -
--  fetcher_ptr->SetLoadFlags(net::LOAD_DISABLE_CACHE);
--  fetcher_ptr->SetRequestContext(request_context_getter_.get());
--  fetcher_ptr->SetUploadData("application/octet-stream", request_data);
--  fetcher_ptr->Start();
--
--  UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports",
--                            REPORT_SENT, REPORT_RESULT_MAX);
+-  UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports", REPORT_SENT,
+-                            REPORT_RESULT_MAX);
 -
 -  UMA_HISTOGRAM_COUNTS("SBClientMalware.IPBlacklistRequestPayloadSize",
 -                       request_data.size());
@@ -188,4 +202,4 @@ This prevents trk:148 (phishing) and trk:149 (malware).
 +    callback.Run(GURL(request->url()), GURL(request->url()), false);
  }
  
- 
+ void ClientSideDetectionService::HandlePhishingVerdict(
