@@ -81,15 +81,6 @@ prepare() {
   cd "$srcdir/chromium-$pkgver"
 
   msg2 'Applying build patches'
-  # https://crbug.com/710701
-  local _chrome_build_hash=$(base64 -d ../chromium-$pkgver.txt |
-    grep -Po '^parent \K[0-9a-f]{40}$')
-  if [[ -z $_chrome_build_hash ]]; then
-    error "Unable to find Chrome build hash."
-    return 1
-  fi
-  echo "LASTCHANGE=$_chrome_build_hash-" >build/util/LASTCHANGE
-
   # Apply patches
   env QUILT_PATCHES="$_user_bundle/patches" quilt push -a
 
@@ -105,6 +96,7 @@ prepare() {
       \! -path "*third_party/$_lib/chromium/*" \
       \! -path "*third_party/$_lib/google/*" \
       \! -path './base/third_party/icu/*' \
+      \! -path './third_party/crashpad/crashpad/third_party/zlib/zlib_crashpad.h' \
       \! -path './third_party/pdfium/third_party/freetype/include/pstables.h' \
       \! -path './third_party/yasm/run_yasm.py' \
       \! -regex '.*\.\(gn\|gni\|isolate\)' \
@@ -148,7 +140,7 @@ $ungoog{gn_flags}
     --script-executable=/usr/bin/python2 --fail-on-unused-args
 
   msg2 'Building Chromium'
-  ninja -C $ungoog{build_output} chrome chrome_sandbox chromedriver widevinecdmadapter
+  ninja -C $ungoog{build_output} chrome chrome_sandbox chromedriver
 }
 
 package() {
@@ -176,7 +168,7 @@ package() {
 
   cp \
     $ungoog{build_output}/{chrome_{100,200}_percent,resources}.pak \
-    $ungoog{build_output}/{*.bin,chromedriver,libwidevinecdmadapter.so} \
+    $ungoog{build_output}/{*.bin,chromedriver} \
     "$pkgdir/usr/lib/chromium/"
   install -Dm644 -t "$pkgdir/usr/lib/chromium/locales" $ungoog{build_output}/locales/*.pak
 
