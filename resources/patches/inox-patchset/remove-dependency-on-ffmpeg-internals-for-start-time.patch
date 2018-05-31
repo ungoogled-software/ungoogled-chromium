@@ -1,0 +1,251 @@
+From f9535bd6d61d7e0b2cb452e6976a914d4ee62a2b Mon Sep 17 00:00:00 2001
+From: Dale Curtis <dalecurtis@chromium.org>
+Date: Thu, 17 May 2018 23:44:41 +0000
+Subject: [PATCH] Remove dependency on ffmpeg internals for start time
+ calculations.
+
+Some theora clips still have issues, but using first_dts where
+we know it's the same as the first pts resolves the lingering
+issues. It also looks like we don't need to use pts_buffer now.
+
+This does the following small fixes:
+- MEDIA_LOG(DEBUG) -> MEDIA_LOG(ERROR) for negative ts error.
+- Enables previous disabled test in more limited state.
+- Adds kNoFFmpegTimestamp so static_cast<int64_t>(AV_NOPTS_VALUE)
+is no longer necessary everywhere. A followup patch set will use
+this is more places.
+- Removes pts_buffer and packet_buffer inspection.
+
+BUG=731766
+TEST=all tests pass.
+
+Cq-Include-Trybots: luci.chromium.try:android_optional_gpu_tests_rel;luci.chromium.try:linux_optional_gpu_tests_rel;luci.chromium.try:mac_optional_gpu_tests_rel;luci.chromium.try:win_optional_gpu_tests_rel
+Change-Id: I5aadf67a3b5ea2d2a8dd19bbddd7b107208094c5
+Reviewed-on: https://chromium-review.googlesource.com/1064538
+Commit-Queue: Dale Curtis <dalecurtis@chromium.org>
+Reviewed-by: Frank Liberato <liberato@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#559737}
+---
+ media/ffmpeg/ffmpeg_common.h             |  5 +-
+ media/filters/ffmpeg_demuxer.cc          | 88 +++++++-----------------
+ media/filters/ffmpeg_demuxer_unittest.cc | 24 +++----
+ 3 files changed, 37 insertions(+), 80 deletions(-)
+
+--- a/media/ffmpeg/ffmpeg_common.h
++++ b/media/ffmpeg/ffmpeg_common.h
+@@ -28,9 +28,6 @@ extern "C" {
+ MSVC_PUSH_DISABLE_WARNING(4244);
+ #include <libavcodec/avcodec.h>
+ #include <libavformat/avformat.h>
+-#if !BUILDFLAG(USE_SYSTEM_FFMPEG)
+-#include <libavformat/internal.h>
+-#endif  // !BUILDFLAG(USE_SYSTEM_FFMPEG)
+ #include <libavformat/avio.h>
+ #include <libavutil/avutil.h>
+ #include <libavutil/imgutils.h>
+@@ -42,6 +39,8 @@ MSVC_POP_WARNING();
+ 
+ namespace media {
+ 
++constexpr int64_t kNoFFmpegTimestamp = static_cast<int64_t>(AV_NOPTS_VALUE);
++
+ class AudioDecoderConfig;
+ class EncryptionScheme;
+ class VideoDecoderConfig;
+--- a/media/filters/ffmpeg_demuxer.cc
++++ b/media/filters/ffmpeg_demuxer.cc
+@@ -85,29 +85,26 @@ static base::TimeDelta FramesToTimeDelta
+       frames * base::Time::kMicrosecondsPerSecond / sample_rate);
+ }
+ 
+-static base::TimeDelta ExtractStartTime(AVStream* stream,
+-                                        base::TimeDelta start_time_estimate) {
+-  DCHECK(start_time_estimate != kNoTimestamp);
+-  if (stream->start_time == static_cast<int64_t>(AV_NOPTS_VALUE)) {
+-    return start_time_estimate == kInfiniteDuration ? base::TimeDelta()
+-                                                    : start_time_estimate;
+-  }
+-
+-  // First try the lower of the estimate and the |start_time| value.
+-  base::TimeDelta start_time =
+-      std::min(ConvertFromTimeBase(stream->time_base, stream->start_time),
+-               start_time_estimate);
+-
+-  // Next see if the first buffered pts value is usable.
+-  if (stream->pts_buffer[0] != static_cast<int64_t>(AV_NOPTS_VALUE)) {
+-    const base::TimeDelta buffered_pts =
+-        ConvertFromTimeBase(stream->time_base, stream->pts_buffer[0]);
+-    if (buffered_pts < start_time)
+-      start_time = buffered_pts;
++static base::TimeDelta ExtractStartTime(AVStream* stream) {
++  // The default start time is zero.
++  base::TimeDelta start_time;
++
++  // First try to use  the |start_time| value as is.
++  if (stream->start_time != kNoFFmpegTimestamp)
++    start_time = ConvertFromTimeBase(stream->time_base, stream->start_time);
++
++  // Next try to use the first DTS value, for codecs where we know PTS == DTS
++  // (excludes all H26x codecs). The start time must be returned in PTS.
++  if (stream->first_dts != kNoFFmpegTimestamp &&
++      stream->codecpar->codec_id != AV_CODEC_ID_HEVC &&
++      stream->codecpar->codec_id != AV_CODEC_ID_H264 &&
++      stream->codecpar->codec_id != AV_CODEC_ID_MPEG4) {
++    const base::TimeDelta first_pts =
++        ConvertFromTimeBase(stream->time_base, stream->first_dts);
++    if (first_pts < start_time)
++      start_time = first_pts;
+   }
+ 
+-  // NOTE: Do not use AVStream->first_dts since |start_time| should be a
+-  // presentation timestamp.
+   return start_time;
+ }
+ 
+@@ -514,7 +511,7 @@ void FFmpegDemuxerStream::EnqueuePacket(
+     buffer->set_duration(kNoTimestamp);
+   }
+ 
+-  // Note: If pts is AV_NOPTS_VALUE, stream_timestamp will be kNoTimestamp.
++  // Note: If pts is kNoFFmpegTimestamp, stream_timestamp will be kNoTimestamp.
+   const base::TimeDelta stream_timestamp =
+       ConvertStreamTimestamp(stream_->time_base, packet->pts);
+ 
+@@ -557,8 +554,8 @@ void FFmpegDemuxerStream::EnqueuePacket(
+   // code paths below; otherwise they should be treated as a parse error.
+   if ((!fixup_chained_ogg_ || last_packet_timestamp_ == kNoTimestamp) &&
+       buffer->timestamp() < base::TimeDelta()) {
+-    MEDIA_LOG(DEBUG, media_log_)
+-        << "FFmpegDemuxer: unfixable negative timestamp";
++    MEDIA_LOG(ERROR, media_log_)
++        << "FFmpegDemuxer: unfixable negative timestamp.";
+     demuxer_->NotifyDemuxerError(DEMUXER_ERROR_COULD_NOT_PARSE);
+     return;
+   }
+@@ -871,7 +868,7 @@ std::string FFmpegDemuxerStream::GetMeta
+ base::TimeDelta FFmpegDemuxerStream::ConvertStreamTimestamp(
+     const AVRational& time_base,
+     int64_t timestamp) {
+-  if (timestamp == static_cast<int64_t>(AV_NOPTS_VALUE))
++  if (timestamp == kNoFFmpegTimestamp)
+     return kNoTimestamp;
+ 
+   return ConvertFromTimeBase(time_base, timestamp);
+@@ -1271,42 +1268,6 @@ void FFmpegDemuxer::OnFindStreamInfoDone
+   AVFormatContext* format_context = glue_->format_context();
+   streams_.resize(format_context->nb_streams);
+ 
+-  // Estimate the start time for each stream by looking through the packets
+-  // buffered during avformat_find_stream_info().  These values will be
+-  // considered later when determining the actual stream start time.
+-  //
+-  // These packets haven't been completely processed yet, so only look through
+-  // these values if the AVFormatContext has a valid start time.
+-  //
+-  // If no estimate is found, the stream entry will be kInfiniteDuration.
+-  std::vector<base::TimeDelta> start_time_estimates(format_context->nb_streams,
+-                                                    kInfiniteDuration);
+-#if !BUILDFLAG(USE_SYSTEM_FFMPEG)
+-  const AVFormatInternal* internal = format_context->internal;
+-  if (internal && internal->packet_buffer &&
+-      format_context->start_time != static_cast<int64_t>(AV_NOPTS_VALUE)) {
+-    struct AVPacketList* packet_buffer = internal->packet_buffer;
+-    while (packet_buffer != internal->packet_buffer_end) {
+-      DCHECK_LT(static_cast<size_t>(packet_buffer->pkt.stream_index),
+-                start_time_estimates.size());
+-      const AVStream* stream =
+-          format_context->streams[packet_buffer->pkt.stream_index];
+-      if (packet_buffer->pkt.pts != static_cast<int64_t>(AV_NOPTS_VALUE)) {
+-        const base::TimeDelta packet_pts =
+-            ConvertFromTimeBase(stream->time_base, packet_buffer->pkt.pts);
+-        // We ignore kNoTimestamp here since -int64_t::min() is possible; see
+-        // https://crbug.com/700501. Technically this is a valid value, but in
+-        // practice shouldn't occur, so just ignore it when estimating.
+-        if (packet_pts != kNoTimestamp && packet_pts != kInfiniteDuration &&
+-            packet_pts < start_time_estimates[stream->index]) {
+-          start_time_estimates[stream->index] = packet_pts;
+-        }
+-      }
+-      packet_buffer = packet_buffer->next;
+-    }
+-  }
+-#endif  // !BUILDFLAG(USE_SYSTEM_FFMPEG)
+-
+   std::unique_ptr<MediaTracks> media_tracks(new MediaTracks());
+ 
+   DCHECK(track_id_to_demux_stream_map_.empty());
+@@ -1455,8 +1416,7 @@ void FFmpegDemuxer::OnFindStreamInfoDone
+ 
+     max_duration = std::max(max_duration, streams_[i]->duration());
+ 
+-    base::TimeDelta start_time =
+-        ExtractStartTime(stream, start_time_estimates[i]);
++    base::TimeDelta start_time = ExtractStartTime(stream);
+ 
+     // Note: This value is used for seeking, so we must take the true value and
+     // not the one possibly clamped to zero below.
+@@ -1494,7 +1454,7 @@ void FFmpegDemuxer::OnFindStreamInfoDone
+   if (text_enabled_)
+     AddTextStreams();
+ 
+-  if (format_context->duration != static_cast<int64_t>(AV_NOPTS_VALUE)) {
++  if (format_context->duration != kNoFFmpegTimestamp) {
+     // If there is a duration value in the container use that to find the
+     // maximum between it and the duration from A/V streams.
+     const AVRational av_time_base = {1, AV_TIME_BASE};
+--- a/media/filters/ffmpeg_demuxer_unittest.cc
++++ b/media/filters/ffmpeg_demuxer_unittest.cc
+@@ -724,12 +724,9 @@ TEST_F(FFmpegDemuxerTest, Read_InvalidNe
+   ReadUntilEndOfStream(GetStream(DemuxerStream::AUDIO));
+ }
+ 
+-// TODO(dalecurtis): Test is disabled since FFmpeg does not currently guarantee
+-// the order of demuxed packets in OGG containers.  Re-enable and fix key frame
+-// expectations once we decide to either workaround it or attempt a fix
+-// upstream.  See http://crbug.com/387996.
+-TEST_F(FFmpegDemuxerTest,
+-       DISABLED_Read_AudioNegativeStartTimeAndOggDiscard_Bear) {
++// Android has no Theora support, so these tests doesn't work.
++#if !defined(OS_ANDROID)
++TEST_F(FFmpegDemuxerTest, Read_AudioNegativeStartTimeAndOggDiscard_Bear) {
+   // Many ogg files have negative starting timestamps, so ensure demuxing and
+   // seeking work correctly with a negative start time.
+   CreateDemuxer("bear.ogv");
+@@ -739,8 +736,12 @@ TEST_F(FFmpegDemuxerTest,
+   DemuxerStream* video = GetStream(DemuxerStream::VIDEO);
+   DemuxerStream* audio = GetStream(DemuxerStream::AUDIO);
+ 
+-  // Run the test twice with a seek in between.
+-  for (int i = 0; i < 2; ++i) {
++  // Run the test once (should be twice..., see note) with a seek in between.
++  //
++  // TODO(dalecurtis): We only run the test once since FFmpeg does not currently
++  // guarantee the order of demuxed packets in OGG containers. See
++  // http://crbug.com/387996.
++  for (int i = 0; i < 1; ++i) {
+     audio->Read(
+         NewReadCBWithCheckedDiscard(FROM_HERE, 40, 0, kInfiniteDuration, true));
+     base::RunLoop().Run();
+@@ -759,10 +760,10 @@ TEST_F(FFmpegDemuxerTest,
+     video->Read(NewReadCB(FROM_HERE, 5751, 0, true));
+     base::RunLoop().Run();
+ 
+-    video->Read(NewReadCB(FROM_HERE, 846, 33367, true));
++    video->Read(NewReadCB(FROM_HERE, 846, 33367, false));
+     base::RunLoop().Run();
+ 
+-    video->Read(NewReadCB(FROM_HERE, 1255, 66733, true));
++    video->Read(NewReadCB(FROM_HERE, 1255, 66733, false));
+     base::RunLoop().Run();
+ 
+     // Seek back to the beginning and repeat the test.
+@@ -775,9 +776,6 @@ TEST_F(FFmpegDemuxerTest,
+ // Same test above, but using sync2.ogv which has video stream muxed before the
+ // audio stream, so seeking based only on start time will fail since ffmpeg is
+ // essentially just seeking based on file position.
+-//
+-// Android has no Theora support, so this test doesn't work.
+-#if !defined(OS_ANDROID)
+ TEST_F(FFmpegDemuxerTest, Read_AudioNegativeStartTimeAndOggDiscard_Sync) {
+   // Many ogg files have negative starting timestamps, so ensure demuxing and
+   // seeking work correctly with a negative start time.
