@@ -39,7 +39,7 @@ The final size of the sandbox with build artifacts is over 5 GB. On systems with
 
 Install base requirements: `# apt install packaging-dev python3 ninja-build`
 
-On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 6.0 and debhelper 11.
+On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 6.0. Do NOT use debhelper 11 from backports, as it will be incompatible with other dpkg tools.
 
 #### Setting up the buildspace tree and packaging files
 
