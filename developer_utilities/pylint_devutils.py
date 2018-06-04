@@ -17,7 +17,7 @@ def run_pylint(modulepath, pylint_options):
     """Runs Pylint. Returns a boolean indicating success"""
     pylint_stats = Path('/run/user/{}/pylint_stats'.format(os.getuid()))
     if not pylint_stats.parent.is_dir(): #pylint: disable=no-member
-        pylint_stats = Path('/dev/null')
+        pylint_stats = Path('/run/shm/pylint_stats')
     os.environ['PYLINTHOME'] = str(pylint_stats)
 
     result = lint.lint(
