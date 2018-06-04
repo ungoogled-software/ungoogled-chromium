@@ -135,6 +135,5 @@ def get_running_platform():
     # detect native python and WSL
     if uname.system == 'Windows' or 'Microsoft' in uname.release:
         return PlatformEnum.WINDOWS
-    else:
-        # Only Windows and UNIX-based platforms need to be distinguished right now.
-        return PlatformEnum.UNIX
+    # Only Windows and UNIX-based platforms need to be distinguished right now.
+    return PlatformEnum.UNIX

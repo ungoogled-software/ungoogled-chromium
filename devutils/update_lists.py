@@ -176,6 +176,7 @@ def should_domain_substitute(path, relative_path, search_regex):
                 if relative_path_posix.startswith(exclude_prefix):
                     return False
             return _check_regex_match(path, search_regex)
+    return False
 
 def compute_lists(buildspace_tree, search_regex):
     """

@@ -18,8 +18,7 @@ from ._common import (
 def _get_packaging_resources(shared=False):
     if shared:
         return get_resources_dir() / PACKAGING_DIR / SHARED_PACKAGING
-    else:
-        return get_resources_dir() / PACKAGING_DIR / 'windows'
+    return get_resources_dir() / PACKAGING_DIR / 'windows'
 
 def _copy_from_resources(name, output_dir, shared=False):
     shutil.copy(

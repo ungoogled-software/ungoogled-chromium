@@ -36,7 +36,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -1269,12 +1269,14 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1285,12 +1285,14 @@ const FeatureEntry kFeatureEntries[] = {
       flag_descriptions::kUiPartialSwapDescription, kOsAll,
       SINGLE_DISABLE_VALUE_TYPE(switches::kUIDisablePartialSwap)},
  #if BUILDFLAG(ENABLE_WEBRTC)
@@ -51,7 +51,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      {"enable-webrtc-hw-h264-encoding",
       flag_descriptions::kWebrtcHwH264EncodingName,
       flag_descriptions::kWebrtcHwH264EncodingDescription, kOsAndroid | kOsCrOS,
-@@ -1588,6 +1590,13 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1613,6 +1615,13 @@ const FeatureEntry kFeatureEntries[] = {
       flag_descriptions::kShowTouchHudDescription, kOsCrOS,
       SINGLE_VALUE_TYPE(ash::switches::kAshTouchHud)},
  #endif  // OS_CHROMEOS
@@ -65,7 +65,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      {
          "disable-accelerated-video-decode",
          flag_descriptions::kAcceleratedVideoDecodeName,
-@@ -1595,6 +1604,7 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1620,6 +1629,7 @@ const FeatureEntry kFeatureEntries[] = {
          kOsMac | kOsWin | kOsCrOS | kOsAndroid,
          SINGLE_DISABLE_VALUE_TYPE(switches::kDisableAcceleratedVideoDecode),
      },
@@ -73,7 +73,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  #if defined(OS_WIN)
      {"enable-hdr", flag_descriptions::kEnableHDRName,
       flag_descriptions::kEnableHDRDescription, kOsWin,
-@@ -2318,12 +2328,17 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -2310,12 +2320,17 @@ const FeatureEntry kFeatureEntries[] = {
       FEATURE_VALUE_TYPE(features::kOpenVR)},
  #endif  // ENABLE_OPENVR
  #endif  // ENABLE_VR
@@ -117,8 +117,8 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 +#endif
      ::switches::kDisableBlinkFeatures,
      ::switches::kDisableCastStreamingHWEncoding,
-     ::switches::kDisableDistanceFieldText,
-@@ -163,7 +169,7 @@ void DeriveCommandLine(const GURL& start
+     ::switches::kDisableGpu,
+@@ -162,7 +168,7 @@ void DeriveCommandLine(const GURL& start
      ::switches::kDisableWebGLImageChromium,
      ::switches::kEnableWebGLImageChromium,
      ::switches::kEnableWebVR,
@@ -143,7 +143,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  const char kAcceleratedVideoDecodeName[] = "Hardware-accelerated video decode";
  const char kAcceleratedVideoDecodeDescription[] =
      "Hardware-accelerated video decode where available.";
-@@ -1730,6 +1737,7 @@ const char kWebrtcEchoCanceller3Name[] =
+@@ -1742,6 +1749,7 @@ const char kWebrtcEchoCanceller3Name[] =
  const char kWebrtcEchoCanceller3Description[] =
      "Experimental WebRTC echo canceller (AEC3).";
  
@@ -151,7 +151,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  const char kWebrtcHwDecodingName[] = "WebRTC hardware video decoding";
  const char kWebrtcHwDecodingDescription[] =
      "Support in WebRTC for decoding video streams using platform hardware.";
-@@ -1737,6 +1745,7 @@ const char kWebrtcHwDecodingDescription[
+@@ -1749,6 +1757,7 @@ const char kWebrtcHwDecodingDescription[
  const char kWebrtcHwEncodingName[] = "WebRTC hardware video encoding";
  const char kWebrtcHwEncodingDescription[] =
      "Support in WebRTC for encoding video streams using platform hardware.";
@@ -159,7 +159,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  
  const char kWebrtcHwH264EncodingName[] = "WebRTC hardware h264 video encoding";
  const char kWebrtcHwH264EncodingDescription[] =
-@@ -2561,14 +2570,16 @@ const char kTabStripKeyboardFocusDescrip
+@@ -2590,14 +2599,16 @@ const char kTabStripKeyboardFocusDescrip
  
  // Chrome OS -------------------------------------------------------------------
  
@@ -190,7 +190,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  extern const char kAcceleratedVideoDecodeName[];
  extern const char kAcceleratedVideoDecodeDescription[];
  
-@@ -1569,13 +1573,17 @@ extern const char kPermissionPromptPersi
+@@ -1589,13 +1593,17 @@ extern const char kPermissionPromptPersi
  
  #endif  // defined(OS_MACOSX)
  
@@ -213,10 +213,10 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  
 --- a/content/browser/gpu/compositor_util.cc
 +++ b/content/browser/gpu/compositor_util.cc
-@@ -99,7 +99,11 @@ const GpuFeatureData GetGpuFeatureData(s
+@@ -124,7 +124,11 @@ const GpuFeatureData GetGpuFeatureData(s
        {"video_decode",
-        manager->GetFeatureStatus(
-            gpu::GPU_FEATURE_TYPE_ACCELERATED_VIDEO_DECODE),
+        SafeGetFeatureStatus(manager,
+                             gpu::GPU_FEATURE_TYPE_ACCELERATED_VIDEO_DECODE),
 +#if defined(OS_LINUX) && !defined(OS_CHROMEOS) && !defined(OS_ANDROID)
 +       !command_line.HasSwitch(switches::kEnableAcceleratedVideo),
 +#else
@@ -227,7 +227,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
         true},
 --- a/content/browser/gpu/gpu_process_host.cc
 +++ b/content/browser/gpu/gpu_process_host.cc
-@@ -132,7 +132,7 @@ static const char* const kSwitchNames[]
+@@ -134,7 +134,7 @@ static const char* const kSwitchNames[]
      switches::kDisableGLExtensions,
      switches::kDisableLogging,
      switches::kDisableShaderNameHashing,
@@ -238,7 +238,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  #if defined(OS_WIN)
 --- a/content/browser/renderer_host/media/video_capture_browsertest.cc
 +++ b/content/browser/renderer_host/media/video_capture_browsertest.cc
-@@ -163,8 +163,13 @@ class VideoCaptureBrowserTest : public C
+@@ -164,8 +164,13 @@ class VideoCaptureBrowserTest : public C
        base::CommandLine::ForCurrentProcess()->AppendSwitch(
            switches::kUseFakeJpegDecodeAccelerator);
      } else {
@@ -282,7 +282,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      return;
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -2525,7 +2525,11 @@ void RenderProcessHostImpl::PropagateBro
+@@ -2704,7 +2704,11 @@ void RenderProcessHostImpl::PropagateBro
      switches::kDefaultTileHeight,
      switches::kDisable2dCanvasImageChromium,
      switches::kDisableAcceleratedJpegDecoding,
@@ -291,10 +291,10 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
 +#else
      switches::kDisableAcceleratedVideoDecode,
 +#endif
+     switches::kDisableBackgroundTasks,
      switches::kDisableBackgroundTimerThrottling,
      switches::kDisableBreakpad,
-     switches::kDisableCompositorUkmForTests,
-@@ -2660,8 +2664,10 @@ void RenderProcessHostImpl::PropagateBro
+@@ -2842,8 +2846,10 @@ void RenderProcessHostImpl::PropagateBro
      switches::kDisableMojoRenderer,
  #endif
  #if BUILDFLAG(ENABLE_WEBRTC)
@@ -307,7 +307,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
      switches::kEnableWebRtcStunOrigin,
 --- a/content/browser/webrtc/webrtc_media_recorder_browsertest.cc
 +++ b/content/browser/webrtc/webrtc_media_recorder_browsertest.cc
-@@ -58,7 +58,12 @@ class WebRtcMediaRecorderTest
+@@ -66,7 +66,12 @@ class MAYBE_WebRtcMediaRecorderTest
        return;
      // This flag is also used for encoding, https://crbug.com/616640.
      base::CommandLine::ForCurrentProcess()->AppendSwitch(
@@ -405,7 +405,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  // Disables hardware acceleration of video decode, where available.
  const char kDisableAcceleratedVideoDecode[] =
      "disable-accelerated-video-decode";
-@@ -859,11 +868,13 @@ const char kZygoteProcess[]
+@@ -867,11 +876,13 @@ const char kZygoteProcess[]
  // ignores this switch on its stable and beta channels.
  const char kDisableWebRtcEncryption[]      = "disable-webrtc-encryption";
  
@@ -433,7 +433,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  CONTENT_EXPORT extern const char kDisableAcceleratedVideoDecode[];
  CONTENT_EXPORT extern const char kDisableAcceleratedVideoEncode[];
  CONTENT_EXPORT extern const char kDisableAudioSupportForDesktopShare[];
-@@ -106,6 +110,9 @@ CONTENT_EXPORT extern const char kDisabl
+@@ -107,6 +111,9 @@ CONTENT_EXPORT extern const char kDisabl
  CONTENT_EXPORT extern const char kDomAutomationController[];
  extern const char kDisable2dCanvasClipAntialiasing[];
  CONTENT_EXPORT extern const char kDumpBlinkRuntimeCallStats[];
@@ -443,7 +443,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  CONTENT_EXPORT extern const char kEnableAggressiveDOMStorageFlushing[];
  CONTENT_EXPORT extern const char kEnableAutomation[];
  CONTENT_EXPORT extern const char kEnablePreferCompositingToLCDText[];
-@@ -240,8 +247,10 @@ CONTENT_EXPORT extern const char kZygote
+@@ -242,8 +249,10 @@ CONTENT_EXPORT extern const char kZygote
  
  #if BUILDFLAG(ENABLE_WEBRTC)
  CONTENT_EXPORT extern const char kDisableWebRtcEncryption[];
@@ -456,7 +456,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  CONTENT_EXPORT extern const char kEnableWebRtcStunOrigin[];
 --- a/content/renderer/media/webrtc/peer_connection_dependency_factory.cc
 +++ b/content/renderer/media/webrtc/peer_connection_dependency_factory.cc
-@@ -282,10 +282,18 @@ void PeerConnectionDependencyFactory::In
+@@ -276,10 +276,18 @@ void PeerConnectionDependencyFactory::In
  
    const base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
    if (gpu_factories && gpu_factories->IsGpuVideoAcceleratorEnabled()) {
@@ -477,9 +477,9 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  
 --- a/content/renderer/render_thread_impl.cc
 +++ b/content/renderer/render_thread_impl.cc
-@@ -1581,7 +1581,11 @@ media::GpuVideoAcceleratorFactories* Ren
-   scoped_refptr<base::SingleThreadTaskRunner> media_task_runner =
-       GetMediaThreadTaskRunner();
+@@ -1578,7 +1578,11 @@ media::GpuVideoAcceleratorFactories* Ren
+                              kGpuStreamIdMedia, kGpuStreamPriorityMedia);
+ 
    const bool enable_video_accelerator =
 +#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 +      cmd_line->HasSwitch(switches::kEnableAcceleratedVideo) &&
@@ -491,7 +491,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
         gpu::kGpuFeatureStatusEnabled);
 --- a/gpu/config/software_rendering_list.json
 +++ b/gpu/config/software_rendering_list.json
-@@ -373,17 +373,6 @@
+@@ -377,17 +377,6 @@
        ]
      },
      {
@@ -511,7 +511,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
        "cr_bugs": [145531, 332596, 571899, 629434],
 --- a/media/gpu/BUILD.gn
 +++ b/media/gpu/BUILD.gn
-@@ -482,6 +482,14 @@ if (use_v4l2_codec || use_vaapi || is_ma
+@@ -491,6 +491,14 @@ if (use_v4l2_codec || use_vaapi || is_ma
    }
  }
  
@@ -526,7 +526,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  if (use_vaapi) {
    test("jpeg_encode_accelerator_unittest") {
      deps = [
-@@ -542,6 +550,10 @@ if (use_v4l2_codec || use_vaapi) {
+@@ -551,6 +559,10 @@ if (use_v4l2_codec || use_vaapi) {
      if (use_ozone) {
        deps += [ "//ui/ozone" ]
      }

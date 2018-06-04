@@ -95,8 +95,7 @@ class _Flavor:
         parent_name = self._get_parent_name(self.name)
         if parent_name:
             return _Flavor(parent_name)
-        else:
-            return None
+        return None
 
     def _resolve_file_flavors(self):
         file_flavor_resolutions = dict()
@@ -133,7 +132,7 @@ def _get_dpkg_changelog_datetime(override_datetime=None):
         locale.setlocale(locale.LC_TIME, "C")
         result = current_datetime.strftime("%a, %d %b %Y %H:%M:%S ")
         timezone = current_datetime.strftime("%z")
-        if len(timezone) == 0:
+        if not timezone:
             timezone = "+0000"
         return result + timezone
     finally:

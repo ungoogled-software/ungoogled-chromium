@@ -233,7 +233,7 @@ def main():
     """CLI entrypoint"""
 
     logger = get_logger(prepend_timestamp=False, log_init=False)
-    warnings = True
+    warnings = False
 
     patches_dir = get_resources_dir() / PATCHES_DIR
     config_bundles_dir = get_resources_dir() / CONFIG_BUNDLES_DIR
@@ -267,9 +267,9 @@ def main():
             warnings = True
     except BuildkitAbort:
         exit(2)
-
     if warnings:
         exit(1)
+    exit(0)
 
 if __name__ == '__main__':
     if sys.argv[1:]:

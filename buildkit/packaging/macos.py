@@ -16,8 +16,7 @@ from ._common import DEFAULT_BUILD_OUTPUT, SHARED_PACKAGING, APPLY_PATCH_SERIES,
 def _get_packaging_resources(shared=False):
     if shared:
         return get_resources_dir() / PACKAGING_DIR / SHARED_PACKAGING
-    else:
-        return get_resources_dir() / PACKAGING_DIR / 'macos'
+    return get_resources_dir() / PACKAGING_DIR / 'macos'
 
 def _copy_from_resources(name, output_dir, shared=False):
     shutil.copy(
