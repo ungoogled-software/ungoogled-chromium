@@ -486,8 +486,7 @@ class BaseBundleMetaIni(RequiredConfigMixin, IniConfigFile):
         """
         if 'depends' in self['basebundle']:
             return [x.strip() for x in self['basebundle']['depends'].split(',')]
-        else:
-            return tuple()
+        return tuple()
 
 class DomainRegexList(ListConfigFile):
     """Representation of a domain_regex_list file"""

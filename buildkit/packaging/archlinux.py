@@ -20,8 +20,7 @@ _REPO_URL_TEMPLATE = 'https://github.com/Eloston/ungoogled-chromium/archive/{}.t
 def _get_packaging_resources(shared=False):
     if shared:
         return get_resources_dir() / PACKAGING_DIR / SHARED_PACKAGING
-    else:
-        return get_resources_dir() / PACKAGING_DIR / 'archlinux'
+    return get_resources_dir() / PACKAGING_DIR / 'archlinux'
 
 def _generate_gn_flags(flags_items_iter):
     """Returns GN flags for the PKGBUILD"""

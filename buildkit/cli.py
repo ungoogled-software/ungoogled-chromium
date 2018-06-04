@@ -64,7 +64,7 @@ class NewBaseBundleAction(argparse.Action): #pylint: disable=too-few-public-meth
         super().__init__(*args, **kwargs)
 
         if self.type:
-            raise ValueError('Cannot define action with action %s', type(self).__name__)
+            raise ValueError('Cannot define action with action %s' % type(self).__name__)
         if self.nargs and self.nargs > 1:
             raise ValueError('nargs cannot be greater than 1')
 
