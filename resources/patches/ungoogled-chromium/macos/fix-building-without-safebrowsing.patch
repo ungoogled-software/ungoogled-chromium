@@ -1,0 +1,134 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -4328,19 +4328,5 @@ void ChromeContentBrowserClient::SetDefa
+ safe_browsing::UrlCheckerDelegate*
+ ChromeContentBrowserClient::GetSafeBrowsingUrlCheckerDelegate(
+     content::ResourceContext* resource_context) {
+-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+-
+-  ProfileIOData* io_data = ProfileIOData::FromResourceContext(resource_context);
+-  if (!io_data->safe_browsing_enabled()->GetValue())
+-    return nullptr;
+-
+-  // |safe_browsing_service_| may be unavailable in tests.
+-  if (safe_browsing_service_ && !safe_browsing_url_checker_delegate_) {
+-    safe_browsing_url_checker_delegate_ =
+-        base::MakeRefCounted<safe_browsing::UrlCheckerDelegateImpl>(
+-            safe_browsing_service_->database_manager(),
+-            safe_browsing_service_->ui_manager());
+-  }
+-
+-  return safe_browsing_url_checker_delegate_.get();
++  return nullptr;
+ }
+--- a/chrome/browser/ui/cocoa/download/download_item_controller.mm
++++ b/chrome/browser/ui/cocoa/download/download_item_controller.mm
+@@ -15,7 +15,6 @@
+ #include "chrome/browser/download/download_item_model.h"
+ #include "chrome/browser/download/download_shelf_context_menu.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/safe_browsing/download_protection/download_feedback_service.h"
+ #import "chrome/browser/themes/theme_properties.h"
+ #import "chrome/browser/themes/theme_service.h"
+ #import "chrome/browser/ui/cocoa/download/download_item_button.h"
+@@ -358,21 +357,14 @@
+                            base::Time::Now() - creationTime_);
+
+   DownloadItem* download = bridge_->download_model()->download();
+-  if (![self submitDownloadToFeedbackService:download
+-                                 withCommand:DownloadCommands::Command::KEEP]) {
+-    // This will change the state and notify us.
+-    download->ValidateDangerousDownload();
+-  }
++  download->ValidateDangerousDownload();
+ }
+
+ - (IBAction)discardDownload:(id)sender {
+   UMA_HISTOGRAM_LONG_TIMES("clickjacking.discard_download",
+                            base::Time::Now() - creationTime_);
+   DownloadItem* download = bridge_->download_model()->download();
+-  if (!
+-      [self submitDownloadToFeedbackService:download
+-                                withCommand:DownloadCommands::Command::DISCARD])
+-    download->Remove();
++  download->Remove();
+   // WARNING: we are deleted at this point.  Don't access 'this'.
+ }
+
+@@ -382,29 +374,4 @@
+   [static_cast<DownloadItemButton*>(progressView_) showContextMenu];
+ }
+
+-- (bool)submitDownloadToFeedbackService:(download::DownloadItem*)download
+-                            withCommand:(DownloadCommands::Command)command {
+-  safe_browsing::SafeBrowsingService* sb_service =
+-      g_browser_process->safe_browsing_service();
+-  if (!sb_service)
+-    return false;
+-
+-  safe_browsing::DownloadProtectionService* download_protection_service =
+-      sb_service->download_protection_service();
+-  if (!download_protection_service)
+-    return false;
+-
+-  DownloadItemModel* download_item_model = bridge_->download_model();
+-  const Profile* profile = Profile::FromBrowserContext(
+-      content::DownloadItemUtils::GetBrowserContext(download));
+-  const PrefService* prefs = profile->GetPrefs();
+-  if (!download_item_model->ShouldAllowDownloadFeedback() ||
+-      profile->IsOffTheRecord() ||
+-      !safe_browsing::IsExtendedReportingEnabled(*prefs))
+-    return false;
+-  download_protection_service->feedback_service()->BeginFeedbackForDownload(
+-      download, command);
+-  return true;
+-}
+-
+ @end
+--- a/chrome/browser/download/download_item_model.cc
++++ b/chrome/browser/download/download_item_model.cc
+@@ -20,8 +20,6 @@
+ #include "chrome/browser/download/download_history.h"
+ #include "chrome/browser/download/download_stats.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/safe_browsing/download_protection/download_feedback_service.h"
+-#include "chrome/common/safe_browsing/download_file_types.pb.h"
+ #include "chrome/grit/chromium_strings.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/download/public/common/download_danger_type.h"
+@@ -37,7 +35,6 @@
+
+ using base::TimeDelta;
+ using download::DownloadItem;
+-using safe_browsing::DownloadFileType;
+
+ namespace {
+
+@@ -554,14 +551,7 @@
+ }
+
+ bool DownloadItemModel::ShouldAllowDownloadFeedback() const {
+-#if defined(FULL_SAFE_BROWSING)
+-  if (!IsDangerous())
+-    return false;
+-  return safe_browsing::DownloadFeedbackService::IsEnabledForDownload(
+-      *download_);
+-#else
+   return false;
+-#endif
+ }
+
+ bool DownloadItemModel::ShouldRemoveFromShelfWhenComplete() const {
+--- a/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
++++ b/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
+@@ -60,9 +60,7 @@
+   SetLayoutManager(std::make_unique<views::FillLayout>());
+
+   views::Label* message_body_label = new views::Label(
+-      service_
+-          ? service_->GetWarningDetailText()
+-          : l10n_util::GetStringUTF16(IDS_PAGE_INFO_CHANGE_PASSWORD_DETAILS));
++        l10n_util::GetStringUTF16(IDS_PAGE_INFO_CHANGE_PASSWORD_DETAILS));
+   message_body_label->SetMultiLine(true);
+   message_body_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+   message_body_label->SetHandlesTooltips(false);
