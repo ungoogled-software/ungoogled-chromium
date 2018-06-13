@@ -1,10 +1,11 @@
+# Additional changes to Inox's fix-building-without-safebrowsing.patch
+
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -4328,19 +4328,5 @@ void ChromeContentBrowserClient::SetDefa
- safe_browsing::UrlCheckerDelegate*
+@@ -4328,18 +4328,5 @@ safe_browsing::UrlCheckerDelegate*
  ChromeContentBrowserClient::GetSafeBrowsingUrlCheckerDelegate(
      content::ResourceContext* resource_context) {
--  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+   DCHECK_CURRENTLY_ON(BrowserThread::IO);
 -
 -  ProfileIOData* io_data = ProfileIOData::FromResourceContext(resource_context);
 -  if (!io_data->safe_browsing_enabled()->GetValue())
@@ -31,9 +32,9 @@
  #import "chrome/browser/themes/theme_properties.h"
  #import "chrome/browser/themes/theme_service.h"
  #import "chrome/browser/ui/cocoa/download/download_item_button.h"
-@@ -358,21 +357,14 @@
+@@ -358,21 +357,14 @@ class DownloadShelfContextMenuMac : publ
                             base::Time::Now() - creationTime_);
-
+ 
    DownloadItem* download = bridge_->download_model()->download();
 -  if (![self submitDownloadToFeedbackService:download
 -                                 withCommand:DownloadCommands::Command::KEEP]) {
@@ -42,7 +43,7 @@
 -  }
 +  download->ValidateDangerousDownload();
  }
-
+ 
  - (IBAction)discardDownload:(id)sender {
    UMA_HISTOGRAM_LONG_TIMES("clickjacking.discard_download",
                             base::Time::Now() - creationTime_);
@@ -54,11 +55,11 @@
 +  download->Remove();
    // WARNING: we are deleted at this point.  Don't access 'this'.
  }
-
-@@ -382,29 +374,4 @@
+ 
+@@ -382,29 +374,4 @@ class DownloadShelfContextMenuMac : publ
    [static_cast<DownloadItemButton*>(progressView_) showContextMenu];
  }
-
+ 
 -- (bool)submitDownloadToFeedbackService:(download::DownloadItem*)download
 -                            withCommand:(DownloadCommands::Command)command {
 -  safe_browsing::SafeBrowsingService* sb_service =
@@ -97,16 +98,16 @@
  #include "chrome/grit/generated_resources.h"
  #include "components/download/public/common/download_danger_type.h"
 @@ -37,7 +35,6 @@
-
+ 
  using base::TimeDelta;
  using download::DownloadItem;
 -using safe_browsing::DownloadFileType;
-
+ 
  namespace {
-
-@@ -554,14 +551,7 @@
+ 
+@@ -554,14 +551,7 @@ bool DownloadItemModel::HasSupportedImag
  }
-
+ 
  bool DownloadItemModel::ShouldAllowDownloadFeedback() const {
 -#if defined(FULL_SAFE_BROWSING)
 -  if (!IsDangerous())
@@ -117,13 +118,13 @@
    return false;
 -#endif
  }
-
+ 
  bool DownloadItemModel::ShouldRemoveFromShelfWhenComplete() const {
 --- a/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
 +++ b/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
-@@ -60,9 +60,7 @@
+@@ -60,9 +60,7 @@ PasswordReuseModalWarningDialog::Passwor
    SetLayoutManager(std::make_unique<views::FillLayout>());
-
+ 
    views::Label* message_body_label = new views::Label(
 -      service_
 -          ? service_->GetWarningDetailText()
