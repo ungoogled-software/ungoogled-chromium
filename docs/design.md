@@ -48,45 +48,40 @@ Config files are usually stored in a [configuration bundle](#configuration-bundl
 
 *Also known as config bundles, or bundles.*
 
-Configuration bundles are a collection of config files grouped by system, platform, or target. They are stored as filesystem directories containing the config files. There are two kinds of config bundles:
+Configuration bundles are a collection of config files grouped by system, platform, or target. They are stored as filesystem directories containing the config files.
 
-* *Base bundles* - Bundles included in ungoogled-chromium (which reside under `resources/config_bundles`). They are generally used for creating user bundles. All base bundles must include `basebundlemeta.ini`. Unlike user bundles, all base bundles' patches are stored in `resources/patches`.
+Many configurations share a lot in common. To reduce duplication, bundles can depend on other bundles by specifying a list of dependencies in the `depends` key of `bundlemeta.ini`. When dependencies are present, bundles only contain the config file data that is modified in or added to its dependencies. The following are additional points about bundle dependencies:
+* Direct dependencies for any one bundle are ordered; the ordering specifies how dependency configuration is resolved in a consistent manner.
+* This ordering is determined by the order in which they appear in the `depends` key of `bundlemeta.ini`; dependencies are applied from right to left just like multiple inheritance in Python.
+* The graph of all bundle dependency relationships must be representable by a [polytree](https://en.wikipedia.org/wiki/Polytree) to be valid.
+* Due to the direct dependency ordering and polytree requirements, all dependencies for a bundle can be resolved to a consistent sequence. This sequence is known as the *dependency order*.
+* Bundles may depend on mixins. Mixins are like bundles, but they are only used as dependencies for bundles or other mixins, and their names are always prefixed with `_mixin`. This means that mixins are not valid configurations; they only contain partial data. These are similar in idea to mixins in Python.
 
-    Many configurations share a lot in common. To reduce duplication, base bundles can depend on other base bundles by specifying a list of dependencies in the `depends` key of `basebundlemeta.ini`. When dependencies are present, base bundles only contain the config file data that is modified in or added to its dependencies. The following are additional points about base bundle dependencies:
-    * Direct dependencies for any one base bundle are ordered; the ordering specifies how dependency configuration is resolved in a consistent manner.
-        * This ordering is determined by the order in which they appear in the `depends` key of `basebundlemeta.ini`; dependencies are applied from right to left just like multiple inheritance in Python.
-    * The graph of all base bundle dependency relationships must be representable by a [polytree](https://en.wikipedia.org/wiki/Polytree) to be valid.
-    * Due to the direct dependency ordering and polytree requirements, all dependencies for a base bundle can be resolved to a consistent sequence. This sequence is known as the *dependency order*.
-    * Base bundles may depend on mixins. Mixins are like base bundles, but they are only used as dependencies for base bundles or other mixins, and their names are always prefixed with `_mixin`. This means that mixins are not valid configurations; they only contain partial data. These are similar in idea to mixins in Python.
+Bundles merge config file types from its dependencies in the following manner (config file types are explained in [the Configuration Files section](#configuration-files)):
+* `.list` - List files are joined in the dependency order.
+* `.map` - Entries (key-value pairs) are collected together. If a key exists in two or more dependencies, the subsequent dependencies in the dependency order have precedence.
+* `.ini` - Sections are collected together. If a section exists in two or more dependencies, its keys are resolved in an identical manner as mapping config files.
 
-    Base bundles merge config file types from its dependencies in the following manner (config file types are explained in [the Configuration Files section](#configuration-files)):
-    * `.list` - List files are joined in the dependency order.
-    * `.map` - Entries (key-value pairs) are collected together. If a key exists in two or more dependencies, the subsequent dependencies in the dependency order have precedence.
-    * `.ini` - Sections are collected together. If a section exists in two or more dependencies, its keys are resolved in an identical manner as mapping config files.
+Bundles vary in specificity; some apply across multiple kinds of systems, and some apply to a specific family. However, no bundle may become more specific than a "public" system variant; since there is no concrete definition, the policy for Linux distribution bundles is used to illustrate:
+* Each family of Linux distributions should have their own bundle (e.g. Debian, Fedora)
+* Each distribution within that family can have their own bundle ONLY if they cannot be combined (e.g. Debian and Ubuntu)
+* Each version for a distribution can have their own bundle ONLY if the versions in question cannot be combined and should be supported simultaneously (e.g. Debian testing and stable, Ubuntu LTS and regular stables)
+* Custom Linux systems for personal or limited use **should not** have a bundle.
 
-    Base bundles vary in specificity; some apply across multiple kinds of systems, and some apply to a specific family. However, no base bundle may become more specific than a "public" system variant; since there is no concrete definition, the policy for Linux distribution base bundles is used to illustrate:
-    * Each family of Linux distributions should have their own base bundle (e.g. Debian, Fedora)
-    * Each distribution within that family can have their own base bundle ONLY if they cannot be combined (e.g. Debian and Ubuntu)
-    * Each version for a distribution can have their own base bundle ONLY if the versions in question cannot be combined and should be supported simultaneously (e.g. Debian testing and stable, Ubuntu LTS and regular stables)
-    * Custom Linux systems for personal or limited use **should not** have a base bundle.
-
-    Among the multiple base bundles and mixins, here are a few noteworthy ones:
-    * `common` - The base bundle used by all other base bundles. It contains most, if not all, of the feature-implementing configuration.
-    * `linux_rooted` - The base bundle used by Linux base bundles that build against system libraries.
-    * `linux_portable` - The base bundle used for building with minimal dependency on system libraries. It is more versatile than `linux_rooted` since it is less likely to break due to system library incompatibility.
-* *User bundles* - Bundles intended for use in building. They cannot have dependencies, so they must contain all configuration data. They are usually generated from base bundles, from which they can be modified by the user. Unlike base bundles, all patches used must be contained within the user bundle.
+Among the multiple bundles and mixins, here are a few noteworthy ones:
+* `common` - The bundle used by all other bundles. It contains most, if not all, of the feature-implementing configuration.
+* `linux_rooted` - The bundle used by Linux bundles that build against system libraries.
+* `linux_portable` - The bundle used for building with minimal dependency on system libraries. It is more versatile than `linux_rooted` since it is less likely to break due to system library incompatibility.
 
 Config bundles can only contain the following files:
 
+* `bundlemeta.ini` - Metadata for the bundle.
 * `pruning.list` - [See the Source File Processors section](#source-file-processors)
 * `domain_regex.list` - [See the Source File Processors section](#source-file-processors)
 * `domain_substitution.list` - [See the Source File Processors section](#source-file-processors)
-* `extra_deps.ini` - Extra archives to download and unpack into the buildspace tree. This includes code not bundled in the Chromium source code archive that is specific to a non-Linux platform. On platforms such as macOS, this also includes a pre-built LLVM toolchain for covenience (which can be removed and built from source if desired).
+* `downloads.ini` - Archives to download and unpack into the buildspace tree. This includes code not bundled in the Chromium source code archive that is specific to a non-Linux platform. On platforms such as macOS, this also includes a pre-built LLVM toolchain for covenience (which can be removed and built from source if desired).
 * `gn_flags.map` - GN arguments to set before building.
-* `patch_order.list` - The series of patches to apply with paths relative to the `patches/` directory (whether they be in `resources/` or the bundle itself).
-* `version.ini` - Tracks the the Chromium version to use, the ungoogled-chromium revision, and any configuration-specific version information.
-* `basebundlemeta.ini` *(Base config bundles only)* - See the description of base bundles above.
-* `patches/` *(User config bundles only)* - Contains the patches referenced by `patch_order.list`. [See the Patches section](#patches) for more details.
+* `patch_order.list` - The series of patches to apply with paths relative to the `patches/` directory.
 
 ### Source File Processors
 
@@ -108,7 +103,7 @@ The regular expressions to use are listed in `domain_regex.list`; the search and
 
 ### Patches
 
-All of ungoogled-chromium's patches for the Chromium source code are located in `resources/patches`. The patches in this directory are referenced by base config bundles' `patch_order.list` config file. When a user config bundle is created, only the patches required by the user bundle's `patch_order.list` config file are copied from `resources/patches` into the user bundle's `patches/` directory.
+All of ungoogled-chromium's patches for the Chromium source code are located in `patches/`. The patches in this directory are referenced by config bundles' `patch_order.list` config file.
 
 A file with the extension `.patch` is patch using the [unified format](https://en.wikipedia.org/wiki/Diff_utility#Unified_format). The requirements and recommendations for patch files are as follows:
 
@@ -154,8 +149,8 @@ Packaging consists of packaging types; each type has differing package outputs a
 
 * `archlinux` - Generates a PKGBUILD that downloads, builds, and packages Chromium. Unlike other packaging types, this type does not use the buildspace tree; it is a standalone script that automates the entire process.
 * `debian` - Generates `debian` directories for building `.deb.` packages for Debian and derivative systems. There are different variants of Debian packaging scripts known as *flavors*. The current flavors are:
-    * (debian codename here) - For building on the Debian version with the corresponding code name. They are derived from Debian's `chromium` package, with only a few modifications. Older codenames are built upon newer ones. These packaging types are intended to be used with derivatives of the `linux_rooted` base bundle.
-    * `minimal` - For building with a derivative of the `linux_portable` base bundle.
+    * (debian codename here) - For building on the Debian version with the corresponding code name. They are derived from Debian's `chromium` package, with only a few modifications. Older codenames are built upon newer ones. These packaging types are intended to be used with derivatives of the `linux_rooted` bundle.
+    * `minimal` - For building with a derivative of the `linux_portable` bundle.
 * `linux_simple` - Generates two shell scripts for Linux. The first applies patches and builds Chromium. The second packages the build outputs into a compressed tar archive.
 * `macos` - Generates a shell script for macOS to build Chromium and package the build outputs into a `.dmg`.
 
@@ -183,7 +178,6 @@ Buildspace is a directory that contains all intermediate and final files for bui
 
 * `tree` - The Chromium source tree, which also contains build intermediates.
 * `downloads` - Directory containing all files download; this is currently the Chromium source code archive and any potential extra dependencies.
-* `user_bundle` - The user config bundle used for building.
 * Packaged build artifacts
 
     (The directory may contain additional files if developer utilities are used)

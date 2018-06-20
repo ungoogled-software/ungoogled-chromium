@@ -6,28 +6,32 @@
 
 """Common code and constants"""
 
+import configparser
 import enum
 import os
 import logging
 import platform
 from pathlib import Path
 
+from .third_party import schema
+
 # Constants
 
 ENCODING = 'UTF-8' # For config files and patches
 
-CONFIG_BUNDLES_DIR = "config_bundles"
-PACKAGING_DIR = "packaging"
-PATCHES_DIR = "patches"
-
-BUILDSPACE_DOWNLOADS = 'buildspace/downloads'
-BUILDSPACE_TREE = 'buildspace/tree'
-BUILDSPACE_TREE_PACKAGING = 'buildspace/tree/ungoogled_packaging'
-BUILDSPACE_USER_BUNDLE = 'buildspace/user_bundle'
-
 SEVENZIP_USE_REGISTRY = '_use_registry'
 
 _ENV_FORMAT = "BUILDKIT_{}"
+
+# Helpers for third_party.schema
+
+def schema_dictcast(data):
+    """Cast data to dictionary for third_party.schema and configparser data structures"""
+    return schema.And(schema.Use(dict), data)
+
+def schema_inisections(data):
+    """Cast configparser data structure to dict and remove DEFAULT section"""
+    return schema_dictcast({configparser.DEFAULTSECT: object, **data})
 
 # Public classes
 
@@ -80,24 +84,6 @@ def get_logger(name=__package__, initial_level=logging.DEBUG,
                     logger.debug("Initialized logger '%s'", name)
     return logger
 
-def get_resources_dir():
-    """
-    Returns the path to the root of the resources directory
-
-    Raises NotADirectoryError if the directory is not found.
-    """
-    env_value = os.environ.get(_ENV_FORMAT.format('RESOURCES'))
-    if env_value:
-        path = Path(env_value)
-        get_logger().debug(
-            'Using %s environment variable value: %s', _ENV_FORMAT.format('RESOURCES'), path)
-    else:
-        # Assume that this resides in the repository
-        path = Path(__file__).absolute().parent.parent / 'resources'
-    if not path.is_dir():
-        raise NotADirectoryError(str(path))
-    return path
-
 def dir_empty(path):
     """
     Returns True if the directory is empty; False otherwise
@@ -137,3 +123,48 @@ def get_running_platform():
         return PlatformEnum.WINDOWS
     # Only Windows and UNIX-based platforms need to be distinguished right now.
     return PlatformEnum.UNIX
+
+def _read_version_ini():
+    version_schema = schema.Schema(schema_inisections({
+        'version': schema_dictcast({
+            'chromium_version': schema.And(str, len),
+            'release_revision': schema.And(str, len),
+            schema.Optional('release_extra'): schema.And(str, len),
+        })
+    }))
+    version_parser = configparser.ConfigParser()
+    version_parser.read(
+        str(Path(__file__).absolute().parent.parent / 'version.ini'),
+        encoding=ENCODING)
+    try:
+        version_schema.validate(version_parser)
+    except schema.SchemaError as exc:
+        get_logger().error('version.ini failed schema validation')
+        raise exc
+    return version_parser
+
+def get_chromium_version():
+    """Returns the Chromium version."""
+    return _VERSION_INI['version']['chromium_version']
+
+def get_release_revision():
+    """Returns the release revision."""
+    return _VERSION_INI['version']['release_revision']
+
+def get_release_extra(fallback=None):
+    """
+    Return the release revision extra info, or returns fallback if it is not defined.
+    """
+    return _VERSION_INI['version'].get('release_extra', fallback=fallback)
+
+def get_version_string():
+    """
+    Returns a version string containing all information in a Debian-like format.
+    """
+    result = '{}-{}'.format(get_chromium_version(), get_release_revision())
+    release_extra = get_release_extra()
+    if release_extra:
+        result += '~{}'.format(release_extra)
+    return result
+
+_VERSION_INI = _read_version_ini()

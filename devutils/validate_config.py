@@ -22,6 +22,12 @@ Exit codes:
     * 2 if errors appear
 """
 
+# TODO: List and mapping files don't contain the same entry twice across all dependencies.
+# TODO: Validate consistency across patches and check for potential duplication across patches
+# i.e. parse unified diffs into "sparse" files that are updated with each patch in the series
+# "duplication" would be any two patches in separate configs sharing a common config (and thus patch series)
+# that contains lines with the same modifications to the same locations of the same files.
+
 import collections
 import sys
 from pathlib import Path

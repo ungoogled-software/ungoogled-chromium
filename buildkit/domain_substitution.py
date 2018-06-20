@@ -204,7 +204,7 @@ def revert_substitution(domainsub_cache, buildspace_tree):
 
         # Validate buildspace tree file hashes match
         get_logger().debug('Validating substituted files in buildspace tree...')
-        with (extract_path / _INDEX_LIST).open('rb') as index_file:
+        with (extract_path / _INDEX_LIST).open('rb') as index_file: #pylint: disable=no-member
             if not _validate_file_index(index_file, resolved_tree, cache_index_files):
                 raise KeyError(
                     'Domain substitution cache file index is corrupt or hashes mismatch '
@@ -217,7 +217,7 @@ def revert_substitution(domainsub_cache, buildspace_tree):
 
         # Quick check for unused files in cache
         orig_has_unused = False
-        for orig_path in (extract_path / _ORIG_DIR).rglob('*'):
+        for orig_path in (extract_path / _ORIG_DIR).rglob('*'): #pylint: disable=no-member
             if orig_path.is_file():
                 get_logger().warning('Unused file from cache: %s', orig_path)
                 orig_has_unused = True

@@ -18,6 +18,7 @@ from .extraction import extract_tar_file, extract_with_7z
 
 # Constants
 
+# TODO: Move into downloads.ini
 _SOURCE_ARCHIVE_URL = ('https://commondatastorage.googleapis.com/'
                        'chromium-browser-official/chromium-{}.tar.xz')
 _SOURCE_HASHES_URL = _SOURCE_ARCHIVE_URL + '.hashes'

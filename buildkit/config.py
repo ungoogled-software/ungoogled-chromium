@@ -11,195 +11,81 @@ Build configuration generation implementation
 import abc
 import configparser
 import collections
+import io
 import re
-import shutil
-
-from pathlib import Path
 
 from .common import (
-    ENCODING, CONFIG_BUNDLES_DIR, BuildkitAbort, ExtractorEnum,
-    get_logger, get_resources_dir, ensure_empty_dir)
+    ENCODING, BuildkitError, ExtractorEnum,
+    get_logger, ensure_empty_dir, schema_dictcast, schema_inisections)
 from .third_party import schema
-
-# TODO: get_logger and BuildkitAbort should only be used in the CLI
-
-# Constants
-
-PRUNING_LIST = "pruning.list"
-DOMAIN_REGEX_LIST = "domain_regex.list"
-DOMAIN_SUBSTITUTION_LIST = "domain_substitution.list"
-EXTRA_DEPS_INI = "extra_deps.ini"
-GN_FLAGS_MAP = "gn_flags.map"
-BASEBUNDLEMETA_INI = "basebundlemeta.ini"
-PATCH_ORDER_LIST = "patch_order.list"
-PATCHES_DIR = "patches"
-VERSION_INI = "version.ini"
-
-# Helpers for third_party.schema
-
-def schema_dictcast(data):
-    """Cast data to dictionary for third_party.schema and configparser data structures"""
-    return schema.And(schema.Use(dict), data)
-
-def schema_inisections(data):
-    """Cast configparser data structure to dict and remove DEFAULT section"""
-    return schema_dictcast({configparser.DEFAULTSECT: object, **data})
 
 # Classes
 
-class _ConfigABC(abc.ABC):
-    """Abstract base class for configuration files or directories"""
+class BuildkitConfigError(BuildkitError):
+    """Exception class for the config module"""
 
-    def __init__(self, path, name=None):
+class _ConfigFile(abc.ABC): #pylint: disable=too-few-public-methods
+    """
+    Base config file class
+
+    Config file objects are thin wrappers around the raw data.
+    Sophisticated parsing or reformatting should be done elsewhere.
+    """
+
+    def __init__(self, path):
+        self._data = self._parse_data(path)
+
+    @abc.abstractmethod
+    def _parse_data(self, path):
+        """Load the config file at path"""
+
+    @abc.abstractmethod
+    def rebase(self, other):
+        """Rebase the current config file onto other, saving changes into self"""
+
+    @abc.abstractmethod
+    def __str__(self):
+        """String contents of the config file"""
+
+class _IniConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
+    """
+    Base class for INI config files
+
+    Derived classes must at least specify a schema.Schema in _schema
+    """
+
+    _schema = None # Derived classes must specify a schema
+
+    def _parse_data(self, path):
         """
-        Initializes the config class.
+        Parses an INI file located at path
 
-        path is a pathlib.Path to a config file or directory. If it is None, a placeholder
-        config file is created. Placeholder config files are essentially blank config files
-        with no associated path and will not write anywhere. Inherit RequiredConfigMixin to
-        disallow placeholder configs.
-        name is the actual file or directory name. This is also used for type identification.
-        Defaults to the last element of path. If it is an empty config, this is required.
-
-        Raises FileNotFoundError if path does not exist for non-empty configs.
-        Raises TypeError if name is not defined for empty configs
+        Raises schema.SchemaError if validation fails
         """
-        if path and not path.exists():
-            raise FileNotFoundError(str(path))
-        self.path = path
-        if name:
-            self.name = name
-        elif path:
-            self.name = path.name
-        else:
-            raise TypeError('Either name or path must be defined and non-empty')
-        # List of paths to inherit from, ordered from left to right.
-        self._path_order = collections.deque()
-        if path:
-            # self.path will be set to the first path added to self._path_order
-            self._path_order.appendleft(path)
-
-    @property
-    def _placeholder(self):
-        """
-        Returns True if this config is a placeholder; False otherwise
-
-        Raises BuildkitAbort if there is an inconsistency
-        between self.path and self._path_order
-        """
-        if (self.path is None) == bool(self._path_order):
+        new_data = configparser.ConfigParser()
+        with path.open(encoding=ENCODING) as ini_file:
+            new_data.read_file(ini_file, source=str(path))
+        if self._schema is None:
+            raise BuildkitConfigError('No schema defined for %s' % type(self).__name__)
+        try:
+            self._schema.validate(new_data)
+        except schema.SchemaError as exc:
             get_logger().error(
-                'Inconsistency of config file placeholder state: path = %s, _path_order = %s',
-                self.path, self._path_order)
-            raise BuildkitAbort()
-        return self.path is None
+                'INI file for %s failed schema validation: %s', type(self).__name__, path)
+            raise exc
+        return new_data
 
-    def _check_path_add(self, path):
-        """Returns True if path is new and exists; False otherwise"""
-        if path in self._path_order:
-            return False
-        if not path.exists():
-            get_logger().error('Unable to add path for "%s"', self.name)
-            raise FileNotFoundError(path)
-        return True
+    def rebase(self, other):
+        new_data = configparser.ConfigParser()
+        new_data.read_dict(other.data)
+        new_data.read_dict(self._data)
+        self._data = new_data
 
-    def update_first_path(self, path):
-        """
-        Sets a config path as the new first path to be processed, if it is not already known.
-
-        Returns True if the config path was added,
-        False if the config path is already known.
-
-        Raises FileNotFoundError if path does not exist
-        """
-        if self._check_path_add(path):
-            if self._placeholder:
-                # This must be the first path to self._path_order
-                self.path = path
-            self._path_order.appendleft(path)
-            return True
-        return False
-
-    def update_last_path(self, path):
-        """
-        Sets a config path as the new last path to be processed, if it is not already known.
-
-        Returns True if the config path was added,
-        False if the config path is already known.
-
-        Raises FileNotFoundError if path does not exist
-        """
-        if self._check_path_add(path):
-            if self._placeholder:
-                # This must be the first path to self._path_order
-                self.path = path
-            self._path_order.append(path)
-            return True
-        return False
-
-    @abc.abstractmethod
-    def _parse_data(self):
-        """
-        Parses and returns config data.
-        Returns a blank data structure if empty
-        """
-
-    @property
-    def _config_data(self):
-        """Returns the parsed config data."""
-        parsed_data = self._parse_data()
-        if parsed_data is None:
-            # Assuming no parser intentionally returns None
-            get_logger().error('Got None from parser of "%s"', self.name)
-            raise TypeError('Got None from parser')
-        return parsed_data
-
-    @abc.abstractmethod
-    def write(self, path):
-        """
-        Writes the config to pathlib.Path path
-
-        If this config file is a placeholder, nothing is written.
-        """
-
-class _CacheConfigMixin: #pylint: disable=too-few-public-methods
-    """
-    Mixin for _ConfigABC to cache parse output
-
-    NOTE: This does not work with ListConfigFile
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self._read_cache = None
-
-    @property
-    def _config_data(self):
-        """
-        Returns the cached parsed config data.
-        It parses and caches if the cash is not present.
-        """
-        if self._read_cache:
-            return self._read_cache
-        self._read_cache = super()._config_data
-        return self._read_cache
-
-class RequiredConfigMixin: #pylint: disable=too-few-public-methods
-    """Mixin to require a config file, i.e. disallow placeholders"""
-
-    def __init__(self, path, name=None):
-        """
-        Raises TypeError if path is None
-        """
-        if path is None:
-            raise TypeError('Config file "%s" requires a path.' % name)
-        super().__init__(path, name=name)
-
-class IniConfigFile(_CacheConfigMixin, _ConfigABC):
-    """Represents an INI file"""
-
-    _schema = schema.Schema(object) # Allow any INI by default
+    def __str__(self):
+        with io.StringIO() as io_buffer:
+            self._data.write(io_buffer)
+            io_buffer.seek(0)
+            return io_buffer.read()
 
     def __getitem__(self, key):
         """
@@ -207,80 +93,68 @@ class IniConfigFile(_CacheConfigMixin, _ConfigABC):
 
         Raises KeyError if the section does not exist
         """
-        return self._config_data[key]
+        return self._data[key]
 
     def __contains__(self, item):
         """
         Returns True if item is a name of a section; False otherwise.
         """
-        return self._config_data.has_section(item)
+        return self._data.has_section(item)
 
     def __iter__(self):
         """Returns an iterator over the section names"""
-        return iter(self._config_data.sections())
+        return iter(self._data.sections())
 
-    def _parse_data(self):
-        """
-        Returns a parsed INI file.
-        Raises BuildkitAbort if validation fails
-        """
-        parsed_ini = configparser.ConfigParser()
-        if self._placeholder:
-            # Bypass schema validation here. Derivatives will handle placeholder config files
-            # on their own, or inherit RequiredConfigMixin.
-            return parsed_ini
-        for ini_path in self._path_order:
-            with ini_path.open(encoding=ENCODING) as ini_file:
-                parsed_ini.read_file(ini_file, source=str(ini_path))
-        try:
-            self._schema.validate(parsed_ini)
-        except schema.SchemaError:
-            get_logger().exception(
-                'Merged INI files failed schema validation: %s', tuple(self._path_order))
-            raise BuildkitAbort()
-        return parsed_ini
-
-    def write(self, path):
-        if not self._placeholder:
-            ini_parser = configparser.ConfigParser()
-            ini_parser.read_dict(self._config_data)
-            with path.open("w", encoding=ENCODING) as output_file:
-                ini_parser.write(output_file)
-
-class ListConfigFile(_ConfigABC):
+class ListConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
     """
     Represents a simple newline-delimited list
-
-    NOTE: This will not work properly if combined with _CacheConfigMixin
     """
+
+    def _parse_data(self, path):
+        with path.open(encoding=ENCODING) as list_file:
+            return list(filter(len, list_file.read().splitlines()))
+
+    def rebase(self, other):
+        self._data[:0] = other._data #pylint: disable=protected-access
+
+    def __str__(self):
+        return '\n'.join(self._data) + '\n'
+
     def __contains__(self, item):
         """Returns True if item is in the list; False otherwise"""
-        return item in self._config_data
-
-    def _line_generator(self):
-        for list_path in self._path_order:
-            with list_path.open(encoding=ENCODING) as list_file:
-                line_iter = list_file.read().splitlines()
-                yield from filter(len, line_iter)
+        return item in self._data
 
     def __iter__(self):
         """Returns an iterator over the list items"""
-        return iter(self._config_data)
+        return iter(self._data)
 
-    def _parse_data(self):
-        """Returns an iterator over the list items"""
-        return self._line_generator()
-
-    def write(self, path):
-        if not self._placeholder:
-            with path.open('w', encoding=ENCODING) as output_file:
-                output_file.writelines(map(lambda x: '%s\n' % x, self._config_data))
-
-class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
+class MapConfigFile(_ConfigFile):
     """Represents a simple string-keyed and string-valued dictionary"""
+
+    def _parse_data(self, path):
+        """
+        Raises ValueError if a key appears twice in a single map file.
+        """
+        new_data = collections.OrderedDict()
+        with path.open(encoding=ENCODING) as map_file:
+            for line in filter(len, map_file.read().splitlines()):
+                key, value = line.split('=')
+                if key in new_data:
+                    raise ValueError(
+                        'Map file "%s" contains key "%s" at least twice.' %
+                        (path, key))
+                new_data[key] = value
+        return new_data
+
+    def rebase(self, other):
+        self._data = collections.ChainMap(other._data, self._data) #pylint: disable=protected-access
+
+    def __str__(self):
+        return str().join(map(lambda x: '%s=%s\n' % x, sorted(self._data.items())))
+
     def __contains__(self, item):
         """Returns True if item is a key in the mapping; False otherwise"""
-        return item in self._config_data
+        return item in self._data
 
     def __getitem__(self, key):
         """
@@ -288,183 +162,26 @@ class MappingConfigFile(_CacheConfigMixin, _ConfigABC):
 
         Raises KeyError if the key is not in the mapping
         """
-        return self._config_data[key]
+        return self._data[key]
 
     def __iter__(self):
         """
         Returns an iterator over the keys in dependency order and order
         within each mapping file.
         """
-        return iter(self._config_data)
+        return iter(self._data)
 
     def items(self):
         """
         Returns an iterator of (key, value) tuples, like dict.items()
         """
-        return self._config_data.items()
+        return self._data.items()
 
-    def _parse_data(self):
-        """
-        Return a dictionary of the mapping of keys and values
-
-        Raises ValueError if a key appears twice in a single map file.
-        """
-        new_dict = collections.OrderedDict()
-        path_keys = set()
-        for mapping_path in self._path_order:
-            with mapping_path.open(encoding=ENCODING) as mapping_file:
-                for line in filter(len, mapping_file.read().splitlines()):
-                    key, value = line.split('=')
-                    if key in path_keys:
-                        raise ValueError(
-                            'Map file "%s" contains key "%s" at least twice.' %
-                            (mapping_path, key))
-                    path_keys.add(key)
-                    new_dict[key] = value
-            path_keys.clear()
-        return new_dict
-
-    def write(self, path):
-        if not self._placeholder:
-            with path.open('w', encoding=ENCODING) as output_file:
-                for item in self._config_data.items():
-                    output_file.write('%s=%s\n' % item)
-
-class ConfigBundle(_CacheConfigMixin, RequiredConfigMixin, _ConfigABC):
-    """Represents a user or base config bundle"""
-
-    @classmethod
-    def from_base_name(cls, name, load_depends=True):
-        """
-        Return a new ConfigBundle from a base config bundle name.
-
-        load_depends indicates if the base bundle's dependencies should be loaded.
-            This is generally only useful for developer utilities, where config
-            only from a specific bundle is required.
-
-        Raises NotADirectoryError if the resources/ or resources/patches directories
-            could not be found.
-        Raises FileNotFoundError if the base config bundle name does not exist.
-        Raises ValueError if there is an issue with the base bundle's or its
-            dependencies' metadata
-        """
-        config_bundles_dir = get_resources_dir() / CONFIG_BUNDLES_DIR
-        new_bundle = cls(config_bundles_dir / name)
-        pending_explore = collections.deque()
-        pending_explore.appendleft(name)
-        known_names = set()
-        while load_depends and pending_explore:
-            base_bundle_name = pending_explore.pop()
-            if base_bundle_name in known_names:
-                raise ValueError('Duplicate base config bundle dependency "{}"'.format(
-                    base_bundle_name))
-            known_names.add(base_bundle_name)
-            basebundlemeta = BaseBundleMetaIni(
-                config_bundles_dir / base_bundle_name / BASEBUNDLEMETA_INI)
-            for dependency_name in basebundlemeta.depends:
-                if new_bundle.update_first_path(config_bundles_dir / dependency_name):
-                    pending_explore.appendleft(dependency_name)
-        try:
-            new_bundle.patches.set_patches_dir(get_resources_dir() / PATCHES_DIR)
-        except KeyError:
-            pass # Don't do anything if patch_order does not exist
-        return new_bundle
-
-    def get_dependencies(self):
-        """
-        Returns a tuple of dependencies for the config bundle, in descending order of inheritance.
-        """
-        return (x.name for x in tuple(self._path_order)[:-1])
-
-    def __getitem__(self, key):
-        """
-        Returns the config file with the given name.
-
-        Raises KeyError if the file name is not known.
-        Raises ValueError if the config is malformed.
-        """
-        return self._config_data[key]
-
-    def __contains__(self, item):
-        """
-        Checks if a config file name is known.
-
-        Raises ValueError if the config bundle is malformed.
-        """
-        return item in self._config_data
-
-    def __getattr__(self, name): #pylint: disable=too-many-return-statements
-        """
-        Friendly interface to access config file objects via attributes.
-
-        Raises KeyError if a config file is missing.
-        Raises AttributeError if the attribute name does not exist.
-        """
-        if name == 'pruning':
-            return self[PRUNING_LIST]
-        elif name == 'domain_regex':
-            return self[DOMAIN_REGEX_LIST]
-        elif name == 'domain_substitution':
-            return self[DOMAIN_SUBSTITUTION_LIST]
-        elif name == 'extra_deps':
-            return self[EXTRA_DEPS_INI]
-        elif name == 'gn_flags':
-            return self[GN_FLAGS_MAP]
-        elif name == 'patches':
-            return self[PATCH_ORDER_LIST]
-        elif name == 'version':
-            return self[VERSION_INI]
-        else:
-            raise AttributeError(
-                '%s has no attribute "%s"' % type(self).__name__, name)
-
-    def _parse_data(self):
-        """
-        Returns a dictionary of config file names to their respective objects.
-
-        Raises ValueError if the config bundle contains unknown files.
-        """
-        file_dict = dict()
-        unused_names = {key for key, value in _FILE_DEF.items() if value}
-        # Add existing config files and dependencies
-        for directory in self._path_order:
-            for config_path in directory.iterdir():
-                if config_path.name in file_dict:
-                    file_dict[config_path.name].update_last_path(config_path)
-                else:
-                    try:
-                        config_class = _FILE_DEF[config_path.name]
-                    except KeyError:
-                        logger = get_logger()
-                        logger.error('Unknown file type at "%s"', config_path)
-                        logger.error('Config directory "%s" has unknown files', directory.name)
-                        raise ValueError(
-                            'Unknown files in config bundle: {}'.format(directory))
-                    unused_names.discard(config_path.name)
-                    if config_class:
-                        file_dict[config_path.name] = config_class(config_path)
-        # Add placeholder config files
-        for name in unused_names:
-            file_dict[name] = _FILE_DEF[name](None, name=name)
-        return file_dict
-
-    def write(self, path):
-        """
-        Writes a copy of this config bundle to a new directory specified by path.
-
-        Raises FileExistsError if the directory already exists and is not empty.
-        Raises FileNotFoundError if the parent directories for path do not exist.
-        Raises ValueError if the config bundle is malformed.
-        """
-        ensure_empty_dir(path)
-        for config_file in self._config_data.values():
-            config_file.write(path / config_file.name)
-
-class BaseBundleMetaIni(RequiredConfigMixin, IniConfigFile):
-    """Represents basebundlemeta.ini files"""
+class BundleMetaIni(_IniConfigFile):
+    """Represents bundlemeta.ini files"""
 
     _schema = schema.Schema(schema_inisections({
-        'basebundle': schema_dictcast({
+        'bundle': schema_dictcast({
             'display_name': schema.And(str, len),
             schema.Optional('depends'): schema.And(str, len),
         })
@@ -475,7 +192,7 @@ class BaseBundleMetaIni(RequiredConfigMixin, IniConfigFile):
         """
         Returns the display name of the base bundle
         """
-        return self['basebundle']['display_name']
+        return self['bundle']['display_name']
 
     @property
     def depends(self):
@@ -483,8 +200,8 @@ class BaseBundleMetaIni(RequiredConfigMixin, IniConfigFile):
         Returns an iterable of the dependencies defined in the metadata.
         Parents are ordered in increasing precedence.
         """
-        if 'depends' in self['basebundle']:
-            return [x.strip() for x in self['basebundle']['depends'].split(',')]
+        if 'depends' in self['bundle']:
+            return [x.strip() for x in self['bundle']['depends'].split(',')]
         return tuple()
 
 class DomainRegexList(ListConfigFile):
@@ -505,7 +222,8 @@ class DomainRegexList(ListConfigFile):
         pattern, replacement = line.split(self._PATTERN_REPLACE_DELIM)
         return self._regex_pair_tuple(re.compile(pattern), replacement)
 
-    def get_pairs(self):
+    @property
+    def regex_pairs(self):
         """
         Returns a tuple of compiled regex pairs
         """
@@ -521,10 +239,10 @@ class DomainRegexList(ListConfigFile):
         return re.compile('|'.join(
             map(lambda x: x.split(self._PATTERN_REPLACE_DELIM, 1)[0], self)))
 
-class ExtraDepsIni(IniConfigFile):
-    """Representation of an extra_deps.ini file"""
+class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
+    """Representation of an downloads.ini file"""
 
-    _hashes = ('md5', 'sha1', 'sha256', 'sha512')
+    _hashes = ('md5', 'sha1', 'sha256', 'sha512', 'hash_url')
     _required_keys = ('version', 'url', 'download_name', 'output_path')
     _optional_keys = ('strip_leading_dirs',)
     _passthrough_properties = (*_required_keys, *_optional_keys, 'extractor')
@@ -535,10 +253,13 @@ class ExtraDepsIni(IniConfigFile):
             **{schema.Optional(x): schema.And(str, len) for x in _optional_keys},
             schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP),
             schema.Or(*_hashes): schema.And(str, len),
+            schema.Optional('hash_url'): schema.And(
+                lambda x: x.count(':') == 1,
+                lambda x: x.split(':')[0] in ('chromium',)), # TODO: Use enum for hash url types
         })
     }))
 
-    class _ExtraDepsProperties: #pylint: disable=too-few-public-methods
+    class _DownloadsProperties: #pylint: disable=too-few-public-methods
         def __init__(self, section_dict, passthrough_properties, hashes):
             self._section_dict = section_dict
             self._passthrough_properties = passthrough_properties
@@ -552,6 +273,8 @@ class ExtraDepsIni(IniConfigFile):
                 for hash_name in self._hashes:
                     value = self._section_dict.get(hash_name, fallback=None)
                     if value:
+                        if hash_name == 'hash_url':
+                            value = value.split(':')
                         hashes_dict[hash_name] = value
                 return hashes_dict
             else:
@@ -563,130 +286,92 @@ class ExtraDepsIni(IniConfigFile):
         Returns an object with keys as attributes and
         values already pre-processed strings
         """
-        return self._ExtraDepsProperties(
-            self._config_data[section], self._passthrough_properties,
+        return self._DownloadsProperties(
+            self._data[section], self._passthrough_properties,
             self._hashes)
 
-class PatchesConfig(ListConfigFile):
-    """Representation of patch_order and associated patches"""
+class ConfigBundle:
+    """Config bundle implementation"""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    # All files in a config bundle
+    _FILE_CLASSES = {
+        'bundlemeta.ini': BundleMetaIni,
+        'pruning.list': ListConfigFile,
+        'domain_regex.list': DomainRegexList,
+        'domain_substitution.list': ListConfigFile,
+        'downloads.ini': DownloadsIni,
+        'gn_flags.map': MapConfigFile,
+        'patch_order.list': ListConfigFile,
+    }
 
-        self._patches_dir = None
+    # Attributes to access config file objects
+    _ATTR_MAPPING = {
+        'bundlemeta': 'bundlemeta.ini',
+        'pruning': 'pruning.list',
+        'domain_regex': 'domain_regex.list',
+        'domain_substitution': 'domain_substitution.list',
+        'downloads': 'downloads.ini',
+        'gn_flags': 'gn_flags.map',
+        'patch_order': 'patch_order.list',
+    }
 
-    def set_patches_dir(self, path):
+    def __init__(self, path, load_depends=True):
         """
-        Sets the path to the directory containing the patches. Does nothing if this is
-        a placeholder.
+        Return a new ConfigBundle from a config bundle name.
 
-        Raises NotADirectoryError if the path is not a directory or does not exist.
+        load_depends indicates if the bundle's dependencies should be loaded.
+            This is generally only useful for developer utilities, where config
+            only from a specific bundle is required.
+            When load_depends=True, dependencies are searched as siblings to path.
+
+        Raises FileNotFoundError if path or its dependencies cannot be found.
+        Raises BuildConfigError if there is an issue with the base bundle's or its
+            dependencies'
         """
-        if not path.is_dir():
-            raise NotADirectoryError(str(path))
-        self._patches_dir = path
+        self.files = dict() # Config file name -> _ConfigFile object
 
-    def _get_patches_dir(self):
+        for config_path in path.iterdir():
+            try:
+                handler = self._FILE_CLASSES[config_path.name]
+            except KeyError:
+                raise BuildkitConfigError(
+                    'Unknown file %s for bundle at %s' % config_path.name, config_path)
+            self.files[config_path.name] = handler(config_path)
+        if load_depends:
+            for dependency in self.bundlemeta.depends:
+                new_path = path.parent / dependency
+                if not new_path.is_dir():
+                    raise FileNotFoundError('Could not find dependency at %s' % new_path)
+                self.rebase(ConfigBundle(new_path))
+
+    def __getattr__(self, name):
         """
-        Returns the path to the patches directory
+        Access config file objects via attributes.
 
-        Raises TypeError if this is a placeholder.
+        Raises KeyError if a config file is missing.
+        Raises AttributeError if the attribute name does not exist.
         """
-        if self._placeholder:
-            raise TypeError('PatchesConfig is a placeholder')
-        if self._patches_dir is None:
-            patches_dir = self.path.parent / "patches"
-            if not patches_dir.is_dir():
-                raise NotADirectoryError(str(patches_dir))
-            self._patches_dir = patches_dir
-        return self._patches_dir
+        if name in self._ATTR_MAPPING:
+            return self.files[self._ATTR_MAPPING[name]]
+        else:
+            raise AttributeError(
+                '%s has no attribute "%s"' % type(self).__name__, name)
 
-    def patch_iter(self):
+    def rebase(self, other):
+        """Rebase the current bundle onto other, saving changes into self"""
+        for name, current_config_file in self.files.items():
+            if name in other.files:
+                current_config_file.rebase(other.files[name])
+
+    def to_standalone(self, path):
         """
-        Returns an iterator of pathlib.Path to patch files in the proper order
+        Save the config bundle as a standalone config bundle
 
-        Raises NotADirectoryError if the patches directory is not a directory or does not exist
-        """
-        for relative_path in self:
-            yield self._get_patches_dir() / relative_path
-
-    def export_patches(self, path, series=Path('series')):
-        """
-        Writes patches and a series file to the directory specified by path.
-        This is useful for writing a quilt-compatible patches directory and series file.
-        This does nothing if it is a placeholder.
-
-        path is a pathlib.Path to the patches directory to create. It must not already exist.
-        series is a pathlib.Path to the series file, relative to path.
-
-        Raises FileExistsError if path already exists and is not empty.
+        Raises FileExistsError if the directory already exists and is not empty.
         Raises FileNotFoundError if the parent directories for path do not exist.
+        Raises ValueError if the config bundle is malformed.
         """
-        if self._placeholder:
-            return
-        ensure_empty_dir(path) # Raises FileExistsError, FileNotFoundError
-        for relative_path in self:
-            destination = path / relative_path
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(str(self._get_patches_dir() / relative_path), str(destination))
-        super().write(path / series)
-
-    def write(self, path):
-        """Writes patch_order and patches/ directory to the same directory"""
-        if self._placeholder:
-            return
-        super().write(path)
-        for relative_path in self:
-            destination = path.parent / PATCHES_DIR / relative_path
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(str(self._get_patches_dir() / relative_path), str(destination))
-
-class VersionIni(IniConfigFile):
-    """Representation of a version.ini file"""
-
-    _schema = schema.Schema(schema_inisections({
-        'version': schema_dictcast({
-            'chromium_version': schema.And(str, len),
-            'release_revision': schema.And(str, len),
-            schema.Optional('release_extra'): schema.And(str, len),
-        })
-    }))
-
-    @property
-    def chromium_version(self):
-        """Returns the Chromium version."""
-        return self['version']['chromium_version']
-
-    @property
-    def release_revision(self):
-        """Returns the release revision."""
-        return self['version']['release_revision']
-
-    @property
-    def release_extra(self, fallback=None):
-        """
-        Return the release revision extra info, or returns fallback if it is not defined.
-        """
-        return self['version'].get('release_extra', fallback=fallback)
-
-    @property
-    def version_string(self):
-        """
-        Returns a version string containing all information in a Debian-like format.
-        """
-        result = '{}-{}'.format(self.chromium_version, self.release_revision)
-        if self.release_extra:
-            result += '~{}'.format(self.release_extra)
-        return result
-
-_FILE_DEF = {
-    BASEBUNDLEMETA_INI: None, # This file has special handling, so ignore it
-    PRUNING_LIST: ListConfigFile,
-    DOMAIN_REGEX_LIST: DomainRegexList,
-    DOMAIN_SUBSTITUTION_LIST: ListConfigFile,
-    EXTRA_DEPS_INI: ExtraDepsIni,
-    GN_FLAGS_MAP: MappingConfigFile,
-    PATCH_ORDER_LIST: PatchesConfig,
-    PATCHES_DIR: None, # Handled by PatchesConfig
-    VERSION_INI: VersionIni,
-}
+        ensure_empty_dir(path)
+        for name, config_file in self.files.items():
+            with (path / name).open('w', encoding=ENCODING) as file_obj:
+                file_obj.write(str(config_file))

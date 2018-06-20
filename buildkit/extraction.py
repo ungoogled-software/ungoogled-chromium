@@ -23,6 +23,8 @@ DEFAULT_EXTRACTORS = {
     ExtractorEnum.TAR: 'tar',
 }
 
+# TODO: Combine buildspace_tree and unpack_dir arguments
+
 def _find_7z_by_registry():
     """
     Return a string to 7-zip's 7z.exe from the Windows Registry.
