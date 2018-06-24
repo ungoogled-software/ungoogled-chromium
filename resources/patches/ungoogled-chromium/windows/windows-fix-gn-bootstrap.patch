@@ -1,0 +1,122 @@
+# Fixes for GN bootstrap on Windows
+# Based on Chromium commits:
+# 95fe44b3c31cf5e1a668d9ef8853aaf2cf9523a5
+tree 06dfb4ec8be9bdb8d606f6e05803ae8194036f84
+parent fcdb3ef9ea5fb65d0e92cdbcca01fad43fd7db56
+author Yngve N. Pettersen <yngve@vivaldi.com> 1523978789 +0000
+committer Commit Bot <commit-bot@chromium.org> 1523978789 +0000
+
+GN: Fix bootstrap call to setup_toolchain
+
+The parameters to setup_toolchain changed, adding an OS parameter and a
+filename for the environment file.
+
+Additional fixes:
+- Add missing base file to list of files
+- vs_toolchain should output Windows paths properly escaped
+
+Change-Id: I0e05bf34c8b603f16b901e76164e480121ed9d14
+Reviewed-on: https://chromium-review.googlesource.com/1013926
+Reviewed-by: Dirk Pranke <dpranke@chromium.org>
+Commit-Queue: Yngve Pettersen <yngve@vivaldi.com>
+Cr-Commit-Position: refs/heads/master@{#551341}
+
+# 0d3bbfb6b8ba05af199b49f5dd71d842f6acffda
+tree 82fd8aa381d703b290447b3757abe145fe3ce195
+parent 4d4aa99b532b9f5685316b0fa85fd6ca50667216
+author Tom Anderson <thomasanderson@chromium.org> 1524852455 +0000
+committer Commit Bot <commit-bot@chromium.org> 1524852455 +0000
+
+Fix gn bootstrap
+
+BUG=837312
+R=dpranke
+
+Change-Id: Ia5c57f596388a4ba325208c638fac558984202f0
+Reviewed-on: https://chromium-review.googlesource.com/1030895
+Reviewed-by: Dirk Pranke <dpranke@chromium.org>
+Commit-Queue: Dirk Pranke <dpranke@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#554419}
+
+--- a/build/vs_toolchain.py
++++ b/build/vs_toolchain.py
+@@ -13,6 +13,7 @@ import shutil
+ import stat
+ import subprocess
+ import sys
++from gn_helpers import ToGNString
+ 
+ 
+ script_dir = os.path.dirname(os.path.realpath(__file__))
+@@ -448,17 +449,17 @@ def GetToolchainDir():
+   runtime_dll_dirs = SetEnvironmentAndGetRuntimeDllDirs()
+   win_sdk_dir = SetEnvironmentAndGetSDKDir()
+ 
+-  print '''vs_path = "%s"
+-sdk_path = "%s"
+-vs_version = "%s"
+-wdk_dir = "%s"
+-runtime_dirs = "%s"
++  print '''vs_path = %s
++sdk_path = %s
++vs_version = %s
++wdk_dir = %s
++runtime_dirs = %s
+ ''' % (
+-      NormalizePath(os.environ['GYP_MSVS_OVERRIDE_PATH']),
+-      win_sdk_dir,
+-      GetVisualStudioVersion(),
+-      NormalizePath(os.environ.get('WDK_DIR', '')),
+-      os.path.pathsep.join(runtime_dll_dirs or ['None']))
++      ToGNString(NormalizePath(os.environ['GYP_MSVS_OVERRIDE_PATH'])),
++      ToGNString(win_sdk_dir),
++      ToGNString(GetVisualStudioVersion()),
++      ToGNString(NormalizePath(os.environ.get('WDK_DIR', ''))),
++      ToGNString(os.path.pathsep.join(runtime_dll_dirs or ['None'])))
+ 
+ 
+ def main():
+--- a/tools/gn/bootstrap/bootstrap.py
++++ b/tools/gn/bootstrap/bootstrap.py
+@@ -129,7 +129,9 @@ def windows_prepare_toolchain(tempdir):
+        toolchain_paths["vs_path"],
+        toolchain_paths["sdk_path"],
+        toolchain_paths["runtime_dirs"],
++       "win",
+        "x64",
++       "environment.x64",
+        "true"
+       ],
+       cwd=tempdir)
+@@ -526,8 +528,11 @@ def write_gn_ninja(path, root_gen_dir, o
+       'base/location.cc',
+       'base/logging.cc',
+       'base/md5.cc',
++      'base/memory/platform_shared_memory_region.cc',
++      'base/memory/read_only_shared_memory_region.cc',
+       'base/memory/ref_counted.cc',
+       'base/memory/ref_counted_memory.cc',
++      'base/memory/shared_memory_mapping.cc',
+       'base/memory/shared_memory_handle.cc',
+       'base/memory/shared_memory_tracker.cc',
+       'base/memory/weak_ptr.cc',
+@@ -664,6 +669,19 @@ def write_gn_ninja(path, root_gen_dir, o
+       'base/vlog.cc',
+   ])
+ 
++  if is_win:
++    static_libraries['base']['sources'].extend([
++        'base/memory/platform_shared_memory_region_win.cc'
++    ])
++  elif is_mac:
++    static_libraries['base']['sources'].extend([
++        'base/memory/platform_shared_memory_region_mac.cc'
++    ])
++  elif is_posix:
++    static_libraries['base']['sources'].extend([
++        'base/memory/platform_shared_memory_region_posix.cc'
++    ])
++
+   if is_posix:
+     static_libraries['base']['sources'].extend([
+         'base/base_paths_posix.cc',
