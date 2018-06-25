@@ -255,7 +255,8 @@ def main():
         dependents=dict(),
         # patches unused by patch orders
         unused_patches=set(map(
-            lambda x: str(x.relative_to(patches_dir)), patches_dir.rglob('*.patch')))
+            lambda x: str(x.relative_to(patches_dir)),
+            filter(lambda x: not x.is_dir(), patches_dir.rglob('*'))))
     )
     try:
         # Explore and validate base bundles
