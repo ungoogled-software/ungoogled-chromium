@@ -94,7 +94,7 @@ macOS cask: Available as `eloston-chromium`
 
 ## Getting the source code
 
-Users are encouraged to use [one of the tags](//github.com/Eloston/ungoogled-chromium/tags). The `master` branch is not guaranteed to be in a working state.
+Users are encouraged to use [one of the tags](//github.com/Eloston/ungoogled-chromium/tags). The latest tag may not be the applicable for all platforms. To determine the tag to use, please see the [Status page in the Wiki](https://ungoogled-software.github.io/ungoogled-chromium-wiki/statuses).
 
 Tags are versioned in the following format: `{chromium_version}-{release_revision}` where
 
