@@ -74,8 +74,6 @@ Ubuntu 16.04 (xenial), Ubuntu 17.10 (artful), Debian 8.0 (jessie), and other old
 
 ### Windows
 
-**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue (after checking the status page in the Wiki first).
-
 Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/64.0.3282.168/docs/windows_build_instructions.md#system-requirements). These instructions are tested on Windows 10 Home x64.
 
 NOTE: The default configuration will build 64-bit binaries for maximum security (TODO: Link some explanation). This can be changed to 32-bit by changing `target_cpu` to `"x32"` (*with* quotes) in the user config bundle GN flags config file (default path is `buildspace/user_bundle/gn_flags.map`
@@ -130,8 +128,6 @@ The buildspace tree can be relocated to another system for building if necessary
 
 ### macOS
 
-**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue (after checking the status page in the Wiki first).
-
 Tested on macOS 10.11-10.13
 
 #### Additional Requirements
@@ -168,8 +164,6 @@ chmod +x ungoogled_packaging/build.sh
 A `.dmg` should appear in `buildspace/`
 
 ### Arch Linux
-
-**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue (after checking the status page in the Wiki first).
 
 There are two methods to build for Arch Linux outlined in the following sections.
 
@@ -252,8 +246,6 @@ The RPM will be located in `~/rpm/RPMS/{arch}/` once rpmbuild has finished. It c
 ### Other Linux distributions
 
 These are for building on Linux distributions that do not have support already. It builds without distribution-optimized flags and patches for maximum compatibility.
-
-**NOTE**: There is no official maintainer for this platform. If there is a problem, please submit a pull request or issue (after checking the status page in the Wiki first).
 
 #### Requirements
 
