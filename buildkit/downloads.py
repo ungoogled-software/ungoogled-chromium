@@ -8,26 +8,21 @@
 Module for the downloading, checking, and unpacking of necessary files into the buildspace tree
 """
 
+import enum
 import urllib.request
 import hashlib
 from pathlib import Path
 
-from .common import (
-    ENCODING, BuildkitError, ExtractorEnum, get_logger, ensure_empty_dir)
+from .common import ENCODING, BuildkitError, ExtractorEnum, get_logger
 from .extraction import extract_tar_file, extract_with_7z
 
 # Constants
 
-# TODO: Move into downloads.ini
-_SOURCE_ARCHIVE_URL = ('https://commondatastorage.googleapis.com/'
-                       'chromium-browser-official/chromium-{}.tar.xz')
-_SOURCE_HASHES_URL = _SOURCE_ARCHIVE_URL + '.hashes'
+class HashesURLEnum(str, enum.Enum):
+    """Enum for supported hash URL schemes"""
+    chromium = 'chromium'
 
 # Custom Exceptions
-
-class NotAFileError(OSError):
-    """Exception for paths expected to be regular files"""
-    pass
 
 class HashMismatchError(BuildkitError):
     """Exception for computed hashes not matching expected hashes"""
@@ -58,12 +53,10 @@ def _download_if_needed(file_path, url, show_progress):
     Downloads a file from url to the specified path file_path if necessary.
 
     If show_progress is True, download progress is printed to the console.
-
-    Raises source_retrieval.NotAFileError when the destination exists but is not a file.
     """
-    if file_path.exists() and not file_path.is_file():
-        raise NotAFileError(file_path)
-    elif not file_path.exists():
+    if file_path.exists():
+        get_logger().info('%s already exists. Skipping download.', file_path)
+    else:
         get_logger().info('Downloading %s ...', file_path)
         reporthook = None
         if show_progress:
@@ -71,8 +64,6 @@ def _download_if_needed(file_path, url, show_progress):
         urllib.request.urlretrieve(url, str(file_path), reporthook=reporthook)
         if show_progress:
             print()
-    else:
-        get_logger().info('%s already exists. Skipping download.', file_path)
 
 def _chromium_hashes_generator(hashes_path):
     with hashes_path.open(encoding=ENCODING) as hashes_file:
@@ -83,153 +74,123 @@ def _chromium_hashes_generator(hashes_path):
         else:
             get_logger().warning('Skipping unknown hash algorithm: %s', hash_name)
 
-def _setup_chromium_source(config_bundle, buildspace_downloads, buildspace_tree, #pylint: disable=too-many-arguments
-                           show_progress, pruning_set, extractors=None):
-    """
-    Download, check, and extract the Chromium source code into the buildspace tree.
+def _downloads_iter(config_bundle):
+    """Iterator for the downloads ordered by output path"""
+    return sorted(config_bundle.downloads, key=(lambda x: str(Path(x.output_path))))
 
-    Arguments of the same name are shared with retreive_and_extract().
-    pruning_set is a set of files to be pruned. Only the files that are ignored during
-    extraction are removed from the set.
-    extractors is a dictionary of PlatformEnum to a command or path to the
-    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
+def _get_hash_pairs(download_properties, downloads_dir):
+    """Generator of (hash_name, hash_hex) for the given download"""
+    for entry_type, entry_value in download_properties.hashes.items():
+        if entry_type == 'hash_url':
+            hash_processor, hash_filename, _ = entry_value
+            if hash_processor == 'chromium':
+                yield from _chromium_hashes_generator(downloads_dir / hash_filename)
+            else:
+                raise ValueError('Unknown hash_url processor: %s' % hash_processor)
+        else:
+            yield entry_type, entry_value
+
+def retrieve_downloads(config_bundle, downloads_dir, show_progress, disable_ssl_verification=False):
+    """
+    Retrieve all downloads into the buildspace tree.
+
+    config_bundle is the config.ConfigBundle to retrieve downloads for.
+    downloads_dir is the pathlib.Path directory to store the retrieved downloads.
+    show_progress is a boolean indicating if download progress is printed to the console.
+    disable_ssl_verification is a boolean indicating if certificate verification
+        should be disabled for downloads using HTTPS.
+    """
+    if not downloads_dir.exists():
+        raise FileNotFoundError(downloads_dir)
+    if not downloads_dir.is_dir():
+        raise NotADirectoryError(downloads_dir)
+    if disable_ssl_verification:
+        import ssl
+        # TODO: Remove this or properly implement disabling SSL certificate verification
+        orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
+        ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access
+    try:
+        for download_name in _downloads_iter(config_bundle):
+            download_properties = config_bundle.downloads[download_name]
+            get_logger().info('Downloading "%s" to "%s" ...', download_name,
+                              download_properties.download_filename)
+            download_path = downloads_dir / download_properties.download_filename
+            _download_if_needed(download_path, download_properties.url, show_progress)
+            if download_properties.has_hash_url():
+                get_logger().info('Downloading hashes for "%s"', download_name)
+                _, hash_filename, hash_url = download_properties.hashes['hash_url']
+                _download_if_needed(downloads_dir / hash_filename, hash_url, show_progress)
+    finally:
+        # Try to reduce damage of hack by reverting original HTTPS context ASAP
+        if disable_ssl_verification:
+            ssl._create_default_https_context = orig_https_context #pylint: disable=protected-access
+
+def check_downloads(config_bundle, downloads_dir):
+    """
+    Check integrity of all downloads.
+
+    config_bundle is the config.ConfigBundle to unpack downloads for.
+    downloads_dir is the pathlib.Path directory containing the retrieved downloads
 
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
-    Raises source_retrieval.NotAFileError when the archive name exists but is not a file.
     May raise undetermined exceptions during archive unpacking.
     """
-    source_archive = buildspace_downloads / 'chromium-{}.tar.xz'.format(
-        config_bundle.version.chromium_version)
-    source_hashes = source_archive.with_name(source_archive.name + '.hashes')
-
-    if source_archive.exists() and not source_archive.is_file():
-        raise NotAFileError(source_archive)
-    if source_hashes.exists() and not source_hashes.is_file():
-        raise NotAFileError(source_hashes)
-
-    get_logger().info('Downloading Chromium source code...')
-    _download_if_needed(
-        source_archive,
-        _SOURCE_ARCHIVE_URL.format(config_bundle.version.chromium_version),
-        show_progress)
-    _download_if_needed(
-        source_hashes,
-        _SOURCE_HASHES_URL.format(config_bundle.version.chromium_version),
-        False)
-    get_logger().info('Verifying hashes...')
-    with source_archive.open('rb') as file_obj:
-        archive_data = file_obj.read()
-    for hash_name, hash_hex in _chromium_hashes_generator(source_hashes):
-        get_logger().debug('Verifying %s hash...', hash_name)
-        hasher = hashlib.new(hash_name, data=archive_data)
-        if not hasher.hexdigest().lower() == hash_hex.lower():
-            raise HashMismatchError(source_archive)
-    get_logger().info('Extracting archive...')
-    extract_tar_file(
-        archive_path=source_archive, buildspace_tree=buildspace_tree, unpack_dir=Path(),
-        ignore_files=pruning_set,
-        relative_to=Path('chromium-{}'.format(config_bundle.version.chromium_version)),
-        extractors=extractors)
-
-def _setup_extra_deps(config_bundle, buildspace_downloads, buildspace_tree, show_progress, #pylint: disable=too-many-arguments,too-many-locals
-                      pruning_set, extractors=None):
-    """
-    Download, check, and extract extra dependencies into the buildspace tree.
-
-    Arguments of the same name are shared with retreive_and_extract().
-    pruning_set is a set of files to be pruned. Only the files that are ignored during
-    extraction are removed from the set.
-    extractors is a dictionary of PlatformEnum to a command or path to the
-    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
-
-    Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
-    Raises source_retrieval.NotAFileError when the archive name exists but is not a file.
-    May raise undetermined exceptions during archive unpacking.
-    """
-    for dep_name in config_bundle.extra_deps:
-        get_logger().info('Downloading extra dependency "%s" ...', dep_name)
-        dep_properties = config_bundle.extra_deps[dep_name]
-        dep_archive = buildspace_downloads / dep_properties.download_name
-        _download_if_needed(dep_archive, dep_properties.url, show_progress)
-        get_logger().info('Verifying hashes...')
-        with dep_archive.open('rb') as file_obj:
+    for download_name in _downloads_iter(config_bundle):
+        get_logger().info('Verifying hashes for "%s" ...', download_name)
+        download_properties = config_bundle.downloads[download_name]
+        download_path = downloads_dir / download_properties.download_filename
+        with download_path.open('rb') as file_obj:
             archive_data = file_obj.read()
-        for hash_name, hash_hex in dep_properties.hashes.items():
+        for hash_name, hash_hex in _get_hash_pairs(download_properties, downloads_dir):
             get_logger().debug('Verifying %s hash...', hash_name)
             hasher = hashlib.new(hash_name, data=archive_data)
             if not hasher.hexdigest().lower() == hash_hex.lower():
-                raise HashMismatchError(dep_archive)
-        get_logger().info('Extracting to %s ...', dep_properties.output_path)
-        extractor_name = dep_properties.extractor or ExtractorEnum.TAR
+                raise HashMismatchError(download_path)
+
+def unpack_downloads(config_bundle, downloads_dir, output_dir, prune_binaries=True,
+                     extractors=None):
+    """
+    Unpack all downloads to output_dir. Assumes all downloads are present.
+
+    config_bundle is the config.ConfigBundle to unpack downloads for.
+    downloads_dir is the pathlib.Path directory containing the retrieved downloads
+    output_dir is the pathlib.Path directory to unpack the downloads to.
+    prune_binaries is a boolean indicating if binary pruning should be performed.
+    extractors is a dictionary of PlatformEnum to a command or path to the
+        extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
+
+    Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
+    May raise undetermined exceptions during archive unpacking.
+    """
+    for download_name in _downloads_iter(config_bundle):
+        download_properties = config_bundle.downloads[download_name]
+        download_path = downloads_dir / download_properties.download_filename
+        get_logger().info('Unpacking "%s" to %s ...', download_name,
+                          download_properties.output_path)
+        extractor_name = download_properties.extractor or ExtractorEnum.TAR
         if extractor_name == ExtractorEnum.SEVENZIP:
             extractor_func = extract_with_7z
         elif extractor_name == ExtractorEnum.TAR:
             extractor_func = extract_tar_file
         else:
-            # This is not a normal code path
             raise NotImplementedError(extractor_name)
 
-        if dep_properties.strip_leading_dirs is None:
+        if download_properties.strip_leading_dirs is None:
             strip_leading_dirs_path = None
         else:
-            strip_leading_dirs_path = Path(dep_properties.strip_leading_dirs)
+            strip_leading_dirs_path = Path(download_properties.strip_leading_dirs)
+
+        if prune_binaries:
+            unpruned_files = set(config_bundle.pruning)
+        else:
+            unpruned_files = set()
 
         extractor_func(
-            archive_path=dep_archive, buildspace_tree=buildspace_tree,
-            unpack_dir=Path(dep_properties.output_path), ignore_files=pruning_set,
+            archive_path=download_path, output_dir=output_dir,
+            unpack_dir=Path(download_properties.output_path), ignore_files=unpruned_files,
             relative_to=strip_leading_dirs_path, extractors=extractors)
 
-def retrieve_and_extract(config_bundle, buildspace_downloads, buildspace_tree, #pylint: disable=too-many-arguments
-                         prune_binaries=True, show_progress=True, extractors=None,
-                         disable_ssl_verification=False):
-    """
-    Downloads, checks, and unpacks the Chromium source code and extra dependencies
-    defined in the config bundle into the buildspace tree.
-
-    buildspace_downloads is the path to the buildspace downloads directory, and
-    buildspace_tree is the path to the buildspace tree.
-    extractors is a dictionary of PlatformEnum to a command or path to the
-    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
-    disable_ssl_verification is a boolean indicating if certificate verification
-    should be disabled for downloads using HTTPS.
-
-    Raises FileExistsError when the buildspace tree already exists and is not empty
-    Raises FileNotFoundError when buildspace/downloads does not exist or through
-    another system operation.
-    Raises NotADirectoryError if buildspace/downloads is not a directory or through
-    another system operation.
-    Raises source_retrieval.NotAFileError when the archive path exists but is not a regular file.
-    Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
-    May raise undetermined exceptions during archive unpacking.
-    """
-    ensure_empty_dir(buildspace_tree) # FileExistsError, FileNotFoundError
-    if not buildspace_downloads.exists():
-        raise FileNotFoundError(buildspace_downloads)
-    if not buildspace_downloads.is_dir():
-        raise NotADirectoryError(buildspace_downloads)
-    if prune_binaries:
-        remaining_files = set(config_bundle.pruning)
-    else:
-        remaining_files = set()
-    if disable_ssl_verification:
-        import ssl
-        # TODO: Properly implement disabling SSL certificate verification
-        orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
-        ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access
-    try:
-        _setup_chromium_source(
-            config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
-            buildspace_tree=buildspace_tree, show_progress=show_progress,
-            pruning_set=remaining_files, extractors=extractors)
-        _setup_extra_deps(
-            config_bundle=config_bundle, buildspace_downloads=buildspace_downloads,
-            buildspace_tree=buildspace_tree, show_progress=show_progress,
-            pruning_set=remaining_files, extractors=extractors)
-    finally:
-        # Try to reduce damage of hack by reverting original HTTPS context ASAP
-        if disable_ssl_verification:
-            ssl._create_default_https_context = orig_https_context #pylint: disable=protected-access
-    if remaining_files:
-        logger = get_logger()
-        for path in remaining_files:
-            logger.warning('File not found during source pruning: %s', path)
+        if unpruned_files:
+            logger = get_logger()
+            for path in unpruned_files:
+                logger.warning('File not found during binary pruning: %s', path)

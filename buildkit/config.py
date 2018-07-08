@@ -13,10 +13,12 @@ import configparser
 import collections
 import io
 import re
+from pathlib import Path
 
 from .common import (
     ENCODING, BuildkitError, ExtractorEnum,
-    get_logger, ensure_empty_dir, schema_dictcast, schema_inisections)
+    get_logger, get_chromium_version, ensure_empty_dir, schema_dictcast, schema_inisections)
+from .downloads import HashesURLEnum
 from .third_party import schema
 
 # Classes
@@ -243,27 +245,38 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
     """Representation of an downloads.ini file"""
 
     _hashes = ('md5', 'sha1', 'sha256', 'sha512', 'hash_url')
-    _required_keys = ('version', 'url', 'download_name', 'output_path')
+    _nonempty_keys = ('version', 'url', 'download_filename')
     _optional_keys = ('strip_leading_dirs',)
-    _passthrough_properties = (*_required_keys, *_optional_keys, 'extractor')
+    _passthrough_properties = (*_nonempty_keys, *_optional_keys, 'extractor')
+    _option_vars = {
+        '_chromium_version': get_chromium_version(),
+    }
 
     _schema = schema.Schema(schema_inisections({
         schema.Optional(schema.And(str, len)): schema_dictcast({
-            **{x: schema.And(str, len) for x in _required_keys},
+            **{x: schema.And(str, len) for x in _nonempty_keys},
+            'output_path': (lambda x: str(Path(x).relative_to(''))),
             **{schema.Optional(x): schema.And(str, len) for x in _optional_keys},
             schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP),
             schema.Or(*_hashes): schema.And(str, len),
             schema.Optional('hash_url'): schema.And(
-                lambda x: x.count(':') == 1,
-                lambda x: x.split(':')[0] in ('chromium',)), # TODO: Use enum for hash url types
+                lambda x: x.count(':') == 2,
+                lambda x: x.split(':')[0] in iter(HashesURLEnum)),
         })
     }))
 
     class _DownloadsProperties: #pylint: disable=too-few-public-methods
-        def __init__(self, section_dict, passthrough_properties, hashes):
+        def __init__(self, section_dict, passthrough_properties, hashes, option_vars):
             self._section_dict = section_dict
             self._passthrough_properties = passthrough_properties
             self._hashes = hashes
+            self._option_vars = option_vars
+
+        def has_hash_url(self):
+            """
+            Returns a boolean indicating whether the current
+            download has a hash URL"""
+            return 'hash_url' in self._section_dict
 
         def __getattr__(self, name):
             if name in self._passthrough_properties:
@@ -271,7 +284,7 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
             elif name == 'hashes':
                 hashes_dict = dict()
                 for hash_name in self._hashes:
-                    value = self._section_dict.get(hash_name, fallback=None)
+                    value = self._section_dict.get(hash_name, vars=self._option_vars, fallback=None)
                     if value:
                         if hash_name == 'hash_url':
                             value = value.split(':')
@@ -288,7 +301,7 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
         """
         return self._DownloadsProperties(
             self._data[section], self._passthrough_properties,
-            self._hashes)
+            self._hashes, self._option_vars)
 
 class ConfigBundle:
     """Config bundle implementation"""
