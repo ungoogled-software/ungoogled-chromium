@@ -23,8 +23,6 @@ DEFAULT_EXTRACTORS = {
     ExtractorEnum.TAR: 'tar',
 }
 
-# TODO: Combine buildspace_tree and unpack_dir arguments
-
 def _find_7z_by_registry():
     """
     Return a string to 7-zip's 7z.exe from the Windows Registry.
@@ -67,30 +65,30 @@ def _process_relative_to(unpack_root, relative_to):
         src_path.rename(dest_path)
     relative_root.rmdir()
 
-def _prune_tree(unpack_root, ignore_files):
+def prune_dir(unpack_root, ignore_files):
     """
-    Run through the list of pruned files, delete them, and remove them from the set
+    Delete files under unpack_root listed in ignore_files. Returns an iterable of unremovable files.
+
+    unpack_root is a pathlib.Path to the directory to be pruned
+    ignore_files is an iterable of files to be removed.
     """
-    deleted_files = set()
+    unremovable_files = set()
     for relative_file in ignore_files:
         file_path = unpack_root / relative_file
-        if not file_path.is_file():
-            continue
-        file_path.unlink()
-        deleted_files.add(Path(relative_file).as_posix())
-    for deleted_path in deleted_files:
-        ignore_files.remove(deleted_path)
+        try:
+            file_path.unlink()
+        except FileNotFoundError:
+            unremovable_files.add(Path(relative_file).as_posix())
+    return unremovable_files
 
-def _extract_tar_with_7z(binary, archive_path, buildspace_tree, unpack_dir, ignore_files, #pylint: disable=too-many-arguments
-                         relative_to):
+def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
     get_logger().debug('Using 7-zip extractor')
-    out_dir = buildspace_tree / unpack_dir
-    if not relative_to is None and (out_dir / relative_to).exists():
+    if not relative_to is None and (output_dir / relative_to).exists():
         get_logger().error(
-            'Temporary unpacking directory already exists: %s', out_dir / relative_to)
+            'Temporary unpacking directory already exists: %s', output_dir / relative_to)
         raise BuildkitAbort()
     cmd1 = (binary, 'x', str(archive_path), '-so')
-    cmd2 = (binary, 'x', '-si', '-aoa', '-ttar', '-o{}'.format(str(out_dir)))
+    cmd2 = (binary, 'x', '-si', '-aoa', '-ttar', '-o{}'.format(str(output_dir)))
     get_logger().debug('7z command line: %s | %s',
                        ' '.join(cmd1), ' '.join(cmd2))
 
@@ -105,16 +103,12 @@ def _extract_tar_with_7z(binary, archive_path, buildspace_tree, unpack_dir, igno
         raise BuildkitAbort()
 
     if not relative_to is None:
-        _process_relative_to(out_dir, relative_to)
+        _process_relative_to(output_dir, relative_to)
 
-    _prune_tree(out_dir, ignore_files)
-
-def _extract_tar_with_tar(binary, archive_path, buildspace_tree, unpack_dir, #pylint: disable=too-many-arguments
-                          ignore_files, relative_to):
+def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
     get_logger().debug('Using BSD or GNU tar extractor')
-    out_dir = buildspace_tree / unpack_dir
-    out_dir.mkdir(exist_ok=True)
-    cmd = (binary, '-xf', str(archive_path), '-C', str(out_dir))
+    output_dir.mkdir(exist_ok=True)
+    cmd = (binary, '-xf', str(archive_path), '-C', str(output_dir))
     get_logger().debug('tar command line: %s', ' '.join(cmd))
     result = subprocess.run(cmd)
     if result.returncode != 0:
@@ -124,11 +118,9 @@ def _extract_tar_with_tar(binary, archive_path, buildspace_tree, unpack_dir, #py
     # for gnu tar, the --transform option could be used. but to keep compatibility with
     # bsdtar on macos, we just do this ourselves
     if not relative_to is None:
-        _process_relative_to(out_dir, relative_to)
+        _process_relative_to(output_dir, relative_to)
 
-    _prune_tree(out_dir, ignore_files)
-
-def _extract_tar_with_python(archive_path, buildspace_tree, unpack_dir, ignore_files, relative_to):
+def _extract_tar_with_python(archive_path, output_dir, relative_to):
     get_logger().debug('Using pure Python tar extractor')
     class NoAppendList(list):
         """Hack to workaround memory issues with large tar files"""
@@ -155,44 +147,36 @@ def _extract_tar_with_python(archive_path, buildspace_tree, unpack_dir, ignore_f
         for tarinfo in tar_file_obj:
             try:
                 if relative_to is None:
-                    tree_relative_path = unpack_dir / PurePosixPath(tarinfo.name)
+                    destination = output_dir / PurePosixPath(tarinfo.name)
                 else:
-                    tree_relative_path = unpack_dir / PurePosixPath(tarinfo.name).relative_to(
+                    destination = output_dir / PurePosixPath(tarinfo.name).relative_to(
                         relative_to)
-                try:
-                    ignore_files.remove(tree_relative_path.as_posix())
-                except KeyError:
-                    destination = buildspace_tree / tree_relative_path
-                    if tarinfo.issym() and not symlink_supported:
-                        # In this situation, TarFile.makelink() will try to create a copy of the
-                        # target. But this fails because TarFile.members is empty
-                        # But if symlinks are not supported, it's safe to assume that symlinks
-                        # aren't needed. The only situation where this happens is on Windows.
-                        continue
-                    if tarinfo.islnk():
-                        # Derived from TarFile.extract()
-                        new_target = buildspace_tree / unpack_dir / PurePosixPath(
-                            tarinfo.linkname).relative_to(relative_to)
-                        tarinfo._link_target = new_target.as_posix() # pylint: disable=protected-access
-                    if destination.is_symlink():
-                        destination.unlink()
-                    tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
+                if tarinfo.issym() and not symlink_supported:
+                    # In this situation, TarFile.makelink() will try to create a copy of the
+                    # target. But this fails because TarFile.members is empty
+                    # But if symlinks are not supported, it's safe to assume that symlinks
+                    # aren't needed. The only situation where this happens is on Windows.
+                    continue
+                if tarinfo.islnk():
+                    # Derived from TarFile.extract()
+                    new_target = output_dir / PurePosixPath(tarinfo.linkname).relative_to(
+                        relative_to)
+                    tarinfo._link_target = new_target.as_posix() # pylint: disable=protected-access
+                if destination.is_symlink():
+                    destination.unlink()
+                tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
             except BaseException:
                 get_logger().exception('Exception thrown for tar member: %s', tarinfo.name)
                 raise BuildkitAbort()
 
-def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, relative_to, #pylint: disable=too-many-arguments
+def extract_tar_file(archive_path, output_dir, relative_to, #pylint: disable=too-many-arguments
                      extractors=None):
     """
-    Extract regular or compressed tar archive into the buildspace tree.
+    Extract regular or compressed tar archive into the output directory.
 
     archive_path is the pathlib.Path to the archive to unpack
-    buildspace_tree is a pathlib.Path to the buildspace tree.
-    unpack_dir is a pathlib.Path relative to buildspace_tree to unpack the archive.
-        It must already exist.
+    output_dir is a pathlib.Path to the directory to unpack. It must already exist.
 
-    ignore_files is a set of paths as strings that should not be extracted from the archive.
-        Files that have been ignored are removed from the set.
     relative_to is a pathlib.Path for directories that should be stripped relative to the
         root of the archive, or None if no path components should be stripped.
     extractors is a dictionary of PlatformEnum to a command or path to the
@@ -200,7 +184,6 @@ def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, re
 
     Raises BuildkitAbort if unexpected issues arise during unpacking.
     """
-    resolved_tree = buildspace_tree.resolve()
     if extractors is None:
         extractors = DEFAULT_EXTRACTORS
 
@@ -211,39 +194,29 @@ def extract_tar_file(archive_path, buildspace_tree, unpack_dir, ignore_files, re
             sevenzip_cmd = str(_find_7z_by_registry())
         sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
         if not sevenzip_bin is None:
-            _extract_tar_with_7z(
-                binary=sevenzip_bin, archive_path=archive_path, buildspace_tree=resolved_tree,
-                unpack_dir=unpack_dir, ignore_files=ignore_files, relative_to=relative_to)
+            _extract_tar_with_7z(sevenzip_bin, archive_path, output_dir, relative_to)
             return
     elif current_platform == PlatformEnum.UNIX:
         # NOTE: 7-zip isn't an option because it doesn't preserve file permissions
         tar_bin = _find_extractor_by_cmd(extractors.get(ExtractorEnum.TAR))
         if not tar_bin is None:
-            _extract_tar_with_tar(
-                binary=tar_bin, archive_path=archive_path, buildspace_tree=resolved_tree,
-                unpack_dir=unpack_dir, ignore_files=ignore_files, relative_to=relative_to)
+            _extract_tar_with_tar(tar_bin, archive_path, output_dir, relative_to)
             return
     else:
         # This is not a normal code path, so make it clear.
         raise NotImplementedError(current_platform)
     # Fallback to Python-based extractor on all platforms
-    _extract_tar_with_python(
-        archive_path=archive_path, buildspace_tree=resolved_tree, unpack_dir=unpack_dir,
-        ignore_files=ignore_files, relative_to=relative_to)
+    _extract_tar_with_python(archive_path, output_dir, relative_to)
 
-def extract_with_7z(archive_path, buildspace_tree, unpack_dir, ignore_files, relative_to, #pylint: disable=too-many-arguments
+def extract_with_7z(archive_path, output_dir, relative_to, #pylint: disable=too-many-arguments
                     extractors=None):
     """
-    Extract archives with 7-zip into the buildspace tree.
+    Extract archives with 7-zip into the output directory.
     Only supports archives with one layer of unpacking, so compressed tar archives don't work.
 
     archive_path is the pathlib.Path to the archive to unpack
-    buildspace_tree is a pathlib.Path to the buildspace tree.
-    unpack_dir is a pathlib.Path relative to buildspace_tree to unpack the archive.
-    It must already exist.
+    output_dir is a pathlib.Path to the directory to unpack. It must already exist.
 
-    ignore_files is a set of paths as strings that should not be extracted from the archive.
-    Files that have been ignored are removed from the set.
     relative_to is a pathlib.Path for directories that should be stripped relative to the
     root of the archive.
     extractors is a dictionary of PlatformEnum to a command or path to the
@@ -262,14 +235,12 @@ def extract_with_7z(archive_path, buildspace_tree, unpack_dir, ignore_files, rel
             raise BuildkitAbort()
         sevenzip_cmd = str(_find_7z_by_registry())
     sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
-    resolved_tree = buildspace_tree.resolve()
 
-    out_dir = resolved_tree / unpack_dir
-    if not relative_to is None and (out_dir / relative_to).exists():
+    if not relative_to is None and (output_dir / relative_to).exists():
         get_logger().error(
-            'Temporary unpacking directory already exists: %s', out_dir / relative_to)
+            'Temporary unpacking directory already exists: %s', output_dir / relative_to)
         raise BuildkitAbort()
-    cmd = (sevenzip_bin, 'x', str(archive_path), '-aoa', '-o{}'.format(str(out_dir)))
+    cmd = (sevenzip_bin, 'x', str(archive_path), '-aoa', '-o{}'.format(str(output_dir)))
     get_logger().debug('7z command line: %s', ' '.join(cmd))
 
     result = subprocess.run(cmd)
@@ -278,6 +249,4 @@ def extract_with_7z(archive_path, buildspace_tree, unpack_dir, ignore_files, rel
         raise BuildkitAbort()
 
     if not relative_to is None:
-        _process_relative_to(out_dir, relative_to)
-
-    _prune_tree(out_dir, ignore_files)
+        _process_relative_to(output_dir, relative_to)

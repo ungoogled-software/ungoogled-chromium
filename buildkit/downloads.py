@@ -5,7 +5,7 @@
 # found in the LICENSE file.
 
 """
-Module for the downloading, checking, and unpacking of necessary files into the buildspace tree
+Module for the downloading, checking, and unpacking of necessary files into the source tree
 """
 
 import enum
@@ -78,32 +78,35 @@ def _downloads_iter(config_bundle):
     """Iterator for the downloads ordered by output path"""
     return sorted(config_bundle.downloads, key=(lambda x: str(Path(x.output_path))))
 
-def _get_hash_pairs(download_properties, downloads_dir):
+def _get_hash_pairs(download_properties, cache_dir):
     """Generator of (hash_name, hash_hex) for the given download"""
     for entry_type, entry_value in download_properties.hashes.items():
         if entry_type == 'hash_url':
             hash_processor, hash_filename, _ = entry_value
             if hash_processor == 'chromium':
-                yield from _chromium_hashes_generator(downloads_dir / hash_filename)
+                yield from _chromium_hashes_generator(cache_dir / hash_filename)
             else:
                 raise ValueError('Unknown hash_url processor: %s' % hash_processor)
         else:
             yield entry_type, entry_value
 
-def retrieve_downloads(config_bundle, downloads_dir, show_progress, disable_ssl_verification=False):
+def retrieve_downloads(config_bundle, cache_dir, show_progress, disable_ssl_verification=False):
     """
-    Retrieve all downloads into the buildspace tree.
+    Retrieve downloads into the downloads cache.
 
     config_bundle is the config.ConfigBundle to retrieve downloads for.
-    downloads_dir is the pathlib.Path directory to store the retrieved downloads.
+    cache_dir is the pathlib.Path to the downloads cache.
     show_progress is a boolean indicating if download progress is printed to the console.
     disable_ssl_verification is a boolean indicating if certificate verification
         should be disabled for downloads using HTTPS.
+
+    Raises FileNotFoundError if the downloads path does not exist.
+    Raises NotADirectoryError if the downloads path is not a directory.
     """
-    if not downloads_dir.exists():
-        raise FileNotFoundError(downloads_dir)
-    if not downloads_dir.is_dir():
-        raise NotADirectoryError(downloads_dir)
+    if not cache_dir.exists():
+        raise FileNotFoundError(cache_dir)
+    if not cache_dir.is_dir():
+        raise NotADirectoryError(cache_dir)
     if disable_ssl_verification:
         import ssl
         # TODO: Remove this or properly implement disabling SSL certificate verification
@@ -114,57 +117,53 @@ def retrieve_downloads(config_bundle, downloads_dir, show_progress, disable_ssl_
             download_properties = config_bundle.downloads[download_name]
             get_logger().info('Downloading "%s" to "%s" ...', download_name,
                               download_properties.download_filename)
-            download_path = downloads_dir / download_properties.download_filename
+            download_path = cache_dir / download_properties.download_filename
             _download_if_needed(download_path, download_properties.url, show_progress)
             if download_properties.has_hash_url():
                 get_logger().info('Downloading hashes for "%s"', download_name)
                 _, hash_filename, hash_url = download_properties.hashes['hash_url']
-                _download_if_needed(downloads_dir / hash_filename, hash_url, show_progress)
+                _download_if_needed(cache_dir / hash_filename, hash_url, show_progress)
     finally:
         # Try to reduce damage of hack by reverting original HTTPS context ASAP
         if disable_ssl_verification:
             ssl._create_default_https_context = orig_https_context #pylint: disable=protected-access
 
-def check_downloads(config_bundle, downloads_dir):
+def check_downloads(config_bundle, cache_dir):
     """
-    Check integrity of all downloads.
+    Check integrity of the downloads cache.
 
     config_bundle is the config.ConfigBundle to unpack downloads for.
-    downloads_dir is the pathlib.Path directory containing the retrieved downloads
+    cache_dir is the pathlib.Path to the downloads cache.
 
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
-    May raise undetermined exceptions during archive unpacking.
     """
     for download_name in _downloads_iter(config_bundle):
         get_logger().info('Verifying hashes for "%s" ...', download_name)
         download_properties = config_bundle.downloads[download_name]
-        download_path = downloads_dir / download_properties.download_filename
+        download_path = cache_dir / download_properties.download_filename
         with download_path.open('rb') as file_obj:
             archive_data = file_obj.read()
-        for hash_name, hash_hex in _get_hash_pairs(download_properties, downloads_dir):
+        for hash_name, hash_hex in _get_hash_pairs(download_properties, cache_dir):
             get_logger().debug('Verifying %s hash...', hash_name)
             hasher = hashlib.new(hash_name, data=archive_data)
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(download_path)
 
-def unpack_downloads(config_bundle, downloads_dir, output_dir, prune_binaries=True,
-                     extractors=None):
+def unpack_downloads(config_bundle, cache_dir, output_dir, extractors=None):
     """
-    Unpack all downloads to output_dir. Assumes all downloads are present.
+    Unpack downloads in the downloads cache to output_dir. Assumes all downloads are retrieved.
 
     config_bundle is the config.ConfigBundle to unpack downloads for.
-    downloads_dir is the pathlib.Path directory containing the retrieved downloads
+    cache_dir is the pathlib.Path directory containing the download cache
     output_dir is the pathlib.Path directory to unpack the downloads to.
-    prune_binaries is a boolean indicating if binary pruning should be performed.
     extractors is a dictionary of PlatformEnum to a command or path to the
         extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
 
-    Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     May raise undetermined exceptions during archive unpacking.
     """
     for download_name in _downloads_iter(config_bundle):
         download_properties = config_bundle.downloads[download_name]
-        download_path = downloads_dir / download_properties.download_filename
+        download_path = cache_dir / download_properties.download_filename
         get_logger().info('Unpacking "%s" to %s ...', download_name,
                           download_properties.output_path)
         extractor_name = download_properties.extractor or ExtractorEnum.TAR
@@ -180,17 +179,7 @@ def unpack_downloads(config_bundle, downloads_dir, output_dir, prune_binaries=Tr
         else:
             strip_leading_dirs_path = Path(download_properties.strip_leading_dirs)
 
-        if prune_binaries:
-            unpruned_files = set(config_bundle.pruning)
-        else:
-            unpruned_files = set()
-
         extractor_func(
             archive_path=download_path, output_dir=output_dir,
-            unpack_dir=Path(download_properties.output_path), ignore_files=unpruned_files,
+            unpack_dir=Path(download_properties.output_path),
             relative_to=strip_leading_dirs_path, extractors=extractors)
-
-        if unpruned_files:
-            logger = get_logger()
-            for path in unpruned_files:
-                logger.warning('File not found during binary pruning: %s', path)

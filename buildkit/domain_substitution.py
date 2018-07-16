@@ -5,7 +5,7 @@
 # found in the LICENSE file.
 
 """
-Module for substituting domain names in buildspace tree with blockable strings.
+Module for substituting domain names in the source tree with blockable strings.
 """
 
 import io
@@ -18,7 +18,7 @@ from pathlib import Path
 from .extraction import extract_tar_file
 from .common import ENCODING, get_logger
 
-# Encodings to try on buildspace tree files
+# Encodings to try on source tree files
 TREE_ENCODINGS = (ENCODING, 'ISO-8859-1')
 
 # Constants for domain substitution cache
@@ -71,7 +71,7 @@ def _substitute_path(path, regex_iter):
 
 def _validate_file_index(index_file, resolved_tree, cache_index_files):
     """
-    Validation of file index and hashes against the buildspace tree.
+    Validation of file index and hashes against the source tree.
         Updates cache_index_files
 
     Returns True if the file index is valid; False otherwise
@@ -110,26 +110,26 @@ def _validate_file_index(index_file, resolved_tree, cache_index_files):
 
 # Public Methods
 
-def apply_substitution(config_bundle, buildspace_tree, domainsub_cache):
+def apply_substitution(config_bundle, source_tree, domainsub_cache):
     """
-    Substitute domains in buildspace_tree with files and substitutions from config_bundle,
+    Substitute domains in source_tree with files and substitutions from config_bundle,
         and save the pre-domain substitution archive to presubdom_archive.
 
     config_bundle is a config.ConfigBundle
-    buildspace_tree is a pathlib.Path to the buildspace tree.
+    source_tree is a pathlib.Path to the source tree.
     domainsub_cache is a pathlib.Path to the domain substitution cache.
 
     Raises NotADirectoryError if the patches directory is not a directory or does not exist
-    Raises FileNotFoundError if the buildspace tree or required directory does not exist.
+    Raises FileNotFoundError if the source tree or required directory does not exist.
     Raises FileExistsError if the domain substitution cache already exists.
     Raises ValueError if an entry in the domain substitution list contains the file index
         hash delimiter.
     """
-    if not buildspace_tree.exists():
-        raise FileNotFoundError(buildspace_tree)
+    if not source_tree.exists():
+        raise FileNotFoundError(source_tree)
     if domainsub_cache.exists():
         raise FileExistsError(domainsub_cache)
-    resolved_tree = buildspace_tree.resolve()
+    resolved_tree = source_tree.resolve()
     regex_pairs = config_bundle.domain_regex.get_pairs()
     fileindex_content = io.BytesIO()
     with tarfile.open(str(domainsub_cache),
@@ -161,28 +161,28 @@ def apply_substitution(config_bundle, buildspace_tree, domainsub_cache):
         fileindex_content.seek(0)
         cache_tar.addfile(fileindex_tarinfo, fileindex_content)
 
-def revert_substitution(domainsub_cache, buildspace_tree):
+def revert_substitution(domainsub_cache, source_tree):
     """
-    Revert domain substitution on buildspace_tree using the pre-domain
+    Revert domain substitution on source_tree using the pre-domain
         substitution archive presubdom_archive.
     It first checks if the hashes of the substituted files match the hashes
         computed during the creation of the domain substitution cache, raising
         KeyError if there are any mismatches. Then, it proceeds to
-        reverting files in the buildspace_tree.
+        reverting files in the source_tree.
     domainsub_cache is removed only if all the files from the domain substitution cache
-        were relocated to the buildspace tree.
+        were relocated to the source tree.
 
     domainsub_cache is a pathlib.Path to the domain substitution cache.
-    buildspace_tree is a pathlib.Path to the buildspace tree.
+    source_tree is a pathlib.Path to the source tree.
 
     Raises KeyError if:
         * There is a hash mismatch while validating the cache
         * The cache's file index is corrupt or missing
         * The cache is corrupt or is not consistent with the file index
-    Raises FileNotFoundError if the buildspace tree or domain substitution cache do not exist.
+    Raises FileNotFoundError if the source tree or domain substitution cache do not exist.
     """
     # This implementation trades disk space/wear for performance (unless a ramdisk is used
-    #   for the buildspace tree)
+    #   for the source tree)
     # Assumptions made for this process:
     # * The correct tar file was provided (so no huge amount of space is wasted)
     # * The tar file is well-behaved (e.g. no files extracted outside of destination path)
@@ -190,9 +190,9 @@ def revert_substitution(domainsub_cache, buildspace_tree):
     #   one or the other)
     if not domainsub_cache.exists():
         raise FileNotFoundError(domainsub_cache)
-    if not buildspace_tree.exists():
-        raise FileNotFoundError(buildspace_tree)
-    resolved_tree = buildspace_tree.resolve()
+    if not source_tree.exists():
+        raise FileNotFoundError(source_tree)
+    resolved_tree = source_tree.resolve()
 
     cache_index_files = set() # All files in the file index
 
@@ -200,15 +200,15 @@ def revert_substitution(domainsub_cache, buildspace_tree):
                                      dir=str(resolved_tree)) as tmp_extract_name:
         extract_path = Path(tmp_extract_name)
         get_logger().debug('Extracting domain substitution cache...')
-        extract_tar_file(domainsub_cache, extract_path, Path(), set(), None)
+        extract_tar_file(domainsub_cache, extract_path, Path())
 
-        # Validate buildspace tree file hashes match
-        get_logger().debug('Validating substituted files in buildspace tree...')
+        # Validate source tree file hashes match
+        get_logger().debug('Validating substituted files in source tree...')
         with (extract_path / _INDEX_LIST).open('rb') as index_file: #pylint: disable=no-member
             if not _validate_file_index(index_file, resolved_tree, cache_index_files):
                 raise KeyError(
                     'Domain substitution cache file index is corrupt or hashes mismatch '
-                    'the buildspace tree.')
+                    'the source tree.')
 
         # Move original files over substituted ones
         get_logger().debug('Moving original files over substituted ones...')

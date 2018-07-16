@@ -12,7 +12,6 @@ ungoogled-chromium consists of the following major components:
     * [Patches](#patches)
 * [Packaging](#packaging)
 * [buildkit](#buildkit)
-* [Buildspace](#buildspace)
 
 The following sections describe each component.
 
@@ -62,11 +61,11 @@ Bundles merge config file types from its dependencies in the following manner (c
 * `.map` - Entries (key-value pairs) are collected together. If a key exists in two or more dependencies, the subsequent dependencies in the dependency order have precedence.
 * `.ini` - Sections are collected together. If a section exists in two or more dependencies, its keys are resolved in an identical manner as mapping config files.
 
-Bundles vary in specificity; some apply across multiple kinds of systems, and some apply to a specific family. However, no bundle may become more specific than a "public" system variant; since there is no concrete definition, the policy for Linux distribution bundles is used to illustrate:
+Bundles vary in specificity; some apply across multiple kinds of systems, and some apply to a specific family. For example:
 * Each family of Linux distributions should have their own bundle (e.g. Debian, Fedora)
 * Each distribution within that family can have their own bundle ONLY if they cannot be combined (e.g. Debian and Ubuntu)
 * Each version for a distribution can have their own bundle ONLY if the versions in question cannot be combined and should be supported simultaneously (e.g. Debian testing and stable, Ubuntu LTS and regular stables)
-* Custom Linux systems for personal or limited use **should not** have a bundle.
+* Custom Linux systems for personal or limited use **should not** have a bundle (such modifications should take place in the packaging scripts).
 
 Among the multiple bundles and mixins, here are a few noteworthy ones:
 * `common` - The bundle used by all other bundles. It contains most, if not all, of the feature-implementing configuration.
@@ -158,7 +157,7 @@ The directories in `resources/packaging` correspond to the packaging type names.
 
 ## buildkit
 
-buildkit is a Python 3 library and CLI application for building ungoogled-chromium. Its main purpose is to setup the buildspace tree and any requested building or packaging scripts from the `resources/` directory.
+buildkit is a Python 3 library and CLI application for building ungoogled-chromium. It is designed to be used by the packaging process to assist in building and some of packaging.
 
 Use `buildkit-launcher.py` to invoke the buildkit CLI. Pass in `-h` or `--help` for usage details.
 
@@ -171,13 +170,3 @@ There is currently no API documentation for buildkit. However, all public classe
 buildkit should be simple and transparent instead of limited and intelligent when it is reasonable. As an analogy, buildkit should be like git in terms of the scope and behavior of functionality (e.g. subcommands) and as a system in whole.
 
 buildkit should be as configuration- and platform-agnostic as possible. If there is some new functionality that is configuration-dependent or would require extending the configuration system (e.g. adding new config file types), it is preferred for this to be added to packaging scripts (in which scripts shared among packaging types are preferred over those for specific types).
-
-## Buildspace
-
-Buildspace is a directory that contains all intermediate and final files for building. Its default location is in the repository directory as `buildspace/`. The directory structure is as follows:
-
-* `tree` - The Chromium source tree, which also contains build intermediates.
-* `downloads` - Directory containing all files download; this is currently the Chromium source code archive and any potential extra dependencies.
-* Packaged build artifacts
-
-    (The directory may contain additional files if developer utilities are used)

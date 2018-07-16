@@ -11,13 +11,13 @@ Build configuration generation implementation
 import abc
 import configparser
 import collections
+import copy
 import io
 import re
 from pathlib import Path
 
 from .common import (
-    ENCODING, BuildkitError, ExtractorEnum,
-    get_logger, get_chromium_version, ensure_empty_dir, schema_dictcast, schema_inisections)
+    ENCODING, BuildkitError, ExtractorEnum, get_logger, get_chromium_version)
 from .downloads import HashesURLEnum
 from .third_party import schema
 
@@ -36,6 +36,23 @@ class _ConfigFile(abc.ABC): #pylint: disable=too-few-public-methods
 
     def __init__(self, path):
         self._data = self._parse_data(path)
+        self._init_instance_members()
+
+    def __deepcopy__(self, memo):
+        """Make a deep copy of the config file"""
+        new_copy = copy.copy(self)
+        new_copy._data = self._copy_data() #pylint: disable=protected-access
+        new_copy._init_instance_members() #pylint: disable=protected-access
+        return new_copy
+
+    def _init_instance_members(self):
+        """
+        Initialize instance-specific members. These values are not preserved on copy.
+        """
+
+    @abc.abstractmethod
+    def _copy_data(self):
+        """Returns a copy of _data for deep copying"""
 
     @abc.abstractmethod
     def _parse_data(self, path):
@@ -57,6 +74,7 @@ class _IniConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
     """
 
     _schema = None # Derived classes must specify a schema
+    _ini_vars = dict() # Global INI interpolation values prefixed with underscore
 
     def _parse_data(self, path):
         """
@@ -64,22 +82,35 @@ class _IniConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
 
         Raises schema.SchemaError if validation fails
         """
-        new_data = configparser.ConfigParser()
+        def _section_generator(data):
+            for section in data:
+                if section == configparser.DEFAULTSECT:
+                    continue
+                yield section, dict(filter(
+                    lambda x: x[0] not in self._ini_vars,
+                    data.items(section)))
+        new_data = configparser.ConfigParser(defaults=self._ini_vars)
         with path.open(encoding=ENCODING) as ini_file:
             new_data.read_file(ini_file, source=str(path))
         if self._schema is None:
             raise BuildkitConfigError('No schema defined for %s' % type(self).__name__)
         try:
-            self._schema.validate(new_data)
+            self._schema.validate(dict(_section_generator(new_data)))
         except schema.SchemaError as exc:
             get_logger().error(
                 'INI file for %s failed schema validation: %s', type(self).__name__, path)
             raise exc
         return new_data
 
+    def _copy_data(self):
+        """Returns a copy of _data for deep copying"""
+        new_data = configparser.ConfigParser()
+        new_data.read_dict(self._data)
+        return new_data
+
     def rebase(self, other):
         new_data = configparser.ConfigParser()
-        new_data.read_dict(other.data)
+        new_data.read_dict(other._data) #pylint: disable=protected-access
         new_data.read_dict(self._data)
         self._data = new_data
 
@@ -116,6 +147,10 @@ class ListConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
         with path.open(encoding=ENCODING) as list_file:
             return list(filter(len, list_file.read().splitlines()))
 
+    def _copy_data(self):
+        """Returns a copy of _data for deep copying"""
+        return self._data[:]
+
     def rebase(self, other):
         self._data[:0] = other._data #pylint: disable=protected-access
 
@@ -147,6 +182,10 @@ class MapConfigFile(_ConfigFile):
                         (path, key))
                 new_data[key] = value
         return new_data
+
+    def _copy_data(self):
+        """Returns a copy of _data for deep copying"""
+        return self._data.copy()
 
     def rebase(self, other):
         self._data = collections.ChainMap(other._data, self._data) #pylint: disable=protected-access
@@ -182,12 +221,12 @@ class MapConfigFile(_ConfigFile):
 class BundleMetaIni(_IniConfigFile):
     """Represents bundlemeta.ini files"""
 
-    _schema = schema.Schema(schema_inisections({
-        'bundle': schema_dictcast({
+    _schema = schema.Schema({
+        'bundle': {
             'display_name': schema.And(str, len),
             schema.Optional('depends'): schema.And(str, len),
-        })
-    }))
+        }
+    })
 
     @property
     def display_name(self):
@@ -213,9 +252,10 @@ class DomainRegexList(ListConfigFile):
     # Constants for format:
     _PATTERN_REPLACE_DELIM = '#'
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def _init_instance_members(self):
+        """
+        Initialize instance-specific members. These values are not preserved on copy.
+        """
         # Cache of compiled regex pairs
         self._compiled_regex = None
 
@@ -230,7 +270,7 @@ class DomainRegexList(ListConfigFile):
         Returns a tuple of compiled regex pairs
         """
         if not self._compiled_regex:
-            self._compiled_regex = tuple(map(self._compile_regex, self))
+            self._compiled_regex = tuple(map(self._compile_regex, self)) #pylint: disable=attribute-defined-outside-init
         return self._compiled_regex
 
     @property
@@ -244,33 +284,31 @@ class DomainRegexList(ListConfigFile):
 class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
     """Representation of an downloads.ini file"""
 
-    _hashes = ('md5', 'sha1', 'sha256', 'sha512', 'hash_url')
-    _nonempty_keys = ('version', 'url', 'download_filename')
-    _optional_keys = ('strip_leading_dirs',)
+    _hashes = ('md5', 'sha1', 'sha256', 'sha512')
+    _nonempty_keys = ('url', 'download_filename')
+    _optional_keys = ('version', 'strip_leading_dirs',)
     _passthrough_properties = (*_nonempty_keys, *_optional_keys, 'extractor')
-    _option_vars = {
+    _ini_vars = {
         '_chromium_version': get_chromium_version(),
     }
 
-    _schema = schema.Schema(schema_inisections({
-        schema.Optional(schema.And(str, len)): schema_dictcast({
+    _schema = schema.Schema({
+        schema.Optional(schema.And(str, len)): {
             **{x: schema.And(str, len) for x in _nonempty_keys},
             'output_path': (lambda x: str(Path(x).relative_to(''))),
             **{schema.Optional(x): schema.And(str, len) for x in _optional_keys},
             schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP),
-            schema.Or(*_hashes): schema.And(str, len),
-            schema.Optional('hash_url'): schema.And(
-                lambda x: x.count(':') == 2,
-                lambda x: x.split(':')[0] in iter(HashesURLEnum)),
-        })
-    }))
+            schema.Optional(schema.Or(*_hashes)): schema.And(str, len),
+            schema.Optional('hash_url'): (
+                lambda x: x.count('|') == 2 and x.split('|')[0] in iter(HashesURLEnum)),
+        }
+    })
 
     class _DownloadsProperties: #pylint: disable=too-few-public-methods
-        def __init__(self, section_dict, passthrough_properties, hashes, option_vars):
+        def __init__(self, section_dict, passthrough_properties, hashes):
             self._section_dict = section_dict
             self._passthrough_properties = passthrough_properties
             self._hashes = hashes
-            self._option_vars = option_vars
 
         def has_hash_url(self):
             """
@@ -284,7 +322,7 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
             elif name == 'hashes':
                 hashes_dict = dict()
                 for hash_name in self._hashes:
-                    value = self._section_dict.get(hash_name, vars=self._option_vars, fallback=None)
+                    value = self._section_dict.get(hash_name, fallback=None)
                     if value:
                         if hash_name == 'hash_url':
                             value = value.split(':')
@@ -301,9 +339,9 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
         """
         return self._DownloadsProperties(
             self._data[section], self._passthrough_properties,
-            self._hashes, self._option_vars)
+            self._hashes)
 
-class ConfigBundle:
+class ConfigBundle: #pylint: disable=too-few-public-methods
     """Config bundle implementation"""
 
     # All files in a config bundle
@@ -330,8 +368,10 @@ class ConfigBundle:
 
     def __init__(self, path, load_depends=True):
         """
-        Return a new ConfigBundle from a config bundle name.
+        Return a new ConfigBundle from a config bundle path.
 
+        path must be a pathlib.Path or something accepted by the constructor of
+            pathlib.Path
         load_depends indicates if the bundle's dependencies should be loaded.
             This is generally only useful for developer utilities, where config
             only from a specific bundle is required.
@@ -341,6 +381,8 @@ class ConfigBundle:
         Raises BuildConfigError if there is an issue with the base bundle's or its
             dependencies'
         """
+        if not isinstance(path, Path):
+            path = Path(path)
         self.files = dict() # Config file name -> _ConfigFile object
 
         for config_path in path.iterdir():
@@ -348,7 +390,7 @@ class ConfigBundle:
                 handler = self._FILE_CLASSES[config_path.name]
             except KeyError:
                 raise BuildkitConfigError(
-                    'Unknown file %s for bundle at %s' % config_path.name, config_path)
+                    'Unknown file "%s" for bundle at "%s"' % (config_path.name, path))
             self.files[config_path.name] = handler(config_path)
         if load_depends:
             for dependency in self.bundlemeta.depends:
@@ -372,19 +414,8 @@ class ConfigBundle:
 
     def rebase(self, other):
         """Rebase the current bundle onto other, saving changes into self"""
-        for name, current_config_file in self.files.items():
-            if name in other.files:
-                current_config_file.rebase(other.files[name])
-
-    def to_standalone(self, path):
-        """
-        Save the config bundle as a standalone config bundle
-
-        Raises FileExistsError if the directory already exists and is not empty.
-        Raises FileNotFoundError if the parent directories for path do not exist.
-        Raises ValueError if the config bundle is malformed.
-        """
-        ensure_empty_dir(path)
-        for name, config_file in self.files.items():
-            with (path / name).open('w', encoding=ENCODING) as file_obj:
-                file_obj.write(str(config_file))
+        for name, other_config_file in other.files.items():
+            if name in self.files:
+                self.files[name].rebase(other_config_file)
+            else:
+                self.files[name] = copy.deepcopy(other_config_file)
