@@ -1,6 +1,6 @@
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -710,30 +710,6 @@ void SetApplicationLocaleOnIOThread(cons
+@@ -732,30 +732,6 @@ void SetApplicationLocaleOnIOThread(cons
    g_io_thread_application_locale.Get() = locale;
  }
  
@@ -31,7 +31,7 @@
  #if defined(OS_ANDROID)
  float GetDeviceScaleAdjustment() {
    static const float kMinFSM = 1.05f;
-@@ -1890,7 +1866,7 @@ void ChromeContentBrowserClient::AppendE
+@@ -1916,7 +1892,7 @@ void ChromeContentBrowserClient::AppendE
        // Disable client-side phishing detection in the renderer if it is
        // disabled in the Profile preferences or the browser process.
        if (!prefs->GetBoolean(prefs::kSafeBrowsingEnabled) ||
@@ -40,7 +40,7 @@
          command_line->AppendSwitch(
              switches::kDisableClientSidePhishingDetection);
        }
-@@ -2489,7 +2465,7 @@ void ChromeContentBrowserClient::AllowCe
+@@ -2516,7 +2492,7 @@ void ChromeContentBrowserClient::AllowCe
    SSLErrorHandler::HandleSSLError(
        web_contents, cert_error, ssl_info, request_url,
        expired_previous_decision,
@@ -49,7 +49,7 @@
        callback, SSLErrorHandler::BlockingPageReadyCallback());
  }
  
-@@ -2720,8 +2696,6 @@ bool ChromeContentBrowserClient::CanCrea
+@@ -2786,8 +2762,6 @@ bool ChromeContentBrowserClient::CanCrea
  void ChromeContentBrowserClient::ResourceDispatcherHostCreated() {
    DCHECK_CURRENTLY_ON(BrowserThread::UI);
  
@@ -58,7 +58,7 @@
    for (size_t i = 0; i < extra_parts_.size(); ++i)
      extra_parts_[i]->ResourceDispatcherHostCreated();
  
-@@ -3681,7 +3655,7 @@ ChromeContentBrowserClient::CreateThrott
+@@ -3767,7 +3741,7 @@ ChromeContentBrowserClient::CreateThrott
            switches::kCommittedInterstitials)) {
      throttles.push_back(std::make_unique<SSLErrorNavigationThrottle>(
          handle,
@@ -69,7 +69,7 @@
  
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -491,18 +491,6 @@ ProfileImpl::ProfileImpl(
+@@ -493,18 +493,6 @@ ProfileImpl::ProfileImpl(
                                   create_mode == CREATE_MODE_SYNCHRONOUS);
  #endif
  
@@ -88,7 +88,7 @@
    content::BrowserContext::Initialize(this, path_);
  
    {
-@@ -511,7 +499,7 @@ ProfileImpl::ProfileImpl(
+@@ -513,7 +501,7 @@ ProfileImpl::ProfileImpl(
              ->CreateDelegate();
      delegate->InitPrefRegistry(pref_registry_.get());
      prefs_ = chrome_prefs::CreateProfilePrefs(
@@ -99,7 +99,7 @@
          GetIOTaskRunner(), std::move(delegate));
 --- a/chrome/browser/loader/chrome_resource_dispatcher_host_delegate.cc
 +++ b/chrome/browser/loader/chrome_resource_dispatcher_host_delegate.cc
-@@ -347,8 +347,7 @@ void LogCommittedPreviewsDecision(
+@@ -345,8 +345,7 @@ void LogCommittedPreviewsDecision(
  }  // namespace
  
  ChromeResourceDispatcherHostDelegate::ChromeResourceDispatcherHostDelegate()
@@ -109,7 +109,7 @@
  #if BUILDFLAG(ENABLE_EXTENSIONS)
        , user_script_listener_(new extensions::UserScriptListener())
  #endif
-@@ -398,8 +397,6 @@ void ChromeResourceDispatcherHostDelegat
+@@ -370,8 +369,6 @@ void ChromeResourceDispatcherHostDelegat
      content::AppCacheService* appcache_service,
      ResourceType resource_type,
      std::vector<std::unique_ptr<content::ResourceThrottle>>* throttles) {
@@ -118,7 +118,7 @@
    ProfileIOData* io_data = ProfileIOData::FromResourceContext(resource_context);
    client_hints::RequestBeginning(request, io_data->GetCookieSettings());
  
-@@ -533,7 +530,7 @@ void ChromeResourceDispatcherHostDelegat
+@@ -505,7 +502,7 @@ void ChromeResourceDispatcherHostDelegat
    content::ResourceThrottle* first_throttle = NULL;
  #if defined(OS_ANDROID)
    first_throttle = DataReductionProxyResourceThrottle::MaybeCreate(
@@ -127,18 +127,9 @@
  #endif  // defined(OS_ANDROID)
  
  #if defined(SAFE_BROWSING_DB_LOCAL) || defined(SAFE_BROWSING_DB_REMOTE)
-@@ -546,7 +543,7 @@ void ChromeResourceDispatcherHostDelegat
- 
-     if (!url_loader_throttle_used) {
-       first_throttle = MaybeCreateSafeBrowsingResourceThrottle(
--          request, resource_type, safe_browsing_.get(), io_data);
-+          request, resource_type, nullptr, io_data);
-     }
-   }
- #endif  // defined(SAFE_BROWSING_DB_LOCAL) || defined(SAFE_BROWSING_DB_REMOTE)
 --- a/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
 +++ b/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
-@@ -250,110 +250,6 @@ BadClockBlockingPage* CreateBadClockBloc
+@@ -251,110 +251,6 @@ BadClockBlockingPage* CreateBadClockBloc
        base::Callback<void(content::CertificateRequestResultType)>());
  }
  
@@ -249,7 +240,7 @@
  #if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
  CaptivePortalBlockingPage* CreateCaptivePortalBlockingPage(
      content::WebContents* web_contents) {
-@@ -457,8 +353,6 @@ void InterstitialHTMLSource::StartDataRe
+@@ -458,8 +354,6 @@ void InterstitialHTMLSource::StartDataRe
          CreateSSLBlockingPage(web_contents, true /* is superfish */));
    } else if (path_without_query == "/mitm-software-ssl") {
      interstitial_delegate.reset(CreateMITMSoftwareBlockingPage(web_contents));
@@ -258,7 +249,7 @@
    } else if (path_without_query == "/clock") {
      interstitial_delegate.reset(CreateBadClockBlockingPage(web_contents));
  #if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
-@@ -469,11 +363,6 @@ void InterstitialHTMLSource::StartDataRe
+@@ -470,11 +364,6 @@ void InterstitialHTMLSource::StartDataRe
  
    if (path_without_query == "/supervised_user") {
      html = GetSupervisedUserInterstitialHTML(path);
@@ -357,7 +348,7 @@
    // SimpleURLLoader -> (owned loader, extension id).
 --- a/chrome/browser/download/chrome_download_manager_delegate.cc
 +++ b/chrome/browser/download/chrome_download_manager_delegate.cc
-@@ -289,13 +289,6 @@ ChromeDownloadManagerDelegate::~ChromeDo
+@@ -313,13 +313,6 @@ ChromeDownloadManagerDelegate::~ChromeDo
  
  void ChromeDownloadManagerDelegate::SetDownloadManager(DownloadManager* dm) {
    download_manager_ = dm;
@@ -371,7 +362,7 @@
  }
  
  #if defined(OS_ANDROID)
-@@ -579,16 +572,6 @@ download::InProgressCache* ChromeDownloa
+@@ -610,16 +603,6 @@ void ChromeDownloadManagerDelegate::Choo
  
  void ChromeDownloadManagerDelegate::SanitizeSavePackageResourceName(
      base::FilePath* filename) {
@@ -390,7 +381,7 @@
  void ChromeDownloadManagerDelegate::OpenDownloadUsingPlatformHandler(
 --- a/chrome/browser/browser_process_impl.cc
 +++ b/chrome/browser/browser_process_impl.cc
-@@ -71,7 +71,6 @@
+@@ -72,7 +72,6 @@
  #include "chrome/browser/printing/print_preview_dialog_controller.h"
  #include "chrome/browser/profiles/profile_manager.h"
  #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_source.h"
@@ -398,7 +389,7 @@
  #include "chrome/browser/shell_integration.h"
  #include "chrome/browser/status_icons/status_tray.h"
  #include "chrome/browser/ui/browser_dialogs.h"
-@@ -350,8 +349,6 @@ void BrowserProcessImpl::StartTearDown()
+@@ -342,8 +341,6 @@ void BrowserProcessImpl::StartTearDown()
    // that URLFetcher operation before going away.)
    metrics_services_manager_.reset();
    intranet_redirect_detector_.reset();
@@ -407,7 +398,7 @@
    network_time_tracker_.reset();
  #if BUILDFLAG(ENABLE_PLUGINS)
    plugins_resource_service_.reset();
-@@ -964,22 +961,6 @@ StatusTray* BrowserProcessImpl::status_t
+@@ -936,22 +933,6 @@ StatusTray* BrowserProcessImpl::status_t
    return status_tray_.get();
  }
  
@@ -430,7 +421,7 @@
  subresource_filter::ContentRulesetService*
  BrowserProcessImpl::subresource_filter_ruleset_service() {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-@@ -1247,16 +1228,6 @@ void BrowserProcessImpl::CreateBackgroun
+@@ -1222,16 +1203,6 @@ void BrowserProcessImpl::CreateBackgroun
  #endif
  }
  
@@ -449,7 +440,7 @@
    created_subresource_filter_ruleset_service_ = true;
 --- a/chrome/browser/browser_process_impl.h
 +++ b/chrome/browser/browser_process_impl.h
-@@ -143,9 +143,6 @@ class BrowserProcessImpl : public Browse
+@@ -140,9 +140,6 @@ class BrowserProcessImpl : public Browse
    void set_background_mode_manager_for_test(
        std::unique_ptr<BackgroundModeManager> manager) override;
    StatusTray* status_tray() override;
@@ -459,7 +450,7 @@
    subresource_filter::ContentRulesetService*
    subresource_filter_ruleset_service() override;
    optimization_guide::OptimizationGuideService* optimization_guide_service()
-@@ -280,9 +277,6 @@ class BrowserProcessImpl : public Browse
+@@ -277,9 +274,6 @@ class BrowserProcessImpl : public Browse
    std::unique_ptr<BackgroundModeManager> background_mode_manager_;
  #endif
  
@@ -471,7 +462,7 @@
        subresource_filter_ruleset_service_;
 --- a/chrome/browser/browser_process.h
 +++ b/chrome/browser/browser_process.h
-@@ -45,10 +45,6 @@ namespace content {
+@@ -43,10 +43,6 @@ namespace content {
  class NetworkConnectionTracker;
  }
  
@@ -482,7 +473,7 @@
  namespace subresource_filter {
  class ContentRulesetService;
  }
-@@ -121,10 +117,6 @@ namespace resource_coordinator {
+@@ -115,10 +111,6 @@ namespace resource_coordinator {
  class TabManager;
  }
  
@@ -493,7 +484,7 @@
  // NOT THREAD SAFE, call only from the main thread.
  // These functions shouldn't return NULL unless otherwise noted.
  class BrowserProcess {
-@@ -237,14 +229,6 @@ class BrowserProcess {
+@@ -231,14 +223,6 @@ class BrowserProcess {
    // on this platform (or this is a unit test).
    virtual StatusTray* status_tray() = 0;
  
@@ -547,7 +538,7 @@
  #include "chrome/browser/download/download_history.h"
  #include "chrome/browser/download/download_item_model.h"
  #include "chrome/browser/download/download_prefs.h"
-@@ -197,9 +196,6 @@ void MdDownloadsDOMHandler::HandleDrag(c
+@@ -196,9 +195,6 @@ void MdDownloadsDOMHandler::HandleDrag(c
  
  void MdDownloadsDOMHandler::HandleSaveDangerous(const base::ListValue* args) {
    CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS);
@@ -557,7 +548,7 @@
  }
  
  void MdDownloadsDOMHandler::HandleDiscardDangerous(
-@@ -301,12 +297,6 @@ void MdDownloadsDOMHandler::RemoveDownlo
+@@ -300,12 +296,6 @@ void MdDownloadsDOMHandler::RemoveDownlo
    IdSet ids;
  
    for (auto* download : to_remove) {
@@ -570,7 +561,7 @@
      DownloadItemModel item_model(download);
      if (!item_model.ShouldShowInShelf() ||
          download->GetState() == download::DownloadItem::IN_PROGRESS) {
-@@ -359,33 +349,6 @@ void MdDownloadsDOMHandler::FinalizeRemo
+@@ -358,33 +348,6 @@ void MdDownloadsDOMHandler::FinalizeRemo
    }
  }
  
@@ -612,9 +603,9 @@
  #include "chrome/browser/download/download_core_service_factory.h"
 -#include "chrome/browser/download/download_danger_prompt.h"
  #include "chrome/browser/download/download_file_icon_extractor.h"
+ #include "chrome/browser/download/download_open_prompt.h"
  #include "chrome/browser/download/download_prefs.h"
- #include "chrome/browser/download/download_query.h"
-@@ -1301,9 +1300,6 @@ DownloadsAcceptDangerFunction::Downloads
+@@ -1319,9 +1318,6 @@ DownloadsAcceptDangerFunction::Downloads
  
  DownloadsAcceptDangerFunction::~DownloadsAcceptDangerFunction() {}
  
@@ -624,7 +615,7 @@
  bool DownloadsAcceptDangerFunction::RunAsync() {
    std::unique_ptr<downloads::AcceptDanger::Params> params(
        downloads::AcceptDanger::Params::Create(*args_));
-@@ -1339,40 +1335,7 @@ void DownloadsAcceptDangerFunction::Prom
+@@ -1357,40 +1353,7 @@ void DownloadsAcceptDangerFunction::Prom
      return;
    }
    RecordApiFunctions(DOWNLOADS_FUNCTION_ACCEPT_DANGER);
@@ -676,7 +667,7 @@
  #include "chrome/browser/download/download_path_reservation_tracker.h"
  #include "chrome/browser/extensions/chrome_extension_function.h"
  #include "chrome/common/extensions/api/downloads.h"
-@@ -188,25 +187,16 @@ class DownloadsRemoveFileFunction : publ
+@@ -189,25 +188,16 @@ class DownloadsRemoveFileFunction : publ
  
  class DownloadsAcceptDangerFunction : public ChromeAsyncExtensionFunction {
   public:
@@ -704,7 +695,7 @@
  
 --- a/chrome/browser/download/download_prefs.cc
 +++ b/chrome/browser/download/download_prefs.cc
-@@ -195,14 +195,7 @@ DownloadPrefs::DownloadPrefs(Profile* pr
+@@ -205,14 +205,7 @@ DownloadPrefs::DownloadPrefs(Profile* pr
          base::FilePath::StringType(1, base::FilePath::kExtensionSeparator) +
          extension);
  
@@ -720,7 +711,7 @@
    }
  }
  
-@@ -360,10 +353,6 @@ bool DownloadPrefs::IsAutoOpenEnabledBas
+@@ -373,10 +366,6 @@ bool DownloadPrefs::IsAutoOpenEnabledBas
  bool DownloadPrefs::EnableAutoOpenBasedOnExtension(
      const base::FilePath& file_name) {
    base::FilePath::StringType extension = file_name.Extension();
@@ -756,7 +747,7 @@
  }  // namespace
 --- a/chrome/browser/download/download_target_determiner.cc
 +++ b/chrome/browser/download/download_target_determiner.cc
-@@ -985,29 +985,7 @@ DownloadFileType::DangerLevel DownloadTa
+@@ -987,29 +987,7 @@ DownloadFileType::DangerLevel DownloadTa
        download_->HasUserGesture())
      return DownloadFileType::NOT_DANGEROUS;
  
@@ -801,7 +792,7 @@
        return !download_item_->IsDone();
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2402,8 +2402,6 @@ jumbo_split_static_library("browser") {
+@@ -2451,8 +2451,6 @@ jumbo_split_static_library("browser") {
        "download/download_commands.h",
        "download/download_crx_util.cc",
        "download/download_crx_util.h",
@@ -812,7 +803,7 @@
        "download/download_dir_util.cc",
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -2525,7 +2525,6 @@ split_static_library("ui") {
+@@ -2524,7 +2524,6 @@ split_static_library("ui") {
          "cocoa/content_settings/cookie_tree_node.mm",
          "cocoa/content_settings/cookies_tree_controller_bridge.h",
          "cocoa/content_settings/cookies_tree_controller_bridge.mm",
@@ -820,7 +811,7 @@
          "cocoa/extensions/chooser_dialog_cocoa.h",
          "cocoa/extensions/chooser_dialog_cocoa.mm",
          "cocoa/extensions/chooser_dialog_cocoa_controller.h",
-@@ -2833,7 +2832,6 @@ split_static_library("ui") {
+@@ -2830,7 +2829,6 @@ split_static_library("ui") {
        "views/cookie_info_view.h",
        "views/device_chooser_content_view.cc",
        "views/device_chooser_content_view.h",
@@ -830,7 +821,7 @@
        "views/exclusive_access_bubble_views.cc",
 --- a/chrome/browser/ssl/security_state_tab_helper.cc
 +++ b/chrome/browser/ssl/security_state_tab_helper.cc
-@@ -246,62 +246,6 @@ bool SecurityStateTabHelper::UsedPolicyI
+@@ -247,58 +247,6 @@ bool SecurityStateTabHelper::UsedPolicyI
  
  security_state::MaliciousContentStatus
  SecurityStateTabHelper::GetMaliciousContentStatus() const {
@@ -860,18 +851,14 @@
 -        return security_state::MALICIOUS_CONTENT_STATUS_UNWANTED_SOFTWARE;
 -      case safe_browsing::SB_THREAT_TYPE_PASSWORD_REUSE:
 -#if defined(SAFE_BROWSING_DB_LOCAL)
--        if (base::FeatureList::IsEnabled(
--                safe_browsing::kGoogleBrandedPhishingWarning)) {
--          if (safe_browsing::ChromePasswordProtectionService::
--                  ShouldShowChangePasswordSettingUI(Profile::FromBrowserContext(
--                      web_contents()->GetBrowserContext()))) {
--            return security_state::MALICIOUS_CONTENT_STATUS_PASSWORD_REUSE;
--          }
--          // If user has already changed Gaia password, returns the regular
--          // social engineering content status.
--          return security_state::MALICIOUS_CONTENT_STATUS_SOCIAL_ENGINEERING;
+-        if (safe_browsing::ChromePasswordProtectionService::
+-                ShouldShowChangePasswordSettingUI(Profile::FromBrowserContext(
+-                    web_contents()->GetBrowserContext()))) {
+-          return security_state::MALICIOUS_CONTENT_STATUS_PASSWORD_REUSE;
 -        }
--        break;
+-        // If user has already changed Gaia password, returns the regular
+-        // social engineering content status.
+-        return security_state::MALICIOUS_CONTENT_STATUS_SOCIAL_ENGINEERING;
 -#endif
 -      case safe_browsing::
 -          DEPRECATED_SB_THREAT_TYPE_URL_PASSWORD_PROTECTION_PHISHING:
@@ -895,7 +882,7 @@
  
 --- a/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
-@@ -706,42 +706,6 @@ void ChromeBrowsingDataRemoverDelegate::
+@@ -639,35 +639,6 @@ void ChromeBrowsingDataRemoverDelegate::
          CONTENT_SETTINGS_TYPE_CLIENT_HINTS, base::Time(), base::Time::Max(),
          base::BindRepeating(&WebsiteSettingsFilterAdapter, filter));
  
@@ -907,31 +894,24 @@
 -      safe_browsing::SafeBrowsingService* sb_service =
 -          g_browser_process->safe_browsing_service();
 -      if (sb_service) {
--        scoped_refptr<net::URLRequestContextGetter> sb_context =
--            sb_service->url_request_context();
+-        network::mojom::CookieManagerPtr cookie_manager;
+-        sb_service->GetNetworkContext()->GetCookieManager(
+-            mojo::MakeRequest(&cookie_manager));
 -
--        if (filter_builder.IsEmptyBlacklist()) {
--          BrowserThread::PostTask(
--              BrowserThread::IO, FROM_HERE,
--              base::BindOnce(
--                  &ClearCookiesOnIOThread, delete_begin_, delete_end_,
--                  base::RetainedRef(std::move(sb_context)),
--                  UIThreadTrampoline(base::BindOnce(
--                      &ChromeBrowsingDataRemoverDelegate::OnClearedCookies,
--                      weak_ptr_factory_.GetWeakPtr(),
--                      CreatePendingTaskCompletionClosure()))));
--        } else {
--          BrowserThread::PostTask(
--              BrowserThread::IO, FROM_HERE,
--              base::BindOnce(
--                  &ClearCookiesWithPredicateOnIOThread, delete_begin_,
--                  delete_end_, filter_builder.BuildCookieFilter(),
--                  base::RetainedRef(std::move(sb_context)),
--                  UIThreadTrampoline(base::BindOnce(
--                      &ChromeBrowsingDataRemoverDelegate::OnClearedCookies,
--                      weak_ptr_factory_.GetWeakPtr(),
--                      CreatePendingTaskCompletionClosure()))));
--        }
+-        network::mojom::CookieManager* manager_ptr = cookie_manager.get();
+-
+-        network::mojom::CookieDeletionFilterPtr deletion_filter =
+-            filter_builder.BuildCookieDeletionFilter();
+-        if (!delete_begin_.is_null())
+-          deletion_filter->created_after_time = delete_begin_;
+-        if (!delete_end_.is_null())
+-          deletion_filter->created_before_time = delete_end_;
+-
+-        manager_ptr->DeleteCookies(
+-            std::move(deletion_filter),
+-            base::BindOnce(&OnClearedCookies,
+-                           CreatePendingTaskCompletionClosure(),
+-                           std::move(cookie_manager)));
 -      }
 -    }
 -
@@ -976,7 +956,7 @@
  #include "chrome/browser/sync/chrome_sync_client.h"
  #include "chrome/browser/sync/profile_sync_service_factory.h"
  #include "chrome/browser/translate/translate_ranker_metrics_provider.h"
-@@ -718,9 +717,6 @@ void ChromeMetricsServiceClient::Registe
+@@ -715,9 +714,6 @@ void ChromeMetricsServiceClient::Registe
    metrics_service_->RegisterMetricsProvider(
        std::make_unique<HttpsEngagementMetricsProvider>());
  
@@ -988,7 +968,7 @@
        std::make_unique<UpgradeMetricsProvider>());
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -223,7 +223,6 @@ EnsureBrowserContextKeyedServiceFactorie
+@@ -218,7 +218,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
    CaptivePortalServiceFactory::GetInstance();
  #endif
@@ -998,9 +978,9 @@
  #endif
 --- a/chrome/browser/ssl/captive_portal_blocking_page.cc
 +++ b/chrome/browser/ssl/captive_portal_blocking_page.cc
-@@ -206,10 +206,7 @@ void CaptivePortalBlockingPage::Populate
-   load_time_data->SetString("explanationParagraph", base::string16());
-   load_time_data->SetString("finalParagraph", base::string16());
+@@ -211,10 +211,7 @@ void CaptivePortalBlockingPage::Populate
+   load_time_data->SetString("recurrentErrorParagraph", base::string16());
+   load_time_data->SetBoolean("show_recurrent_error_paragraph", false);
  
 -  if (cert_report_helper())
 -    cert_report_helper()->PopulateExtendedReportingOption(load_time_data);
@@ -1010,7 +990,7 @@
  }
  
  void CaptivePortalBlockingPage::CommandReceived(const std::string& command) {
-@@ -224,8 +221,6 @@ void CaptivePortalBlockingPage::CommandR
+@@ -229,8 +226,6 @@ void CaptivePortalBlockingPage::CommandR
    security_interstitials::SecurityInterstitialCommand cmd =
        static_cast<security_interstitials::SecurityInterstitialCommand>(
            command_num);
@@ -1053,34 +1033,20 @@
    TabDialogs::CreateForWebContents(web_contents);
 --- a/chrome/browser/subresource_filter/chrome_subresource_filter_client.cc
 +++ b/chrome/browser/subresource_filter/chrome_subresource_filter_client.cc
-@@ -43,14 +43,7 @@ DEFINE_WEB_CONTENTS_USER_DATA_KEY(Chrome
- namespace {
- 
- scoped_refptr<safe_browsing::SafeBrowsingDatabaseManager> GetDatabaseManager() {
--  safe_browsing::SafeBrowsingService* safe_browsing_service =
--      g_browser_process->safe_browsing_service();
--  bool has_supported_manager =
--      safe_browsing_service &&
--      safe_browsing_service->database_manager()->IsSupported() &&
--      safe_browsing_service->database_manager()->CanCheckSubresourceFilter();
--  return has_supported_manager ? safe_browsing_service->database_manager()
--                               : nullptr;
-+  return nullptr;
- }
- 
- }  // namespace
-@@ -72,21 +65,6 @@ ChromeSubresourceFilterClient::~ChromeSu
+@@ -54,23 +54,6 @@ ChromeSubresourceFilterClient::~ChromeSu
  void ChromeSubresourceFilterClient::MaybeAppendNavigationThrottles(
      content::NavigationHandle* navigation_handle,
      std::vector<std::unique_ptr<content::NavigationThrottle>>* throttles) {
--  if (navigation_handle->IsInMainFrame()) {
+-  safe_browsing::SafeBrowsingService* safe_browsing_service =
+-      g_browser_process->safe_browsing_service();
+-  if (navigation_handle->IsInMainFrame() && safe_browsing_service) {
 -    throttles->push_back(
 -        std::make_unique<subresource_filter::
 -                             SubresourceFilterSafeBrowsingActivationThrottle>(
 -            navigation_handle, this,
 -            content::BrowserThread::GetTaskRunnerForThread(
 -                content::BrowserThread::IO),
--            GetDatabaseManager()));
+-            safe_browsing_service->database_manager()));
 -  }
 -
 -  auto* driver_factory =
@@ -1093,7 +1059,7 @@
  void ChromeSubresourceFilterClient::OnReloadRequested() {
 --- a/chrome/browser/extensions/webstore_inline_installer.cc
 +++ b/chrome/browser/extensions/webstore_inline_installer.cc
-@@ -116,7 +116,7 @@ bool WebstoreInlineInstaller::IsRequesto
+@@ -116,45 +116,11 @@ bool WebstoreInlineInstaller::IsRequesto
  }
  
  bool WebstoreInlineInstaller::SafeBrowsingNavigationEventsEnabled() const {
@@ -1101,69 +1067,18 @@
 +  return false;
  }
  
- std::string WebstoreInlineInstaller::GetPostData(
-@@ -248,88 +248,11 @@ void WebstoreInlineInstaller::WebContent
- }
- 
- std::string WebstoreInlineInstaller::GetJsonPostData() {
--  auto redirect_chain = std::make_unique<base::ListValue>();
--
--  if (SafeBrowsingNavigationEventsEnabled()) {
--    scoped_refptr<SafeBrowsingNavigationObserverManager>
--        navigation_observer_manager = g_browser_process->safe_browsing_service()
--                                          ->navigation_observer_manager();
--
--    ReferrerChain referrer_chain;
--    SafeBrowsingNavigationObserverManager::AttributionResult result =
--        navigation_observer_manager->IdentifyReferrerChainByWebContents(
--            web_contents(), kExtensionReferrerUserGestureLimit,
--            &referrer_chain);
--    if (result !=
--        SafeBrowsingNavigationObserverManager::NAVIGATION_EVENT_NOT_FOUND) {
--      for (const auto& referrer_chain_entry : referrer_chain) {
--        // Referrer chain entries are a list of URLs in reverse chronological
--        // order, so the final URL is the last thing in the list and the initial
--        // landing page is the first thing in the list.
--        // Furthermore each entry may contain a series of server redirects
--        // stored in the same order.
--        redirect_chain->AppendString(referrer_chain_entry.url());
--        for (const auto& server_side_redirect :
--             referrer_chain_entry.server_redirect_chain()) {
--          redirect_chain->AppendString(server_side_redirect.url());
--        }
--      }
--    }
--  } else {
--    content::NavigationController& navigation_controller =
--        web_contents()->GetController();
--    content::NavigationEntry* navigation_entry =
--        navigation_controller.GetLastCommittedEntry();
--    if (navigation_entry) {
--      const std::vector<GURL>& redirect_urls =
--          navigation_entry->GetRedirectChain();
--      for (const GURL& url : redirect_urls) {
--        redirect_chain->AppendString(url.spec());
--      }
--    }
--  }
--
--  if (!redirect_chain->empty()) {
--    base::DictionaryValue dictionary;
--    dictionary.SetString("id", id());
--    dictionary.SetString("referrer", requestor_url_.spec());
--    dictionary.Set("redirect_chain", std::move(redirect_chain));
--
--    std::string json;
--    base::JSONWriter::Write(dictionary, &json);
--    return json;
--  }
--
-   return std::string();
- }
- 
- std::string WebstoreInlineInstaller::GetProtoPostData() {
--  if (!SafeBrowsingNavigationEventsEnabled())
+ std::string WebstoreInlineInstaller::GetPostData() {
+-  // web_contents() might return null during tab destruction. This object would
+-  // also be destroyed shortly thereafter but check to be on the safe side.
+-  if (!web_contents())
 -    return std::string();
+-
+-  // Report extra data only when SafeBrowsing is enabled and SB navigation
+-  // observer is enabled for the current profile.
+-  if (!profile()->GetPrefs()->GetBoolean(prefs::kSafeBrowsingEnabled) ||
+-      !SafeBrowsingNavigationEventsEnabled()) {
+-    return std::string();
+-  }
 -
 -  scoped_refptr<SafeBrowsingNavigationObserverManager>
 -      navigation_observer_manager = g_browser_process->safe_browsing_service()
@@ -1191,7 +1106,7 @@
 +  return std::string();
  }
  
- // static
+ bool WebstoreInlineInstaller::CheckRequestorAlive() const {
 --- a/chrome/browser/safe_browsing/BUILD.gn
 +++ b/chrome/browser/safe_browsing/BUILD.gn
 @@ -12,6 +12,11 @@ proto_library("chunk_proto") {
@@ -1206,7 +1121,7 @@
    sources = [
      "chrome_cleaner/chrome_cleaner_controller_impl_win.cc",
      "chrome_cleaner/chrome_cleaner_controller_impl_win.h",
-@@ -73,6 +78,7 @@ static_library("safe_browsing") {
+@@ -71,6 +76,7 @@ static_library("safe_browsing") {
      ]
      deps += [ "//components/keep_alive_registry" ]
    }
@@ -1214,60 +1129,9 @@
  
    if (safe_browsing_mode != 0) {
      # "Safe Browsing Basic" files used for safe browsing in full mode
---- a/chrome/browser/net/system_network_context_manager.cc
-+++ b/chrome/browser/net/system_network_context_manager.cc
-@@ -33,18 +33,12 @@ namespace {
- // Called on IOThread to disable QUIC for HttpNetworkSessions not using the
- // network service. Note that re-enabling QUIC dynamically is not supported for
- // simpliciy and requires a browser restart.
--void DisableQuicOnIOThread(
--    IOThread* io_thread,
--    safe_browsing::SafeBrowsingService* safe_browsing_service) {
-+void DisableQuicOnIOThread(IOThread* io_thread) {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
- 
-   if (!base::FeatureList::IsEnabled(network::features::kNetworkService))
-     content::GetNetworkServiceImpl()->DisableQuic();
-   io_thread->DisableQuic();
--
--  // Safebrowsing isn't yet using the IOThread's NetworkService, so must be
--  // handled separately.
--  safe_browsing_service->DisableQuicOnIOThread();
- }
- 
- }  // namespace
-@@ -123,13 +117,9 @@ void SystemNetworkContextManager::Disabl
-   if (!io_thread)
-     return;
- 
--  safe_browsing::SafeBrowsingService* safe_browsing_service =
--      g_browser_process->safe_browsing_service();
--
-   content::BrowserThread::PostTask(
-       content::BrowserThread::IO, FROM_HERE,
--      base::BindOnce(&DisableQuicOnIOThread, io_thread,
--                     base::Unretained(safe_browsing_service)));
-+      base::BindOnce(&DisableQuicOnIOThread, io_thread));
- }
- 
- void SystemNetworkContextManager::FlushProxyConfigMonitorForTesting() {
---- a/chrome/browser/ui/webui/settings/md_settings_localized_strings_provider.cc
-+++ b/chrome/browser/ui/webui/settings/md_settings_localized_strings_provider.cc
-@@ -462,9 +462,8 @@ void AddBluetoothStrings(content::WebUID
- #endif
- 
- void AddChangePasswordStrings(content::WebUIDataSource* html_source) {
--#if defined(SAFE_BROWSING_DB_LOCAL)
--  bool show_softer_warning =
--      safe_browsing::PasswordProtectionService::ShouldShowSofterWarning();
-+#if 1
-+  bool show_softer_warning = true;
- 
-   auto title_string_id = show_softer_warning
-                              ? IDS_SETTINGS_CHANGE_PASSWORD_TITLE_SOFTER
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -77,7 +77,6 @@
+@@ -79,7 +79,6 @@
  #include "components/error_page/common/localized_error.h"
  #include "components/network_hints/renderer/prescient_networking_dispatcher.h"
  #include "components/pdf/renderer/pepper_pdf_host.h"
@@ -1275,21 +1139,25 @@
  #include "components/safe_browsing/renderer/websocket_sb_handshake_throttle.h"
  #include "components/services/heap_profiling/public/cpp/allocator_shim.h"
  #include "components/spellcheck/spellcheck_buildflags.h"
-@@ -1393,9 +1392,7 @@ void ChromeContentRendererClient::InitSp
- 
+@@ -1390,11 +1389,7 @@ void ChromeContentRendererClient::InitSp
+ // default (https://crbug.com/825740).
  std::unique_ptr<blink::WebSocketHandshakeThrottle>
  ChromeContentRendererClient::CreateWebSocketHandshakeThrottle() {
 -  InitSafeBrowsingIfNecessary();
+-  // This is called only for Shared Worker and Service Worker that don't have a
+-  // real frame, so we specify MSG_ROUTING_NONE here.
 -  return std::make_unique<safe_browsing::WebSocketSBHandshakeThrottle>(
--      safe_browsing_.get());
+-      safe_browsing_.get(), MSG_ROUTING_NONE);
 +  return std::unique_ptr<blink::WebSocketHandshakeThrottle>(nullptr);
  }
  
- std::unique_ptr<blink::WebSpeechSynthesizer>
-@@ -1678,13 +1675,6 @@ ChromeContentRendererClient::GetTaskSche
+ std::unique_ptr<content::WebSocketHandshakeThrottleProvider>
+@@ -1682,15 +1677,6 @@ ChromeContentRendererClient::GetTaskSche
    return task_scheduler_util::GetTaskSchedulerInitParamsForRenderer();
  }
  
+-// TODO(nhiroki): Remove this once the off-main-thread WebSocket is enabled by
+-// default (https://crbug.com/825740).
 -void ChromeContentRendererClient::InitSafeBrowsingIfNecessary() {
 -  if (safe_browsing_)
 -    return;
@@ -1341,3 +1209,55 @@
  }
  
  std::unique_ptr<base::Value> TrialVerificationJobResultCallback(
+--- a/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
++++ b/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
+@@ -682,48 +682,7 @@ WebstorePrivateGetReferrerChainFunction:
+ 
+ ExtensionFunction::ResponseAction
+ WebstorePrivateGetReferrerChainFunction::Run() {
+-  Profile* profile = chrome_details_.GetProfile();
+-  if (!SafeBrowsingNavigationObserverManager::IsEnabledAndReady(profile))
+-    return RespondNow(ArgumentList(GetReferrerChain::Results::Create("")));
+-
+-  content::WebContents* web_contents = GetSenderWebContents();
+-  if (!web_contents) {
+-    return RespondNow(ErrorWithArguments(GetReferrerChain::Results::Create(""),
+-                                         kUserCancelledError));
+-  }
+-
+-  scoped_refptr<SafeBrowsingNavigationObserverManager>
+-      navigation_observer_manager = g_browser_process->safe_browsing_service()
+-                                        ->navigation_observer_manager();
+-
+-  safe_browsing::ReferrerChain referrer_chain;
+-  SafeBrowsingNavigationObserverManager::AttributionResult result =
+-      navigation_observer_manager->IdentifyReferrerChainByWebContents(
+-          web_contents, kExtensionReferrerUserGestureLimit, &referrer_chain);
+-
+-  // If the referrer chain is incomplete we'll append the most recent
+-  // navigations to referrer chain for diagnostic purposes. This only happens if
+-  // the user is not in incognito mode and has opted into extended reporting or
+-  // Scout reporting. Otherwise, |CountOfRecentNavigationsToAppend| returns 0.
+-  int recent_navigations_to_collect =
+-      SafeBrowsingNavigationObserverManager::CountOfRecentNavigationsToAppend(
+-          *profile, result);
+-  if (recent_navigations_to_collect > 0) {
+-    navigation_observer_manager->AppendRecentNavigations(
+-        recent_navigations_to_collect, &referrer_chain);
+-  }
+-
+-  safe_browsing::ExtensionWebStoreInstallRequest request;
+-  request.mutable_referrer_chain()->Swap(&referrer_chain);
+-  request.mutable_referrer_chain_options()->set_recent_navigations_to_collect(
+-      recent_navigations_to_collect);
+-
+-  std::string serialized_referrer_proto = request.SerializeAsString();
+-  // Base64 encode the proto to avoid issues with base::Value rejecting strings
+-  // which are not valid UTF8.
+-  base::Base64Encode(serialized_referrer_proto, &serialized_referrer_proto);
+-  return RespondNow(ArgumentList(
+-      GetReferrerChain::Results::Create(serialized_referrer_proto)));
++  return RespondNow(ArgumentList(GetReferrerChain::Results::Create("")));
+ }
+ 
+ }  // namespace extensions
