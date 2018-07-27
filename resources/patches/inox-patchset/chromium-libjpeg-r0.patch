@@ -1,0 +1,55 @@
+From c6b0194f7a4d9f494b2d51f46d2c332e2e5f4050 Mon Sep 17 00:00:00 2001
+From: Daniel Bratell <bratell@opera.com>
+Date: Mon, 28 May 2018 13:13:01 +0000
+Subject: [PATCH] Use the same libjpeg in all of blink/platform
+
+The normal libjpeg renames some symbols with macros so if its
+headers are included together with libjpeg-turbo's headers
+in the same translation unit, there will be an inconsistent
+renaming of libjpeg symbols. This happened in some extreme
+jumbo configuration and resulted in confising linker errors.
+
+This patch changes an include so that jpeglib.h becomes included
+the same way everywhere.
+
+Change-Id: I7f122d0919d58371bb40dc0097a766b857b9815e
+Reviewed-on: https://chromium-review.googlesource.com/1073423
+Reviewed-by: Kentaro Hara <haraken@chromium.org>
+Commit-Queue: Daniel Bratell <bratell@opera.com>
+Cr-Commit-Position: refs/heads/master@{#562243}
+---
+ .../renderer/platform/image-encoders/image_encoder.cc | 11 +++++++++++
+ .../renderer/platform/image-encoders/image_encoder.h  |  2 --
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+--- a/third_party/blink/renderer/platform/image-encoders/image_encoder.cc
++++ b/third_party/blink/renderer/platform/image-encoders/image_encoder.cc
+@@ -4,6 +4,17 @@
+ 
+ #include "third_party/blink/renderer/platform/image-encoders/image_encoder.h"
+ 
++#include "build/build_config.h"
++
++#if defined(OS_WIN)
++#include <basetsd.h>  // Included before jpeglib.h because of INT32 clash
++#endif                // OS_WIN
++#include <stdio.h>    // Needed by jpeglib.h
++
++#include "jpeglib.h"  // for JPEG_MAX_DIMENSION
++
++#include "third_party/libwebp/src/webp/encode.h"  // for WEBP_MAX_DIMENSION
++
+ namespace blink {
+ 
+ bool ImageEncoder::Encode(Vector<unsigned char>* dst,
+--- a/third_party/blink/renderer/platform/image-encoders/image_encoder.h
++++ b/third_party/blink/renderer/platform/image-encoders/image_encoder.h
+@@ -7,8 +7,6 @@
+ 
+ #include "third_party/blink/renderer/platform/platform_export.h"
+ #include "third_party/blink/renderer/platform/wtf/vector.h"
+-#include "third_party/libjpeg/jpeglib.h"          // for JPEG_MAX_DIMENSION
+-#include "third_party/libwebp/src/webp/encode.h"  // for WEBP_MAX_DIMENSION
+ #include "third_party/skia/include/core/SkStream.h"
+ #include "third_party/skia/include/encode/SkJpegEncoder.h"
+ #include "third_party/skia/include/encode/SkPngEncoder.h"
