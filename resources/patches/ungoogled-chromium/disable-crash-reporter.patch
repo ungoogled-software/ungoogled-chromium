@@ -14,7 +14,7 @@
 +++ b/chrome/browser/tracing/crash_service_uploader.cc
 @@ -127,11 +127,16 @@ void TraceCrashServiceUploader::DoUpload
    progress_callback_ = progress_callback;
-   done_callback_ = done_callback;
+   done_callback_ = std::move(done_callback);
  
 -  base::PostTaskWithTraits(
 -      FROM_HERE, {base::TaskPriority::BACKGROUND},
@@ -29,12 +29,12 @@
 +  if (!done_callback_.is_null()) {
 +    content::BrowserThread::PostTask(
 +        content::BrowserThread::UI, FROM_HERE,
-+        base::Bind(done_callback_, true, "Upload skipped."));
++        base::BindOnce(std::move(done_callback_), true, "Upload skipped."));
 +  }
  }
  
  void TraceCrashServiceUploader::DoCompressOnBackgroundThread(
-@@ -200,11 +205,6 @@ void TraceCrashServiceUploader::DoCompre
+@@ -202,11 +207,6 @@ void TraceCrashServiceUploader::DoCompre
    std::string post_data;
    SetupMultipart(product, version, std::move(metadata), "trace.json.gz",
                   compressed_contents, &post_data);
@@ -46,7 +46,7 @@
  }
  
  void TraceCrashServiceUploader::OnUploadError(
-@@ -302,6 +302,7 @@ bool TraceCrashServiceUploader::Compress
+@@ -304,6 +304,7 @@ bool TraceCrashServiceUploader::Compress
  void TraceCrashServiceUploader::CreateAndStartURLFetcher(
      const std::string& upload_url,
      const std::string& post_data) {
