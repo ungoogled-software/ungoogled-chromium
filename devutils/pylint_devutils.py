@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """Run Pylint over any module"""
 
 import argparse
@@ -12,6 +11,7 @@ import shutil
 from pathlib import Path
 
 from pylint import epylint as lint
+
 
 def run_pylint(modulepath, pylint_options):
     """Runs Pylint. Returns a boolean indicating success"""
@@ -34,19 +34,17 @@ def run_pylint(modulepath, pylint_options):
         return False
     return True
 
+
 def main():
     """CLI entrypoint"""
 
     parser = argparse.ArgumentParser(description='Run Pylint over an arbitrary module')
+    parser.add_argument('--hide-fixme', action='store_true', help='Hide "fixme" Pylint warnings.')
     parser.add_argument(
-        '--hide-fixme', action='store_true',
-        help='Hide "fixme" Pylint warnings.')
-    parser.add_argument(
-        '--show-locally-disabled', action='store_true',
+        '--show-locally-disabled',
+        action='store_true',
         help='Show "locally-disabled" Pylint warnings.')
-    parser.add_argument(
-        'modulepath', type=Path,
-        help='Path to the module to check')
+    parser.add_argument('modulepath', type=Path, help='Path to the module to check')
     args = parser.parse_args()
 
     if not args.modulepath.exists():
@@ -55,6 +53,7 @@ def main():
 
     disables = [
         'wrong-import-position',
+        'bad-continuation',
     ]
 
     if args.hide_fixme:
@@ -70,6 +69,7 @@ def main():
     if not run_pylint(args.modulepath, pylint_options):
         exit(1)
     exit(0)
+
 
 if __name__ == '__main__':
     main()

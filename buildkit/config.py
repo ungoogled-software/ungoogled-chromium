@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """
 Build configuration generation implementation
 """
@@ -16,15 +15,16 @@ import io
 import re
 from pathlib import Path
 
-from .common import (
-    ENCODING, BuildkitError, ExtractorEnum, get_logger, get_chromium_version)
+from .common import (ENCODING, BuildkitError, ExtractorEnum, get_logger, get_chromium_version)
 from .downloads import HashesURLEnum
 from .third_party import schema
 
 # Classes
 
+
 class BuildkitConfigError(BuildkitError):
     """Exception class for the config module"""
+
 
 class _ConfigFile(abc.ABC): #pylint: disable=too-few-public-methods
     """
@@ -66,6 +66,7 @@ class _ConfigFile(abc.ABC): #pylint: disable=too-few-public-methods
     def __str__(self):
         """String contents of the config file"""
 
+
 class _IniConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
     """
     Base class for INI config files
@@ -82,13 +83,14 @@ class _IniConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
 
         Raises schema.SchemaError if validation fails
         """
+
         def _section_generator(data):
             for section in data:
                 if section == configparser.DEFAULTSECT:
                     continue
-                yield section, dict(filter(
-                    lambda x: x[0] not in self._ini_vars,
-                    data.items(section)))
+                yield section, dict(
+                    filter(lambda x: x[0] not in self._ini_vars, data.items(section)))
+
         new_data = configparser.ConfigParser(defaults=self._ini_vars)
         with path.open(encoding=ENCODING) as ini_file:
             new_data.read_file(ini_file, source=str(path))
@@ -97,8 +99,8 @@ class _IniConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
         try:
             self._schema.validate(dict(_section_generator(new_data)))
         except schema.SchemaError as exc:
-            get_logger().error(
-                'INI file for %s failed schema validation: %s', type(self).__name__, path)
+            get_logger().error('INI file for %s failed schema validation: %s',
+                               type(self).__name__, path)
             raise exc
         return new_data
 
@@ -138,6 +140,7 @@ class _IniConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
         """Returns an iterator over the section names"""
         return iter(self._data.sections())
 
+
 class ListConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
     """
     Represents a simple newline-delimited list
@@ -165,6 +168,7 @@ class ListConfigFile(_ConfigFile): #pylint: disable=too-few-public-methods
         """Returns an iterator over the list items"""
         return iter(self._data)
 
+
 class MapConfigFile(_ConfigFile):
     """Represents a simple string-keyed and string-valued dictionary"""
 
@@ -178,8 +182,7 @@ class MapConfigFile(_ConfigFile):
                 key, value = line.split('=')
                 if key in new_data:
                     raise ValueError(
-                        'Map file "%s" contains key "%s" at least twice.' %
-                        (path, key))
+                        'Map file "%s" contains key "%s" at least twice.' % (path, key))
                 new_data[key] = value
         return new_data
 
@@ -218,6 +221,7 @@ class MapConfigFile(_ConfigFile):
         """
         return self._data.items()
 
+
 class BundleMetaIni(_IniConfigFile):
     """Represents bundlemeta.ini files"""
 
@@ -244,6 +248,7 @@ class BundleMetaIni(_IniConfigFile):
         if 'depends' in self['bundle']:
             return [x.strip() for x in self['bundle']['depends'].split(',')]
         return tuple()
+
 
 class DomainRegexList(ListConfigFile):
     """Representation of a domain_regex_list file"""
@@ -278,15 +283,18 @@ class DomainRegexList(ListConfigFile):
         """
         Returns a single expression to search for domains
         """
-        return re.compile('|'.join(
-            map(lambda x: x.split(self._PATTERN_REPLACE_DELIM, 1)[0], self)))
+        return re.compile('|'.join(map(lambda x: x.split(self._PATTERN_REPLACE_DELIM, 1)[0], self)))
+
 
 class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
     """Representation of an downloads.ini file"""
 
     _hashes = ('md5', 'sha1', 'sha256', 'sha512')
     _nonempty_keys = ('url', 'download_filename')
-    _optional_keys = ('version', 'strip_leading_dirs',)
+    _optional_keys = (
+        'version',
+        'strip_leading_dirs',
+    )
     _passthrough_properties = (*_nonempty_keys, *_optional_keys, 'extractor')
     _ini_vars = {
         '_chromium_version': get_chromium_version(),
@@ -294,9 +302,11 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
 
     _schema = schema.Schema({
         schema.Optional(schema.And(str, len)): {
-            **{x: schema.And(str, len) for x in _nonempty_keys},
+            **{x: schema.And(str, len)
+               for x in _nonempty_keys},
             'output_path': (lambda x: str(Path(x).relative_to(''))),
-            **{schema.Optional(x): schema.And(str, len) for x in _optional_keys},
+            **{schema.Optional(x): schema.And(str, len)
+               for x in _optional_keys},
             schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP),
             schema.Optional(schema.Or(*_hashes)): schema.And(str, len),
             schema.Optional('hash_url'): (
@@ -329,17 +339,16 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
                         hashes_dict[hash_name] = value
                 return hashes_dict
             else:
-                raise AttributeError(
-                    '"{}" has no attribute "{}"'.format(type(self).__name__, name))
+                raise AttributeError('"{}" has no attribute "{}"'.format(type(self).__name__, name))
 
     def __getitem__(self, section):
         """
         Returns an object with keys as attributes and
         values already pre-processed strings
         """
-        return self._DownloadsProperties(
-            self._data[section], self._passthrough_properties,
-            self._hashes)
+        return self._DownloadsProperties(self._data[section], self._passthrough_properties,
+                                         self._hashes)
+
 
 class ConfigBundle: #pylint: disable=too-few-public-methods
     """Config bundle implementation"""
@@ -409,8 +418,7 @@ class ConfigBundle: #pylint: disable=too-few-public-methods
         if name in self._ATTR_MAPPING:
             return self.files[self._ATTR_MAPPING[name]]
         else:
-            raise AttributeError(
-                '%s has no attribute "%s"' % type(self).__name__, name)
+            raise AttributeError('%s has no attribute "%s"' % type(self).__name__, name)
 
     def rebase(self, other):
         """Rebase the current bundle onto other, saving changes into self"""

@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """
 Archive extraction utilities
 """
@@ -14,14 +13,14 @@ import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 
-from .common import (
-    SEVENZIP_USE_REGISTRY, BuildkitAbort, PlatformEnum, ExtractorEnum, get_logger,
-    get_running_platform)
+from .common import (SEVENZIP_USE_REGISTRY, BuildkitAbort, PlatformEnum, ExtractorEnum, get_logger,
+                     get_running_platform)
 
 DEFAULT_EXTRACTORS = {
     ExtractorEnum.SEVENZIP: SEVENZIP_USE_REGISTRY,
     ExtractorEnum.TAR: 'tar',
 }
+
 
 def _find_7z_by_registry():
     """
@@ -42,6 +41,7 @@ def _find_7z_by_registry():
         get_logger().error('7z.exe not found at path from registry: %s', sevenzip_path)
     return sevenzip_path
 
+
 def _find_extractor_by_cmd(extractor_cmd):
     """Returns a string path to the binary; None if it couldn't be found"""
     if not extractor_cmd:
@@ -50,6 +50,7 @@ def _find_extractor_by_cmd(extractor_cmd):
         return extractor_cmd
     return shutil.which(extractor_cmd)
 
+
 def _process_relative_to(unpack_root, relative_to):
     """
     For an extractor that doesn't support an automatic transform, move the extracted
@@ -57,13 +58,14 @@ def _process_relative_to(unpack_root, relative_to):
     """
     relative_root = unpack_root / relative_to
     if not relative_root.is_dir():
-        get_logger().error(
-            'Could not find relative_to directory in extracted files: %s', relative_to)
+        get_logger().error('Could not find relative_to directory in extracted files: %s',
+                           relative_to)
         raise BuildkitAbort()
     for src_path in relative_root.iterdir():
         dest_path = unpack_root / src_path.name
         src_path.rename(dest_path)
     relative_root.rmdir()
+
 
 def prune_dir(unpack_root, ignore_files):
     """
@@ -81,16 +83,16 @@ def prune_dir(unpack_root, ignore_files):
             unremovable_files.add(Path(relative_file).as_posix())
     return unremovable_files
 
+
 def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
     get_logger().debug('Using 7-zip extractor')
     if not relative_to is None and (output_dir / relative_to).exists():
-        get_logger().error(
-            'Temporary unpacking directory already exists: %s', output_dir / relative_to)
+        get_logger().error('Temporary unpacking directory already exists: %s',
+                           output_dir / relative_to)
         raise BuildkitAbort()
     cmd1 = (binary, 'x', str(archive_path), '-so')
     cmd2 = (binary, 'x', '-si', '-aoa', '-ttar', '-o{}'.format(str(output_dir)))
-    get_logger().debug('7z command line: %s | %s',
-                       ' '.join(cmd1), ' '.join(cmd2))
+    get_logger().debug('7z command line: %s | %s', ' '.join(cmd1), ' '.join(cmd2))
 
     proc1 = subprocess.Popen(cmd1, stdout=subprocess.PIPE)
     proc2 = subprocess.Popen(cmd2, stdin=proc1.stdout, stdout=subprocess.PIPE)
@@ -104,6 +106,7 @@ def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
 
     if not relative_to is None:
         _process_relative_to(output_dir, relative_to)
+
 
 def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
     get_logger().debug('Using BSD or GNU tar extractor')
@@ -120,10 +123,13 @@ def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
     if not relative_to is None:
         _process_relative_to(output_dir, relative_to)
 
+
 def _extract_tar_with_python(archive_path, output_dir, relative_to):
     get_logger().debug('Using pure Python tar extractor')
+
     class NoAppendList(list):
         """Hack to workaround memory issues with large tar files"""
+
         def append(self, obj):
             pass
 
@@ -149,8 +155,7 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to):
                 if relative_to is None:
                     destination = output_dir / PurePosixPath(tarinfo.name)
                 else:
-                    destination = output_dir / PurePosixPath(tarinfo.name).relative_to(
-                        relative_to)
+                    destination = output_dir / PurePosixPath(tarinfo.name).relative_to(relative_to)
                 if tarinfo.issym() and not symlink_supported:
                     # In this situation, TarFile.makelink() will try to create a copy of the
                     # target. But this fails because TarFile.members is empty
@@ -159,8 +164,8 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to):
                     continue
                 if tarinfo.islnk():
                     # Derived from TarFile.extract()
-                    new_target = output_dir / PurePosixPath(tarinfo.linkname).relative_to(
-                        relative_to)
+                    new_target = output_dir / PurePosixPath(
+                        tarinfo.linkname).relative_to(relative_to)
                     tarinfo._link_target = new_target.as_posix() # pylint: disable=protected-access
                 if destination.is_symlink():
                     destination.unlink()
@@ -169,8 +174,12 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to):
                 get_logger().exception('Exception thrown for tar member: %s', tarinfo.name)
                 raise BuildkitAbort()
 
-def extract_tar_file(archive_path, output_dir, relative_to, #pylint: disable=too-many-arguments
-                     extractors=None):
+
+def extract_tar_file(
+        archive_path,
+        output_dir,
+        relative_to, #pylint: disable=too-many-arguments
+        extractors=None):
     """
     Extract regular or compressed tar archive into the output directory.
 
@@ -208,8 +217,12 @@ def extract_tar_file(archive_path, output_dir, relative_to, #pylint: disable=too
     # Fallback to Python-based extractor on all platforms
     _extract_tar_with_python(archive_path, output_dir, relative_to)
 
-def extract_with_7z(archive_path, output_dir, relative_to, #pylint: disable=too-many-arguments
-                    extractors=None):
+
+def extract_with_7z(
+        archive_path,
+        output_dir,
+        relative_to, #pylint: disable=too-many-arguments
+        extractors=None):
     """
     Extract archives with 7-zip into the output directory.
     Only supports archives with one layer of unpacking, so compressed tar archives don't work.
@@ -237,8 +250,8 @@ def extract_with_7z(archive_path, output_dir, relative_to, #pylint: disable=too-
     sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
 
     if not relative_to is None and (output_dir / relative_to).exists():
-        get_logger().error(
-            'Temporary unpacking directory already exists: %s', output_dir / relative_to)
+        get_logger().error('Temporary unpacking directory already exists: %s',
+                           output_dir / relative_to)
         raise BuildkitAbort()
     cmd = (sevenzip_bin, 'x', str(archive_path), '-aoa', '-o{}'.format(str(output_dir)))
     get_logger().debug('7z command line: %s', ' '.join(cmd))

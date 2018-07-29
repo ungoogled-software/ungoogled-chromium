@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """
 Module for the downloading, checking, and unpacking of necessary files into the source tree
 """
@@ -18,18 +17,23 @@ from .extraction import extract_tar_file, extract_with_7z
 
 # Constants
 
+
 class HashesURLEnum(str, enum.Enum):
     """Enum for supported hash URL schemes"""
     chromium = 'chromium'
 
+
 # Custom Exceptions
+
 
 class HashMismatchError(BuildkitError):
     """Exception for computed hashes not matching expected hashes"""
     pass
 
+
 class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
     """Hook for urllib.request.urlretrieve to log progress information to console"""
+
     def __init__(self):
         self._max_len_printed = 0
         self._last_percentage = None
@@ -48,6 +52,7 @@ class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
         self._max_len_printed = len(status_line)
         print('\r' + status_line, end='')
 
+
 def _download_if_needed(file_path, url, show_progress):
     """
     Downloads a file from url to the specified path file_path if necessary.
@@ -65,6 +70,7 @@ def _download_if_needed(file_path, url, show_progress):
         if show_progress:
             print()
 
+
 def _chromium_hashes_generator(hashes_path):
     with hashes_path.open(encoding=ENCODING) as hashes_file:
         hash_lines = hashes_file.read().splitlines()
@@ -74,9 +80,11 @@ def _chromium_hashes_generator(hashes_path):
         else:
             get_logger().warning('Skipping unknown hash algorithm: %s', hash_name)
 
+
 def _downloads_iter(config_bundle):
     """Iterator for the downloads ordered by output path"""
     return sorted(config_bundle.downloads, key=(lambda x: str(Path(x.output_path))))
+
 
 def _get_hash_pairs(download_properties, cache_dir):
     """Generator of (hash_name, hash_hex) for the given download"""
@@ -89,6 +97,7 @@ def _get_hash_pairs(download_properties, cache_dir):
                 raise ValueError('Unknown hash_url processor: %s' % hash_processor)
         else:
             yield entry_type, entry_value
+
 
 def retrieve_downloads(config_bundle, cache_dir, show_progress, disable_ssl_verification=False):
     """
@@ -128,6 +137,7 @@ def retrieve_downloads(config_bundle, cache_dir, show_progress, disable_ssl_veri
         if disable_ssl_verification:
             ssl._create_default_https_context = orig_https_context #pylint: disable=protected-access
 
+
 def check_downloads(config_bundle, cache_dir):
     """
     Check integrity of the downloads cache.
@@ -148,6 +158,7 @@ def check_downloads(config_bundle, cache_dir):
             hasher = hashlib.new(hash_name, data=archive_data)
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(download_path)
+
 
 def unpack_downloads(config_bundle, cache_dir, output_dir, extractors=None):
     """
@@ -180,6 +191,8 @@ def unpack_downloads(config_bundle, cache_dir, output_dir, extractors=None):
             strip_leading_dirs_path = Path(download_properties.strip_leading_dirs)
 
         extractor_func(
-            archive_path=download_path, output_dir=output_dir,
+            archive_path=download_path,
+            output_dir=output_dir,
             unpack_dir=Path(download_properties.output_path),
-            relative_to=strip_leading_dirs_path, extractors=extractors)
+            relative_to=strip_leading_dirs_path,
+            extractors=extractors)

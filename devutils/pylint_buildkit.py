@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """Run Pylint over buildkit"""
 
 import argparse
@@ -14,18 +13,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pylint_devutils
 sys.path.pop(0)
 
+
 def main():
     """CLI entrypoint"""
     parser = argparse.ArgumentParser(description='Run Pylint over buildkit')
+    parser.add_argument('--hide-fixme', action='store_true', help='Hide "fixme" Pylint warnings.')
     parser.add_argument(
-        '--hide-fixme', action='store_true',
-        help='Hide "fixme" Pylint warnings.')
-    parser.add_argument(
-        '--show-locally-disabled', action='store_true',
+        '--show-locally-disabled',
+        action='store_true',
         help='Show "locally-disabled" Pylint warnings.')
     args = parser.parse_args()
 
-    disable = list()
+    disable = ['bad-continuation']
 
     if args.hide_fixme:
         disable.append('fixme')
@@ -45,6 +44,7 @@ def main():
     if not result:
         exit(1)
     exit(0)
+
 
 if __name__ == '__main__':
     main()

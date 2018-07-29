@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """
 Update binary pruning and domain substitution lists automatically.
 
@@ -19,17 +18,15 @@ from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from buildkit.cli import get_basebundle_verbosely
-from buildkit.common import (
-    BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE, ENCODING, BuildkitAbort, get_logger, dir_empty)
+from buildkit.common import (BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE, ENCODING, BuildkitAbort,
+                             get_logger, dir_empty)
 from buildkit.domain_substitution import TREE_ENCODINGS
 from buildkit import source_retrieval
 sys.path.pop(0)
 
 # NOTE: Include patterns have precedence over exclude patterns
 # pathlib.Path.match() paths to include in binary pruning
-PRUNING_INCLUDE_PATTERNS = [
-    'components/domain_reliability/baked_in_configs/*'
-]
+PRUNING_INCLUDE_PATTERNS = ['components/domain_reliability/baked_in_configs/*']
 
 # pathlib.Path.match() paths to exclude from binary pruning
 PRUNING_EXCLUDE_PATTERNS = [
@@ -72,42 +69,18 @@ PRUNING_EXCLUDE_PATTERNS = [
 
 # NOTE: Domain substitution path prefix exclusion has precedence over inclusion patterns
 # Paths to exclude by prefixes of the POSIX representation for domain substitution
-DOMAIN_EXCLUDE_PREFIXES = [
-    'components/test/',
-    'net/http/transport_security_state_static.json'
-]
+DOMAIN_EXCLUDE_PREFIXES = ['components/test/', 'net/http/transport_security_state_static.json']
 
 # pathlib.Path.match() patterns to include in domain substitution
 DOMAIN_INCLUDE_PATTERNS = [
-    '*.h',
-    '*.hh',
-    '*.hpp',
-    '*.hxx',
-    '*.cc',
-    '*.cpp',
-    '*.cxx',
-    '*.c',
-    '*.h',
-    '*.json',
-    '*.js',
-    '*.html',
-    '*.htm',
-    '*.css',
-    '*.py*',
-    '*.grd',
-    '*.sql',
-    '*.idl',
-    '*.mk',
-    '*.gyp*',
-    'makefile',
-    '*.txt',
-    '*.xml',
-    '*.mm',
-    '*.jinja*'
+    '*.h', '*.hh', '*.hpp', '*.hxx', '*.cc', '*.cpp', '*.cxx', '*.c', '*.h', '*.json', '*.js',
+    '*.html', '*.htm', '*.css', '*.py*', '*.grd', '*.sql', '*.idl', '*.mk', '*.gyp*', 'makefile',
+    '*.txt', '*.xml', '*.mm', '*.jinja*'
 ]
 
 # Binary-detection constant
 _TEXTCHARS = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)) - {0x7f})
+
 
 def _is_binary(bytes_data):
     """
@@ -115,6 +88,7 @@ def _is_binary(bytes_data):
     """
     # From: https://stackoverflow.com/a/7392391
     return bool(bytes_data.translate(None, _TEXTCHARS))
+
 
 def should_prune(path, relative_path):
     """
@@ -141,6 +115,7 @@ def should_prune(path, relative_path):
     # Passed all filtering; do not prune
     return False
 
+
 def _check_regex_match(file_path, search_regex):
     """
     Returns True if a regex pattern matches a file; False otherwise
@@ -161,6 +136,7 @@ def _check_regex_match(file_path, search_regex):
             return True
     return False
 
+
 def should_domain_substitute(path, relative_path, search_regex):
     """
     Returns True if a path should be domain substituted in the buildspace tree; False otherwise
@@ -177,6 +153,7 @@ def should_domain_substitute(path, relative_path, search_regex):
                     return False
             return _check_regex_match(path, search_regex)
     return False
+
 
 def compute_lists(buildspace_tree, search_regex):
     """
@@ -229,32 +206,51 @@ def compute_lists(buildspace_tree, search_regex):
             raise BuildkitAbort()
     return sorted(pruning_set), sorted(domain_substitution_set)
 
+
 def main(args_list=None):
     """CLI entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        '-a', '--auto-download', action='store_true',
+        '-a',
+        '--auto-download',
+        action='store_true',
         help='If specified, it will download the source code and dependencies '
-             'for the --base-bundle given. Otherwise, only an existing '
-             'buildspace tree will be used.')
+        'for the --base-bundle given. Otherwise, only an existing '
+        'buildspace tree will be used.')
     parser.add_argument(
-        '-b', '--base-bundle', metavar='NAME', type=get_basebundle_verbosely,
-        default='common', help='The base bundle to use. Default: %(default)s')
+        '-b',
+        '--base-bundle',
+        metavar='NAME',
+        type=get_basebundle_verbosely,
+        default='common',
+        help='The base bundle to use. Default: %(default)s')
     parser.add_argument(
-        '-p', '--pruning', metavar='PATH', type=Path,
+        '-p',
+        '--pruning',
+        metavar='PATH',
+        type=Path,
         default='resources/config_bundles/common/pruning.list',
         help='The path to store pruning.list. Default: %(default)s')
     parser.add_argument(
-        '-d', '--domain-substitution', metavar='PATH', type=Path,
+        '-d',
+        '--domain-substitution',
+        metavar='PATH',
+        type=Path,
         default='resources/config_bundles/common/domain_substitution.list',
         help='The path to store domain_substitution.list. Default: %(default)s')
     parser.add_argument(
-        '--tree', metavar='PATH', type=Path, default=BUILDSPACE_TREE,
+        '--tree',
+        metavar='PATH',
+        type=Path,
+        default=BUILDSPACE_TREE,
         help=('The path to the buildspace tree to create. '
               'If it is not empty, the source will not be unpacked. '
               'Default: %(default)s'))
     parser.add_argument(
-        '--downloads', metavar='PATH', type=Path, default=BUILDSPACE_DOWNLOADS,
+        '--downloads',
+        metavar='PATH',
+        type=Path,
+        default=BUILDSPACE_DOWNLOADS,
         help=('The path to the buildspace downloads directory. '
               'It must already exist. Default: %(default)s'))
     try:
@@ -277,6 +273,7 @@ def main(args_list=None):
         file_obj.writelines('%s\n' % line for line in pruning_list)
     with args.domain_substitution.open('w', encoding=ENCODING) as file_obj:
         file_obj.writelines('%s\n' % line for line in domain_substitution_list)
+
 
 if __name__ == "__main__":
     main()

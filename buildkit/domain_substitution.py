@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """
 Module for substituting domain names in the source tree with blockable strings.
 """
@@ -27,6 +26,7 @@ _INDEX_HASH_DELIMITER = '|'
 _ORIG_DIR = 'orig'
 
 # Private Methods
+
 
 def _substitute_path(path, regex_iter):
     """
@@ -58,8 +58,7 @@ def _substitute_path(path, regex_iter):
             raise UnicodeDecodeError('Unable to decode with any encoding: %s' % path)
         file_subs = 0
         for regex_pair in regex_iter:
-            content, sub_count = regex_pair.pattern.subn(
-                regex_pair.replacement, content)
+            content, sub_count = regex_pair.pattern.subn(regex_pair.replacement, content)
             file_subs += sub_count
         if file_subs > 0:
             substituted_content = content.encode(encoding)
@@ -68,6 +67,7 @@ def _substitute_path(path, regex_iter):
             input_file.truncate()
             return (zlib.crc32(substituted_content), original_content)
         return (None, None)
+
 
 def _validate_file_index(index_file, resolved_tree, cache_index_files):
     """
@@ -85,30 +85,29 @@ def _validate_file_index(index_file, resolved_tree, cache_index_files):
             get_logger().error('Could not split entry "%s": %s', entry, exc)
             continue
         if not relative_path or not file_hash:
-            get_logger().error(
-                'Entry %s of domain substitution cache file index is not valid',
-                _INDEX_HASH_DELIMITER.join((relative_path, file_hash)))
+            get_logger().error('Entry %s of domain substitution cache file index is not valid',
+                               _INDEX_HASH_DELIMITER.join((relative_path, file_hash)))
             all_hashes_valid = False
             continue
         if not crc32_regex.match(file_hash):
-            get_logger().error(
-                'File index hash for %s does not appear to be a CRC32 hash', relative_path)
+            get_logger().error('File index hash for %s does not appear to be a CRC32 hash',
+                               relative_path)
             all_hashes_valid = False
             continue
         if zlib.crc32((resolved_tree / relative_path).read_bytes()) != int(file_hash, 16):
-            get_logger().error(
-                'Hashes do not match for: %s', relative_path)
+            get_logger().error('Hashes do not match for: %s', relative_path)
             all_hashes_valid = False
             continue
         if relative_path in cache_index_files:
-            get_logger().error(
-                'File %s shows up at least twice in the file index', relative_path)
+            get_logger().error('File %s shows up at least twice in the file index', relative_path)
             all_hashes_valid = False
             continue
         cache_index_files.add(relative_path)
     return all_hashes_valid
 
+
 # Public Methods
+
 
 def apply_substitution(config_bundle, source_tree, domainsub_cache):
     """
@@ -132,8 +131,9 @@ def apply_substitution(config_bundle, source_tree, domainsub_cache):
     resolved_tree = source_tree.resolve()
     regex_pairs = config_bundle.domain_regex.get_pairs()
     fileindex_content = io.BytesIO()
-    with tarfile.open(str(domainsub_cache),
-                      'w:%s' % domainsub_cache.suffix[1:], compresslevel=1) as cache_tar:
+    with tarfile.open(
+            str(domainsub_cache), 'w:%s' % domainsub_cache.suffix[1:],
+            compresslevel=1) as cache_tar:
         orig_dir = Path(_ORIG_DIR)
         for relative_path in config_bundle.domain_substitution:
             if _INDEX_HASH_DELIMITER in relative_path:
@@ -141,8 +141,8 @@ def apply_substitution(config_bundle, source_tree, domainsub_cache):
                 cache_tar.close()
                 domainsub_cache.unlink()
                 raise ValueError(
-                    'Path "%s" contains the file index hash delimiter "%s"' %
-                    relative_path, _INDEX_HASH_DELIMITER)
+                    'Path "%s" contains the file index hash delimiter "%s"' % relative_path,
+                    _INDEX_HASH_DELIMITER)
             path = resolved_tree / relative_path
             if not path.exists():
                 get_logger().warning('Skipping non-existant path: %s', path)
@@ -150,8 +150,8 @@ def apply_substitution(config_bundle, source_tree, domainsub_cache):
             if crc32_hash is None:
                 get_logger().info('Path has no substitutions: %s', relative_path)
                 continue
-            fileindex_content.write('{}{}{:08x}\n'.format(
-                relative_path, _INDEX_HASH_DELIMITER, crc32_hash).encode(ENCODING))
+            fileindex_content.write('{}{}{:08x}\n'.format(relative_path, _INDEX_HASH_DELIMITER,
+                                                          crc32_hash).encode(ENCODING))
             orig_tarinfo = tarfile.TarInfo(str(orig_dir / relative_path))
             orig_tarinfo.size = len(orig_content)
             with io.BytesIO(orig_content) as orig_file:
@@ -160,6 +160,7 @@ def apply_substitution(config_bundle, source_tree, domainsub_cache):
         fileindex_tarinfo.size = fileindex_content.tell()
         fileindex_content.seek(0)
         cache_tar.addfile(fileindex_tarinfo, fileindex_content)
+
 
 def revert_substitution(domainsub_cache, source_tree):
     """
@@ -196,8 +197,8 @@ def revert_substitution(domainsub_cache, source_tree):
 
     cache_index_files = set() # All files in the file index
 
-    with tempfile.TemporaryDirectory(prefix='domsubcache_files',
-                                     dir=str(resolved_tree)) as tmp_extract_name:
+    with tempfile.TemporaryDirectory(
+            prefix='domsubcache_files', dir=str(resolved_tree)) as tmp_extract_name:
         extract_path = Path(tmp_extract_name)
         get_logger().debug('Extracting domain substitution cache...')
         extract_tar_file(domainsub_cache, extract_path, Path())
@@ -206,9 +207,8 @@ def revert_substitution(domainsub_cache, source_tree):
         get_logger().debug('Validating substituted files in source tree...')
         with (extract_path / _INDEX_LIST).open('rb') as index_file: #pylint: disable=no-member
             if not _validate_file_index(index_file, resolved_tree, cache_index_files):
-                raise KeyError(
-                    'Domain substitution cache file index is corrupt or hashes mismatch '
-                    'the source tree.')
+                raise KeyError('Domain substitution cache file index is corrupt or hashes mismatch '
+                               'the source tree.')
 
         # Move original files over substituted ones
         get_logger().debug('Moving original files over substituted ones...')

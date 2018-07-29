@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """Common code and constants"""
 
 import configparser
@@ -25,18 +24,23 @@ _ENV_FORMAT = "BUILDKIT_{}"
 
 # Helpers for third_party.schema
 
+
 def schema_dictcast(data):
     """Cast data to dictionary for third_party.schema and configparser data structures"""
     return schema.And(schema.Use(dict), data)
+
 
 def schema_inisections(data):
     """Cast configparser data structure to dict and remove DEFAULT section"""
     return schema_dictcast({configparser.DEFAULTSECT: object, **data})
 
+
 # Public classes
+
 
 class BuildkitError(Exception):
     """Represents a generic custom error from buildkit"""
+
 
 class BuildkitAbort(BuildkitError):
     """
@@ -45,20 +49,24 @@ class BuildkitAbort(BuildkitError):
     It should only be caught by the user of buildkit's library interface.
     """
 
+
 class PlatformEnum(enum.Enum):
     """Enum for platforms that need distinction for certain functionality"""
     UNIX = 'unix' # Currently covers anything that isn't Windows
     WINDOWS = 'windows'
+
 
 class ExtractorEnum: #pylint: disable=too-few-public-methods
     """Enum for extraction binaries"""
     SEVENZIP = '7z'
     TAR = 'tar'
 
+
 # Public methods
 
-def get_logger(name=__package__, initial_level=logging.DEBUG,
-               prepend_timestamp=True, log_init=True):
+
+def get_logger(name=__package__, initial_level=logging.DEBUG, prepend_timestamp=True,
+               log_init=True):
     '''Gets the named logger'''
 
     logger = logging.getLogger(name)
@@ -84,6 +92,7 @@ def get_logger(name=__package__, initial_level=logging.DEBUG,
                     logger.debug("Initialized logger '%s'", name)
     return logger
 
+
 def dir_empty(path):
     """
     Returns True if the directory is empty; False otherwise
@@ -95,6 +104,7 @@ def dir_empty(path):
     except StopIteration:
         return True
     return False
+
 
 def ensure_empty_dir(path, parents=False):
     """
@@ -111,6 +121,7 @@ def ensure_empty_dir(path, parents=False):
         if not dir_empty(path):
             raise exc
 
+
 def get_running_platform():
     """
     Returns a PlatformEnum value indicating the platform that buildkit is running on.
@@ -124,18 +135,19 @@ def get_running_platform():
     # Only Windows and UNIX-based platforms need to be distinguished right now.
     return PlatformEnum.UNIX
 
+
 def _read_version_ini():
-    version_schema = schema.Schema(schema_inisections({
-        'version': schema_dictcast({
-            'chromium_version': schema.And(str, len),
-            'release_revision': schema.And(str, len),
-            schema.Optional('release_extra'): schema.And(str, len),
-        })
-    }))
+    version_schema = schema.Schema(
+        schema_inisections({
+            'version': schema_dictcast({
+                'chromium_version': schema.And(str, len),
+                'release_revision': schema.And(str, len),
+                schema.Optional('release_extra'): schema.And(str, len),
+            })
+        }))
     version_parser = configparser.ConfigParser()
     version_parser.read(
-        str(Path(__file__).absolute().parent.parent / 'version.ini'),
-        encoding=ENCODING)
+        str(Path(__file__).absolute().parent.parent / 'version.ini'), encoding=ENCODING)
     try:
         version_schema.validate(version_parser)
     except schema.SchemaError as exc:
@@ -143,19 +155,23 @@ def _read_version_ini():
         raise exc
     return version_parser
 
+
 def get_chromium_version():
     """Returns the Chromium version."""
     return _VERSION_INI['version']['chromium_version']
 
+
 def get_release_revision():
     """Returns the release revision."""
     return _VERSION_INI['version']['release_revision']
+
 
 def get_release_extra(fallback=None):
     """
     Return the release revision extra info, or returns fallback if it is not defined.
     """
     return _VERSION_INI['version'].get('release_extra', fallback=fallback)
+
 
 def get_version_string():
     """
@@ -166,5 +182,6 @@ def get_version_string():
     if release_extra:
         result += '~{}'.format(release_extra)
     return result
+
 
 _VERSION_INI = _read_version_ini()

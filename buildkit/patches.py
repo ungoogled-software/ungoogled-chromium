@@ -3,7 +3,6 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """Utilities for reading and copying patches"""
 
 import shutil
@@ -14,6 +13,7 @@ from .common import ENCODING, get_logger, ensure_empty_dir
 
 # Default patches/ directory is next to buildkit
 _DEFAULT_PATCH_DIR = Path(__file__).absolute().parent.parent / 'patches'
+
 
 def patch_paths_by_bundle(config_bundle, patch_dir=_DEFAULT_PATCH_DIR):
     """
@@ -28,6 +28,7 @@ def patch_paths_by_bundle(config_bundle, patch_dir=_DEFAULT_PATCH_DIR):
         raise NotADirectoryError(str(patch_dir))
     for relative_path in config_bundle.patch_order:
         yield patch_dir / relative_path
+
 
 def export_patches(config_bundle, path, series=Path('series'), patch_dir=_DEFAULT_PATCH_DIR):
     """
@@ -53,6 +54,7 @@ def export_patches(config_bundle, path, series=Path('series'), patch_dir=_DEFAUL
     with (path / series).open('w', encoding=ENCODING) as file_obj:
         file_obj.write(str(config_bundle.patch_order))
 
+
 def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None):
     """
     Applies or reverses a list of patches
@@ -68,8 +70,7 @@ def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None
     """
     patch_paths = list(patch_path_iter)
     if patch_bin_path is None:
-        windows_patch_bin_path = (tree_path /
-                                  'third_party' / 'git' / 'usr' / 'bin' / 'patch.exe')
+        windows_patch_bin_path = (tree_path / 'third_party' / 'git' / 'usr' / 'bin' / 'patch.exe')
         patch_bin_path = Path(shutil.which('patch') or windows_patch_bin_path)
         if not patch_bin_path.exists():
             raise ValueError('Could not find the patch binary')
@@ -79,15 +80,16 @@ def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None
     logger = get_logger()
     for patch_path, patch_num in zip(patch_paths, range(1, len(patch_paths) + 1)):
         cmd = [
-            str(patch_bin_path), '-p1', '--ignore-whitespace', '-i', str(patch_path),
-            '-d', str(tree_path), '--no-backup-if-mismatch']
+            str(patch_bin_path), '-p1', '--ignore-whitespace', '-i',
+            str(patch_path), '-d',
+            str(tree_path), '--no-backup-if-mismatch'
+        ]
         if reverse:
             cmd.append('--reverse')
             log_word = 'Reversing'
         else:
             cmd.append('--forward')
             log_word = 'Applying'
-        logger.info(
-            '* %s %s (%s/%s)', log_word, patch_path.name, patch_num, len(patch_paths))
+        logger.info('* %s %s (%s/%s)', log_word, patch_path.name, patch_num, len(patch_paths))
         logger.debug(' '.join(cmd))
         subprocess.run(cmd, check=True)
