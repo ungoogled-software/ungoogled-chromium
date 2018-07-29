@@ -4,7 +4,7 @@
 
 **Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses). *Please check the status before attempting a build or posting an issue*.
 
-**Choosing branches**: The `master` branch contains stable code, and `develop` is for unstable code. Please do not use `develop` unless you know what you are doing.
+**Choosing a version**: *It is highly recommended to choose a tag version for building.* `master` and other branches are not guarenteed to be in a working state.
 
 ## Contents
 

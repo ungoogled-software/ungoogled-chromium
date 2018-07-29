@@ -1,6 +1,14 @@
 # Development notes and procedures
 
-The [GitHub Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/) contains some additional information that changes more frequently.
+This document contains an assortment of information for those who want to develop ungoogled-chromium.
+
+Information targeted towards developers *and* other users live in [the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/).
+
+## Branches
+
+Development is focused on `master`, and any changes in there should not break anything unless platforms break during a Chromium version rebase.
+
+Features that require some time to achieve completion must be done in a separate branch. Once it is ready, then it can be merged into `master` and the branch should be removed.
 
 ## Adding command-line flags and `chrome://flags` options
 

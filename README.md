@@ -55,7 +55,7 @@ Most of the **additional** features are as follows:
     * `--set-ipv6-probe-false` - (Not in `chrome://flags`) Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
 * Force all pop-ups into tabs
 * Disable [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing)
-    * See the [FAQ](https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq#why-is-safe-browsing-disabled)
+    * See the [FAQ](//ungoogled-software.github.io/ungoogled-chromium-wiki/faq#why-is-safe-browsing-disabled)
 * Disable intranet redirect detector (extraneous DNS requests)
     * This breaks captive portal detection, but captive portals still work.
 * Add more URL schemes allowed for saving
@@ -70,7 +70,7 @@ Most of the **additional** features are as follows:
 
 ### Supported platforms and distributions
 
-Currently, only desktop platforms are supported. Functionality of specific desktop platforms may vary across different releases. For more details, see [Statuses in the Wiki](//github.com/Eloston/ungoogled-chromium/wiki/statuses).
+Currently, only desktop platforms are supported. Functionality of specific desktop platforms may vary across different releases. For more details, see [Statuses in the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/statuses).
 
 Other platforms are discussed and tracked in GitHub's Issue Tracker. Learn more about using the Issue Tracker under the section [Contributing, Reporting, Contacting](#contributing-reporting-contacting).
 
@@ -101,9 +101,11 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 * `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
 * `release_revision` is a number indicating the version of ungoogled-chromium for the corresponding Chromium version.
 
+Not all tags are stable for all platforms. See the [Statuses in the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/statuses) to determine the tag to use.
+
 ## Frequently-asked questions
 
-[See the FAQ on the Wiki](https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
+[See the FAQ on the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
 
 ## Design and implementation
 
@@ -133,7 +135,7 @@ There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) f
 * [Inox patchset](//github.com/gcarq/inox-patchset)
 * [Debian](//tracker.debian.org/pkg/chromium-browser)
 * [Iridium Browser](//iridiumbrowser.de/)
-* The users for testing and debugging, [contributing code](https://github.com/Eloston/ungoogled-chromium/graphs/contributors), providing feedback, or simply using ungoogled-chromium in some capacity.
+* The users for testing and debugging, [contributing code](//github.com/Eloston/ungoogled-chromium/graphs/contributors), providing feedback, or simply using ungoogled-chromium in some capacity.
 
 ## License
 
