@@ -15,10 +15,10 @@ mkdir %TMP%
 mkdir %TEMP%
 
 cd "%~dp0/.."
-mkdir $ungoog{build_output}
-copy ungoogled_packaging\args.gn $ungoog{build_output}
+mkdir out/Default
+copy ungoogled_packaging\args.gn out/Default
 
 path %PATH%;%cd%\third_party\ninja
-call python tools\gn\bootstrap\bootstrap.py -o $ungoog{build_output}\gn.exe -s
-call $ungoog{build_output}\gn.exe gen $ungoog{build_output} --fail-on-unused-args
-call third_party\ninja\ninja.exe -C $ungoog{build_output} chrome chromedriver
+call python tools\gn\bootstrap\bootstrap.py -o out/Default\gn.exe -s
+call out/Default\gn.exe gen out/Default --fail-on-unused-args
+call third_party\ninja\ninja.exe -C out/Default chrome chromedriver

@@ -23,6 +23,9 @@ export CXXFLAGS+=-Wno-unused-function \
                  -Wno-unused-variable \
                  -Wno-deprecated-declarations \
 
+# set required buildkit variables
+export BUILDKIT_CHROMIUM_VERSION=$ungoog{chromium_version}
+
 # set the appropriate cpu architecture
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 ifeq (i386,$(DEB_HOST_ARCH))
@@ -38,8 +41,10 @@ ifeq (armhf,$(DEB_HOST_ARCH))
 defines+=host_cpu=\"arm\" arm_use_neon=false
 endif
 
-# auto-inserted gn flags
-$ungoog{gn_flags}
+# add gn flags from config bundle
+pushd debian
+defines+=$(python3 -m buildkit gnargs print -b config_bundles/$(cat ungoogled-config-bundle) | tr '\n' ' ')
+popd
 
 # some notes about embedded libraries
 #  can't use system nss since net/third_party/nss is heavily patched
@@ -58,9 +63,9 @@ flotpaths=/usr/share/javascript/jquery/*min.js \
 %:
 	dh $@
 
-$ungoog{build_output}/gn:
-	mkdir -p $ungoog{build_output} || true
-	./tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s -j$(njobs)
+out/Default/gn:
+	mkdir -p out/Default || true
+	./tools/gn/bootstrap/bootstrap.py -o out/Default/gn -s -j$(njobs)
 
 override_dh_auto_configure:
 	# output compiler information
@@ -70,22 +75,22 @@ override_dh_auto_configure:
 	# strip out system third_party libraries
 	./debian/scripts/unbundle
 
-override_dh_auto_build-arch: $ungoog{build_output}/gn
-	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
-	ninja -j$(njobs) -C $ungoog{build_output} chrome chrome_sandbox content_shell chromedriver
+override_dh_auto_build-arch: out/Default/gn
+	./out/Default/gn gen out/Default --args="$(defines)" --fail-on-unused-args
+	ninja -j$(njobs) -C out/Default chrome chrome_sandbox content_shell chromedriver
 
-override_dh_auto_build-indep: $ungoog{build_output}/gn
-	./$ungoog{build_output}/gn gen $ungoog{build_output} --args="$(defines)" --fail-on-unused-args
-	ninja -j$(njobs) -C $ungoog{build_output} packed_resources
+override_dh_auto_build-indep: out/Default/gn
+	./out/Default/gn gen out/Default --args="$(defines)" --fail-on-unused-args
+	ninja -j$(njobs) -C out/Default packed_resources
 
 override_dh_auto_install-arch:
-	cp $ungoog{build_output}/chrome $ungoog{build_output}/chromium
-	cp $ungoog{build_output}/content_shell $ungoog{build_output}/chromium-shell
-	cp $ungoog{build_output}/chrome_sandbox $ungoog{build_output}/chrome-sandbox
-	cp $ungoog{build_output}/locales/en-US.pak $ungoog{build_output}/resources
-	chmod 4755 $ungoog{build_output}/chrome-sandbox # suid sandbox
+	cp out/Default/chrome out/Default/chromium
+	cp out/Default/content_shell out/Default/chromium-shell
+	cp out/Default/chrome_sandbox out/Default/chrome-sandbox
+	cp out/Default/locales/en-US.pak out/Default/resources
+	chmod 4755 out/Default/chrome-sandbox # suid sandbox
 	sed -e s/@@PACKAGE@@/chromium/g -e s/@@MENUNAME@@/Chromium/g \
-	    < chrome/app/resources/manpage.1.in > $ungoog{build_output}/chromium.1
+	    < chrome/app/resources/manpage.1.in > out/Default/chromium.1
 	dh_auto_install
 	# create /etc/chromium.d README file
 	echo "Any files placed in this directory will be sourced prior to executing chromium." \
@@ -97,7 +102,7 @@ override_dh_auto_install-arch:
 	./debian/scripts/icons
 
 override_dh_auto_install-indep:
-	rm -f $ungoog{build_output}/locales/en-US.pak
+	rm -f out/Default/locales/en-US.pak
 	dh_auto_install
 
 override_dh_fixperms:

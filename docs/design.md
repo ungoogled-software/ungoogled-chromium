@@ -165,6 +165,8 @@ For examples of using buildkit's CLI, see [docs/building.md](docs/building.md).
 
 There is currently no API documentation for buildkit. However, all public classes, functions, and methods have docstrings that explain their usage and behavior.
 
+buildkit requires the `BUILDKIT_CHROMIUM_VERSION` environment variable to be set to the Chromium version being built.
+
 ### buildkit design philosophy
 
 buildkit should be simple and transparent instead of limited and intelligent when it is reasonable. As an analogy, buildkit should be like git in terms of the scope and behavior of functionality (e.g. subcommands) and as a system in whole.

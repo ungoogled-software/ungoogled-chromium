@@ -16,18 +16,24 @@ import string
 import subprocess
 from pathlib import Path
 
-from buildkit.common import (ENCODING, BuildkitAbort, get_logger, get_chromium_version,
-                             get_release_revision)
+from buildkit.common import ENCODING, BuildkitAbort, get_logger
 from buildkit.third_party import schema
 
 # Constants
 
-_PACKAGING_ROOT = Path(__file__).resolve().parent / 'packaging'
+_ROOT_DIR = Path(__file__).resolve().parent
+_PACKAGING_ROOT = _ROOT_DIR / 'packaging'
 _PKGMETA = _PACKAGING_ROOT / 'pkgmeta.ini'
 _PKGMETA_SCHEMA = schema.Schema({
     schema.Optional(schema.And(str, len)): {
         schema.Optional('depends'): schema.And(str, len),
         schema.Optional('buildkit_copy'): schema.And(str, len),
+    }
+})
+_VERSION_SCHEMA = schema.Schema({
+    'version': {
+        'chromium_version': schema.And(str, len),
+        'release_revision': schema.And(str, len),
     }
 })
 
@@ -101,17 +107,17 @@ def _ini_section_generator(ini_parser):
         yield section, dict(ini_parser.items(section))
 
 
-def _validate_and_get_pkgmeta():
+def _validate_and_get_ini(ini_path, ini_schema):
     """
     Validates and returns the parsed pkgmeta
     """
     pkgmeta = configparser.ConfigParser()
-    with _PKGMETA.open(encoding=ENCODING) as pkgmeta_file: #pylint: disable=no-member
-        pkgmeta.read_file(pkgmeta_file, source=str(_PKGMETA))
+    with ini_path.open(encoding=ENCODING) as pkgmeta_file: #pylint: disable=no-member
+        pkgmeta.read_file(pkgmeta_file, source=str(ini_path))
     try:
-        _PKGMETA_SCHEMA.validate(dict(_ini_section_generator(pkgmeta)))
+        ini_schema.validate(dict(_ini_section_generator(pkgmeta)))
     except schema.SchemaError as exc:
-        get_logger().error('pkgmeta.ini failed schema validation at: %s', _PKGMETA)
+        get_logger().error('%s failed schema validation at: %s', ini_path.name, ini_path)
         raise exc
     return pkgmeta
 
@@ -127,7 +133,7 @@ def _get_package_dir_list(package, pkgmeta):
     current_name = package
     while current_name:
         package_list.append(_PACKAGING_ROOT / current_name)
-        if not package_list[-1].exists():
+        if not package_list[-1].exists(): #pylint: disable=no-member
             raise FileNotFoundError(package_list[-1])
         if current_name in pkgmeta and 'depends' in pkgmeta[current_name]:
             current_name = pkgmeta[current_name]['depends']
@@ -147,6 +153,24 @@ def _get_package_files(package_dir_list):
     yield from sorted(resolved_files.items())
 
 
+def _get_buildkit_copy(package, pkgmeta):
+    """
+    Returns a pathlib.Path relative to the output directory to copy buildkit and bundles to,
+        otherwise returns None if buildkit does not need to be copied.
+    """
+    while package:
+        if package in pkgmeta:
+            if 'buildkit_copy' in pkgmeta[package]:
+                return Path(pkgmeta[package]['buildkit_copy'])
+            if 'depends' in pkgmeta[package]:
+                package = pkgmeta[package]['depends']
+            else:
+                break
+        else:
+            break
+    return None
+
+
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -157,6 +181,8 @@ def main():
     if not args.destination.parent.exists():
         parser.error('Destination parent directory "{}" does not exist'.format(
             args.destination.parent))
+    if not _PACKAGING_ROOT.exists(): #pylint: disable=no-member
+        parser.error('Cannot find "packaging" directory next to this script')
     packaging_dir = _PACKAGING_ROOT / args.name
     if not packaging_dir.exists():
         parser.error('Packaging "{}" does not exist'.format(args.name))
@@ -166,7 +192,7 @@ def main():
     if not args.destination.exists():
         args.destination.mkdir()
 
-    pkgmeta = _validate_and_get_pkgmeta()
+    pkgmeta = _validate_and_get_ini(_PKGMETA, _PKGMETA_SCHEMA)
     for relative_path, actual_path in _get_package_files(_get_package_dir_list(args.name, pkgmeta)):
         if actual_path.is_dir():
             if not (args.destination / relative_path).exists():
@@ -175,13 +201,20 @@ def main():
         else:
             shutil.copy(str(actual_path), str(args.destination / relative_path))
 
+    version_ini = _validate_and_get_ini(_ROOT_DIR / 'version.ini', _VERSION_SCHEMA)
     packaging_subs = dict(
-        chromium_version=get_chromium_version(),
-        release_revision=get_release_revision(),
+        chromium_version=version_ini['version']['chromium_version'],
+        release_revision=version_ini['version']['release_revision'],
         current_commit=_get_current_commit(),
     )
 
     _process_templates(args.destination, packaging_subs)
+
+    buildkit_copy_relative = _get_buildkit_copy(args.name, pkgmeta)
+    if buildkit_copy_relative:
+        shutil.copytree(str(_ROOT_DIR / 'buildkit'), str(args.destination / buildkit_copy_relative))
+        shutil.copytree(
+            str(_ROOT_DIR / 'config_bundles'), str(args.destination / buildkit_copy_relative))
 
 
 if __name__ == '__main__':

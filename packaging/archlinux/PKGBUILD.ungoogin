@@ -31,11 +31,11 @@ conflicts=('chromium')
 source=(https://commondatastorage.googleapis.com/chromium-browser-official/chromium-$pkgver.tar.xz
         chromium-launcher-$_launcher_ver.tar.gz::https://github.com/foutrelis/chromium-launcher/archive/v$_launcher_ver.tar.gz
         chromium-$pkgver.txt::https://chromium.googlesource.com/chromium/src/+/$pkgver?format=TEXT
-        '$ungoog{repo_url}')
+        'https://github.com/Eloston/ungoogled-chromium/archive/$ungoog{current_commit}.tar.gz')
 sha256sums=('73bfa25d41c432ba5a542b20043b62118bc8451bb9e031edc7394cc65d6b5d64'
             '04917e3cd4307d8e31bfb0027a5dce6d086edb10ff8a716024fbb8bb0c7dccf1'
             '0be4bc2e759d2d6136f9baa1d4624aefbababe0cbbd2d1632b76f01654d70524'
-            '$ungoog{repo_hash}')
+            'SKIP')
 
 # Possible replacements are listed in build/linux/unbundle/replace_gn_files.py
 # Keys are the names in the above script; values are the dependencies in Arch
@@ -68,21 +68,25 @@ depends+=(${_system_libs[@]})
 
 prepare() {
   local _tree="$srcdir/chromium-$pkgver"
-  local _user_bundle="$srcdir/chromium-$pkgver/ungoogled"
 
-  cd "$srcdir/$pkgname-$pkgver-$pkgrel"
+  export BUILDKIT_CHROMIUM_VERSION=$ungoog{chromium_version}
+
+  cd "$srcdir/$pkgname-$ungoog{current_commit}"
 
   msg2 'Processing sources'
-  python buildkit-launcher.py genbun -u "$_user_bundle" archlinux
-  python buildkit-launcher.py prubin -u "$_user_bundle" -t "$_tree"
-  python buildkit-launcher.py subdom -u "$_user_bundle" -t "$_tree"
-  ln -s ../patch_order.list "$_user_bundle/patches/series"
+  python -m buildkit prune -b config_bundles/archlinux "$_tree"
 
-  cd "$srcdir/chromium-$pkgver"
+  cd "$_tree"
 
   msg2 'Applying build patches'
-  # Apply patches
-  env QUILT_PATCHES="$_user_bundle/patches" quilt push -a
+  python -m buildkit patches apply -b config_bundles/archlinux "$_tree"
+
+  cd "$srcdir/$pkgname-$ungoog{current_commit}"
+
+  msg2 'Applying domain substitution'
+  python -m buildkit domains apply -b config_bundles/archlinux -c domainsubcache.tar.gz "$_tree"
+
+  cd "$_tree"
 
   # Force script incompatible with Python 3 to use /usr/bin/python2
   sed -i '1s|python$|&2|' third_party/dom_distiller_js/protoc_plugins/*.py
@@ -117,16 +121,18 @@ build() {
     export CCACHE_SLOPPINESS=time_macros
   fi
 
-  mkdir -p $ungoog{build_output}
+  mkdir -p out/Default
 
   export CC=clang
   export CXX=clang++
   export AR=llvm-ar
   export NM=llvm-nm
 
-  local _flags=(
-$ungoog{gn_flags}
-  )
+  export BUILDKIT_CHROMIUM_VERSION=$ungoog{chromium_version}
+
+  pushd "$srcdir/$pkgname-$ungoog{current_commit}"
+  python -m buildkit gnargs print -b config_bundles/archlinux > "$_tree/out/Default/args.gn"
+  popd
 
   # Facilitate deterministic builds (taken from build/config/compiler/BUILD.gn)
   CFLAGS+='   -Wno-builtin-macro-redefined'
@@ -134,13 +140,14 @@ $ungoog{gn_flags}
   CPPFLAGS+=' -D__DATE__=  -D__TIME__=  -D__TIMESTAMP__='
 
   msg2 'Building GN'
-  python2 tools/gn/bootstrap/bootstrap.py -o $ungoog{build_output}/gn -s --no-clean
+  python2 tools/gn/bootstrap/bootstrap.py -o out/Default/gn -s --no-clean
   msg2 'Configuring Chromium'
-  $ungoog{build_output}/gn gen $ungoog{build_output} --args="${_flags[*]}" \
+  python 
+  out/Default/gn gen out/Default \
     --script-executable=/usr/bin/python2 --fail-on-unused-args
 
   msg2 'Building Chromium'
-  ninja -C $ungoog{build_output} chrome chrome_sandbox chromedriver
+  ninja -C out/Default chrome chrome_sandbox chromedriver
 }
 
 package() {
@@ -151,8 +158,8 @@ package() {
 
   cd "$srcdir/chromium-$pkgver"
 
-  install -D $ungoog{build_output}/chrome "$pkgdir/usr/lib/chromium/chromium"
-  install -Dm4755 $ungoog{build_output}/chrome_sandbox "$pkgdir/usr/lib/chromium/chrome-sandbox"
+  install -D out/Default/chrome "$pkgdir/usr/lib/chromium/chromium"
+  install -Dm4755 out/Default/chrome_sandbox "$pkgdir/usr/lib/chromium/chrome-sandbox"
   ln -s /usr/lib/$pkgname/chromedriver "$pkgdir/usr/bin/chromedriver"
 
   install -Dm644 chrome/installer/linux/common/desktop.template \
@@ -167,13 +174,13 @@ package() {
     "$pkgdir/usr/share/man/man1/chromium.1"
 
   cp \
-    $ungoog{build_output}/{chrome_{100,200}_percent,resources}.pak \
-    $ungoog{build_output}/{*.bin,chromedriver} \
+    out/Default/{chrome_{100,200}_percent,resources}.pak \
+    out/Default/{*.bin,chromedriver} \
     "$pkgdir/usr/lib/chromium/"
-  install -Dm644 -t "$pkgdir/usr/lib/chromium/locales" $ungoog{build_output}/locales/*.pak
+  install -Dm644 -t "$pkgdir/usr/lib/chromium/locales" out/Default/locales/*.pak
 
   if [[ -z ${_system_libs[icu]+set} ]]; then
-    cp $ungoog{build_output}/icudtl.dat "$pkgdir/usr/lib/chromium/"
+    cp out/Default/icudtl.dat "$pkgdir/usr/lib/chromium/"
   fi
 
   for size in 22 24 48 64 128 256; do

@@ -10,7 +10,6 @@ import enum
 import os
 import logging
 import platform
-from pathlib import Path
 
 from .third_party import schema
 
@@ -20,7 +19,7 @@ ENCODING = 'UTF-8' # For config files and patches
 
 SEVENZIP_USE_REGISTRY = '_use_registry'
 
-_ENV_FORMAT = "BUILDKIT_{}"
+_ENV_FORMAT = 'BUILDKIT_{}'
 
 # Helpers for third_party.schema
 
@@ -60,6 +59,18 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
     """Enum for extraction binaries"""
     SEVENZIP = '7z'
     TAR = 'tar'
+
+
+# Private methods
+
+
+def _get_env_var(name):
+    """Returns the environment variable string value, otherwise raises BuildkitAbort"""
+    try:
+        return os.environ[name]
+    except KeyError:
+        get_logger().error('Could not find environment variable %s', name)
+    raise BuildkitAbort()
 
 
 # Public methods
@@ -136,52 +147,6 @@ def get_running_platform():
     return PlatformEnum.UNIX
 
 
-def _read_version_ini():
-    version_schema = schema.Schema(
-        schema_inisections({
-            'version': schema_dictcast({
-                'chromium_version': schema.And(str, len),
-                'release_revision': schema.And(str, len),
-                schema.Optional('release_extra'): schema.And(str, len),
-            })
-        }))
-    version_parser = configparser.ConfigParser()
-    version_parser.read(
-        str(Path(__file__).absolute().parent.parent / 'version.ini'), encoding=ENCODING)
-    try:
-        version_schema.validate(version_parser)
-    except schema.SchemaError as exc:
-        get_logger().error('version.ini failed schema validation')
-        raise exc
-    return version_parser
-
-
 def get_chromium_version():
     """Returns the Chromium version."""
-    return _VERSION_INI['version']['chromium_version']
-
-
-def get_release_revision():
-    """Returns the release revision."""
-    return _VERSION_INI['version']['release_revision']
-
-
-def get_release_extra(fallback=None):
-    """
-    Return the release revision extra info, or returns fallback if it is not defined.
-    """
-    return _VERSION_INI['version'].get('release_extra', fallback=fallback)
-
-
-def get_version_string():
-    """
-    Returns a version string containing all information in a Debian-like format.
-    """
-    result = '{}-{}'.format(get_chromium_version(), get_release_revision())
-    release_extra = get_release_extra()
-    if release_extra:
-        result += '~{}'.format(release_extra)
-    return result
-
-
-_VERSION_INI = _read_version_ini()
+    return _get_env_var(_ENV_FORMAT.format('CHROMIUM_VERSION'))
