@@ -10,6 +10,7 @@ import enum
 import os
 import logging
 import platform
+from pathlib import Path
 
 from .third_party import schema
 
@@ -19,7 +20,14 @@ ENCODING = 'UTF-8' # For config files and patches
 
 SEVENZIP_USE_REGISTRY = '_use_registry'
 
-_ENV_FORMAT = 'BUILDKIT_{}'
+_VERSION_INI_PATH = Path(__file__).parent.parent / 'version.ini'
+
+_VERSION_SCHEMA = schema.Schema({
+    'version': {
+        'chromium_version': schema.And(str, len),
+        'release_revision': schema.And(str, len),
+    }
+})
 
 # Helpers for third_party.schema
 
@@ -59,18 +67,6 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
     """Enum for extraction binaries"""
     SEVENZIP = '7z'
     TAR = 'tar'
-
-
-# Private methods
-
-
-def _get_env_var(name):
-    """Returns the environment variable string value, otherwise raises BuildkitAbort"""
-    try:
-        return os.environ[name]
-    except KeyError:
-        get_logger().error('Could not find environment variable %s', name)
-    raise BuildkitAbort()
 
 
 # Public methods
@@ -147,6 +143,39 @@ def get_running_platform():
     return PlatformEnum.UNIX
 
 
+def _ini_section_generator(ini_parser):
+    """
+    Yields tuples of a section name and its corresponding dictionary of keys and values
+    """
+    for section in ini_parser:
+        if section == configparser.DEFAULTSECT:
+            continue
+        yield section, dict(ini_parser.items(section))
+
+
+def validate_and_get_ini(ini_path, ini_schema):
+    """
+    Validates and returns the parsed INI
+    """
+    parser = configparser.ConfigParser()
+    with ini_path.open(encoding=ENCODING) as ini_file: #pylint: disable=no-member
+        parser.read_file(ini_file, source=str(ini_path))
+    try:
+        ini_schema.validate(dict(_ini_section_generator(parser)))
+    except schema.SchemaError as exc:
+        get_logger().error('%s failed schema validation at: %s', ini_path.name, ini_path)
+        raise exc
+    return parser
+
+
 def get_chromium_version():
     """Returns the Chromium version."""
-    return _get_env_var(_ENV_FORMAT.format('CHROMIUM_VERSION'))
+    return _VERSION_INI['version']['chromium_version']
+
+
+def get_release_revision():
+    """Returns the Chromium version."""
+    return _VERSION_INI['version']['release_revision']
+
+
+_VERSION_INI = validate_and_get_ini(_VERSION_INI_PATH, _VERSION_SCHEMA)

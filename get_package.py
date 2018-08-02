@@ -9,14 +9,14 @@ Simple package script generator.
 """
 
 import argparse
-import configparser
 import re
 import shutil
 import string
 import subprocess
 from pathlib import Path
 
-from buildkit.common import ENCODING, BuildkitAbort, get_logger
+from buildkit.common import (ENCODING, BuildkitAbort, get_logger, validate_and_get_ini,
+                             get_chromium_version, get_release_revision)
 from buildkit.third_party import schema
 
 # Constants
@@ -28,12 +28,6 @@ _PKGMETA_SCHEMA = schema.Schema({
     schema.Optional(schema.And(str, len)): {
         schema.Optional('depends'): schema.And(str, len),
         schema.Optional('buildkit_copy'): schema.And(str, len),
-    }
-})
-_VERSION_SCHEMA = schema.Schema({
-    'version': {
-        'chromium_version': schema.And(str, len),
-        'release_revision': schema.And(str, len),
     }
 })
 
@@ -97,31 +91,6 @@ def _get_current_commit():
     return result.stdout.strip('\n')
 
 
-def _ini_section_generator(ini_parser):
-    """
-    Yields tuples of a section name and its corresponding dictionary of keys and values
-    """
-    for section in ini_parser:
-        if section == configparser.DEFAULTSECT:
-            continue
-        yield section, dict(ini_parser.items(section))
-
-
-def _validate_and_get_ini(ini_path, ini_schema):
-    """
-    Validates and returns the parsed pkgmeta
-    """
-    pkgmeta = configparser.ConfigParser()
-    with ini_path.open(encoding=ENCODING) as pkgmeta_file: #pylint: disable=no-member
-        pkgmeta.read_file(pkgmeta_file, source=str(ini_path))
-    try:
-        ini_schema.validate(dict(_ini_section_generator(pkgmeta)))
-    except schema.SchemaError as exc:
-        get_logger().error('%s failed schema validation at: %s', ini_path.name, ini_path)
-        raise exc
-    return pkgmeta
-
-
 def _get_package_dir_list(package, pkgmeta):
     """
     Returns a list of pathlib.Path to packaging directories to be copied,
@@ -171,13 +140,14 @@ def _get_buildkit_copy(package, pkgmeta):
     return None
 
 
-def main():
+def main(): #pylint: disable=too-many-branches
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('name', help='Name of packaging to generate')
     parser.add_argument('destination', type=Path, help='Directory to store packaging files')
     args = parser.parse_args()
 
+    # Argument validation
     if not args.destination.parent.exists():
         parser.error('Destination parent directory "{}" does not exist'.format(
             args.destination.parent))
@@ -192,7 +162,8 @@ def main():
     if not args.destination.exists():
         args.destination.mkdir()
 
-    pkgmeta = _validate_and_get_ini(_PKGMETA, _PKGMETA_SCHEMA)
+    # Copy packaging files to destination
+    pkgmeta = validate_and_get_ini(_PKGMETA, _PKGMETA_SCHEMA)
     for relative_path, actual_path in _get_package_files(_get_package_dir_list(args.name, pkgmeta)):
         if actual_path.is_dir():
             if not (args.destination / relative_path).exists():
@@ -201,17 +172,20 @@ def main():
         else:
             shutil.copy(str(actual_path), str(args.destination / relative_path))
 
-    version_ini = _validate_and_get_ini(_ROOT_DIR / 'version.ini', _VERSION_SCHEMA)
+    # Substitute .ungoogin files
     packaging_subs = dict(
-        chromium_version=version_ini['version']['chromium_version'],
-        release_revision=version_ini['version']['release_revision'],
+        chromium_version=get_chromium_version(),
+        release_revision=get_release_revision(),
         current_commit=_get_current_commit(),
     )
-
     _process_templates(args.destination, packaging_subs)
 
+    # Copy buildkit and config files, if necessary
     buildkit_copy_relative = _get_buildkit_copy(args.name, pkgmeta)
     if buildkit_copy_relative:
+        shutil.copy(
+            str(_ROOT_DIR / 'version.ini'),
+            str(args.destination / buildkit_copy_relative / 'version.ini'))
         if (args.destination / buildkit_copy_relative / 'buildkit').exists():
             shutil.rmtree(str(args.destination / buildkit_copy_relative / 'buildkit'))
         shutil.copytree(
