@@ -212,9 +212,20 @@ def main():
 
     buildkit_copy_relative = _get_buildkit_copy(args.name, pkgmeta)
     if buildkit_copy_relative:
-        shutil.copytree(str(_ROOT_DIR / 'buildkit'), str(args.destination / buildkit_copy_relative))
+        if (args.destination / buildkit_copy_relative / 'buildkit').exists():
+            shutil.rmtree(str(args.destination / buildkit_copy_relative / 'buildkit'))
         shutil.copytree(
-            str(_ROOT_DIR / 'config_bundles'), str(args.destination / buildkit_copy_relative))
+            str(_ROOT_DIR / 'buildkit'),
+            str(args.destination / buildkit_copy_relative / 'buildkit'))
+        if (args.destination / buildkit_copy_relative / 'patches').exists():
+            shutil.rmtree(str(args.destination / buildkit_copy_relative / 'patches'))
+        shutil.copytree(
+            str(_ROOT_DIR / 'patches'), str(args.destination / buildkit_copy_relative / 'patches'))
+        if (args.destination / buildkit_copy_relative / 'config_bundles').exists():
+            shutil.rmtree(str(args.destination / buildkit_copy_relative / 'config_bundles'))
+        shutil.copytree(
+            str(_ROOT_DIR / 'config_bundles'),
+            str(args.destination / buildkit_copy_relative / 'config_bundles'))
 
 
 if __name__ == '__main__':
