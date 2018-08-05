@@ -214,14 +214,14 @@ def main(args_list=None):
         '--auto-download',
         action='store_true',
         help='If specified, it will download the source code and dependencies '
-        'for the --base-bundle given. Otherwise, only an existing '
+        'for the --bundle given. Otherwise, only an existing '
         'source tree will be used.')
     parser.add_argument(
         '-b',
         '--bundle',
         metavar='PATH',
         action=NewBundleAction,
-        default='common',
+        default='config_bundles/common',
         help='The bundle to use. Default: %(default)s')
     parser.add_argument(
         '--pruning',
@@ -240,6 +240,7 @@ def main(args_list=None):
         '--tree',
         metavar='PATH',
         type=Path,
+        required=True,
         help=('The path to the source tree to create. '
               'If it is not empty, the source will not be unpacked.'))
     parser.add_argument(
@@ -247,6 +248,7 @@ def main(args_list=None):
         '--cache',
         metavar='PATH',
         type=Path,
+        required=True,
         help=('The path to the downloads cache. '
               'It must already exist.'))
     try:

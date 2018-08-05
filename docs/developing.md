@@ -20,7 +20,7 @@ For new flags, first add a constant to `third_party/ungoogled/ungoogled_switches
 
 To develop a better understanding of base bundles, have a look through [docs/design.md](docs/design.md) *and* the existing base bundles. Reading only docs/design.md may make it difficult to develop intuition of the configuration system, and only exploring existing base bundles may not lead you to the whole picture.
 
-Anytime the base bundles or patches are modified, use `developer_utilities/validate_config.py` to run several sanity checking algorithms.
+Anytime the base bundles or patches are modified, use `devutils/validate_config.py` to run several sanity checking algorithms.
 
 ## Workflow of updating patches
 
@@ -41,22 +41,24 @@ This is an example workflow on Linux that can be modified for your specific usag
 
 ### Downloading the source code and updating lists
 
-The utility `developer_utilities/update_lists.py` automates this process. By default, it will update the `common` base bundle automatically. Pass in `-h` or `--help` for availabe options.
+The utility `devutils/update_lists.py` automates this process. By default, it will update the `common` base bundle automatically. Pass in `-h` or `--help` for availabe options.
 
 Here's an example for updating the `common` configuration type:
 
 ```
-mkdir -p buildspace/downloads
-./developer_utilities/update_lists.py --auto-download
+mkdir -p build/downloads
+./devutils/update_lists.py --auto-download -c build/downloads -t build/src
 ```
+
+The resulting source tree in `build/src` will not have binaries pruned or domains substituted.
 
 #### Updating patches
 
 **IMPORTANT**: Make sure domain substitution has not been applied before continuing. Otherwise, the resulting patches will require domain substitution.
 
 1. Setup a buildspace tree without domain substitution. For the `common` base bundle: `./buildkit-launcher.py getsrc -b common`
-2. Generate a temporary patch order list for a given base bundle. For the `common` base bundle: `developer_utilities/generate_patch_order.py common`
-3. Run `source $ROOT/developer_utilities/set_quilt_vars.sh`
+2. Generate a temporary patch order list for a given base bundle. For the `common` base bundle: `devutils/generate_patch_order.py common`
+3. Run `source $ROOT/devutils/set_quilt_vars.sh`
     * This will setup quilt to modify patches directly in `resources/`
 4. Use `quilt` to update the patches from the buildspace tree. The general procedure is as follows:
     1. Make sure all patches are unapplied: `quilt pop -a`. Check the status with `quilt top`
@@ -66,7 +68,7 @@ mkdir -p buildspace/downloads
         * When removing large chunks of code, remove each line instead of using language features to hide or remove the code. This makes the patches less susceptible to breakages when using quilt's refresh command (e.g. quilt refresh updates the line numbers based on the patch context, so it's possible for new but desirable code in the middle of the block comment to be excluded.). It also helps with readability when someone wants to see the changes made based on the patch alone.
     5. Refresh the patch: `quilt refresh`
     6. Go back to Step 2, and repeat this process until all of the patches have been fixed.
-    7. Run `developer_utilities/validate_config.py` to do a sanity check of the patches and patch order.
+    7. Run `devutils/validate_config.py` to do a sanity check of the patches and patch order.
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 
@@ -80,6 +82,6 @@ If domain substitution is applied, then the steps for the initial update will no
 
 1. Use quilt to update the domain-substituted copy of the patch set
 2. Copy back modified patches to the repository after reverting domain substitution on the patches manually
-3. Run `developer_utilities/invert_domain_substitution.py` to invert the patches by specifying the proper base bundle.
+3. Run `devutils/invert_domain_substitution.py` to invert the patches by specifying the proper base bundle.
 3. Attempt a build.
 4. Repeat entire procedure if there is a failure.
