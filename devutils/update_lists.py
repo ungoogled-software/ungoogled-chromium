@@ -6,8 +6,8 @@
 """
 Update binary pruning and domain substitution lists automatically.
 
-It will download and unpack into the buildspace tree as necessary.
-No binary pruning or domain substitution will be applied to the buildspace tree after
+It will download and unpack into the source tree as necessary.
+No binary pruning or domain substitution will be applied to the source tree after
 the process has finished.
 """
 
@@ -17,11 +17,10 @@ import argparse
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from buildkit.cli import get_basebundle_verbosely
-from buildkit.common import (BUILDSPACE_DOWNLOADS, BUILDSPACE_TREE, ENCODING, BuildkitAbort,
-                             get_logger, dir_empty)
+from buildkit.cli import NewBundleAction
+from buildkit.common import ENCODING, BuildkitAbort, get_logger, dir_empty
 from buildkit.domain_substitution import TREE_ENCODINGS
-from buildkit import source_retrieval
+from buildkit import downloads
 sys.path.pop(0)
 
 # NOTE: Include patterns have precedence over exclude patterns
@@ -92,10 +91,10 @@ def _is_binary(bytes_data):
 
 def should_prune(path, relative_path):
     """
-    Returns True if a path should be pruned from the buildspace tree; False otherwise
+    Returns True if a path should be pruned from the source tree; False otherwise
 
     path is the pathlib.Path to the file from the current working directory.
-    relative_path is the pathlib.Path to the file from the buildspace tree
+    relative_path is the pathlib.Path to the file from the source tree
     """
     # Match against include patterns
     for pattern in PRUNING_INCLUDE_PATTERNS:
@@ -139,10 +138,10 @@ def _check_regex_match(file_path, search_regex):
 
 def should_domain_substitute(path, relative_path, search_regex):
     """
-    Returns True if a path should be domain substituted in the buildspace tree; False otherwise
+    Returns True if a path should be domain substituted in the source tree; False otherwise
 
     path is the pathlib.Path to the file from the current working directory.
-    relative_path is the pathlib.Path to the file from the buildspace tree.
+    relative_path is the pathlib.Path to the file from the source tree.
     search_regex is a compiled regex object to search for domain names
     """
     relative_path_posix = relative_path.as_posix().lower()
@@ -155,30 +154,30 @@ def should_domain_substitute(path, relative_path, search_regex):
     return False
 
 
-def compute_lists(buildspace_tree, search_regex):
+def compute_lists(source_tree, search_regex):
     """
-    Compute the binary pruning and domain substitution lists of the buildspace tree.
+    Compute the binary pruning and domain substitution lists of the source tree.
     Returns a tuple of two items in the following order:
     1. The sorted binary pruning list
     2. The sorted domain substitution list
 
-    buildspace_tree is a pathlib.Path to the buildspace tree
+    source_tree is a pathlib.Path to the source tree
     search_regex is a compiled regex object to search for domain names
     """
     pruning_set = set()
     domain_substitution_set = set()
     deferred_symlinks = dict() # POSIX resolved path -> set of POSIX symlink paths
-    buildspace_tree = buildspace_tree.resolve()
-    for path in buildspace_tree.rglob('*'):
+    source_tree = source_tree.resolve()
+    for path in source_tree.rglob('*'):
         if not path.is_file():
             # NOTE: Path.rglob() does not traverse symlink dirs; no need for special handling
             continue
-        relative_path = path.relative_to(buildspace_tree)
+        relative_path = path.relative_to(source_tree)
         if path.is_symlink():
             try:
-                resolved_relative_posix = path.resolve().relative_to(buildspace_tree).as_posix()
+                resolved_relative_posix = path.resolve().relative_to(source_tree).as_posix()
             except ValueError:
-                # Symlink leads out of the buildspace tree
+                # Symlink leads out of the source tree
                 continue
             if resolved_relative_posix in pruning_set:
                 pruning_set.add(relative_path.as_posix())
@@ -216,57 +215,55 @@ def main(args_list=None):
         action='store_true',
         help='If specified, it will download the source code and dependencies '
         'for the --base-bundle given. Otherwise, only an existing '
-        'buildspace tree will be used.')
+        'source tree will be used.')
     parser.add_argument(
         '-b',
-        '--base-bundle',
-        metavar='NAME',
-        type=get_basebundle_verbosely,
+        '--bundle',
+        metavar='PATH',
+        action=NewBundleAction,
         default='common',
-        help='The base bundle to use. Default: %(default)s')
+        help='The bundle to use. Default: %(default)s')
     parser.add_argument(
-        '-p',
         '--pruning',
         metavar='PATH',
         type=Path,
-        default='resources/config_bundles/common/pruning.list',
+        default='config_bundles/common/pruning.list',
         help='The path to store pruning.list. Default: %(default)s')
     parser.add_argument(
-        '-d',
         '--domain-substitution',
         metavar='PATH',
         type=Path,
-        default='resources/config_bundles/common/domain_substitution.list',
+        default='config_bundles/common/domain_substitution.list',
         help='The path to store domain_substitution.list. Default: %(default)s')
     parser.add_argument(
+        '-t',
         '--tree',
         metavar='PATH',
         type=Path,
-        default=BUILDSPACE_TREE,
-        help=('The path to the buildspace tree to create. '
-              'If it is not empty, the source will not be unpacked. '
-              'Default: %(default)s'))
+        help=('The path to the source tree to create. '
+              'If it is not empty, the source will not be unpacked.'))
     parser.add_argument(
-        '--downloads',
+        '-c',
+        '--cache',
         metavar='PATH',
         type=Path,
-        default=BUILDSPACE_DOWNLOADS,
-        help=('The path to the buildspace downloads directory. '
-              'It must already exist. Default: %(default)s'))
+        help=('The path to the downloads cache. '
+              'It must already exist.'))
     try:
         args = parser.parse_args(args_list)
         if args.tree.exists() and not dir_empty(args.tree):
-            get_logger().info('Using existing buildspace tree at %s', args.tree)
+            get_logger().info('Using existing source tree at %s', args.tree)
         elif args.auto_download:
-            source_retrieval.retrieve_and_extract(
-                args.base_bundle, args.downloads, args.tree, prune_binaries=False)
+            downloads.retrieve_downloads(args.bundle, args.cache, True)
+            downloads.check_downloads(args.bundle, args.cache)
+            downloads.unpack_downloads(args.bundle, args.cache, args.tree)
         else:
-            get_logger().error('No buildspace tree found and --auto-download '
+            get_logger().error('No source tree found and --auto-download '
                                'is not specified. Aborting.')
             raise BuildkitAbort()
         get_logger().info('Computing lists...')
         pruning_list, domain_substitution_list = compute_lists(
-            args.tree, args.base_bundle.domain_regex.search_regex)
+            args.tree, args.bundle.domain_regex.search_regex)
     except BuildkitAbort:
         exit(1)
     with args.pruning.open('w', encoding=ENCODING) as file_obj:

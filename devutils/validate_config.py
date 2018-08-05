@@ -4,16 +4,16 @@
 # Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-"""Run sanity checking algorithms over the base bundles and patches.
+"""Run sanity checking algorithms over the bundles and patches.
 
 It checks the following:
 
     * All patches exist
     * All patches are referenced by at least one patch order
-    * Each patch is used only once in all base bundles
-    * Whether patch order entries can be consolidated across base bundles
+    * Each patch is used only once in all bundles
+    * Whether patch order entries can be consolidated across bundles
     * GN flags with the same key and value are not duplicated in inheritance
-    * Whether GN flags can be consolidated across base bundles
+    * Whether GN flags can be consolidated across bundles
 
 Exit codes:
     * 0 if there are no problems
@@ -24,21 +24,22 @@ Exit codes:
 # TODO: List and mapping files don't contain the same entry twice across all dependencies.
 # TODO: Validate consistency across patches and check for potential duplication across patches
 # i.e. parse unified diffs into "sparse" files that are updated with each patch in the series
-# "duplication" would be any two patches in separate configs sharing a common config (and thus patch series)
-# that contains lines with the same modifications to the same locations of the same files.
+# "duplication" would be any two patches in separate configs sharing a common
+# config (and thus patch series) that contains lines with the same modifications to the same
+# locations of the same files.
 
 import collections
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from buildkit.common import (CONFIG_BUNDLES_DIR, ENCODING, PATCHES_DIR, BuildkitAbort, get_logger,
-                             get_resources_dir)
-from buildkit.config import BASEBUNDLEMETA_INI, BaseBundleMetaIni, ConfigBundle
+from buildkit.common import ENCODING, BuildkitAbort, get_logger
+from buildkit.config import ConfigBundle
+from buildkit.patches import patch_paths_by_bundle
 from buildkit.third_party import unidiff
 sys.path.pop(0)
 
-BaseBundleResult = collections.namedtuple('BaseBundleResult', ('leaves', 'gn_flags', 'patches'))
+BundleResult = collections.namedtuple('BundleResult', ('leaves', 'gn_flags', 'patches'))
 ExplorationJournal = collections.namedtuple(
     'ExplorationJournal', ('unexplored_set', 'results', 'dependents', 'unused_patches'))
 
@@ -51,7 +52,12 @@ def _check_patches(bundle, logger):
     Raises BuildkitAbort if fatal errors occured.
     """
     warnings = False
-    for patch_path in bundle.patches.patch_iter():
+    try:
+        bundle.patch_order
+    except KeyError:
+        # Bundle has no patch order
+        return warnings
+    for patch_path in patch_paths_by_bundle(bundle):
         if patch_path.exists():
             with patch_path.open(encoding=ENCODING) as file_obj:
                 try:
@@ -66,7 +72,7 @@ def _check_patches(bundle, logger):
     return warnings
 
 
-def _merge_disjoints(pair_iterable, current_name, logger):
+def _merge_disjoints(pair_iterable, current_path, logger):
     """
     Merges disjoint sets with errors
     pair_iterable is an iterable of tuples (display_name, current_set, dependency_set, as_error)
@@ -83,7 +89,7 @@ def _merge_disjoints(pair_iterable, current_name, logger):
                 log_func = logger.error
             else:
                 log_func = logger.warning
-            log_func('%s of "%s" appear at least twice: %s', display_name, current_name,
+            log_func('%s of "%s" appear at least twice: %s', display_name, current_path,
                      current_set.intersection(dependency_set))
             if as_error:
                 raise BuildkitAbort()
@@ -91,16 +97,20 @@ def _merge_disjoints(pair_iterable, current_name, logger):
     return warnings
 
 
-def _populate_set_with_gn_flags(new_set, base_bundle, logger):
+def _populate_set_with_gn_flags(new_set, bundle, logger):
     """
-    Adds items into set new_set from the base bundle's GN flags
+    Adds items into set new_set from the bundle's GN flags
     Entries that are not sorted are logged as warnings.
     Returns True if warnings were logged; False otherwise
     """
     warnings = False
     try:
-        iterator = iter(base_bundle.gn_flags)
+        iterator = iter(bundle.gn_flags)
+    except KeyError:
+        # No GN flags found
+        return warnings
     except ValueError as exc:
+        # Invalid GN flags format
         logger.error(str(exc))
         raise BuildkitAbort()
     try:
@@ -109,25 +119,30 @@ def _populate_set_with_gn_flags(new_set, base_bundle, logger):
         return warnings
     for current in iterator:
         if current < previous:
-            logger.warning('In base bundle "%s" GN flags: "%s" should be sorted before "%s"',
-                           base_bundle.name, current, previous)
+            logger.warning('In bundle "%s" GN flags: "%s" should be sorted before "%s"',
+                           bundle.name, current, previous)
             warnings = True
-        new_set.add('%s=%s' % (current, base_bundle.gn_flags[current]))
+        new_set.add('%s=%s' % (current, bundle.gn_flags[current]))
         previous = current
     return warnings
 
 
-def _populate_set_with_patches(new_set, unused_patches, base_bundle, logger):
+def _populate_set_with_patches(new_set, unused_patches, bundle, logger):
     """
-    Adds entries to set new_set from the base bundle's patch_order if they are unique.
+    Adds entries to set new_set from the bundle's patch_order if they are unique.
     Entries that are not unique are logged as warnings.
     Returns True if warnings were logged; False otherwise
     """
     warnings = False
-    for current in base_bundle.patches:
+    try:
+        bundle.patch_order
+    except KeyError:
+        # Bundle has no patch order
+        return warnings
+    for current in bundle.patch_order:
         if current in new_set:
-            logger.warning('In base bundle "%s" patch_order: "%s" already appeared once',
-                           base_bundle.name, current)
+            logger.warning('In bundle "%s" patch_order: "%s" already appeared once',
+                           bundle.bundlemeta.display_name, current)
             warnings = True
         else:
             unused_patches.discard(current)
@@ -135,64 +150,63 @@ def _populate_set_with_patches(new_set, unused_patches, base_bundle, logger):
     return warnings
 
 
-def _explore_base_bundle(current_name, journal, logger):
+def _explore_bundle(current_path, journal, logger):
     """
-    Explore the base bundle given by current_name. Modifies journal
+    Explore the bundle given by current_path. Modifies journal
     Returns True if warnings occured, False otherwise.
     Raises BuildkitAbort if fatal errors occured.
     """
     warnings = False
 
-    if current_name in journal.results:
+    if current_path in journal.results:
         # Node has been explored iff its results are stored
         return warnings
 
     # Indicate start of node exploration
     try:
-        journal.unexplored_set.remove(current_name)
+        journal.unexplored_set.remove(current_path)
     except KeyError:
         # Exploration has begun but there are no results, so it still must be processing
         # its dependencies
-        logger.error('Dependencies of "%s" are cyclical', current_name)
+        logger.error('Dependencies of "%s" are cyclical', current_path)
         raise BuildkitAbort()
 
-    current_base_bundle = ConfigBundle.from_base_name(current_name, load_depends=False)
-    current_meta = BaseBundleMetaIni(current_base_bundle.path / BASEBUNDLEMETA_INI)
+    current_bundle = ConfigBundle(current_path, load_depends=False)
 
-    # Populate current base bundle's data
-    current_results = BaseBundleResult(leaves=set(), gn_flags=set(), patches=set())
-    warnings = _populate_set_with_gn_flags(current_results.gn_flags, current_base_bundle,
+    # Populate current bundle's data
+    current_results = BundleResult(leaves=set(), gn_flags=set(), patches=set())
+    warnings = _populate_set_with_gn_flags(current_results.gn_flags, current_bundle,
                                            logger) or warnings
     warnings = _populate_set_with_patches(current_results.patches, journal.unused_patches,
-                                          current_base_bundle, logger) or warnings
-    warnings = _check_patches(current_base_bundle, logger) or warnings
+                                          current_bundle, logger) or warnings
+    warnings = _check_patches(current_bundle, logger) or warnings
 
     # Set an empty set just in case this node has no dependents
-    if current_name not in journal.dependents:
-        journal.dependents[current_name] = set()
+    if current_path not in journal.dependents:
+        journal.dependents[current_path] = set()
 
-    for dependency_name in current_meta.depends:
+    for dependency_path in map(lambda x: current_path.with_name(x), current_bundle.bundlemeta.depends):
         # Update dependents
-        if dependency_name not in journal.dependents:
-            journal.dependents[dependency_name] = set()
-        journal.dependents[dependency_name].add(current_name)
+        if dependency_path not in journal.dependents:
+            journal.dependents[dependency_path] = set()
+        journal.dependents[dependency_path].add(current_path)
 
         # Explore dependencies
-        warnings = _explore_base_bundle(dependency_name, journal, logger) or warnings
+        warnings = _explore_bundle(dependency_path, journal, logger) or warnings
 
         # Merge sets of dependencies with the current
         warnings = _merge_disjoints((
-            ('Patches', current_results.patches, journal.results[dependency_name].patches, False),
-            ('GN flags', current_results.gn_flags, journal.results[dependency_name].gn_flags,
+            ('Patches', current_results.patches, journal.results[dependency_path].patches, False),
+            ('GN flags', current_results.gn_flags, journal.results[dependency_path].gn_flags,
              False),
-            ('Dependencies', current_results.leaves, journal.results[dependency_name].leaves, True),
-        ), current_name, logger) or warnings
+            ('Dependencies', current_results.leaves, journal.results[dependency_path].leaves, True),
+        ), current_path, logger) or warnings
     if not current_results.leaves:
         # This node is a leaf node
-        current_results.leaves.add(current_name)
+        current_results.leaves.add(current_path)
 
     # Store results last to indicate it has been successfully explored
-    journal.results[current_name] = current_results
+    journal.results[current_path] = current_results
 
     return warnings
 
@@ -202,26 +216,26 @@ def _check_mergability(info_tuple_list, dependents, logger):
     Checks if entries of config files from dependents can be combined into a common dependency
 
     info_tuple_list is a list of tuples (display_name, set_getter)
-    set_getter is a function that returns the set of dependents for the given base bundle name
+    set_getter is a function that returns the set of dependents for the given bundle path
     """
     warnings = False
     set_dict = dict() # display name -> set
 
-    for dependency_name in dependents:
+    for dependency_path in dependents:
         # Initialize sets
         for display_name, _ in info_tuple_list:
             set_dict[display_name] = set()
-        for dependent_name in dependents[dependency_name]:
+        for dependent_path in dependents[dependency_path]:
             # Keep only common entries between the current dependent and
             # other processed dependents for the current dependency
             for display_name, set_getter in info_tuple_list:
-                set_dict[display_name].intersection_update(set_getter(dependent_name))
+                set_dict[display_name].intersection_update(set_getter(dependent_path))
         # Check if there are any common entries in all dependents for the
         # given dependency
         for display_name, common_set in set_dict.items():
             if common_set:
-                logger.warning('Base bundles %s can combine %s into "%s": %s',
-                               dependents[dependency_name], display_name, dependency_name,
+                logger.warning('Bundles %s can combine %s into "%s": %s',
+                               dependents[dependency_path], display_name, dependency_path,
                                common_set)
                 warnings = True
     return warnings
@@ -233,25 +247,26 @@ def main():
     logger = get_logger(prepend_timestamp=False, log_init=False)
     warnings = False
 
-    patches_dir = get_resources_dir() / PATCHES_DIR
-    config_bundles_dir = get_resources_dir() / CONFIG_BUNDLES_DIR
+    root_dir = Path(__file__).parent.parent
+    patches_dir = root_dir / 'patches'
+    config_bundles_dir = root_dir / 'config_bundles'
 
     journal = ExplorationJournal(
-        # base bundles not explored yet
-        unexplored_set=set(map(lambda x: x.name, config_bundles_dir.iterdir())),
-        # base bundle name -> namedtuple(leaves=set(), gn_flags=set())
+        # bundle paths not explored yet
+        unexplored_set=set(config_bundles_dir.iterdir()),
+        # bundle path -> namedtuple(leaves=set(), gn_flags=set())
         results=dict(),
-        # dependency -> set of dependents
+        # dependency -> set of dependent paths
         dependents=dict(),
         # patches unused by patch orders
         unused_patches=set(
             map(lambda x: str(x.relative_to(patches_dir)),
                 filter(lambda x: not x.is_dir(), patches_dir.rglob('*')))))
     try:
-        # Explore and validate base bundles
+        # Explore and validate bundles
         while journal.unexplored_set:
-            warnings = _explore_base_bundle(next(iter(journal.unexplored_set)), journal,
-                                            logger) or warnings
+            warnings = _explore_bundle(next(iter(journal.unexplored_set)), journal,
+                                       logger) or warnings
         # Check for config file entries that should be merged into dependencies
         warnings = _check_mergability((
             ('GN flags', lambda x: journal.results[x].gn_flags),
