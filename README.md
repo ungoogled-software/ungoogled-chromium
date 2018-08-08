@@ -1,6 +1,8 @@
 # ungoogled-chromium
 
-**Modifications to Google Chromium for removing Google integration and enhancing privacy, control, and transparency**
+*Bringing back the "Don't" in "Don't be evil"*
+
+**ungoogled-chromium is Google Chromium**, sans integration with Google. It also features some changes to enhance privacy, control, and transparency.
 
 ## Motivation and Description
 
