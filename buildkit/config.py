@@ -418,7 +418,7 @@ class ConfigBundle: #pylint: disable=too-few-public-methods
         if name in self._ATTR_MAPPING:
             return self.files[self._ATTR_MAPPING[name]]
         else:
-            raise AttributeError('%s has no attribute "%s"' % type(self).__name__, name)
+            raise AttributeError('%s has no attribute "%s"' % (type(self).__name__, name))
 
     def rebase(self, other):
         """Rebase the current bundle onto other, saving changes into self"""
