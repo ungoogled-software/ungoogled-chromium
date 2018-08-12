@@ -12,10 +12,10 @@ from pathlib import Path
 from .common import ENCODING, get_logger, ensure_empty_dir
 
 # Default patches/ directory is next to buildkit
-_DEFAULT_PATCH_DIR = Path(__file__).absolute().parent.parent / 'patches'
+DEFAULT_PATCH_DIR = Path(__file__).absolute().parent.parent / 'patches'
 
 
-def patch_paths_by_bundle(config_bundle, patch_dir=_DEFAULT_PATCH_DIR):
+def patch_paths_by_bundle(config_bundle, patch_dir=DEFAULT_PATCH_DIR):
     """
     Returns an iterator of pathlib.Path to patch files in the proper order
 
@@ -30,7 +30,7 @@ def patch_paths_by_bundle(config_bundle, patch_dir=_DEFAULT_PATCH_DIR):
         yield patch_dir / relative_path
 
 
-def export_patches(config_bundle, path, series=Path('series'), patch_dir=_DEFAULT_PATCH_DIR):
+def export_patches(config_bundle, path, series=Path('series'), patch_dir=DEFAULT_PATCH_DIR):
     """
     Writes patches and a series file to the directory specified by path.
     This is useful for writing a quilt-compatible patches directory and series file.
