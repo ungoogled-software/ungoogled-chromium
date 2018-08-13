@@ -23,7 +23,7 @@ Since these goals and requirements are not precise, unclear situations are discu
 
 * [Features](#features)
     * [Supported platforms and distributions](#supported-platforms-and-distributions)
-* [Download pre-built packages](#download-pre-built-packages)
+* [**Download pre-built packages**](#download-pre-built-packages)
 * [Getting the source code](#getting-the-source-code)
 * [Frequently-asked questions](#frequently-asked-questions)
 * [Design and implementation](#design-and-implementation)
