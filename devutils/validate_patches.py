@@ -271,7 +271,7 @@ def _generate_full_bundle_depends(bundle_path, bundle_cache, unexplored_bundles)
         yield dependency_path
 
 
-def _get_patch_trie(bundle_cache):
+def _get_patch_trie(bundle_cache, target_bundles=None):
     """
     Returns a trie of config bundles and their dependencies. It is a dict of the following format:
     key: pathlib.Path of config bundle
@@ -287,7 +287,10 @@ def _get_patch_trie(bundle_cache):
 
     # All bundles that haven't been added to the trie, either as a dependency or
     # in this function explicitly
-    unexplored_bundles = set(bundle_cache.keys())
+    if target_bundles:
+        unexplored_bundles = set(target_bundles)
+    else:
+        unexplored_bundles = set(bundle_cache.keys())
     # Construct patch_trie
     while unexplored_bundles:
         current_path = unexplored_bundles.pop()
@@ -481,6 +484,14 @@ def _get_required_files(patch_cache):
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '-b',
+        '--bundle',
+        action='append',
+        type=Path,
+        metavar='DIRECTORY',
+        help=('Verify patches for a config bundle. Specify multiple times to '
+              'verify multiple bundles. Without specifying, all bundles will be verified.'))
     file_source_group = parser.add_mutually_exclusive_group(required=True)
     file_source_group.add_argument(
         '-l', '--local', type=Path, metavar='DIRECTORY', help='Use a local source tree')
@@ -505,7 +516,7 @@ def main():
     # Path to bundle -> ConfigBundle without dependencies
     bundle_cache = dict(
         map(lambda x: (x, ConfigBundle(x, load_depends=False)), _CONFIG_BUNDLES_PATH.iterdir()))
-    patch_trie = _get_patch_trie(bundle_cache)
+    patch_trie = _get_patch_trie(bundle_cache, args.bundle)
     patch_cache = _load_all_patches(bundle_cache.values())
     required_files = _get_required_files(patch_cache)
     if args.local:
