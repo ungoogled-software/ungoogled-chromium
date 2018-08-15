@@ -10,13 +10,8 @@ alias quilt='quilt --quiltrc -'
 # Assume this script lives within the repository
 REPO_ROOT=$(dirname $(dirname $(readlink -f ${BASH_SOURCE[0]})))
 
-export QUILT_PATCHES="$REPO_ROOT/resources/patches"
-export QUILT_SERIES=$(readlink -f "$REPO_ROOT/buildspace/updating_patch_order.list")
-
-if [ -z "$QUILT_SERIES" ]; then
-    printf '%s\n' 'ERROR: QUILT_SERIES file not found.' >&2
-    return
-fi
+export QUILT_PATCHES="$REPO_ROOT/patches"
+export QUILT_SERIES=$(readlink -f "$REPO_ROOT/build/updating_patch_order.list")
 
 # Options below borrowed from Debian and default quilt options (from /etc/quilt.quiltrc on Debian)
 export QUILT_PUSH_ARGS="--color=auto"
