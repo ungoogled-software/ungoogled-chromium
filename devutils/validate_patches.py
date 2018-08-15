@@ -235,7 +235,7 @@ def _retrieve_remote_files(file_iter):
         download_session.stream = False # To ensure connection to Google can be reused
         for file_path in file_iter:
             files[file_path] = _download_source_file(download_session, deps_tree,
-                                                     file_path).splitlines()
+                                                     file_path).split('\n')
     return files
 
 
@@ -250,7 +250,7 @@ def _retrieve_local_files(file_iter, source_dir):
     """
     files = dict()
     for file_path in file_iter:
-        files[file_path] = (source_dir / file_path).read_text().splitlines()
+        files[file_path] = (source_dir / file_path).read_text().split('\n')
     return files
 
 
