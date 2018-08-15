@@ -183,6 +183,8 @@ def main(): #pylint: disable=too-many-branches
     # Copy buildkit and config files, if necessary
     buildkit_copy_relative = _get_buildkit_copy(args.name, pkgmeta)
     if buildkit_copy_relative:
+        if not (args.destination / buildkit_copy_relative).exists():
+            (args.destination / buildkit_copy_relative).mkdir()
         shutil.copy(
             str(_ROOT_DIR / 'version.ini'),
             str(args.destination / buildkit_copy_relative / 'version.ini'))
