@@ -56,10 +56,14 @@ The resulting source tree in `build/src` will not have binaries pruned or domain
 
 **IMPORTANT**: Make sure domain substitution has not been applied before continuing. Otherwise, the resulting patches will require domain substitution.
 
-1. Setup a buildspace tree without domain substitution. For the `common` base bundle: `./buildkit-launcher.py getsrc -b common`
-2. Generate a temporary patch order list for a given base bundle. For the `common` base bundle: `devutils/generate_patch_order.py common`
-3. Run `source $ROOT/devutils/set_quilt_vars.sh`
-    * This will setup quilt to modify patches directly in `resources/`
+1. Setup a source tree without domain substitution. For the `common` bundle:
+    1. `python3 -m buildkit downloads retrieve -b config_bundles/common -c build/downloads`
+    2. `python3 -m buildkit downloads unpack -b config_bundles/common -c build/downloads build/src`
+2. Run `source devutils/set_quilt_vars.sh`
+    * This will setup quilt to modify patches directly in `patches/`
+3. Conditional step:
+    * If updating all patches, run `./devutils/update_patches.py -as build/src`. If successful, then everything is done. Otherwise, continue on to the next step.
+    * If updating patches for a specific bundle, run `./devutils/generate_patch_order.py BUNDLE_PATH_HERE build/updating_patch_order.list` and continue on to the next step.
 4. Use `quilt` to update the patches from the buildspace tree. The general procedure is as follows:
     1. Make sure all patches are unapplied: `quilt pop -a`. Check the status with `quilt top`
     2. Refresh patches that have fuzz or offsets until the first patch that can't apply: `while quilt push; do quilt refresh; done`
@@ -67,8 +71,15 @@ The resulting source tree in `build/src` will not have binaries pruned or domain
     4. Edit the broken files as necessary by adding (`quilt edit ...` or `quilt add ...`) or removing (`quilt remove ...`) files as necessary
         * When removing large chunks of code, remove each line instead of using language features to hide or remove the code. This makes the patches less susceptible to breakages when using quilt's refresh command (e.g. quilt refresh updates the line numbers based on the patch context, so it's possible for new but desirable code in the middle of the block comment to be excluded.). It also helps with readability when someone wants to see the changes made based on the patch alone.
     5. Refresh the patch: `quilt refresh`
-    6. Go back to Step 2, and repeat this process until all of the patches have been fixed.
-    7. Run `devutils/validate_config.py` to do a sanity check of the patches and patch order.
+    6. Go back to Step 2, and repeat this process until all of the patches in the series have been fixed.
+    7. Conditional step:
+        * If updating all patches, run `./devutils/update_patches.py -as build/src`. If successful, then continue onto the next step. Otherwise, go back to Step 2.
+        * If updating patches for a specific bundle, then continue on to the next step.
+5. Run `./devutils/validate_config.py`
+6. Run `quilt pop -a`
+7. Conditional step:
+    * If updating all patches, run `devutils/validate_patches.py -l build/src`. If errors occur, go back to Step 3.
+    * If updating patches for a specific bundle, add `-b BUNDLE_NAME_HERE` to the command for all patches above. If errors occur, go back to Step 3.
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 
@@ -76,12 +87,11 @@ If you used `quilt new` anywhere during the update process, remember to add that
 
 ### Steps for fixing patches after a failed build attempt
 
-If domain substitution is not applied, then the steps from the previous section (steps 2-6) will work for revising patches.
+If domain substitution is not applied, then the steps from the previous section will work for revising patches.
 
-If domain substitution is applied, then the steps for the initial update will not apply since that would create patches which depend on domain substitution (which is undesirable for use cases that don't use domain substitution). Here is a method of dealing with this:
+If domain substitution is applied, then the steps for the initial update will not apply since that would create patches which depend on domain substitution. Here is a method of dealing with this:
 
-1. Use quilt to update the domain-substituted copy of the patch set
-2. Copy back modified patches to the repository after reverting domain substitution on the patches manually
-3. Run `devutils/invert_domain_substitution.py` to invert the patches by specifying the proper base bundle.
-3. Attempt a build.
-4. Repeat entire procedure if there is a failure.
+1. Revert domain substitution: `python3 -m buildkit domains revert -c CACHE_PATH_HERE build/src`
+2. Follow the patch updating section above
+3. Reapply domain substitution: `python3 -m buildkit domains apply -b BUNDLE_PATH_HERE -c CACHE_PATH_HERE build/src`
+4. Reattempt build. Repeat steps as necessary.
