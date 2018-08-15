@@ -28,9 +28,12 @@ _CONFIG_BUNDLES_PATH = Path(__file__).parent.parent / 'config_bundles'
 _PATCHES_PATH = Path(__file__).parent.parent / 'patches'
 
 
-class _UnexpectedSyntax(RuntimeError):
+class _PatchValidationError(Exception):
+    """Raised when patch validation fails"""
+
+
+class _UnexpectedSyntaxError(RuntimeError):
     """Raised when unexpected syntax is used in DEPS"""
-    pass
 
 
 class _DepsNodeVisitor(ast.NodeVisitor):
@@ -41,15 +44,15 @@ class _DepsNodeVisitor(ast.NodeVisitor):
     def visit_Call(self, node): #pylint: disable=invalid-name
         """Override Call syntax handling"""
         if node.func.id not in self._allowed_callables:
-            raise _UnexpectedSyntax('Unexpected call of "%s" at line %s, column %s' %
-                                    (node.func.id, node.lineno, node.col_offset))
+            raise _UnexpectedSyntaxError('Unexpected call of "%s" at line %s, column %s' %
+                                         (node.func.id, node.lineno, node.col_offset))
 
     def generic_visit(self, node):
         for ast_type in self._valid_syntax_types:
             if isinstance(node, ast_type):
                 super().generic_visit(node)
                 return
-        raise _UnexpectedSyntax('Unexpected {} at line {}, column {}'.format(
+        raise _UnexpectedSyntaxError('Unexpected {} at line {}, column {}'.format(
             type(node).__name__, node.lineno, node.col_offset))
 
 
@@ -57,7 +60,7 @@ def _validate_deps(deps_text):
     """Returns True if the DEPS file passes validation; False otherwise"""
     try:
         _DepsNodeVisitor().visit(ast.parse(deps_text))
-    except _UnexpectedSyntax as exc:
+    except _UnexpectedSyntaxError as exc:
         print('ERROR: %s' % exc)
         return False
     return True
@@ -112,7 +115,7 @@ def _get_dep_value_url(deps_globals, dep_value):
         # Probably a Python format string
         url = url.format(**deps_globals['vars'])
     if url.count('@') != 1:
-        raise ValueError('Invalid number of @ symbols in URL: {}'.format(url))
+        raise _PatchValidationError('Invalid number of @ symbols in URL: {}'.format(url))
     return url
 
 
@@ -277,6 +280,11 @@ def _get_patch_trie(bundle_cache):
     # Returned trie
     patch_trie = dict()
 
+    # Set of bundles that are not children of the root node (i.e. not the lowest dependency)
+    # It is assumed that any bundle that is not used as a lowest dependency will never
+    # be used as a lowest dependency. This is the case for mixin bundles.
+    non_root_children = set()
+
     # All bundles that haven't been added to the trie, either as a dependency or
     # in this function explicitly
     unexplored_bundles = set(bundle_cache.keys())
@@ -289,6 +297,8 @@ def _get_patch_trie(bundle_cache):
         # This is essentially a depth-first tree construction algorithm
         for dependency_path in _generate_full_bundle_depends(current_path, bundle_cache,
                                                              unexplored_bundles):
+            if current_trie_node != patch_trie:
+                non_root_children.add(dependency_path)
             if not dependency_path in current_trie_node:
                 current_trie_node[dependency_path] = dict()
             # Walk to the child node
@@ -297,6 +307,9 @@ def _get_patch_trie(bundle_cache):
         # If the assertion fails, the algorithm is broken
         assert current_path not in current_trie_node
         current_trie_node[current_path] = dict()
+    # Remove non-root node children
+    for non_root_child in non_root_children.intersection(patch_trie.keys()):
+        del patch_trie[non_root_child]
     # Potential optimization: Check if leaves patch the same files as their parents.
     # (i.e. if the set of files patched by the bundle is disjoint from that of the parent bundle)
     # If not, move them up to their grandparent, rescan the tree leaves, and repeat
@@ -318,7 +331,7 @@ def _modify_file_lines(patched_file, file_lines):
     for hunk in patched_file:
         # Validate hunk will match
         if not hunk.is_valid():
-            raise ValueError('Hunk is not valid: {}'.format(repr(hunk)))
+            raise _PatchValidationError('Hunk is not valid: {}'.format(repr(hunk)))
         line_cursor = hunk.target_start - 1
         for line in hunk:
             normalized_line = line.value.rstrip('\n')
@@ -327,14 +340,19 @@ def _modify_file_lines(patched_file, file_lines):
                 line_cursor += 1
             elif line.is_removed:
                 if normalized_line != file_lines[line_cursor]:
-                    raise ValueError("Line '{}' does not match removal line '{}' from patch".format(
-                        file_lines[line_cursor], normalized_line))
+                    raise _PatchValidationError(
+                        "Line '{}' does not match removal line '{}' from patch".format(
+                            file_lines[line_cursor], normalized_line))
                 del file_lines[line_cursor]
             else:
                 assert line.is_context
+                if not normalized_line and line_cursor == len(file_lines):
+                    # We reached the end of the file
+                    break
                 if normalized_line != file_lines[line_cursor]:
-                    raise ValueError("Line '{}' does not match context line '{}' from patch".format(
-                        file_lines[line_cursor], normalized_line))
+                    raise _PatchValidationError(
+                        "Line '{}' does not match context line '{}' from patch".format(
+                            file_lines[line_cursor], normalized_line))
                 line_cursor += 1
 
 
@@ -380,8 +398,7 @@ def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
             del file_layers.maps[0]
             continue
         # Add storage for child's patched files
-        child_files = dict()
-        file_layers = file_layers.new_child(m=child_files)
+        file_layers = file_layers.new_child()
         # Apply children's patches
         get_logger(
             prepend_timestamp=False, log_init=False).info('Verifying at depth %s: %s',
@@ -392,9 +409,9 @@ def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
 
         # Whether the curent patch trie branch failed validation
         branch_validation_failed = False
-        child_bundle = bundle_cache[child_path]
+        assert child_path in bundle_cache
         try:
-            child_patch_order = child_bundle.patch_order
+            child_patch_order = bundle_cache[child_path].patch_order
         except KeyError:
             # No patches in the bundle
             pass
@@ -402,7 +419,16 @@ def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
             for patch_path_str in child_patch_order:
                 for patched_file in patch_cache[patch_path_str]:
                     try:
-                        _apply_file_unidiff(patched_file, child_files, file_layers.parents)
+                        _apply_file_unidiff(patched_file, file_layers.maps[0], file_layers.parents)
+                    except _PatchValidationError as exc:
+                        # Branch failed validation; abort
+                        get_logger(
+                            prepend_timestamp=False, log_init=False).error(
+                                "Error processing file '%s' from patch '%s': %s", patched_file.path,
+                                patch_path_str, str(exc))
+                        branch_validation_failed = True
+                        had_failure = True
+                        break
                     except BaseException:
                         # Branch failed validation; abort
                         get_logger(
@@ -471,7 +497,10 @@ def main():
         help='(For debugging) Store the required remote files in an empty local directory')
     args = parser.parse_args()
     if args.cache_remote and not args.cache_remote.exists():
-        parser.error('Path {} does not exist'.format(args.cache_remote))
+        if args.cache_remote.parent.exists():
+            args.cache_remote.mkdir()
+        else:
+            parser.error('Parent of cache path {} does not exist'.format(args.cache_remote))
 
     # Path to bundle -> ConfigBundle without dependencies
     bundle_cache = dict(
@@ -487,7 +516,8 @@ def main():
             for file_path, file_content in orig_files.items():
                 if not (args.cache_remote / file_path).parent.exists():
                     (args.cache_remote / file_path).parent.mkdir(parents=True)
-                (args.cache_remote / file_path).write_text(file_content, encoding=ENCODING)
+                with (args.cache_remote / file_path).open('w', encoding=ENCODING) as cache_file:
+                    cache_file.write('\n'.join(file_content))
             parser.exit()
     had_failure = _test_patches(patch_trie, bundle_cache, patch_cache, orig_files)
     if had_failure:
