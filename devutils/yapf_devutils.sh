@@ -2,4 +2,4 @@
 
 set -eux
 
-python3 -m yapf --style '.style.yapf' -ri $@
+python3 -m yapf --style '.style.yapf' -rpi $@
