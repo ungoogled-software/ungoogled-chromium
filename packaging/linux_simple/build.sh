@@ -10,8 +10,6 @@ rm -rf out || true
 mkdir out
 mkdir out/Default
 
-export BUILDKIT_CHROMIUM_VERSION='$ungoog{chromium_version}'
-
 pushd ungoogled_packaging
 mkdir download_cache 
 python3 -m buildkit downloads retrieve -b config_bundles/$BUNDLE -c download_cache
