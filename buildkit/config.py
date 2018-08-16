@@ -338,8 +338,7 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
                             value = value.split(':')
                         hashes_dict[hash_name] = value
                 return hashes_dict
-            else:
-                raise AttributeError('"{}" has no attribute "{}"'.format(type(self).__name__, name))
+            raise AttributeError('"{}" has no attribute "{}"'.format(type(self).__name__, name))
 
     def __getitem__(self, section):
         """
