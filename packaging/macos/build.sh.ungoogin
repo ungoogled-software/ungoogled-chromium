@@ -1,0 +1,34 @@
+#!/bin/bash
+
+set -eux
+
+# Simple build script for macOS
+
+packaging_dir=$(dirname $(greadlink -f $0))
+
+# Ensure /var/empty is actually empty, otherwise chrome/installer/mac/pkg-dmg
+# can fail. See issue https://github.com/Eloston/ungoogled-chromium/issues/425
+if [ -n "$(ls -A /var/empty 2>/dev/null)" ]
+then
+    echo 'ERROR: /var/empty is not empty!' >&2
+    exit 1
+fi
+
+rm -rf out || true
+mkdir out
+mkdir out/Default
+
+pushd ungoogled_packaging
+mkdir download_cache 
+python3 -m buildkit downloads retrieve -b config_bundles/macos -c download_cache
+python3 -m buildkit downloads unpack -b config_bundles/macos -c download_cache ../
+python3 -m buildkit prune -b config_bundles/macos ../
+python3 -m buildkit patches apply -b config_bundles/macos ../
+python3 -m buildkit domains apply -b config_bundles/macos -c domainsubcache.tar.gz ../
+python3 -m buildkit gnargs print -b config_bundles/macos > ../out/Default/args.gn
+popd
+
+./tools/gn/bootstrap/bootstrap.py -o out/Default/gn -s
+./out/Default/gn gen out/Default --fail-on-unused-args
+ninja -C out/Default chrome chromedriver
+chrome/installer/mac/pkg-dmg --source /var/empty --target "${packaging_dir}/ungoogled-chromium_$ungoog{chromium_version}-$ungoog{release_revision}_macos.dmg" --format UDBZ --verbosity 2 --volname Chromium --copy "out/Default/Chromium.app/:/Chromium.app/" --symlink "/Applications:/Drag to here to install"
