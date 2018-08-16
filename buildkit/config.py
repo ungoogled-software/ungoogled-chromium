@@ -329,7 +329,7 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
         def __getattr__(self, name):
             if name in self._passthrough_properties:
                 return self._section_dict.get(name, fallback=None)
-            elif name == 'hashes':
+            if name == 'hashes':
                 hashes_dict = dict()
                 for hash_name in self._hashes:
                     value = self._section_dict.get(hash_name, fallback=None)
@@ -417,8 +417,7 @@ class ConfigBundle: #pylint: disable=too-few-public-methods
         """
         if name in self._ATTR_MAPPING:
             return self.files[self._ATTR_MAPPING[name]]
-        else:
-            raise AttributeError('%s has no attribute "%s"' % (type(self).__name__, name))
+        raise AttributeError('%s has no attribute "%s"' % (type(self).__name__, name))
 
     def rebase(self, other):
         """Rebase the current bundle onto other, saving changes into self"""
