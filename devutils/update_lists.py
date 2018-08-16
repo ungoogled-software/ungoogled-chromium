@@ -30,10 +30,15 @@ PRUNING_INCLUDE_PATTERNS = ['components/domain_reliability/baked_in_configs/*']
 # pathlib.Path.match() paths to exclude from binary pruning
 PRUNING_EXCLUDE_PATTERNS = [
     'chrome/common/win/eventlog_messages.mc', # TODO: False positive textfile
+    # Exclusions for Visual Studio Project generation with GN (PR #445)
+    'tools/gn/visual_studio_writer.cc',
+    'tools/gyp/pylib/gyp/generator/msvs.py',
+    # Exclusions for DOM distiller (contains model data only)
     'components/dom_distiller/core/data/distillable_page_model.bin',
     'components/dom_distiller/core/data/distillable_page_model_new.bin',
     'components/dom_distiller/core/data/long_page_model.bin',
-    'third_party/icu/common/icudtl.dat',
+    'third_party/icu/common/icudtl.dat', # Exclusion for ICU data
+    # Exclusions for safe file extensions
     '*.ttf',
     '*.png',
     '*.jpg',
