@@ -79,7 +79,7 @@ The resulting source tree in `build/src` will not have binaries pruned or domain
 6. Run `quilt pop -a`
 7. Conditional step:
     * If updating all patches, run `devutils/validate_patches.py -l build/src`. If errors occur, go back to Step 3.
-    * If updating patches for a specific bundle, add `-b BUNDLE_NAME_HERE` to the command for all patches above. If errors occur, go back to Step 3.
+    * If updating patches for a specific bundle, add `-b BUNDLE_PATH_HERE` to the command for all patches above. If errors occur, go back to Step 3.
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 

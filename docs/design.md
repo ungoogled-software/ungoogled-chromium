@@ -139,10 +139,12 @@ Packaging is the process of producing a distributable package for end-users. Thi
 
 Building the source code consists of the following steps:
 
-1. Apply patches
-2. Build GN via `tools/gn/bootstrap/bootstrap.py`
-3. Run `gn gen` with the GN flags
-4. Build Chromium via `ninja`
+1. Prune binaries
+2. Apply patches
+3. Substitute domains
+4. Build GN via `tools/gn/bootstrap/bootstrap.py`
+5. Run `gn gen` with the GN flags
+6. Build Chromium via `ninja`
 
 Packaging consists of packaging types; each type has differing package outputs and invocation requirements. Some packaging types divide the building and package generation steps; some have it all-in-one. The current packaging types are as follows:
 
@@ -164,8 +166,6 @@ Use `buildkit-launcher.py` to invoke the buildkit CLI. Pass in `-h` or `--help` 
 For examples of using buildkit's CLI, see [docs/building.md](docs/building.md).
 
 There is currently no API documentation for buildkit. However, all public classes, functions, and methods have docstrings that explain their usage and behavior.
-
-buildkit requires the `BUILDKIT_CHROMIUM_VERSION` environment variable to be set to the Chromium version being built.
 
 ### buildkit design philosophy
 

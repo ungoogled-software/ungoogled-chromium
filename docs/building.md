@@ -41,34 +41,30 @@ Install base requirements: `# apt install packaging-dev python3 ninja-build`
 
 On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 6.0. Do NOT use debhelper 11 from backports, as it will be incompatible with other dpkg tools.
 
-#### Setting up the buildspace tree and packaging files
+#### Building locally
 
 Procedure for Debian 9 (stretch):
 
-```
-mkdir -p buildspace/downloads # Alternatively, buildspace/ can be a symbolic link
-./buildkit-launcher.py genbun debian_stretch
-./buildkit-launcher.py getsrc
-./buildkit-launcher.py subdom
-./buildkit-launcher.py genpkg debian --flavor stretch
-```
-TODO: Investigate using dpkg-source to build a source package
-
-The buildspace tree can be relocated to another system for building if necessary.
-
-#### Invoking build
-
-```
-cd buildspace/tree
+```sh
+mkdir -p build/{downloads,src}
+# TODO: Move download commands into custom debian/rules command
+python3 -m buildkit downloads retrieve -b config_bundles/debian_stretch -c build/downloads
+python3 -m buildkit download unpack -b config_bundles/debian_stretch -c build/downloads build/src
+./get_package.py debian_stretch build/src/debian
+cd build/src
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
 dpkg-buildpackage -b -uc
 ```
 
-Packages will appear under `buildspace/`.
+Packages will appear under `build/`.
+
+#### Building via source package
+
+TODO
 
 #### Notes for Debian derivatives
 
-Ubuntu 18.04 (bionic): Same as Debian 9 except the `ubuntu_bionic` base bundle and the `buster` flavor are used.
+Ubuntu 18.04 (bionic): Same as Debian 9 except the `ubuntu_bionic` bundle and the `debian_buster` packaging files are used.
 
 Ubuntu 16.04 (xenial), Ubuntu 17.10 (artful), Debian 8.0 (jessie), and other older versions: See [Other Linux distributions](#other-linux-distributions)
 
@@ -141,58 +137,34 @@ Tested on macOS 10.11-10.13
 1. Install Ninja via Homebrew: `brew install ninja`
 2. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
 
-#### Setting up the buildspace tree and packaging files
+#### Building
 
-```
-mkdir -p buildspace/downloads # Alternatively, buildspace/ can be a symbolic link
-./buildkit-launcher.py genbun macos
-./buildkit-launcher.py getsrc
-./buildkit-launcher.py subdom
-./buildkit-launcher.py genpkg macos
-```
-
-The buildspace tree can be relocated to another system for building if necessary.
-
-#### Invoking build
-
-```
-cd buildspace/tree
-chmod +x ungoogled_packaging/build.sh
+```sh
+mkdir -p build/src/ungoogled_packaging
+./get_package.py macos build/src/ungoogled_packaging
+cd build/src
 ./ungoogled_packaging/build.sh
 ```
 
-A `.dmg` should appear in `buildspace/`
+A `.dmg` should appear in `build/`
 
 ### Arch Linux
 
-There are two methods to build for Arch Linux outlined in the following sections.
-
-#### Use PKGBUILD
-
-These steps are for using a PKGBUILD to create a package. The PKGBUILD handles downloading, unpacking, building, and packaging (which uses a copy of buildkit internally).
+A PKGBUILD is used to build on Arch Linux. It handles downloading, unpacking, building, and packaging.
 
 Requirements: Python 3 is needed to generate the PKGBUILD. The PKGBUILD contains build dependency information.
 
 Generate the PKGBUILD:
 
 ```
-mkdir buildspace
-python3 buildkit-launcher.py genpkg -b archlinux archlinux
+./get_package.py archlinux ./
 ```
 
-A PKGBUILD will be generated in `buildspace`. It is a standalone file that can be relocated as necessary.
+A PKGBUILD will be generated in the current directory. It is a standalone file that can be relocated as necessary.
 
-#### Create a compressed tar archive
+### openSUSE
 
-These steps create an archive of the build outputs.
-
-Requirements: Same as the build dependencies in the PKGBUILD (which can be seen in `resources/packaging/archlinux/PKGBUILD.in`).
-
-The instructions are the same as [Other Linux distributions](#other-linux-distributions), except that the `archlinux` base bundle is used in the `genbun` command.
-
-### OpenSUSE
-
-Tested on OpenSUSE Leap 42.3
+Tested on openSUSE Leap 42.3
 
 #### Setting up the build environment
 
@@ -204,16 +176,14 @@ Follow the following guide to set up Python 3.6.4: [https://gist.github.com/anti
 
 As of Chromium 66.0.3359.117, llvm, lld and clang version 6 or greater is required to avoid compiler errors.
 
-#### Setting up the buildspace tree and packaging files
+#### Generate packaging scripts
 
 Before executing the following commands, make sure you are using python 3.6 as was mentioned in the build environment section of this guide.
 
 ```
-mkdir -p buildspace/downloads
-./buildkit-launcher.py genbun opensuse
-./buildkit-launcher.py getsrc
-./buildkit-launcher.py subdom
-./buildkit-launcher.py genpkg opensuse
+mkdir -p build/{download_cache,src}
+# TODO: The download commands should be moved into the packaging scripts
+./get_package.py opensuse build/src/ungoogled_packaging
 ```
 
 Before proceeding to the build chromium, open a new tab or otherwise exit the python 3.6 virtual environment, as it will cause errors in the next steps.
@@ -235,7 +205,7 @@ EOF
 #### Invoking build and installing package
 
 ```
-cd buildspace/tree
+cd build/src
 ./ungoogled_packaging/setup.sh
 cd ~/rpm
 rpmbuild -v -bb --clean SPECS/ungoogled-chromium.spec
@@ -260,82 +230,32 @@ For Debian-based systems, these requirements can be installed via: `# apt instal
 
 * If not building a `.deb` package, replace `packaging-dev` with `python clang-6.0 lld-6.0 llvm-6.0-dev`
 
-#### Setting up the buildspace tree
+#### Build a Debian package
 
-First, setup the source tree:
-
-```
-mkdir -p buildspace/downloads
-./buildkit-launcher.py genbun linux_portable
-./buildkit-launcher.py subdom
-```
-
-#### Generating packaging files and invoking build
-
-**Debian package**
-
-Builds a `deb` package for any Debian-based system
+Builds a `.deb` package for any Debian-based system
 
 ```
-./buildkit-launcher.py genpkg debian --flavor minimal
-# The buildspace tree can be relocated to another system for building
-cd buildspace/tree
+mkdir build/src
+./get_package.py debian_minimal build/src/debian
+cd build/src
+# TODO: Custom command to download sources
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
 # If necessary, change the dependencies in debian/control to accomodate your environment.
 # If necessary, modify AR, NM, CC, and CXX variables in debian/rules
 dpkg-buildpackage -b -uc
 ```
 
-Packages will appear in `buildspace/`
+Packages will appear in `build/`
 
-**Archive**
-
-Builds a compressed tar archive
+#### Build an archive
 
 ```
-./buildkit-launcher.py genpkg linux_simple
-# The buildspace tree can be relocated to another system for building
-cd buildspace/tree
+mkdir -p build/src
+./get_package.py linux_simple build/src/ungoogled_packaging
+cd build/src
 # Use "export ..." for AR, NM, CC, CXX, or others to specify the compiler to use
 # It defaults to LLVM tools. See ./ungoogled_packaging/build.sh for more details
 ./ungoogled_packaging/build.sh
 ./ungoogled_packaging/package.sh
 ```
-A compressed tar archive will appear in `buildspace/tree/ungoogled_packaging/`
-
-## Advanced building information
-
-This section holds some information about building for unsupported systems and a rough building outline.
-
-It is recommended to have an understanding of [docs/design.md](docs/design.md).
-
-**Note for unsupported systems**: There is no set procedure for building ungoogled-chromium on unsupported systems. One should already be able to build Chromium for their system before attempting to include ungoogled-chromium changes. More information about the Chromium build procedure is on [the Chromium project website](https://www.chromium.org/Home). One should also understand [docs/design.md](docs/design.md) before including ungoogled-chromium changes.
-
-### Essential building requirements
-
-Here are the essential building requirements: 
-
-* Python 3 (tested on 3.5) for running buildkit
-* Python 2 (tested on 2.7) for building GN and running other scripts
-* [Ninja](//ninja-build.org/) for running the build command
-* (For developers) [Quilt](//savannah.nongnu.org/projects/quilt/) is recommended for patch management.
-    * [python-quilt](//github.com/bjoernricks/python-quilt) can be used as well.
-
-Alternatively, [depot_tools](//www.chromium.org/developers/how-tos/install-depot-tools) can provide Python 2 and Ninja.
-
-### Outline building procedure
-
-This section has a rough outline of the entire building procedure.
-
-In the following steps, `buildkit` represents the command to invoke buildkit's CLI.
-
-Note that each buildkit command has a help page associated with it. Pass in `-h` or `--help` for more information.
-
-1. Create `buildspace/` and `buildspace/downloads`. Other directories are created already.
-2. Generate a user config bundle from a base config bundle: `buildkit genbun base_bundle`
-3. Modify the user config bundle (default location is `buildspace/user_bundle`)
-4. Create the buildspace tree: `buildkit getsrc`
-5. Apply domain substitution: `buildkit subdom`
-6. Generate packaging files into the buildspace tree: `buildkit genpkg package_type [options]`
-7. Relocate the buildspace tree (with packaging files) to the proper machine for building.
-8. Invoke the packaging scripts to build and package ungoogled-chromium.
+A compressed tar archive will appear in `build/src/ungoogled_packaging/`
