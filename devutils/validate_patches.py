@@ -12,8 +12,9 @@ The required source tree files can be retrieved from Google directly.
 
 import argparse
 import ast
-import collections
 import base64
+import collections
+import logging
 import sys
 from pathlib import Path
 
@@ -92,7 +93,7 @@ def _download_googlesource_file(download_session, repo_url, version, relative_pa
     if 'googlesource.com' not in repo_url:
         raise ValueError('Repository URL is not a googlesource.com URL: {}'.format(repo_url))
     full_url = repo_url + '/+/{}/{}?format=TEXT'.format(version, str(relative_path))
-    get_logger(prepend_timestamp=False, log_init=False).debug('Downloading: %s', full_url)
+    get_logger().debug('Downloading: %s', full_url)
     response = download_session.get(full_url)
     response.raise_for_status()
     # Assume all files that need patching are compatible with UTF-8
@@ -231,9 +232,32 @@ def _retrieve_remote_files(file_iter):
 
     deps_tree = _initialize_deps_tree()
 
+    try:
+        total_files = len(file_iter)
+    except TypeError:
+        total_files = None
+
+    logger = get_logger()
+    if total_files is None:
+        logger.info('Downloading remote files...')
+    else:
+        logger.info('Downloading %d remote files...', total_files)
+    last_progress = 0
+    file_count = 0
     with requests.Session() as download_session:
         download_session.stream = False # To ensure connection to Google can be reused
         for file_path in file_iter:
+            if total_files:
+                file_count += 1
+                current_progress = file_count * 100 // total_files // 5 * 5
+                if current_progress != last_progress:
+                    last_progress = current_progress
+                    logger.info('%d%% downloaded', current_progress)
+            else:
+                current_progress = file_count // 20 * 20
+                if current_progress != last_progress:
+                    last_progress = current_progress
+                    logger.info('%d files downloaded', current_progress)
             files[file_path] = _download_source_file(download_session, deps_tree,
                                                      file_path).split('\n')
     return files
@@ -403,9 +427,7 @@ def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
         # Add storage for child's patched files
         file_layers = file_layers.new_child()
         # Apply children's patches
-        get_logger(
-            prepend_timestamp=False, log_init=False).info('Verifying at depth %s: %s',
-                                                          len(node_iter_stack), child_path.name)
+        get_logger().info('Verifying at depth %s: %s', len(node_iter_stack), child_path.name)
 
         # Potential optimization: Use interval tree data structure instead of copying
         # the entire array to track only diffs
@@ -425,19 +447,15 @@ def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
                         _apply_file_unidiff(patched_file, file_layers.maps[0], file_layers.parents)
                     except _PatchValidationError as exc:
                         # Branch failed validation; abort
-                        get_logger(
-                            prepend_timestamp=False, log_init=False).error(
-                                "Error processing file '%s' from patch '%s': %s", patched_file.path,
-                                patch_path_str, str(exc))
+                        get_logger().error("Error processing file '%s' from patch '%s': %s",
+                                           patched_file.path, patch_path_str, str(exc))
                         branch_validation_failed = True
                         had_failure = True
                         break
                     except BaseException:
                         # Branch failed validation; abort
-                        get_logger(
-                            prepend_timestamp=False, log_init=False).exception(
-                                "Error processing file '%s' from patch '%s'", patched_file.path,
-                                patch_path_str)
+                        get_logger().exception("Error processing file '%s' from patch '%s'",
+                                               patched_file.path, patch_path_str)
                         branch_validation_failed = True
                         had_failure = True
                         break
@@ -492,6 +510,8 @@ def main():
         metavar='DIRECTORY',
         help=('Verify patches for a config bundle. Specify multiple times to '
               'verify multiple bundles. Without specifying, all bundles will be verified.'))
+    parser.add_argument(
+        '-v', '--verbose', action='store_true', help='Log more information to stdout/stderr')
     file_source_group = parser.add_mutually_exclusive_group(required=True)
     file_source_group.add_argument(
         '-l', '--local', type=Path, metavar='DIRECTORY', help='Use a local source tree')
@@ -512,6 +532,11 @@ def main():
             args.cache_remote.mkdir()
         else:
             parser.error('Parent of cache path {} does not exist'.format(args.cache_remote))
+
+    if args.verbose:
+        get_logger(initial_level=logging.DEBUG, prepend_timestamp=False, log_init=False)
+    else:
+        get_logger(initial_level=logging.INFO, prepend_timestamp=False, log_init=False)
 
     # Path to bundle -> ConfigBundle without dependencies
     bundle_cache = dict(
