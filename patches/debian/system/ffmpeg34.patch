@@ -1,0 +1,85 @@
+description: ffmpeg decoders before version 4.0 require explicit initialization
+author: Michael Gilbert <mgilbert@debian.org>
+origin: chromium 66 authors
+
+--- a/media/filters/ffmpeg_audio_decoder.cc
++++ b/media/filters/ffmpeg_audio_decoder.cc
+@@ -80,6 +80,8 @@ void FFmpegAudioDecoder::Initialize(
+     return;
+   }
+ 
++  FFmpegGlue::InitializeFFmpeg();
++
+   if (!ConfigureDecoder(config)) {
+     av_sample_format_ = 0;
+     bound_init_cb.Run(false);
+--- a/media/cdm/library_cdm/clear_key_cdm/clear_key_cdm.cc
++++ b/media/cdm/library_cdm/clear_key_cdm/clear_key_cdm.cc
+@@ -228,10 +228,13 @@ void ConvertCdmKeysInfo(const media::Cdm
+   }
+ }
+ 
++#include <libavformat/avformat.h>
++
+ void INITIALIZE_CDM_MODULE() {
+   DVLOG(1) << __func__;
+ #if defined(CLEAR_KEY_CDM_USE_FFMPEG_DECODER)
+   media::InitializeMediaLibrary();
++  av_register_all();
+ #endif  // CLEAR_KEY_CDM_USE_FFMPEG_DECODER
+ 
+   g_is_cdm_module_initialized = true;
+--- a/media/filters/ffmpeg_glue.cc
++++ b/media/filters/ffmpeg_glue.cc
+@@ -63,7 +63,13 @@ static int64_t AVIOSeekOperation(void* o
+   return new_offset;
+ }
+ 
++void FFmpegGlue::InitializeFFmpeg() {
++  av_register_all();
++}
++
+ FFmpegGlue::FFmpegGlue(FFmpegURLProtocol* protocol) {
++  InitializeFFmpeg();
++
+   // Initialize an AVIOContext using our custom read and seek operations.  Don't
+   // keep pointers to the buffer since FFmpeg may reallocate it on the fly.  It
+   // will be cleaned up
+--- a/media/filters/ffmpeg_glue.h
++++ b/media/filters/ffmpeg_glue.h
+@@ -59,6 +59,8 @@ class MEDIA_EXPORT FFmpegURLProtocol {
+ 
+ class MEDIA_EXPORT FFmpegGlue {
+  public:
++  static void InitializeFFmpeg();
++
+   // See file documentation for usage.  |protocol| must outlive FFmpegGlue.
+   explicit FFmpegGlue(FFmpegURLProtocol* protocol);
+   ~FFmpegGlue();
+--- a/media/filters/ffmpeg_video_decoder.cc
++++ b/media/filters/ffmpeg_video_decoder.cc
+@@ -28,6 +28,7 @@
+ #include "media/base/video_util.h"
+ #include "media/ffmpeg/ffmpeg_common.h"
+ #include "media/ffmpeg/ffmpeg_decoding_loop.h"
++#include "media/filters/ffmpeg_glue.h"
+ 
+ namespace media {
+ 
+@@ -110,6 +111,7 @@ static void ReleaseVideoBufferImpl(void*
+ 
+ // static
+ bool FFmpegVideoDecoder::IsCodecSupported(VideoCodec codec) {
++  FFmpegGlue::InitializeFFmpeg();
+   return avcodec_find_decoder(VideoCodecToCodecID(codec)) != nullptr;
+ }
+ 
+@@ -253,6 +255,8 @@ void FFmpegVideoDecoder::Initialize(
+     return;
+   }
+ 
++  FFmpegGlue::InitializeFFmpeg();
++
+   if (!ConfigureDecoder(config, low_delay)) {
+     bound_init_cb.Run(false);
+     return;

@@ -1,0 +1,37 @@
+description: maintain compatibility with vpx 1.6
+author: Michael Gilbert <mgilbert@debian.org>
+
+--- a/third_party/webrtc/modules/video_coding/codecs/vp8/libvpx_vp8_decoder.cc
++++ b/third_party/webrtc/modules/video_coding/codecs/vp8/libvpx_vp8_decoder.cc
+@@ -252,9 +252,6 @@ int LibvpxVp8Decoder::Decode(const Encod
+ 
+   img = vpx_codec_get_frame(decoder_, &iter);
+   int qp;
+-  vpx_codec_err_t vpx_ret =
+-      vpx_codec_control(decoder_, VPXD_GET_LAST_QUANTIZER, &qp);
+-  RTC_DCHECK_EQ(vpx_ret, VPX_CODEC_OK);
+   ret = ReturnFrame(img, input_image._timeStamp, input_image.ntp_time_ms_, qp);
+   if (ret != 0) {
+     // Reset to avoid requesting key frames too often.
+@@ -308,7 +305,9 @@ int LibvpxVp8Decoder::ReturnFrame(const
+ 
+   VideoFrame decoded_image(buffer, timestamp, 0, kVideoRotation_0);
+   decoded_image.set_ntp_time_ms(ntp_time_ms);
+-  decode_complete_callback_->Decoded(decoded_image, rtc::nullopt, qp);
++  int ret = decode_complete_callback_->Decoded(decoded_image);
++  if (ret != 0)
++    return ret;
+ 
+   return WEBRTC_VIDEO_CODEC_OK;
+ }
+--- a/media/base/decode_capabilities.cc
++++ b/media/base/decode_capabilities.cc
+@@ -101,7 +101,7 @@ bool IsColorSpaceSupported(const media::
+ }
+ 
+ bool IsVp9ProfileSupported(VideoCodecProfile profile) {
+-#if BUILDFLAG(ENABLE_LIBVPX)
++#if 0
+   // High bit depth capabilities may be toggled via LibVPX config flags.
+   static bool vpx_supports_high_bit_depth =
+       (vpx_codec_get_caps(vpx_codec_vp9_dx()) & VPX_CODEC_CAP_HIGHBITDEPTH) !=
