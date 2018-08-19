@@ -17,8 +17,8 @@ import argparse
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from buildkit.cli import NewBundleAction
 from buildkit.common import ENCODING, BuildkitAbort, get_logger, dir_empty
+from buildkit.config import ConfigBundle
 from buildkit.domain_substitution import TREE_ENCODINGS
 from buildkit import downloads
 sys.path.pop(0)
@@ -225,7 +225,7 @@ def main(args_list=None):
         '-b',
         '--bundle',
         metavar='PATH',
-        action=NewBundleAction,
+        type=Path,
         default='config_bundles/common',
         help='The bundle to use. Default: %(default)s')
     parser.add_argument(
@@ -249,28 +249,30 @@ def main(args_list=None):
         help=('The path to the source tree to create. '
               'If it is not empty, the source will not be unpacked.'))
     parser.add_argument(
-        '-c',
-        '--cache',
-        metavar='PATH',
-        type=Path,
-        required=True,
-        help=('The path to the downloads cache. '
-              'It must already exist.'))
+        '-c', '--cache', metavar='PATH', type=Path, help='The path to the downloads cache.')
     try:
         args = parser.parse_args(args_list)
+        try:
+            bundle = ConfigBundle(args.bundle)
+        except BaseException:
+            get_logger().exception('Error loading config bundle')
+            raise BuildkitAbort()
         if args.tree.exists() and not dir_empty(args.tree):
             get_logger().info('Using existing source tree at %s', args.tree)
         elif args.auto_download:
-            downloads.retrieve_downloads(args.bundle, args.cache, True)
-            downloads.check_downloads(args.bundle, args.cache)
-            downloads.unpack_downloads(args.bundle, args.cache, args.tree)
+            if not args.cache:
+                get_logger().error('--cache is required with --auto-download')
+                raise BuildkitAbort()
+            downloads.retrieve_downloads(bundle, args.cache, True)
+            downloads.check_downloads(bundle, args.cache)
+            downloads.unpack_downloads(bundle, args.cache, args.tree)
         else:
             get_logger().error('No source tree found and --auto-download '
                                'is not specified. Aborting.')
             raise BuildkitAbort()
         get_logger().info('Computing lists...')
-        pruning_list, domain_substitution_list = compute_lists(
-            args.tree, args.bundle.domain_regex.search_regex)
+        pruning_list, domain_substitution_list = compute_lists(args.tree,
+                                                               bundle.domain_regex.search_regex)
     except BuildkitAbort:
         exit(1)
     with args.pruning.open('w', encoding=ENCODING) as file_obj:
