@@ -290,15 +290,21 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
     """Representation of an downloads.ini file"""
 
     _hashes = ('md5', 'sha1', 'sha256', 'sha512')
+    hash_url_delimiter = '|'
     _nonempty_keys = ('url', 'download_filename')
     _optional_keys = (
         'version',
         'strip_leading_dirs',
     )
-    _passthrough_properties = (*_nonempty_keys, *_optional_keys, 'extractor')
+    _passthrough_properties = (*_nonempty_keys, *_optional_keys, 'extractor', 'output_path')
     _ini_vars = {
         '_chromium_version': get_chromium_version(),
     }
+
+    @staticmethod
+    def _is_hash_url(value):
+        return value.count(DownloadsIni.hash_url_delimiter) == 2 and value.split(
+            DownloadsIni.hash_url_delimiter)[0] in iter(HashesURLEnum)
 
     _schema = schema.Schema({
         schema.Optional(schema.And(str, len)): {
@@ -309,8 +315,7 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
                for x in _optional_keys},
             schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP),
             schema.Optional(schema.Or(*_hashes)): schema.And(str, len),
-            schema.Optional('hash_url'): (
-                lambda x: x.count('|') == 2 and x.split('|')[0] in iter(HashesURLEnum)),
+            schema.Optional('hash_url'): lambda x: DownloadsIni._is_hash_url(x), #pylint: disable=unnecessary-lambda
         }
     })
 
@@ -331,11 +336,11 @@ class DownloadsIni(_IniConfigFile): #pylint: disable=too-few-public-methods
                 return self._section_dict.get(name, fallback=None)
             if name == 'hashes':
                 hashes_dict = dict()
-                for hash_name in self._hashes:
+                for hash_name in (*self._hashes, 'hash_url'):
                     value = self._section_dict.get(hash_name, fallback=None)
                     if value:
                         if hash_name == 'hash_url':
-                            value = value.split(':')
+                            value = value.split(DownloadsIni.hash_url_delimiter)
                         hashes_dict[hash_name] = value
                 return hashes_dict
             raise AttributeError('"{}" has no attribute "{}"'.format(type(self).__name__, name))

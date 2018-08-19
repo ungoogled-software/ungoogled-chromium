@@ -83,7 +83,9 @@ def _chromium_hashes_generator(hashes_path):
 
 def _downloads_iter(config_bundle):
     """Iterator for the downloads ordered by output path"""
-    return sorted(config_bundle.downloads, key=(lambda x: str(Path(x.output_path))))
+    return sorted(
+        map(lambda x: (x, config_bundle.downloads[x]), config_bundle.downloads),
+        key=(lambda x: str(Path(x[1].output_path))))
 
 
 def _get_hash_pairs(download_properties, cache_dir):
@@ -122,8 +124,7 @@ def retrieve_downloads(config_bundle, cache_dir, show_progress, disable_ssl_veri
         orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
         ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access
     try:
-        for download_name in _downloads_iter(config_bundle):
-            download_properties = config_bundle.downloads[download_name]
+        for download_name, download_properties in _downloads_iter(config_bundle):
             get_logger().info('Downloading "%s" to "%s" ...', download_name,
                               download_properties.download_filename)
             download_path = cache_dir / download_properties.download_filename
@@ -147,9 +148,8 @@ def check_downloads(config_bundle, cache_dir):
 
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     """
-    for download_name in _downloads_iter(config_bundle):
+    for download_name, download_properties in _downloads_iter(config_bundle):
         get_logger().info('Verifying hashes for "%s" ...', download_name)
-        download_properties = config_bundle.downloads[download_name]
         download_path = cache_dir / download_properties.download_filename
         with download_path.open('rb') as file_obj:
             archive_data = file_obj.read()
@@ -172,8 +172,7 @@ def unpack_downloads(config_bundle, cache_dir, output_dir, extractors=None):
 
     May raise undetermined exceptions during archive unpacking.
     """
-    for download_name in _downloads_iter(config_bundle):
-        download_properties = config_bundle.downloads[download_name]
+    for download_name, download_properties in _downloads_iter(config_bundle):
         download_path = cache_dir / download_properties.download_filename
         get_logger().info('Unpacking "%s" to %s ...', download_name,
                           download_properties.output_path)
@@ -192,7 +191,6 @@ def unpack_downloads(config_bundle, cache_dir, output_dir, extractors=None):
 
         extractor_func(
             archive_path=download_path,
-            output_dir=output_dir,
-            unpack_dir=Path(download_properties.output_path),
+            output_dir=output_dir / Path(download_properties.output_path),
             relative_to=strip_leading_dirs_path,
             extractors=extractors)
