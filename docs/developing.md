@@ -61,25 +61,16 @@ The resulting source tree in `build/src` will not have binaries pruned or domain
     2. `python3 -m buildkit downloads unpack -b config_bundles/common -c build/downloads build/src`
 2. Run `source devutils/set_quilt_vars.sh`
     * This will setup quilt to modify patches directly in `patches/`
-3. Conditional step:
-    * If updating all patches, run `./devutils/update_patches.py -as build/src`. If successful, then everything is done. Otherwise, continue on to the next step.
-    * If updating patches for a specific bundle, run `./devutils/generate_patch_order.py BUNDLE_PATH_HERE build/updating_patch_order.list` and continue on to the next step.
-4. Use `quilt` to update the patches from the buildspace tree. The general procedure is as follows:
-    1. Make sure all patches are unapplied: `quilt pop -a`. Check the status with `quilt top`
-    2. Refresh patches that have fuzz or offsets until the first patch that can't apply: `while quilt push; do quilt refresh; done`
-    3. If an error occurs, do `quilt push -f`
-    4. Edit the broken files as necessary by adding (`quilt edit ...` or `quilt add ...`) or removing (`quilt remove ...`) files as necessary
+3. If updating patches for a specific bundle, run `devutils/update_patches.py -as build/src` (if updating for a specific bundle, append `-b BUNDLE_PATH_HERE`). If successful, then everything is done. Otherwise, continue on to the next step.
+4. Use `quilt` to fix the broken patch:
+    1. Run `quilt push -f`
+    2. Edit the broken files as necessary by adding (`quilt edit ...` or `quilt add ...`) or removing (`quilt remove ...`) files as necessary
         * When removing large chunks of code, remove each line instead of using language features to hide or remove the code. This makes the patches less susceptible to breakages when using quilt's refresh command (e.g. quilt refresh updates the line numbers based on the patch context, so it's possible for new but desirable code in the middle of the block comment to be excluded.). It also helps with readability when someone wants to see the changes made based on the patch alone.
-    5. Refresh the patch: `quilt refresh`
-    6. Go back to Step 2, and repeat this process until all of the patches in the series have been fixed.
-    7. Conditional step:
-        * If updating all patches, run `./devutils/update_patches.py -as build/src`. If successful, then continue onto the next step. Otherwise, go back to Step 2.
-        * If updating patches for a specific bundle, then continue on to the next step.
-5. Run `./devutils/validate_config.py`
+    3. Refresh the patch: `quilt refresh`
+    4. Run `devutils/update_patches.py -as build/src -b BUNDLE_PATH_HERE` (if updating a specific bundle, append `-b BUNDLE_PATH_HERE`). If successful, then continue on to the next step. Otherwise, repeat this procedure within Step 4 of the entire instructions.
+5. Run `devutils/validate_config.py`
 6. Run `quilt pop -a`
-7. Conditional step:
-    * If updating all patches, run `devutils/validate_patches.py -l build/src`. If errors occur, go back to Step 3.
-    * If updating patches for a specific bundle, add `-b BUNDLE_PATH_HERE` to the command for all patches above. If errors occur, go back to Step 3.
+7. If updating patches for a specific bundle, run `devutils/validate_patches.py -l build/src` (if updating a specific bundle, append `-b BUNDLE_PATH_HERE`). If errors occur, go back to Step 3.
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 

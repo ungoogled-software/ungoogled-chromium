@@ -73,7 +73,7 @@ def _generate_full_bundle_depends(bundle_path, bundle_cache, unexplored_bundles)
         yield dependency_path
 
 
-def _get_patch_trie(bundle_cache):
+def _get_patch_trie(bundle_cache, target_bundles=None):
     """
     Returns a trie of config bundles and their dependencies. It is a dict of the following format:
     key: pathlib.Path of config bundle
@@ -89,7 +89,10 @@ def _get_patch_trie(bundle_cache):
 
     # All bundles that haven't been added to the trie, either as a dependency or
     # in this function explicitly
-    unexplored_bundles = set(bundle_cache.keys())
+    if target_bundles:
+        unexplored_bundles = set(target_bundles)
+    else:
+        unexplored_bundles = set(bundle_cache.keys())
     # Construct patch_trie
     while unexplored_bundles:
         current_path = unexplored_bundles.pop()
@@ -169,7 +172,7 @@ def _refresh_patches(patch_trie, bundle_cache, series_path, run_quilt, abort_on_
             _pop_to_last_bundle(run_quilt, patch_order_stack)
             continue
         # Apply children's patches
-        _LOGGER.info('Verifying at depth %s: %s', len(node_iter_stack), child_path.name)
+        _LOGGER.info('Updating at depth %s: %s', len(node_iter_stack), child_path.name)
         child_patch_order = tuple()
         assert child_path in bundle_cache
         try:
@@ -209,6 +212,14 @@ def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        '-b',
+        '--bundle',
+        action='append',
+        type=Path,
+        metavar='DIRECTORY',
+        help=('Update patches for a config bundle. Specify multiple times to '
+              'update multiple bundles. Without specifying, all bundles will be updated.'))
+    parser.add_argument(
         '-s',
         '--source-dir',
         type=Path,
@@ -238,7 +249,7 @@ def main():
     # Path to bundle -> ConfigBundle without dependencies
     bundle_cache = dict(
         map(lambda x: (x, ConfigBundle(x, load_depends=False)), _CONFIG_BUNDLES_PATH.iterdir()))
-    patch_trie = _get_patch_trie(bundle_cache)
+    patch_trie = _get_patch_trie(bundle_cache, args.bundle)
     run_quilt = _get_run_quilt(args.source_dir, series_path, patches_dir)
     # Remove currently applied patches
     if series_path.exists():
@@ -250,7 +261,7 @@ def main():
     if had_failure:
         _LOGGER.error('Error(s) occured while refreshing. See output above.')
         parser.exit(status=1)
-    _LOGGER.info('Successfully refreshed all patches.')
+    _LOGGER.info('Successfully refreshed patches.')
 
 
 if __name__ == '__main__':
