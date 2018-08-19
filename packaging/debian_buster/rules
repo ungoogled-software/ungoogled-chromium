@@ -42,8 +42,10 @@ ifeq (armhf,$(DEB_HOST_ARCH))
 defines+=host_cpu=\"arm\" arm_use_neon=false
 endif
 
+config_bundle=$(shell cat debian/ungoogled-config-bundle)
+
 # add gn flags from config bundle
-defines+=$(shell debian/get_gnargs_shell config_bundles/$(shell cat debian/ungoogled-config-bundle))
+defines+=$(shell debian/get_gnargs_shell config_bundles/$(config_bundle))
 
 # some notes about embedded libraries
 #  can't use system nss since net/third_party/nss is heavily patched
@@ -67,17 +69,13 @@ out/Default/gn:
 	./tools/gn/bootstrap/bootstrap.py -o out/Default/gn -s -j$(njobs)
 
 override_dh_quilt_patch:
-	pushd debian/scripts/ungoogled-chromium
-	python3 -m buildkit patches export -b config_bundles/$(cat ungoogled-config-bundle) ../../patches/
-	python3 -m buildkit prune -b config_bundles/$(cat ungoogled-config-bundle) ../../../
-	python3 -m buildkit domains apply -b config_bundles/$(cat ungoogled-config-bundle) -c domsubcache.tar.gz ../../../
-	popd
+	cd debian/scripts/ungoogled-chromium; python3 -m buildkit patches export -b config_bundles/$(config_bundle) ../../patches/
+	cd debian/scripts/ungoogled-chromium; python3 -m buildkit prune -b config_bundles/$(config_bundle) ../../../
+	cd debian/scripts/ungoogled-chromium; python3 -m buildkit domains apply -b config_bundles/$(config_bundle) -c domsubcache.tar.gz ../../../
 	dh_quilt_patch
 
 override_dh_quilt_unpatch:
-	pushd debian/ungoogled-chromium
-	python3 -m buildkit domains revert -c domsubcache.tar.gz ../../../
-	popd
+	cd debian/scripts/ungoogled-chromium; python3 -m buildkit domains revert -c domsubcache.tar.gz ../../../
 	dh_quilt_unpatch
 
 override_dh_auto_configure:
@@ -133,3 +131,40 @@ override_dh_auto_clean:
 	rm -rf out
 	find . -name \*.pyc -execdir rm -f {} \;
 	dh_auto_clean
+
+###################### upstream source downloading ############################
+
+url=https://gsdview.appspot.com/chromium-browser-official
+version=$(shell dpkg-parsechangelog -S Version | sed s/-.*//)
+extract=chromium-$(version)
+tarfile=$(extract)-lite.tar
+tarball=$(tarfile).xz
+debvers=../ungoogled-chromium-browser_$(version)
+origtxz=$(debvers).orig.tar.xz
+removed=$(debvers).files-removed
+seconds=$(debvers).seconds
+
+get-orig-source:
+	wget -nv --show-progress -c $(url)/$(tarball) -O ../$(tarball)
+	cp /usr/bin/mk-origtargz debian/scripts
+	patch -p1 < debian/scripts/mk-origtargz.patch
+	date +%s > $(seconds)
+	./debian/scripts/mk-origtargz ../$(tarball) > $(removed)
+	echo $$(($$(date +%s) - $$(cat $(seconds)))) seconds
+	test ! -e $(extract) || rm -rf $(extract)
+	tar xf ../$(tarball)
+	echo $$(($$(date +%s) - $$(cat $(seconds)))) seconds
+	while read line; do rm -rf $$line; done < $(removed)
+	cd $(extract) && ../debian/scripts/check-upstream
+	echo $$(($$(date +%s) - $$(cat $(seconds)))) seconds
+	test ! -e $(origtxz) || rm -f $(origtxz)
+	tar cf - $(extract) | xz -6 -T $(njobs) - > $(origtxz)
+	echo $$(($$(date +%s) - $$(cat $(seconds)))) seconds
+	rm -rf $(extract)
+	echo $$(($$(date +%s) - $$(cat $(seconds)))) seconds | tee seconds
+	@mv -f seconds $(seconds)
+
+download-source-locally:
+	mkdir debian/download_cache || true
+	cd debian/scripts/ungoogled-chromium; python3 -m buildkit downloads retrieve -b config_bundles/$(config_bundle) -c ../../download_cache
+	cd debian/scripts/ungoogled-chromium; python3 -m buildkit downloads unpack -b config_bundles/$(config_bundle) -c ../../download_cache ../../../

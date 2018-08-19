@@ -46,13 +46,11 @@ On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 6.0
 Procedure for Debian 9 (stretch):
 
 ```sh
-mkdir -p build/{downloads,src}
-# TODO: Move download commands into custom debian/rules command
-python3 -m buildkit downloads retrieve -b config_bundles/debian_stretch -c build/downloads
-python3 -m buildkit download unpack -b config_bundles/debian_stretch -c build/downloads build/src
+mkdir -p build/src
 ./get_package.py debian_stretch build/src/debian
 cd build/src
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
+debian/rules download-source-locally
 dpkg-buildpackage -b -uc
 ```
 
@@ -238,10 +236,10 @@ Builds a `.deb` package for any Debian-based system
 mkdir build/src
 ./get_package.py debian_minimal build/src/debian
 cd build/src
-# TODO: Custom command to download sources
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
 # If necessary, change the dependencies in debian/control to accomodate your environment.
 # If necessary, modify AR, NM, CC, and CXX variables in debian/rules
+debian/rules download-source-locally
 dpkg-buildpackage -b -uc
 ```
 
