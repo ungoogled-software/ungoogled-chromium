@@ -499,6 +499,26 @@ def _get_required_files(patch_cache):
     return file_set
 
 
+def _get_orig_files(args, required_files, parser):
+    """
+    Helper for main to get orig_files
+
+    Exits the program if --cache-remote debugging option is used
+    """
+    if args.local:
+        orig_files = _retrieve_local_files(required_files, args.local)
+    else: # --remote and --cache-remote
+        orig_files = _retrieve_remote_files(required_files)
+        if args.cache_remote:
+            for file_path, file_content in orig_files.items():
+                if not (args.cache_remote / file_path).parent.exists():
+                    (args.cache_remote / file_path).parent.mkdir(parents=True)
+                with (args.cache_remote / file_path).open('w', encoding=ENCODING) as cache_file:
+                    cache_file.write('\n'.join(file_content))
+            parser.exit()
+    return orig_files
+
+
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -538,23 +558,18 @@ def main():
     else:
         get_logger(initial_level=logging.INFO, prepend_timestamp=False, log_init=False)
 
+    if args.bundle:
+        for bundle_path in args.bundle:
+            if not bundle_path.exists():
+                parser.error('Could not find config bundle at: {}'.format(bundle_path))
+
     # Path to bundle -> ConfigBundle without dependencies
     bundle_cache = dict(
         map(lambda x: (x, ConfigBundle(x, load_depends=False)), _CONFIG_BUNDLES_PATH.iterdir()))
     patch_trie = _get_patch_trie(bundle_cache, args.bundle)
     patch_cache = _load_all_patches(bundle_cache.values())
     required_files = _get_required_files(patch_cache)
-    if args.local:
-        orig_files = _retrieve_local_files(required_files, args.local)
-    else: # --remote and --cache-remote
-        orig_files = _retrieve_remote_files(required_files)
-        if args.cache_remote:
-            for file_path, file_content in orig_files.items():
-                if not (args.cache_remote / file_path).parent.exists():
-                    (args.cache_remote / file_path).parent.mkdir(parents=True)
-                with (args.cache_remote / file_path).open('w', encoding=ENCODING) as cache_file:
-                    cache_file.write('\n'.join(file_content))
-            parser.exit()
+    orig_files = _get_orig_files(args, required_files, parser)
     had_failure = _test_patches(patch_trie, bundle_cache, patch_cache, orig_files)
     if had_failure:
         parser.exit(status=1)

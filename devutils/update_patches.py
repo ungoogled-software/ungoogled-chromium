@@ -236,6 +236,10 @@ def main():
 
     if not args.source_dir.exists():
         parser.error('Cannot find source tree at: {}'.format(args.source_dir))
+    if args.bundle:
+        for bundle_path in args.bundle:
+            if not bundle_path.exists():
+                parser.error('Could not find config bundle at: {}'.format(bundle_path))
 
     patches_dir = Path(os.environ.get('QUILT_PATCHES', 'patches'))
     if not patches_dir.exists():
