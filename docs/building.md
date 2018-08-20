@@ -50,7 +50,7 @@ mkdir -p build/src
 ./get_package.py debian_stretch build/src/debian
 cd build/src
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
-debian/rules download-source-locally
+debian/rules setup-local-src
 dpkg-buildpackage -b -uc
 ```
 
@@ -239,7 +239,7 @@ cd build/src
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
 # If necessary, change the dependencies in debian/control to accomodate your environment.
 # If necessary, modify AR, NM, CC, and CXX variables in debian/rules
-debian/rules download-source-locally
+debian/rules setup-local-src
 dpkg-buildpackage -b -uc
 ```
 

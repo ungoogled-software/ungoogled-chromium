@@ -34,7 +34,7 @@ def _substitute_path(path, regex_iter):
 
     path is a pathlib.Path to the file to be domain substituted.
     regex_iter is an iterable of regular expression namedtuple like from
-        config.DomainRegexList.get_pairs()
+        config.DomainRegexList.regex_pairs()
 
     Returns a tuple of the CRC32 hash of the substituted raw content and the
         original raw content; None for both entries if no substitutions were made.
@@ -129,7 +129,7 @@ def apply_substitution(config_bundle, source_tree, domainsub_cache):
     if domainsub_cache.exists():
         raise FileExistsError(domainsub_cache)
     resolved_tree = source_tree.resolve()
-    regex_pairs = config_bundle.domain_regex.get_pairs()
+    regex_pairs = config_bundle.domain_regex.regex_pairs
     fileindex_content = io.BytesIO()
     with tarfile.open(
             str(domainsub_cache), 'w:%s' % domainsub_cache.suffix[1:],
@@ -146,6 +146,7 @@ def apply_substitution(config_bundle, source_tree, domainsub_cache):
             path = resolved_tree / relative_path
             if not path.exists():
                 get_logger().warning('Skipping non-existant path: %s', path)
+                continue
             crc32_hash, orig_content = _substitute_path(path, regex_pairs)
             if crc32_hash is None:
                 get_logger().info('Path has no substitutions: %s', relative_path)
