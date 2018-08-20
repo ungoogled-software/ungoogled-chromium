@@ -33,6 +33,9 @@ PRUNING_EXCLUDE_PATTERNS = [
     # Exclude AFDO sample profile in binary format (Auto FDO)
     # Details: https://clang.llvm.org/docs/UsersManual.html#sample-profile-formats
     'chrome/android/profiles/afdo.prof',
+    # TabRanker example preprocessor config
+    # Details in chrome/browser/resource_coordinator/tab_ranker/README.md
+    'chrome/browser/resource_coordinator/tab_ranker/example_preprocessor_config.pb',
     # Exclusions for Visual Studio Project generation with GN (PR #445)
     'tools/gn/visual_studio_writer.cc',
     'tools/gyp/pylib/gyp/generator/msvs.py',
