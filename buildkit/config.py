@@ -191,7 +191,7 @@ class MapConfigFile(_ConfigFile):
         return self._data.copy()
 
     def rebase(self, other):
-        self._data = collections.ChainMap(other._data, self._data) #pylint: disable=protected-access
+        self._data = collections.ChainMap(self._data, other._data) #pylint: disable=protected-access
 
     def __str__(self):
         return str().join(map(lambda x: '%s=%s\n' % x, sorted(self._data.items())))
