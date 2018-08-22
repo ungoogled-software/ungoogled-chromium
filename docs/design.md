@@ -133,19 +133,20 @@ Patches are grouped into the following directories:
 
 ## Packaging
 
-Packaging is the process of producing a distributable package for end-users. This entails building the source code and packaging the build outputs.
+Packaging is the process of downloading, building, and producing a distributable package of ungoogled-chromium.
 
 Packaging uses buildkit and config bundles to execute certain tasks (e.g. source downloading, binary pruning, and domain substitution) and load build configuration (i.e. patches and GN arguments). buildkit, config bundles, and patches are either bundled with the other packaging files, or downloaded from the ungoogled-chromium repository.
 
 Packaging consists of the major steps:
 
-1. Prune binaries
-2. Apply patches
-3. Substitute domains
-4. Build GN via `tools/gn/bootstrap/bootstrap.py`
-5. Run `gn gen` with the GN flags
-6. Build Chromium via `ninja`
-7. Create package(s) of build output (usually in `out/Default`)
+1. Download and unpack the source tree
+2. Prune binaries
+3. Apply patches
+4. Substitute domains
+5. Build GN via `tools/gn/bootstrap/bootstrap.py`
+6. Run `gn gen` with the GN flags
+7. Build Chromium via `ninja`
+8. Create package(s) of build output (usually in `out/Default`)
 
 Packaging is divided into "packaging types", which are directories of files and scripts for different platforms and configurations. Each type has differing package outputs and invocation requirements. The current packaging types are as follows:
 
