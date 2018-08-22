@@ -55,7 +55,11 @@ def _process_relative_to(unpack_root, relative_to):
     """
     For an extractor that doesn't support an automatic transform, move the extracted
     contents from the relative_to/ directory to the unpack_root
+
+    If relative_to is None, nothing is done.
     """
+    if relative_to is None:
+        return
     relative_root = unpack_root / relative_to
     if not relative_root.is_dir():
         get_logger().error('Could not find relative_to directory in extracted files: %s',
@@ -104,8 +108,7 @@ def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
         get_logger().debug('stderr: %s', stderr_data)
         raise BuildkitAbort()
 
-    if not relative_to is None:
-        _process_relative_to(output_dir, relative_to)
+    _process_relative_to(output_dir, relative_to)
 
 
 def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
@@ -120,8 +123,7 @@ def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
 
     # for gnu tar, the --transform option could be used. but to keep compatibility with
     # bsdtar on macos, we just do this ourselves
-    if not relative_to is None:
-        _process_relative_to(output_dir, relative_to)
+    _process_relative_to(output_dir, relative_to)
 
 
 def _extract_tar_with_python(archive_path, output_dir, relative_to):
@@ -175,11 +177,7 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to):
                 raise BuildkitAbort()
 
 
-def extract_tar_file(
-        archive_path,
-        output_dir,
-        relative_to, #pylint: disable=too-many-arguments
-        extractors=None):
+def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
     """
     Extract regular or compressed tar archive into the output directory.
 
@@ -261,5 +259,4 @@ def extract_with_7z(
         get_logger().error('7z command returned %s', result.returncode)
         raise BuildkitAbort()
 
-    if not relative_to is None:
-        _process_relative_to(output_dir, relative_to)
+    _process_relative_to(output_dir, relative_to)
