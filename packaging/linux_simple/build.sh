@@ -6,14 +6,17 @@ set -eux
 
 BUNDLE=linux_portable
 
+# Place download_cache next the source tree, which is usually build/src
+DOWNLOAD_CACHE=$(dirname $(readlink -f $0))/../../download_cache
+
 rm -rf out || true
 mkdir out
 mkdir out/Default
 
 pushd $(dirname $(readlink -f $0))
-mkdir download_cache 
-python3 -m buildkit downloads retrieve -b config_bundles/$BUNDLE -c download_cache
-python3 -m buildkit downloads unpack -b config_bundles/$BUNDLE -c download_cache ../
+mkdir $DOWNLOAD_CACHE
+python3 -m buildkit downloads retrieve -b config_bundles/$BUNDLE -c $DOWNLOAD_CACHE
+python3 -m buildkit downloads unpack -b config_bundles/$BUNDLE -c $DOWNLOAD_CACHE ../
 python3 -m buildkit prune -b config_bundles/$BUNDLE ../
 python3 -m buildkit patches apply -b config_bundles/$BUNDLE ../
 python3 -m buildkit domains apply -b config_bundles/$BUNDLE -c domainsubcache.tar.gz ../
