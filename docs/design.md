@@ -41,7 +41,7 @@ All config file names have an extension that determines their type. The extensio
 * `.map` (mapping config file) - A mapping of string keys and values, with entries delimited by a carriage return, and keys and values delimited by an equal (`=`) sign.
 * `.ini` (ini config file) - An INI-like config format (specifically, the implementation by Python's `configparser`)
 
-Config files are usually stored in a [configuration bundle](#configuration-bundles) or in some form in the `resources` directory of the repository.
+Config files are usually stored in a [configuration bundle](#configuration-bundles) or in some form in the `config_bundles` directory of the repository.
 
 ### Configuration Bundles
 
@@ -115,7 +115,7 @@ Patches are grouped into the following directories:
 
 * `debian/` - Patches from Debian's Chromium
     * Patches are not modified unless they conflict with Inox's patches
-    * These patches are not Debian-specific. For those, see the `resources/debian/patches` directory
+    * These patches are not Debian-specific. For those, see the `debian/patches` directory
 * `inox-patchset/` - Contains a modified subset of patches from Inox patchset.
     * Some patches such as those that change branding are omitted
     * Patches are not modified unless they do not apply cleanly onto the version of Chromium being built
@@ -135,9 +135,9 @@ Patches are grouped into the following directories:
 
 Packaging is the process of producing a distributable package for end-users. This entails building the source code and packaging the build outputs.
 
-**IMPORTANT**: Packaging and configuration are distinct concepts. The names used in each are meaningful only within their respective contexts. However, there may be some implicit minor coupling between packaging types and configuration bundles due to the nature of their purposes and implementation.
+Packaging uses buildkit and config bundles to execute certain tasks (e.g. source downloading, binary pruning, and domain substitution) and load build configuration (i.e. patches and GN arguments). buildkit, config bundles, and patches are either bundled with the other packaging files, or downloaded from the ungoogled-chromium repository.
 
-Building the source code consists of the following steps:
+Packaging consists of the major steps:
 
 1. Prune binaries
 2. Apply patches
@@ -145,17 +145,16 @@ Building the source code consists of the following steps:
 4. Build GN via `tools/gn/bootstrap/bootstrap.py`
 5. Run `gn gen` with the GN flags
 6. Build Chromium via `ninja`
+7. Create package(s) of build output (usually in `out/Default`)
 
-Packaging consists of packaging types; each type has differing package outputs and invocation requirements. Some packaging types divide the building and package generation steps; some have it all-in-one. The current packaging types are as follows:
+Packaging is divided into "packaging types", which are directories of files and scripts for different platforms and configurations. Each type has differing package outputs and invocation requirements. The current packaging types are as follows:
 
-* `archlinux` - Generates a PKGBUILD that downloads, builds, and packages Chromium. Unlike other packaging types, this type does not use the buildspace tree; it is a standalone script that automates the entire process.
-* `debian` - Generates `debian` directories for building `.deb.` packages for Debian and derivative systems. There are different variants of Debian packaging scripts known as *flavors*. The current flavors are:
-    * (debian codename here) - For building on the Debian version with the corresponding code name. They are derived from Debian's `chromium` package, with only a few modifications. Older codenames are built upon newer ones. These packaging types are intended to be used with derivatives of the `linux_rooted` bundle.
-    * `minimal` - For building with a derivative of the `linux_portable` bundle.
-* `linux_simple` - Generates two shell scripts for Linux. The first applies patches and builds Chromium. The second packages the build outputs into a compressed tar archive.
-* `macos` - Generates a shell script for macOS to build Chromium and package the build outputs into a `.dmg`.
-
-The directories in `resources/packaging` correspond to the packaging type names. The only exception is `shared`, which is reserved for files shared among multiple packaging types.
+* `archlinux` - Generates a standalone PKGBUILD file.
+* `debian_*` - Generate a `debian` directories for building `.deb.` packages for Debian and derivative systems.
+    * With a code name in the wildcard location: For building on the Debian version with the corresponding code name. They are derived from Debian's `chromium` package, with only a few modifications. Older codenames are built upon newer ones. These packaging types are intended to be used with derivatives of the `linux_rooted` bundle.
+    * With `minimal` in the wildcard location: For building with a derivative of the `linux_portable` bundle.
+* `linux_simple` - Generates two shell scripts for Linux: `build.sh` downloads the source code and builds Chromium. `package.sh` packages the build outputs into a compressed tar archive.
+* `macos` - Generates a macOS `.dmg` installer.
 
 ## buildkit
 
