@@ -10,7 +10,7 @@ rm -rf out || true
 mkdir out
 mkdir out/Default
 
-pushd ungoogled_packaging
+pushd $(dirname $(readlink -f $0))
 mkdir download_cache 
 python3 -m buildkit downloads retrieve -b config_bundles/$BUNDLE -c download_cache
 python3 -m buildkit downloads unpack -b config_bundles/$BUNDLE -c download_cache ../
