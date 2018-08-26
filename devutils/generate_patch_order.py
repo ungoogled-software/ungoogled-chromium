@@ -21,7 +21,11 @@ def main(arg_list=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         'bundle', action=NewBundleAction, help='The bundle to generate a patch order from')
-    parser.add_argument('output', type=Path, help='The patch order file to write')
+    parser.add_argument(
+        '--output',
+        type=Path,
+        default='build/updating_patch_order.list',
+        help='The patch order file to write')
     args = parser.parse_args(args=arg_list)
 
     with args.output.open('w', encoding=ENCODING) as file_obj:
