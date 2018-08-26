@@ -25,7 +25,7 @@ Since these goals and requirements are not precise, unclear situations are discu
     * [Supported platforms and distributions](#supported-platforms-and-distributions)
 * [**Download pre-built packages**](#download-pre-built-packages)
 * [Getting the source code](#getting-the-source-code)
-* [Frequently-asked questions](#frequently-asked-questions)
+* [FAQ](#faq)
 * [Design and implementation](#design-and-implementation)
 * [Building](#building)
 * [Contributing, Reporting, Contacting](#contributing-reporting-contacting)
@@ -105,9 +105,9 @@ Tags are versioned in the following format: `{chromium_version}-{release_revisio
 
 Not all tags are stable for all platforms. See the [Statuses in the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/statuses) to determine the tag to use.
 
-## Frequently-asked questions
+## FAQ
 
-[See the FAQ on the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
+[See the frequently-asked questions (FAQ) on the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
 
 ## Design and implementation
 
