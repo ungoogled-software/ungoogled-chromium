@@ -65,8 +65,7 @@ cd build/src
 # If necessary, change the dependencies in debian/control to accomodate your environment.
 # If necessary, modify AR, NM, CC, and CXX variables in debian/rules
 debian/rules get-orig-source
-cd ..
-dpkg-source -b src
+debuild -S -sa
 ```
 
 (`PACKAGE_TYPE_HERE` is the same as above)
@@ -234,7 +233,8 @@ TODO: Document all libraries and tools needed to build. For now, see the build d
 
 For Debian-based systems, these can be installed via apt: `# apt install clang-6.0 lld-6.0 llvm-6.0-dev python python3 ninja-build`
 
-* Some systems, like Debian 9 (stretch), need their backports repo enabled.
+* Some systems, like Debian 9 (stretch), need their backports repo enabled to get the LLVM tools.
+* Alternatively to backports, the LLVM tools can be installed after adding [the LLVM APT repo](//apt.llvm.org/).
 
 ### Build a tar archive
 
