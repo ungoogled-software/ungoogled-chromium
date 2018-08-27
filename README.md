@@ -161,7 +161,7 @@ Guidelines:
 
 2. New features should live behind a setting that is **off by default**.
 
-    * Settings are usually added by a command-line flag, which can optionally have a corresponding feature flag in `chrome://flags`. See `docs/how_to_add_your_feature_flag.md` in the Chromium source code ([link to document in Chromium lkgr branch here](https://chromium.googlesource.com/chromium/src/+/lkgr/docs/how_to_add_your_feature_flag.md)) and patches in `patches/ungoogled-chromium` for details on accomplishing this.
+    * Settings are usually added via a command-line flag and `chrome://flags` enties. See [the relevant section in docs/developing.md](docs/developing.md#adding-command-line-flags-and-chromeflags-options) for more information.
     * Unless there are significant benefits, adding the setting to `chrome://settings` is *not recommended* due to the additional maintenance required (caused by the infrastructure that backs preferences).
 
 ## Credits

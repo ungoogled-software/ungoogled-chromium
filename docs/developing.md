@@ -8,7 +8,7 @@ Information targeted towards developers *and* other users live in [the Wiki](//u
 
 Development is focused on `master`, and any changes in there should not break anything unless platforms break during a Chromium version rebase.
 
-Features that require some time to achieve completion must be done in a separate branch. Once it is ready, then it can be merged into `master` and the branch should be removed.
+Larger feature changes or hotfixes must be done in a separate branch. Once they are ready, then a Pull Request can be made onto `master` (for contributors with write access, merging directly via a git client is fine). After the branch is merged, it should be removed.
 
 ## Adding command-line flags and `chrome://flags` options
 
@@ -16,11 +16,11 @@ See `docs/how_to_add_your_feature_flag.md` in the Chromium source tree for the s
 
 For new flags, first add a constant to `third_party/ungoogled/ungoogled_switches.cc` (by modifying patch `resources/patches/ungoogled-chromium/add-third-party-ungoogled.patch`). Then, use this constant in the steps outlined above.
 
-## Notes on updating base bundles
+## Notes on updating bundles
 
-To develop a better understanding of base bundles, have a look through [docs/design.md](docs/design.md) *and* the existing base bundles. Reading only docs/design.md may make it difficult to develop intuition of the configuration system, and only exploring existing base bundles may not lead you to the whole picture.
-
-Anytime the base bundles or patches are modified, use `devutils/validate_config.py` to run several sanity checking algorithms.
+* It is highly recommended to have a read through [docs/design.md](docs/design.md) *and* reference existing bundles to understand the divisions of configuration.
+* Anytime the bundles or patches are modified, use `devutils/validate_config.py` to run several sanity checking algorithms.
+* Whenever patch orders or patches are modified, use `devutils/validate_patches.py` for validation. See the following section for more details on updating patches.
 
 ## Workflow of updating patches
 
@@ -74,7 +74,7 @@ The resulting source tree in `build/src` will not have binaries pruned or domain
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 
-If you used `quilt new` anywhere during the update process, remember to add that patch manually to the corresponding `patch_order.list` for the applicable base bundle.
+If you used `quilt new` anywhere during the update process, remember to add that patch manually to the corresponding `patch_order.list` for the applicable bundle.
 
 ### Steps for fixing patches after a failed build attempt
 
