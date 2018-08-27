@@ -21,12 +21,19 @@ For configurations, you may try augmenting the standard Chromium build procedure
 
 ## Debian and its derivatives
 
-
 These instructions will create `.deb` packages. It uses ungoogled-chromium's variation of Debian's `debian` directory.
 
-The build should work on the CPU architectures `amd64`, `i386`, `arm64`, and `armhf`.
+The build should work on CPU architecture `amd64`
 
-The final size of the sandbox with build artifacts is over 5 GB. On systems with enough RAM, it can be built entirely within `tmpfs` without swap memory.
+* `i386`, `arm64`, `armhf`, and cross-compilation are unsupported at this time due to the lack of contributors.
+
+The final size of the sandbox with build artifacts is over 5 GB. On 64-bit systems with enough RAM, it can be built entirely within `tmpfs` without swap memory.
+
+### Hardware requirements
+
+* For 64-bit systems, at least 8 GB of RAM is highly recommended (as recommended in the Chromium source tree under `docs/linux_build_instructions.md`).
+    * It may be possible to reduce RAM comsumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
+* Filesystem space: 8 GB is the bare minimum. More is safer.
 
 ### Setting up the build environment
 
@@ -37,6 +44,7 @@ On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 6.0
 ### Building locally
 
 ```sh
+# Run from inside the clone of the repository
 mkdir -p build/src
 ./get_package.py PACKAGE_TYPE_HERE build/src/debian
 cd build/src
@@ -59,6 +67,7 @@ Packages will appear under `build/`.
 ### Building via source package
 
 ```sh
+# Run from inside the clone of the repository
 mkdir -p build/src
 ./get_package.py PACKAGE_TYPE_HERE build/src/debian
 cd build/src
@@ -128,11 +137,10 @@ The buildspace tree can be relocated to another system for building if necessary
 
 ## macOS
 
-Tested on macOS 10.11-10.13
+### Software requirements
 
-### Additional Requirements
-
-* Xcode 7-9
+* macOS 10.12+
+* Xcode 8-9
 * Homebrew
 * Perl (for creating a `.dmg` package)
 
@@ -144,6 +152,7 @@ Tested on macOS 10.11-10.13
 ### Building
 
 ```sh
+# Run from inside the clone of the repository
 mkdir -p build/src/ungoogled_packaging
 ./get_package.py macos build/src/ungoogled_packaging
 cd build/src
@@ -185,6 +194,7 @@ As of Chromium 66.0.3359.117, llvm, lld and clang version 6 or greater is requir
 Before executing the following commands, make sure you are using python 3.6 as was mentioned in the build environment section of this guide.
 
 ```sh
+# Run from inside the clone of the repository
 mkdir -p build/{download_cache,src}
 # TODO: The download commands should be moved into the packaging scripts
 ./get_package.py opensuse build/src/ungoogled_packaging
@@ -210,6 +220,7 @@ EOF
 ### Invoking build and installing package
 
 ```sh
+# Run from inside the clone of the repository
 cd build/src
 ./ungoogled_packaging/setup.sh
 cd ~/rpm
@@ -222,7 +233,13 @@ The RPM will be located in `~/rpm/RPMS/{arch}/` once rpmbuild has finished. It c
 
 These instructions will build packages compatible with any Linux distribution that Chromium supports. Unlike distro-specific packages, they are portable and have minimal dependencies with system libraries (just as in regular Chromium).
 
-### Requirements
+### Hardware requirements
+
+* For 64-bit systems, at least 8 GB of RAM is highly recommended (per the document in the Chromium source tree under `docs/linux_build_instructions.md`).
+    * It may be possible to reduce RAM comsumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
+* At least 8 GB of filesystem space. 16 GB should be safe.
+
+### Software requirements
 
 TODO: Document all libraries and tools needed to build. For now, see the build dependencies for Debian systems.
 
@@ -233,12 +250,13 @@ TODO: Document all libraries and tools needed to build. For now, see the build d
 
 For Debian-based systems, these can be installed via apt: `# apt install clang-6.0 lld-6.0 llvm-6.0-dev python python3 ninja-build`
 
-* Some systems, like Debian 9 (stretch), need their backports repo enabled to get the LLVM tools.
-* Alternatively to backports, the LLVM tools can be installed after adding [the LLVM APT repo](//apt.llvm.org/).
+* Some systems, like Debian 9 (stretch), don't include LLVM tools in the default repositories. Debian 9 (stretch) has LLVM 6.0 in the backports repository.
+* Alternatively for systems where backports is not an option, LLVM tools can be installed after adding [the LLVM APT repo](//apt.llvm.org/).
 
 ### Build a tar archive
 
 ```sh
+# Run from inside the clone of the repository
 mkdir -p build/src
 ./get_package.py linux_simple build/src/ungoogled_packaging
 cd build/src
