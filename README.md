@@ -25,10 +25,13 @@ Since these goals and requirements are not precise, unclear situations are discu
     * [Supported platforms and distributions](#supported-platforms-and-distributions)
 * [**Download pre-built packages**](#download-pre-built-packages)
 * [Getting the source code](#getting-the-source-code)
-* [FAQ](#faq)
+* [**FAQ**](#faq)
 * [Design and implementation](#design-and-implementation)
 * [Building](#building)
-* [Contributing, Reporting, Contacting](#contributing-reporting-contacting)
+* [**Contributing, Reporting, Contacting**](#contributing-reporting-contacting)
+    * [How to help](#how-to-help)
+    * [Submitting changes](#submitting-changes)
+    * [Criteria for new features](#criteria-for-new-features)
 * [Credits](#credits)
 * [License](#license)
 
@@ -119,17 +122,47 @@ Not all tags are stable for all platforms. See the [Statuses in the Wiki](//ungo
 
 ## Contributing, Reporting, Contacting
 
-You may submit feedback (i.e. problems, suggestions, and questions) to the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues).
+Please submit feedback (i.e. problems, suggestions, and questions) to the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues). The Issue Tracker is the main hub for development activity.
 
-* The Issue Tracker the main hub for development activity; It tracks problems, suggestions, and questions. Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
+There are chat room options available via [Gitter](https://gitter.im/ungoogled-software/Lobby) and Matrix.org (name `ungoogled-software/lobby`, which has bidirectional connection with Gitter). They are optional; it is only provided for those who prefer this format.
 
-Pull requests are welcome! Here are the general guidelines:
+Subsections of this section:
 
-* Minor changes, such as bug fixes, documentation fixes, or small feature additions, will generally not need prior approval.
-* More significant changes should be discussed via an issue first.
-* When in doubt, create an issue.
+* [How to help](#how-to-help)
+* [Submitting changes](#submitting-changes)
+* [Criteria for new features](#criteria-for-new-features)
 
-There is also a [Gitter chat room](https://gitter.im/ungoogled-software/Lobby) for those who prefer real-time discussion.
+### How to help
+
+Anyone is free to help others in need of support in the Issue Tracker.
+
+Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
+
+* If it requires new code, please read through the [Submitting changes](#submitting-changes) section below.
+* If you want to work on an issue, please state your intent to do so first to let others know.
+
+If there are fixes, tweaks, or additions you want to make, continue onto the following section.
+
+### Submitting changes
+
+Please submit all changes via Pull Requests.
+
+Guidelines:
+
+* You are welcome to submit minor changes, such as bug fixes, documentation fixes, and tweaks.
+* If you want to submit a new feature, please read through the [Criteria for new features](#criteria-for-new-features) below.
+* When in doubt about the acceptance of a change, you are welcome to ask via an issue first.
+
+### Criteria for new features
+
+1. New features should not detract from the default Chromium experience, unless it falls under the project's main objectives (i.e. removing Google integration and enhancing privacy).
+
+    * For larger features, please propose them via an issue first.
+
+2. New features should live behind a setting that is **off by default**.
+
+    * Settings are usually added by a command-line flag, which can optionally have a corresponding feature flag in `chrome://flags`. See `docs/how_to_add_your_feature_flag.md` in the Chromium source code ([link to document in Chromium lkgr branch here](https://chromium.googlesource.com/chromium/src/+/lkgr/docs/how_to_add_your_feature_flag.md)) and patches in `patches/ungoogled-chromium` for details on accomplishing this.
+    * Unless there are significant benefits, adding the setting to `chrome://settings` is *not recommended* due to the additional maintenance required (caused by the infrastructure that backs preferences).
 
 ## Credits
 
