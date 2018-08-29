@@ -16,8 +16,23 @@ author: Michael Gilbert <mgilbert@debian.org>
  namespace media {
 --- a/third_party/webrtc/modules/video_coding/codecs/vp9/vp9_impl.cc
 +++ b/third_party/webrtc/modules/video_coding/codecs/vp9/vp9_impl.cc
-@@ -483,38 +483,6 @@ int VP9EncoderImpl::InitAndSetControlSet
-                       &svc_params_);
+@@ -15,10 +15,10 @@
+ #include <limits>
+ #include <vector>
+ 
+-#include "vpx/vp8cx.h"
+-#include "vpx/vp8dx.h"
+-#include "vpx/vpx_decoder.h"
+-#include "vpx/vpx_encoder.h"
++#include <vpx/vp8cx.h>
++#include <vpx/vp8dx.h>
++#include <vpx/vpx_decoder.h>
++#include <vpx/vpx_encoder.h>
+ 
+ #include "absl/memory/memory.h"
+ #include "api/video/color_space.h"
+@@ -523,34 +523,6 @@ int VP9EncoderImpl::InitAndSetControlSet
+     vpx_codec_control(encoder_, VP9E_SET_SVC_PARAMETERS, &svc_params_);
    }
  
 -  if (num_spatial_layers_ > 1) {
@@ -35,28 +50,63 @@ author: Michael Gilbert <mgilbert@debian.org>
 -        RTC_NOTREACHED();
 -    }
 -
--    if (!is_flexible_mode_) {
--      // In RTP non-flexible mode, frame dropping of individual layers in a
--      // superframe leads to incorrect reference picture ID values in the
--      // RTP header. Dropping the entire superframe if the base is dropped
--      // or not dropping upper layers if base is not dropped mitigates
--      // the problem.
--      vpx_svc_frame_drop_t svc_drop_frame;
--      svc_drop_frame.framedrop_mode = CONSTRAINED_LAYER_DROP;
--      for (size_t i = 0; i < num_spatial_layers_; ++i) {
--        svc_drop_frame.framedrop_thresh[i] =
--            (i == 0) ? config_->rc_dropframe_thresh : 0;
--      }
--      vpx_codec_control(encoder_, VP9E_SET_SVC_FRAME_DROP_LAYER,
--                        &svc_drop_frame);
+-    // Configure encoder to drop entire superframe whenever it needs to drop
+-    // a layer. This mode is prefered over per-layer dropping which causes
+-    // quality flickering and is not compatible with RTP non-flexible mode.
+-    vpx_svc_frame_drop_t svc_drop_frame;
+-    memset(&svc_drop_frame, 0, sizeof(svc_drop_frame));
+-    svc_drop_frame.framedrop_mode = FULL_SUPERFRAME_DROP;
+-    svc_drop_frame.max_consec_drop = std::numeric_limits<int>::max();
+-    for (size_t i = 0; i < num_spatial_layers_; ++i) {
+-      svc_drop_frame.framedrop_thresh[i] = config_->rc_dropframe_thresh;
 -    }
+-    vpx_codec_control(encoder_, VP9E_SET_SVC_FRAME_DROP_LAYER, &svc_drop_frame);
 -  }
 -
    // Register callback for getting each spatial layer.
    vpx_codec_priv_output_cx_pkt_cb_pair_t cbp = {
        VP9EncoderImpl::EncoderOutputCodedPacketCallback,
-@@ -772,10 +740,8 @@ int VP9EncoderImpl::GetEncodedLayerFrame
-   encoded_image_.content_type_ = (codec_.mode == kScreensharing)
+@@ -771,10 +743,8 @@ void VP9EncoderImpl::PopulateCodecSpecif
+   RTC_DCHECK(!vp9_info->flexible_mode);
+ 
+   vp9_info->num_ref_pics = 0;
+-  if (vp9_info->flexible_mode) {
++  if (false) {
+     vp9_info->gof_idx = kNoGofIdx;
+-    FillReferenceIndices(pkt, pics_since_key_, vp9_info->inter_layer_predicted,
+-                         vp9_info);
+   } else {
+     vp9_info->gof_idx =
+         static_cast<uint8_t>(pics_since_key_ % gof_.num_frames_in_gof);
+@@ -798,6 +768,7 @@ void VP9EncoderImpl::PopulateCodecSpecif
+   }
+ }
+ 
++/*
+ void VP9EncoderImpl::FillReferenceIndices(const vpx_codec_cx_pkt& pkt,
+                                           const size_t pic_num,
+                                           const bool inter_layer_predicted,
+@@ -898,6 +869,7 @@ void VP9EncoderImpl::UpdateReferenceBuff
+     }
+   }
+ }
++*/
+ 
+ int VP9EncoderImpl::GetEncodedLayerFrame(const vpx_codec_cx_pkt* pkt) {
+   RTC_DCHECK_EQ(pkt->kind, VPX_CODEC_CX_FRAME_PKT);
+@@ -942,10 +914,6 @@ int VP9EncoderImpl::GetEncodedLayerFrame
+   PopulateCodecSpecific(&codec_specific_, *pkt, input_image_->timestamp(),
+                         first_frame_in_picture);
+ 
+-  if (is_flexible_mode_) {
+-    UpdateReferenceBuffers(*pkt, pics_since_key_);
+-  }
+-
+   TRACE_COUNTER1("webrtc", "EncodedFrameSize", encoded_image_._length);
+   encoded_image_._timeStamp = input_image_->timestamp();
+   encoded_image_.capture_time_ms_ = input_image_->render_time_ms();
+@@ -953,10 +921,8 @@ int VP9EncoderImpl::GetEncodedLayerFrame
+   encoded_image_.content_type_ = (codec_.mode == VideoCodecMode::kScreensharing)
                                       ? VideoContentType::SCREENSHARE
                                       : VideoContentType::UNSPECIFIED;
 -  encoded_image_._encodedHeight =
@@ -65,6 +115,6 @@ author: Michael Gilbert <mgilbert@debian.org>
 -      pkt->data.frame.width[layer_id.spatial_layer_id];
 +  encoded_image_._encodedHeight = raw_->d_h;
 +  encoded_image_._encodedWidth = raw_->d_w;
-   encoded_image_.timing_.flags = TimingFrameFlags::kInvalid;
+   encoded_image_.timing_.flags = VideoSendTiming::kInvalid;
    int qp = -1;
    vpx_codec_control(encoder_, VP8E_GET_LAST_QUANTIZER, &qp);
