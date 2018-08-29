@@ -21,6 +21,7 @@ For new flags, first add a constant to `third_party/ungoogled/ungoogled_switches
 * It is highly recommended to have a read through [docs/design.md](docs/design.md) *and* reference existing bundles to understand the divisions of configuration.
 * Anytime the bundles or patches are modified, use `devutils/validate_config.py` to run several sanity checking algorithms.
 * Whenever patch orders or patches are modified, use `devutils/validate_patches.py` for validation. See the following section for more details on updating patches.
+* If you are rebasing patches against a new Chromium version, please add `patches_outdated = true` to the `bundlemeta.ini` of any config bundles that you are not able to update. This will prevent failing CI status checks until those bundles' patches have been updated.
 
 ## Workflow of updating patches
 
@@ -75,6 +76,8 @@ The resulting source tree in `build/src` will not have binaries pruned or domain
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 
 If you used `quilt new` anywhere during the update process, remember to add that patch manually to the corresponding `patch_order.list` for the applicable bundle.
+
+For bundles that you are not able to update, please add `patches_outdated = true` to the `bundlemeta.ini` for those corresponding config bundles. This will prevent failing CI status checks until those bundles' patches have been updated.
 
 ### Steps for fixing patches after a failed build attempt
 

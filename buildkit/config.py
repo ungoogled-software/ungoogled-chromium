@@ -229,6 +229,7 @@ class BundleMetaIni(_IniConfigFile):
         'bundle': {
             'display_name': schema.And(str, len),
             schema.Optional('depends'): schema.And(str, len),
+            schema.Optional('patches_outdated'): lambda x: x.lower().strip() == 'true',
         }
     })
 
@@ -248,6 +249,11 @@ class BundleMetaIni(_IniConfigFile):
         if 'depends' in self['bundle']:
             return [x.strip() for x in self['bundle']['depends'].split(',')]
         return tuple()
+
+    @property
+    def patches_outdated(self):
+        """Returns a boolean indicating if the patches are known to be outdated"""
+        return 'patches_outdated' in self['bundle']
 
 
 class DomainRegexList(ListConfigFile):

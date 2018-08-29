@@ -402,6 +402,51 @@ def _apply_file_unidiff(patched_file, child_files, parent_file_layers):
         _modify_file_lines(patched_file, child_files[patched_file_path])
 
 
+def _apply_child_bundle_patches(child_path, had_failure, file_layers, patch_cache, bundle_cache):
+    """Helper for _test_patches"""
+    # Whether the curent patch trie branch failed validation
+    branch_validation_failed = False
+
+    assert child_path in bundle_cache
+    try:
+        child_patch_order = bundle_cache[child_path].patch_order
+    except KeyError:
+        # No patches in the bundle
+        pass
+    else:
+        patches_outdated = bundle_cache[child_path].bundlemeta.patches_outdated
+        for patch_path_str in child_patch_order:
+            for patched_file in patch_cache[patch_path_str]:
+                try:
+                    _apply_file_unidiff(patched_file, file_layers.maps[0], file_layers.parents)
+                except _PatchValidationError as exc:
+                    # Branch failed validation; abort
+                    get_logger().error("Validation failure for file '%s' from patch '%s': %s",
+                                       patched_file.path, patch_path_str, str(exc))
+                    branch_validation_failed = True
+                    had_failure = had_failure or not patches_outdated
+                    break
+                except BaseException:
+                    # Branch failed validation; abort
+                    get_logger().exception("Error processing file '%s' from patch '%s'",
+                                           patched_file.path, patch_path_str)
+                    branch_validation_failed = True
+                    had_failure = had_failure or not patches_outdated
+                    break
+            if branch_validation_failed:
+                if patches_outdated:
+                    get_logger().warning('%s is marked with outdated patches. Ignoring failure...',
+                                         child_path.name)
+                break
+        if branch_validation_failed != patches_outdated:
+            # Metadata for patch validity is out-of-date
+            get_logger().error(
+                '%s patch validity is inconsistent with patches_outdated marking in bundlemeta',
+                child_path.name)
+            had_failure = True
+    return had_failure, branch_validation_failed
+
+
 def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
     """
     Tests the patches with DFS in the trie of config bundles
@@ -432,35 +477,8 @@ def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
         # Potential optimization: Use interval tree data structure instead of copying
         # the entire array to track only diffs
 
-        # Whether the curent patch trie branch failed validation
-        branch_validation_failed = False
-        assert child_path in bundle_cache
-        try:
-            child_patch_order = bundle_cache[child_path].patch_order
-        except KeyError:
-            # No patches in the bundle
-            pass
-        else:
-            for patch_path_str in child_patch_order:
-                for patched_file in patch_cache[patch_path_str]:
-                    try:
-                        _apply_file_unidiff(patched_file, file_layers.maps[0], file_layers.parents)
-                    except _PatchValidationError as exc:
-                        # Branch failed validation; abort
-                        get_logger().error("Error processing file '%s' from patch '%s': %s",
-                                           patched_file.path, patch_path_str, str(exc))
-                        branch_validation_failed = True
-                        had_failure = True
-                        break
-                    except BaseException:
-                        # Branch failed validation; abort
-                        get_logger().exception("Error processing file '%s' from patch '%s'",
-                                               patched_file.path, patch_path_str)
-                        branch_validation_failed = True
-                        had_failure = True
-                        break
-                if branch_validation_failed:
-                    break
+        had_failure, branch_validation_failed = _apply_child_bundle_patches(
+            child_path, had_failure, file_layers, patch_cache, bundle_cache)
         if branch_validation_failed:
             # Add blank children to force stack to move onto the next branch
             node_iter_stack.append(iter(tuple()))
