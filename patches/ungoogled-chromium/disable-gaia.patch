@@ -3,39 +3,59 @@
 
 --- a/google_apis/gaia/gaia_auth_fetcher.cc
 +++ b/google_apis/gaia/gaia_auth_fetcher.cc
-@@ -248,35 +248,6 @@ void GaiaAuthFetcher::CreateAndStartGaia
+@@ -250,55 +250,6 @@ void GaiaAuthFetcher::CreateAndStartGaia
      int load_flags,
      const net::NetworkTrafficAnnotationTag& traffic_annotation) {
    DCHECK(!fetch_pending_) << "Tried to fetch two things at once!";
--  fetcher_ = net::URLFetcher::Create(
--      0, gaia_gurl, body.empty() ? net::URLFetcher::GET : net::URLFetcher::POST,
--      this, traffic_annotation);
--  fetcher_->SetRequestContext(getter_);
--  fetcher_->SetUploadData("application/x-www-form-urlencoded", body);
--  gaia::MarkURLFetcherAsGaia(fetcher_.get());
 -
--  VLOG(2) << "Gaia fetcher URL: " << gaia_gurl.spec();
--  VLOG(2) << "Gaia fetcher headers: " << headers;
--  VLOG(2) << "Gaia fetcher body: " << body;
+-  auto resource_request = std::make_unique<network::ResourceRequest>();
+-  resource_request->url = gaia_gurl;
+-  original_url_ = gaia_gurl;
+-
+-  if (!body.empty())
+-    resource_request->method = "POST";
+-
+-  if (!headers.empty())
+-    resource_request->headers.AddHeadersFromString(headers);
 -
 -  // The Gaia token exchange requests do not require any cookie-based
 -  // identification as part of requests.  We suppress sending any cookies to
 -  // maintain a separation between the user's browsing and Chrome's internal
 -  // services.  Where such mixing is desired (MergeSession or OAuthLogin), it
 -  // will be done explicitly.
--  fetcher_->SetLoadFlags(load_flags);
+-  resource_request->load_flags = load_flags;
+-
+-  // Use raw headers as the cookies are filtered-out of the response when
+-  // serialized at the IPC layer.
+-  resource_request->report_raw_headers = true;
+-
+-  url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
+-                                                 traffic_annotation);
+-  if (!body.empty())
+-    url_loader_->AttachStringForUpload(body,
+-                                       "application/x-www-form-urlencoded");
+-
+-  url_loader_->SetAllowHttpErrorResults(true);
+-
+-  VLOG(2) << "Gaia fetcher URL: " << gaia_gurl.spec();
+-  VLOG(2) << "Gaia fetcher headers: " << headers;
+-  VLOG(2) << "Gaia fetcher body: " << body;
 -
 -  // Fetchers are sometimes cancelled because a network change was detected,
 -  // especially at startup and after sign-in on ChromeOS. Retrying once should
 -  // be enough in those cases; let the fetcher retry up to 3 times just in case.
 -  // http://crbug.com/163710
--  fetcher_->SetAutomaticallyRetryOnNetworkChanges(3);
--
--  if (!headers.empty())
--    fetcher_->SetExtraRequestHeaders(headers);
+-  url_loader_->SetRetryOptions(
+-      3, network::SimpleURLLoader::RETRY_ON_NETWORK_CHANGE);
 -
 -  fetch_pending_ = true;
--  fetcher_->Start();
+-
+-  // Unretained is OK below as |url_loader_| is owned by this.
+-  url_loader_->DownloadToString(
+-      url_loader_factory_.get(),
+-      base::BindOnce(&GaiaAuthFetcher::OnURLLoadComplete,
+-                     base::Unretained(this)),
+-      kMaxMessageSize);
  }
  
  // static
@@ -52,19 +72,20 @@
          <include name="IDR_HANGOUT_SERVICES_BACKGROUND_HTML" file="hangout_services/background.html" type="BINDATA" />
 --- a/chrome/browser/extensions/signin/gaia_auth_extension_loader.cc
 +++ b/chrome/browser/extensions/signin/gaia_auth_extension_loader.cc
-@@ -42,18 +42,11 @@ extensions::ComponentLoader* GetComponen
+@@ -42,19 +42,6 @@ ComponentLoader* GetComponentLoader(Brow
+ 
  void LoadGaiaAuthExtension(BrowserContext* context) {
    DCHECK_CURRENTLY_ON(BrowserThread::UI);
- 
--  extensions::ComponentLoader* component_loader = GetComponentLoader(context);
-   const base::CommandLine* command_line =
-       base::CommandLine::ForCurrentProcess();
-   if (command_line->HasSwitch(switches::kAuthExtensionPath)) {
+-
+-  ComponentLoader* component_loader = GetComponentLoader(context);
+-  const base::CommandLine* command_line =
+-      base::CommandLine::ForCurrentProcess();
+-  if (command_line->HasSwitch(::switches::kAuthExtensionPath)) {
 -    base::FilePath auth_extension_path =
--        command_line->GetSwitchValuePath(switches::kAuthExtensionPath);
+-        command_line->GetSwitchValuePath(::switches::kAuthExtensionPath);
 -    component_loader->Add(IDR_GAIA_AUTH_MANIFEST, auth_extension_path);
-     return;
-   }
+-    return;
+-  }
 -
 -  component_loader->Add(IDR_GAIA_AUTH_MANIFEST,
 -                        base::FilePath(FILE_PATH_LITERAL("gaia_auth")));
@@ -83,7 +104,7 @@
  #endif
 --- a/chrome/browser/ui/webui/signin/inline_login_ui.cc
 +++ b/chrome/browser/ui/webui/signin/inline_login_ui.cc
-@@ -44,7 +44,6 @@ content::WebUIDataSource* CreateWebUIDat
+@@ -49,7 +49,6 @@ content::WebUIDataSource* CreateWebUIDat
  
    source->AddResourcePath("inline_login.css", IDR_INLINE_LOGIN_CSS);
    source->AddResourcePath("inline_login.js", IDR_INLINE_LOGIN_JS);
@@ -93,7 +114,7 @@
    source->AddLocalizedString(
 --- a/chrome/browser/browser_resources.grd
 +++ b/chrome/browser/browser_resources.grd
-@@ -296,7 +296,6 @@
+@@ -303,7 +303,6 @@
        <include name="IDR_INLINE_LOGIN_HTML" file="resources\inline_login\inline_login.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
        <include name="IDR_INLINE_LOGIN_CSS" file="resources\inline_login\inline_login.css" flattenhtml="true" type="BINDATA" />
        <include name="IDR_INLINE_LOGIN_JS" file="resources\inline_login\inline_login.js" flattenhtml="true" type="BINDATA" />
@@ -101,7 +122,7 @@
        <include name="IDR_INSPECT_CSS" file="resources\inspect\inspect.css" flattenhtml="true" type="BINDATA" />
        <include name="IDR_INSPECT_HTML" file="resources\inspect\inspect.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
        <include name="IDR_INSPECT_JS" file="resources\inspect\inspect.js" flattenhtml="true" type="BINDATA" />
-@@ -431,7 +430,6 @@
+@@ -444,7 +443,6 @@
        <include name="IDR_WEBRTC_LOGS_JS" file="resources\media\webrtc_logs.js" type="BINDATA" />
        <include name="IDR_WEBSTORE_MANIFEST" file="resources\webstore_app\manifest.json" type="BINDATA" />
        <include name="IDR_CRYPTOTOKEN_MANIFEST" file="resources\cryptotoken\manifest.json" type="BINDATA" />
