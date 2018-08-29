@@ -24,6 +24,7 @@ from buildkit.third_party import schema
 _ROOT_DIR = Path(__file__).resolve().parent
 _PACKAGING_ROOT = _ROOT_DIR / 'packaging'
 _PKGMETA = _PACKAGING_ROOT / 'pkgmeta.ini'
+_TEMPLATE_SUFFIX = '.ungoogin'
 _PKGMETA_SCHEMA = schema.Schema({
     schema.Optional(schema.And(str, len)): {
         schema.Optional('depends'): schema.And(str, len),
@@ -56,12 +57,14 @@ class _BuildFileStringTemplate(string.Template):
 # Methods
 
 
-def _process_templates(root_dir, build_file_subs):
+def _process_templates(template_files, build_file_subs):
     """
-    Recursively substitute '$ungoog' strings in '.ungoogin' template files and
+    Recursively substitute '$ungoog' strings in template_files and
         remove the suffix
+
+    template_files is an iterable of pathlib.Path
     """
-    for old_path in root_dir.rglob('*.ungoogin'):
+    for old_path in template_files:
         new_path = old_path.with_name(old_path.stem)
         old_path.replace(new_path)
         with new_path.open('r+', encoding=ENCODING) as new_file:
@@ -164,21 +167,25 @@ def main(): #pylint: disable=too-many-branches
 
     # Copy packaging files to destination
     pkgmeta = validate_and_get_ini(_PKGMETA, _PKGMETA_SCHEMA)
+    template_files = set()
     for relative_path, actual_path in _get_package_files(_get_package_dir_list(args.name, pkgmeta)):
+        target_path = args.destination / relative_path
         if actual_path.is_dir():
-            if not (args.destination / relative_path).exists():
-                (args.destination / relative_path).mkdir()
-            shutil.copymode(str(actual_path), str(args.destination / relative_path))
+            if not target_path.exists():
+                target_path.mkdir()
+            shutil.copymode(str(actual_path), str(target_path))
         else:
-            shutil.copy(str(actual_path), str(args.destination / relative_path))
+            shutil.copy(str(actual_path), str(target_path))
+            if target_path.suffix.lower() == _TEMPLATE_SUFFIX:
+                template_files.add(target_path)
 
-    # Substitute .ungoogin files
+    # Substitute template files
     packaging_subs = dict(
         chromium_version=get_chromium_version(),
         release_revision=get_release_revision(),
         current_commit=_get_current_commit(),
     )
-    _process_templates(args.destination, packaging_subs)
+    _process_templates(template_files, packaging_subs)
 
     # Copy buildkit and config files, if necessary
     buildkit_copy_relative = _get_buildkit_copy(args.name, pkgmeta)
