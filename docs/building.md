@@ -170,7 +170,7 @@ Requirements: Python 3 is needed to generate the PKGBUILD. The PKGBUILD contains
 Generate the PKGBUILD:
 
 ```
-./get_package.py archlinux ./
+./get_package.py archlinux .
 ```
 
 A PKGBUILD will be generated in the current directory. It is a standalone file that can be relocated as necessary.
