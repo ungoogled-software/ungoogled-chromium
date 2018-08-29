@@ -33,7 +33,7 @@
  
 --- a/components/variations/net/variations_http_headers.cc
 +++ b/components/variations/net/variations_http_headers.cc
-@@ -19,27 +19,6 @@ namespace variations {
+@@ -26,27 +26,6 @@ namespace variations {
  
  namespace {
  
@@ -61,7 +61,7 @@
  // The result of checking if a URL should have variations headers appended.
  // This enum is used to record UMA histogram values, and should not be
  // reordered.
-@@ -56,28 +35,6 @@ enum URLValidationResult {
+@@ -63,28 +42,6 @@ enum URLValidationResult {
  // Checks whether headers should be appended to the |url|, based on the domain
  // of |url|. |url| is assumed to be valid, and to have an http/https scheme.
  bool IsGoogleDomain(const GURL& url) {
@@ -90,7 +90,16 @@
    return false;
  }
  
-@@ -92,30 +49,10 @@ void AppendVariationHeaders(const GURL&
+@@ -101,8 +58,6 @@ void LogUrlValidationHistogram(URLValida
+ void RemoveVariationsHeader(const net::RedirectInfo& redirect_info,
+                             const network::ResourceResponseHead& response_head,
+                             std::vector<std::string>* to_be_removed_headers) {
+-  if (!internal::ShouldAppendVariationHeaders(redirect_info.new_url))
+-    to_be_removed_headers->push_back(kClientData);
+ }
+ 
+ }  // namespace
+@@ -111,27 +66,6 @@ bool AppendVariationHeaders(const GURL&
                              InIncognito incognito,
                              SignedIn signed_in,
                              net::HttpRequestHeaders* headers) {
@@ -103,8 +112,9 @@
 -  // 2. Only transmit for non-Incognito profiles.
 -  // 3. For the X-Client-Data header, only include non-empty variation IDs.
 -  if ((incognito == InIncognito::kYes) ||
--      !internal::ShouldAppendVariationHeaders(url))
--    return;
+-      !internal::ShouldAppendVariationHeaders(url)) {
+-    return false;
+-  }
 -
 -  const std::string variation_ids_header =
 -      VariationsHttpHeaderProvider::GetInstance()->GetClientDataHeader(
@@ -112,8 +122,12 @@
 -  if (!variation_ids_header.empty()) {
 -    // Note that prior to M33 this header was named X-Chrome-Variations.
 -    headers->SetHeaderIfMissing(kClientData, variation_ids_header);
+-    return true;
 -  }
+   return false;
  }
+ 
+@@ -145,7 +79,6 @@ bool AppendVariationHeadersUnknownSigned
  
  std::set<std::string> GetVariationHeaderNames() {
    std::set<std::string> headers;
@@ -136,7 +150,7 @@
  bool IsGoogleSearchResultUrl(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -498,11 +498,7 @@ base::string16 TemplateURLRef::SearchTer
+@@ -499,11 +499,7 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
