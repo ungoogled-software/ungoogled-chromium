@@ -143,14 +143,13 @@ def _get_buildkit_copy(package, pkgmeta):
     return None
 
 
-def main(): #pylint: disable=too-many-branches
-    """CLI Entrypoint"""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('name', help='Name of packaging to generate')
-    parser.add_argument('destination', type=Path, help='Directory to store packaging files')
-    args = parser.parse_args()
+def _validate_and_get_args(parser):
+    """
+    Helper for main()
 
-    # Argument validation
+    Validates and returns arguments
+    """
+    args = parser.parse_args()
     if not args.destination.parent.exists():
         parser.error('Destination parent directory "{}" does not exist'.format(
             args.destination.parent))
@@ -161,6 +160,30 @@ def main(): #pylint: disable=too-many-branches
         parser.error('Packaging "{}" does not exist'.format(args.name))
     if not _PKGMETA.exists(): #pylint: disable=no-member
         parser.error('Cannot find pkgmeta.ini in packaging directory')
+    return args
+
+
+def _copy_buildkit_files(args, pkgmeta, files, dirs):
+    """Helper for main()"""
+    buildkit_copy_relative = _get_buildkit_copy(args.name, pkgmeta)
+    for file_name in files:
+        if not (args.destination / buildkit_copy_relative).exists():
+            (args.destination / buildkit_copy_relative).mkdir()
+        shutil.copy(
+            str(_ROOT_DIR / file_name), str(args.destination / buildkit_copy_relative / file_name))
+    for dir_name in dirs:
+        if (args.destination / buildkit_copy_relative / dir_name).exists():
+            shutil.rmtree(str(args.destination / buildkit_copy_relative / dir_name))
+        shutil.copytree(
+            str(_ROOT_DIR / dir_name), str(args.destination / buildkit_copy_relative / dir_name))
+
+
+def main():
+    """CLI Entrypoint"""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('name', help='Name of packaging to generate')
+    parser.add_argument('destination', type=Path, help='Directory to store packaging files')
+    args = _validate_and_get_args(parser)
 
     if not args.destination.exists():
         args.destination.mkdir()
@@ -188,27 +211,11 @@ def main(): #pylint: disable=too-many-branches
     _process_templates(template_files, packaging_subs)
 
     # Copy buildkit and config files, if necessary
-    buildkit_copy_relative = _get_buildkit_copy(args.name, pkgmeta)
-    if buildkit_copy_relative:
-        if not (args.destination / buildkit_copy_relative).exists():
-            (args.destination / buildkit_copy_relative).mkdir()
-        shutil.copy(
-            str(_ROOT_DIR / 'version.ini'),
-            str(args.destination / buildkit_copy_relative / 'version.ini'))
-        if (args.destination / buildkit_copy_relative / 'buildkit').exists():
-            shutil.rmtree(str(args.destination / buildkit_copy_relative / 'buildkit'))
-        shutil.copytree(
-            str(_ROOT_DIR / 'buildkit'),
-            str(args.destination / buildkit_copy_relative / 'buildkit'))
-        if (args.destination / buildkit_copy_relative / 'patches').exists():
-            shutil.rmtree(str(args.destination / buildkit_copy_relative / 'patches'))
-        shutil.copytree(
-            str(_ROOT_DIR / 'patches'), str(args.destination / buildkit_copy_relative / 'patches'))
-        if (args.destination / buildkit_copy_relative / 'config_bundles').exists():
-            shutil.rmtree(str(args.destination / buildkit_copy_relative / 'config_bundles'))
-        shutil.copytree(
-            str(_ROOT_DIR / 'config_bundles'),
-            str(args.destination / buildkit_copy_relative / 'config_bundles'))
+    _copy_buildkit_files(
+        args,
+        pkgmeta,
+        files=('version.ini', 'run_buildkit_cli.py'),
+        dirs=('buildkit', 'config_bundles', 'patches'))
 
 
 if __name__ == '__main__':
