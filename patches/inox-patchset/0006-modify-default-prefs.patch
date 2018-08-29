@@ -1,6 +1,6 @@
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -991,7 +991,7 @@ void ChromeContentBrowserClient::Registe
+@@ -1029,7 +1029,7 @@ void ChromeContentBrowserClient::Registe
  void ChromeContentBrowserClient::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(prefs::kDisable3DAPIs, false);
@@ -49,7 +49,7 @@
  enum class NetworkPredictionStatus {
 --- a/chrome/browser/background/background_mode_manager.cc
 +++ b/chrome/browser/background/background_mode_manager.cc
-@@ -362,7 +362,7 @@ void BackgroundModeManager::RegisterPref
+@@ -351,7 +351,7 @@ void BackgroundModeManager::RegisterPref
    registry->RegisterBooleanPref(prefs::kChromeCreatedLoginItem, false);
    registry->RegisterBooleanPref(prefs::kMigratedLoginItemPref, false);
  #endif
@@ -60,7 +60,7 @@
  void BackgroundModeManager::RegisterProfile(Profile* profile) {
 --- a/components/content_settings/core/browser/cookie_settings.cc
 +++ b/components/content_settings/core/browser/cookie_settings.cc
-@@ -111,7 +111,7 @@ void CookieSettings::GetCookieSettings(
+@@ -50,7 +50,7 @@ void CookieSettings::GetCookieSettings(
  void CookieSettings::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(
@@ -82,15 +82,15 @@
  
 --- a/components/autofill/core/browser/autofill_manager.cc
 +++ b/components/autofill/core/browser/autofill_manager.cc
-@@ -210,7 +210,7 @@ void AutofillManager::RegisterProfilePre
+@@ -189,7 +189,7 @@ void AutofillManager::RegisterProfilePre
    registry->RegisterIntegerPref(
        prefs::kAutofillCreditCardSigninPromoImpressionCount, 0);
    registry->RegisterBooleanPref(
 -      prefs::kAutofillEnabled, true,
 +      prefs::kAutofillEnabled, false,
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
-   registry->RegisterIntegerPref(
-       prefs::kAutofillLastVersionDeduped, 0,
+   registry->RegisterBooleanPref(
+       prefs::kAutofillProfileEnabled, true,
 --- a/chrome/browser/resources/settings/reset_page/reset_profile_dialog.html
 +++ b/chrome/browser/resources/settings/reset_page/reset_profile_dialog.html
 @@ -45,7 +45,7 @@
@@ -102,20 +102,21 @@
            $i18nRaw{resetPageFeedback}</cr-checkbox>
        </div>
      </cr-dialog>
---- a/chrome/browser/io_thread.cc
-+++ b/chrome/browser/io_thread.cc
-@@ -569,7 +569,7 @@ void IOThread::RegisterPrefs(PrefRegistr
-                                std::string());
-   registry->RegisterBooleanPref(prefs::kEnableReferrers, true);
-   data_reduction_proxy::RegisterPrefs(registry);
--  registry->RegisterBooleanPref(prefs::kBuiltInDnsClientEnabled, true);
+--- a/chrome/browser/net/system_network_context_manager.cc
++++ b/chrome/browser/net/system_network_context_manager.cc
+@@ -362,8 +362,7 @@ SystemNetworkContextManager::~SystemNetw
+ 
+ void SystemNetworkContextManager::RegisterPrefs(PrefRegistrySimple* registry) {
+   // DnsClient prefs.
+-  registry->RegisterBooleanPref(prefs::kBuiltInDnsClientEnabled,
+-                                ShouldEnableAsyncDns());
 +  registry->RegisterBooleanPref(prefs::kBuiltInDnsClientEnabled, false);
-   registry->RegisterListPref(prefs::kDnsOverHttpsServers);
-   registry->RegisterListPref(prefs::kDnsOverHttpsServerMethods);
- #if defined(OS_POSIX)
+   // Set default DNS over HTTPS server list and server methods, based on whether
+   // or not the DNS over HTTPS feature is enabled.
+   std::unique_ptr<base::ListValue> default_doh_servers =
 --- a/chrome/browser/signin/signin_promo.cc
 +++ b/chrome/browser/signin/signin_promo.cc
-@@ -383,8 +383,8 @@ void ForceWebBasedSigninFlowForTesting(b
+@@ -384,8 +384,8 @@ void ForceWebBasedSigninFlowForTesting(b
  void RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterIntegerPref(prefs::kSignInPromoStartupCount, 0);
@@ -128,7 +129,7 @@
  }
 --- a/components/bookmarks/browser/bookmark_utils.cc
 +++ b/components/bookmarks/browser/bookmark_utils.cc
-@@ -442,12 +442,12 @@ void GetBookmarksMatchingProperties(Book
+@@ -443,12 +443,12 @@ void GetBookmarksMatchingProperties(Book
  void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(
        prefs::kShowBookmarkBar,
@@ -145,7 +146,7 @@
        prefs::kShowManagedBookmarksInBookmarkBar,
 --- a/chrome/browser/profiles/profile.cc
 +++ b/chrome/browser/profiles/profile.cc
-@@ -137,7 +137,7 @@ const char Profile::kProfileKey[] = "__P
+@@ -138,7 +138,7 @@ const char Profile::kProfileKey[] = "__P
  void Profile::RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(
        prefs::kSearchSuggestEnabled,
@@ -180,7 +181,7 @@
  }
 --- a/extensions/common/extension.cc
 +++ b/extensions/common/extension.cc
-@@ -365,14 +365,6 @@ bool Extension::ShouldDisplayInExtension
+@@ -366,14 +366,6 @@ bool Extension::ShouldDisplayInExtension
    if (is_theme())
      return false;
  
@@ -197,7 +198,7 @@
    // functionality that are only available in chrome://extensions/ but which
 --- a/components/safe_browsing/common/safe_browsing_prefs.cc
 +++ b/components/safe_browsing/common/safe_browsing_prefs.cc
-@@ -370,9 +370,9 @@ void RegisterProfilePrefs(PrefRegistrySi
+@@ -278,9 +278,9 @@ void RegisterProfilePrefs(PrefRegistrySi
    registry->RegisterBooleanPref(
        prefs::kSafeBrowsingSawInterstitialScoutReporting, false);
    registry->RegisterBooleanPref(
@@ -211,7 +212,7 @@
                                  false);
 --- a/components/password_manager/core/browser/password_manager.cc
 +++ b/components/password_manager/core/browser/password_manager.cc
-@@ -228,10 +228,10 @@ PasswordFormManager* FindMatchedManager(
+@@ -278,10 +278,10 @@ bool ShouldPromptUserToSavePassword(cons
  void PasswordManager::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(
