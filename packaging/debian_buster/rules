@@ -61,6 +61,7 @@ flotpaths=/usr/share/javascript/jquery/*min.js \
           /usr/share/javascript/jquery-flot/*min.js \
 
 buildkit_cli=debian/scripts/ungoogled-chromium/run_buildkit_cli.py
+domsubcache=debian/scripts/ungoogled-chromium/domsubcache.tar.gz
 
 %:
 	dh $@
@@ -79,7 +80,7 @@ override_dh_auto_configure:
 	# strip out system third_party libraries
 	./debian/scripts/unbundle
 	# apply domain substitution
-	if [ ! -e debian/scripts/ungoogled-chromium/domsubcache.tar.gz ]; then python3 $(buildkit_cli) domains apply -b $(config_bundle) -c domsubcache.tar.gz ../../../; fi
+	if [ ! -e $(domsubcache) ]; then python3 $(buildkit_cli) domains apply -b $(config_bundle) -c $(domsubcache) ./; fi
 
 override_dh_auto_build-arch: out/Default/gn
 	./out/Default/gn gen out/Default --args="$(defines)" --fail-on-unused-args
@@ -91,7 +92,7 @@ override_dh_auto_build-indep: out/Default/gn
 
 override_dh_prep:
 	# building is done by this step; remove domain substitution
-	if [ -e debian/scripts/ungoogled-chromium/domsubcache.tar.gz ]; then python3 $(buildkit_cli) domains revert -c domsubcache.tar.gz ../../../; fi
+	if [ -e $(domsubcache) ]; then python3 $(buildkit_cli) domains revert -c $(domsubcache) ./; fi
 	dh_prep
 
 override_dh_auto_install-arch:
@@ -143,7 +144,7 @@ removed=$(debvers).files-removed
 seconds=$(debvers).seconds
 
 get-orig-source:
-	if [ ! -e debian/patches ]; then python3 $(buildkit_cli) patches export -b $(config_bundle) ../../patches/; fi
+	if [ ! -e debian/patches ]; then python3 $(buildkit_cli) patches export -b $(config_bundle) debian/patches/; fi
 	wget -nv --show-progress -c $(url)/$(tarball) -O ../$(tarball)
 	cp /usr/bin/mk-origtargz debian/scripts
 	patch -p1 < debian/scripts/mk-origtargz.patch
@@ -152,7 +153,7 @@ get-orig-source:
 	echo $$(($$(date +%s) - $$(cat $(seconds)))) seconds
 	test ! -e $(extract) || rm -rf $(extract)
 	tar xf ../$(tarball)
-	python3 $(buildkit_cli) prune -b $(config_bundle) ../../../$(extract)
+	python3 $(buildkit_cli) prune -b $(config_bundle) $(extract)
 	echo $$(($$(date +%s) - $$(cat $(seconds)))) seconds
 	while read line; do rm -rf $$line; done < $(removed)
 	cd $(extract) && ../debian/scripts/check-upstream
@@ -167,7 +168,7 @@ get-orig-source:
 
 setup-local-src:
 	mkdir ../download_cache || true
-	python3 $(buildkit_cli) downloads retrieve -b $(config_bundle) -c ../../../../download_cache
-	python3 $(buildkit_cli) downloads unpack -b $(config_bundle) -c ../../../../download_cache ../../../
-	python3 $(buildkit_cli) prune -b $(config_bundle) ../../../
-	python3 $(buildkit_cli) patches export -b $(config_bundle) ../../patches/; fi
+	python3 $(buildkit_cli) downloads retrieve -b $(config_bundle) -c ../download_cache
+	python3 $(buildkit_cli) downloads unpack -b $(config_bundle) -c ../download_cache ./
+	python3 $(buildkit_cli) prune -b $(config_bundle) ./
+	python3 $(buildkit_cli) patches export -b $(config_bundle) debian/patches/; fi
