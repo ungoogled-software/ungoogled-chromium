@@ -166,6 +166,8 @@ def _validate_and_get_args(parser):
 def _copy_buildkit_files(args, pkgmeta, files, dirs):
     """Helper for main()"""
     buildkit_copy_relative = _get_buildkit_copy(args.name, pkgmeta)
+    if buildkit_copy_relative is None:
+        return
     for file_name in files:
         if not (args.destination / buildkit_copy_relative).exists():
             (args.destination / buildkit_copy_relative).mkdir()
