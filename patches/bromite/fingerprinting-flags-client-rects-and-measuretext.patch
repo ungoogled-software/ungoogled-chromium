@@ -1,5 +1,7 @@
-# Add flag --fingerprinting-client-rects-noise to enable fingerprinting deception for Range::getClientRects and Element::getBoundingClientRect
-# Tweaks based on https://github.com/bromite/bromite/blob/master/patches/BRM053_getClientRects-getBoundingClientRect-measureText-add-fingerprinting-mitigation.patch
+# Adds two flags:
+# 1. --fingerprinting-client-rects-noise to enable fingerprinting deception for Range::getClientRects and Element::getBoundingClientRect
+# 2. --fingerprinting-canvas-measuretext-noise to enable fingerprinting deception for Canvas::measureText
+# Tweaks based on https://github.com/bromite/bromite/blob/b1bc96bbd9ec549cf496e87f487a0ac35c83df0a/patches/BRM052_getClientRects-getBoundingClientRect-measureText-add-fingerprinting-mitigation.patch
 # Originally based on https://github.com/Eloston/ungoogled-chromium/pull/377/commits/4151259b3248f0fc5c42fa262a1d1dd43c39fb60
 # chrome://flag setting added by ungoogled-chromium developers
 #
@@ -15,7 +17,7 @@
  #include "ui/base/ui_base_features.h"
  #include "ui/base/ui_base_switches.h"
  #include "ui/compositor/compositor_switches.h"
-@@ -1244,6 +1245,10 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1244,6 +1245,14 @@ const FeatureEntry kFeatureEntries[] = {
       "Force punycode hostnames",
       "Force punycode in hostnames instead of Unicode when displaying Internationalized Domain Names (IDNs).",
       kOsAll, SINGLE_VALUE_TYPE("force-punycode-hostnames")},
@@ -23,6 +25,10 @@
 +     "Enable get*ClientRects() fingerprint deception",
 +     "Scale the output values of Range::getClientRects() and Element::getBoundingClientRect() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.",
 +     kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingClientRectsNoise)},
++    {"fingerprinting-canvas-measuretext-noise",
++     "Enable Canvas::measureText() fingerprint deception",
++     "Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.",
++     kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasMeasureTextNoise)},
      {"ignore-gpu-blacklist", flag_descriptions::kIgnoreGpuBlacklistName,
       flag_descriptions::kIgnoreGpuBlacklistDescription, kOsAll,
       SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
@@ -36,12 +42,14 @@
  #include "ui/gfx/switches.h"
  #include "ui/gl/gl_switches.h"
  #include "ui/native_theme/native_theme_features.h"
-@@ -444,6 +445,9 @@ void SetRuntimeFeaturesDefaultsAndUpdate
+@@ -444,6 +445,11 @@ void SetRuntimeFeaturesDefaultsAndUpdate
      WebRuntimeFeatures::EnableDisplayCutoutViewportFit(true);
  #endif
  
 +  WebRuntimeFeatures::EnableFingerprintingClientRectsNoise(
 +      command_line.HasSwitch(switches::kFingerprintingClientRectsNoise));
++  WebRuntimeFeatures::EnableFingerprintingCanvasMeasureTextNoise(
++      command_line.HasSwitch(switches::kFingerprintingCanvasMeasureTextNoise));
 +
    // End individual features.
    // Do not add individual features below this line.
@@ -161,11 +169,14 @@
  // TODO(editing-dev): We should make
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -508,6 +508,9 @@
+@@ -508,6 +508,12 @@
        status: "stable",
      },
      {
 +      name: "FingerprintingClientRectsNoise",
++    },
++    {
++      name: "FingerprintingCanvasMeasureTextNoise",
 +    },
 +    {
        name: "FocusOptions",
@@ -173,7 +184,7 @@
      },
 --- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
 +++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-@@ -524,4 +524,8 @@ void WebRuntimeFeatures::EnableAutoplayI
+@@ -524,4 +524,12 @@ void WebRuntimeFeatures::EnableAutoplayI
    RuntimeEnabledFeatures::SetAutoplayIgnoresWebAudioEnabled(enable);
  }
  
@@ -181,14 +192,19 @@
 +  RuntimeEnabledFeatures::SetFingerprintingClientRectsNoiseEnabled(enable);
 +}
 +
++void WebRuntimeFeatures::EnableFingerprintingCanvasMeasureTextNoise(bool enable) {
++  RuntimeEnabledFeatures::SetFingerprintingCanvasMeasureTextNoise(enable);
++}
++
  }  // namespace blink
 --- a/third_party/blink/public/platform/web_runtime_features.h
 +++ b/third_party/blink/public/platform/web_runtime_features.h
-@@ -192,6 +192,7 @@ class WebRuntimeFeatures {
+@@ -192,6 +192,8 @@ class WebRuntimeFeatures {
    BLINK_PLATFORM_EXPORT static void EnableExperimentalProductivityFeatures(
        bool);
    BLINK_PLATFORM_EXPORT static void EnableAutoplayIgnoresWebAudio(bool);
 +  BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
++  BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasMeasureTextNoise(bool);
  
   private:
    WebRuntimeFeatures();
@@ -222,11 +238,12 @@
  #include "third_party/skia/include/core/SkBitmap.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/base/ui_base_switches.h"
-@@ -2754,6 +2755,7 @@ void RenderProcessHostImpl::PropagateBro
+@@ -2754,6 +2755,8 @@ void RenderProcessHostImpl::PropagateBro
      switches::kEnableWebGLImageChromium,
      switches::kEnableWebVR,
      switches::kExplicitlyAllowedPorts,
 +    switches::kFingerprintingClientRectsNoise,
++    switches::kFingerprintingCanvasMeasureTextNoise,
      switches::kForceColorProfile,
      switches::kForceDeviceScaleFactor,
      switches::kForceGpuMemAvailableMb,
@@ -250,3 +267,60 @@
      "//ui/gfx",
      "//ui/gfx/geometry",
    ]
+--- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
+@@ -776,8 +776,15 @@ TextMetrics* CanvasRenderingContext2D::m
+   else
+     direction = ToTextDirection(GetState().GetDirection(), canvas());
+ 
+-  return TextMetrics::Create(font, direction, GetState().GetTextBaseline(),
++  TextMetrics* textMetrics = TextMetrics::Create(font, direction, GetState().GetTextBaseline(),
+                              GetState().GetTextAlign(), text);
++
++  // Scale text metrics if enabled
++  if (RuntimeEnabledFeatures::FingerprintingCanvasMeasureTextNoiseEnabled()) {
++    textMetrics->Shuffle(canvas()->GetDocument().GetNoiseFactorX())
++  }
++
++  return textMetrics;
+ }
+ 
+ void CanvasRenderingContext2D::DrawTextInternal(
+--- a/third_party/blink/renderer/core/html/canvas/text_metrics.h
++++ b/third_party/blink/renderer/core/html/canvas/text_metrics.h
+@@ -67,6 +67,8 @@ class CORE_EXPORT TextMetrics final : pu
+ 
+   static float GetFontBaseline(const TextBaseline&, const FontMetrics&);
+ 
++  void Shuffle(const double factor);
++
+  private:
+   void Update(const Font&,
+               const TextDirection&,
+--- a/third_party/blink/renderer/core/html/canvas/text_metrics.cc
++++ b/third_party/blink/renderer/core/html/canvas/text_metrics.cc
+@@ -47,6 +47,24 @@ float TextMetrics::GetFontBaseline(const
+   return 0;
+ }
+ 
++void TextMetrics::Shuffle(const double factor) {
++  // x-direction
++  width_ *= factor;
++  actual_bounding_box_left_ *= factor;
++  actual_bounding_box_right_ *= factor;
++
++  // y-direction
++  font_bounding_box_ascent_ *= factor;
++  font_bounding_box_descent_ *= factor;
++  actual_bounding_box_ascent_ *= factor;
++  actual_bounding_box_descent_ *= factor;
++  em_height_ascent_ *= factor;
++  em_height_descent_ *= factor;
++  hanging_baseline_ *= factor;
++  alphabetic_baseline_ *= factor;
++  ideographic_baseline_ *= factor;
++}
++
+ void TextMetrics::Update(const Font& font,
+                          const TextDirection& direction,
+                          const TextBaseline& baseline,
