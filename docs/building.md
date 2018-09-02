@@ -83,9 +83,9 @@ Source package files should appear in `build/`
 
 ## Windows
 
-Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/64.0.3282.168/docs/windows_build_instructions.md#system-requirements). These instructions are tested on Windows 10 Home x64.
+Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/64.0.3282.168/docs/windows_build_instructions.md#system-requirements). These instructions are tested on Windows 7 Professional x64.
 
-NOTE: The default configuration will build 64-bit binaries for maximum security (TODO: Link some explanation). This can be changed to 32-bit by changing `target_cpu` to `"x32"` (*with* quotes) in the user config bundle GN flags config file (default path is `buildspace/user_bundle/gn_flags.map`
+NOTE: The default configuration will build 64-bit binaries for maximum security (TODO: Link some explanation). This can be changed to 32-bit by following the instructions in `build.py`
 
 ### Setting up the build environment
 
@@ -104,36 +104,24 @@ When installing the SDK, the "Debugging Tools for Windows" feature must be enabl
 1. Setup the following:
 
     * 7-zip
-    * Python 2.7 for scripts in Chromium, with pypiwin32 module (`pip install pypiwin32`)
-    * Python 3.5+ for buildkit
+    * Python 2.7 (for scripts in Chromium), with pypiwin32 module (`pip install pypiwin32`)
+    * Python 3.5+ (for buildkit)
 
 2. Make sure Python 2.7 is accessible in `PATH` as `python`.
 
-### Setting up the buildspace tree and packaging files
+### Setup and build
 
-Setting up via CMD:
+Run in `cmd.exe`:
 
+```cmd
+mkdir build\src
+py get_package.py windows build\src\ungoogled_packaging
+cd build\src
+py ungoogled_packaging\build.py
+py ungoogled_packaging\package.py
 ```
-mkdir buildspace\downloads
-py buildkit-launcher.py genbun windows
-py buildkit-launcher.py getsrc
-py buildkit-launcher.py subdom
-py buildkit-launcher.py genpkg windows
-```
 
-The buildspace tree can be relocated to another system for building if necessary.
-
-### Invoking build
-
-1. In a CMD instance, apply patches:
-
-    ```
-    py buildspace\tree\ungoogled_packaging\scripts\apply_patch_series.py
-    ```
-
-2. Run build script: `buildspace\tree\ungoogled_packaging\build.bat`
-3. Run packaging script: `buildspace\tree\ungoogled_packaging\package.bat`
-    * A zip archive will be created in `buildspace\tree\ungoogled_packaging\`
+A zip archive will be created in `build\src`
 
 ## macOS
 
