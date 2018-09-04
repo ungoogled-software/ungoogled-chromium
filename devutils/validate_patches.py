@@ -14,6 +14,8 @@ import argparse
 import ast
 import base64
 import collections
+import email.utils
+import json
 import logging
 import sys
 from pathlib import Path
@@ -25,6 +27,34 @@ from buildkit.third_party import unidiff
 from buildkit.patches import DEFAULT_PATCH_DIR
 sys.path.pop(0)
 
+try:
+    import requests
+except ImportError:
+
+    class _FakeRequests:
+        """Dummy requests that throws NotImplementedError"""
+
+        @classmethod
+        def _not_implemented(cls):
+            raise NotImplementedError('"requests" module is required for remote file downloading')
+
+        @classmethod
+        def get(cls, *_, **__):
+            """Placeholder"""
+            cls._not_implemented()
+
+        @classmethod
+        def head(cls, *_, **__):
+            """Placeholder"""
+            cls._not_implemented()
+
+        @classmethod
+        def Session(cls): #pylint: disable=invalid-name
+            """Placeholder"""
+            cls._not_implemented()
+
+    requests = _FakeRequests()
+
 _CONFIG_BUNDLES_PATH = Path(__file__).parent.parent / 'config_bundles'
 _PATCHES_PATH = Path(__file__).parent.parent / 'patches'
 
@@ -35,6 +65,10 @@ class _PatchValidationError(Exception):
 
 class _UnexpectedSyntaxError(RuntimeError):
     """Raised when unexpected syntax is used in DEPS"""
+
+
+class _NotInRepoError(RuntimeError):
+    """Raised when the remote file is not present in the given repo"""
 
 
 class _DepsNodeVisitor(ast.NodeVisitor):
@@ -95,6 +129,8 @@ def _download_googlesource_file(download_session, repo_url, version, relative_pa
     full_url = repo_url + '/+/{}/{}?format=TEXT'.format(version, str(relative_path))
     get_logger().debug('Downloading: %s', full_url)
     response = download_session.get(full_url)
+    if response.status_code == 404:
+        raise _NotInRepoError()
     response.raise_for_status()
     # Assume all files that need patching are compatible with UTF-8
     return base64.b64decode(response.text, validate=True).decode('UTF-8')
@@ -162,15 +198,106 @@ def _get_child_deps_tree(download_session, current_deps_tree, child_path, deps_u
     return child_deps_tree, deps_use_relative_paths
 
 
-def _download_source_file(download_session, deps_tree, target_file):
-    """
-    Downloads the source tree file from googlesource.com
+def _get_last_chromium_modification():
+    """Returns the last modification date of the chromium-browser-official tar file"""
+    response = requests.head(
+        'https://storage.googleapis.com/chromium-browser-official/chromium-{}.tar.xz'.format(
+            get_chromium_version()))
+    response.raise_for_status()
+    return email.utils.parsedate_to_datetime(response.headers['Last-Modified'])
 
-    download_session is an active requests.Session() object
-    deps_dir is a pathlib.Path to the directory containing a DEPS file.
+
+def _get_gitiles_git_log_date(log_entry):
+    """Helper for _get_gitiles_git_log_date"""
+    return email.utils.parsedate_to_datetime(log_entry['committer']['time'])
+
+
+def _get_gitiles_commit_before_date(repo_url, target_branch, target_datetime):
+    """Returns the hexadecimal hash of the closest commit before target_datetime"""
+    json_log_url = '{repo}/+log/{branch}?format=JSON'.format(repo=repo_url, branch=target_branch)
+    response = requests.get(json_log_url)
+    response.raise_for_status()
+    git_log = json.loads(response.text[5:]) # Trim closing delimiters for various structures
+    assert len(git_log) == 2 # 'log' and 'next' entries
+    assert 'log' in git_log
+    assert git_log['log']
+    git_log = git_log['log']
+    # Check boundary conditions
+    if _get_gitiles_git_log_date(git_log[0]) < target_datetime:
+        # Newest commit is older than target datetime
+        return git_log[0]['commit']
+    if _get_gitiles_git_log_date(git_log[-1]) > target_datetime:
+        # Oldest commit is newer than the target datetime; assume oldest is close enough.
+        get_logger().warning('Oldest entry in gitiles log for repo "%s" is newer than target; '
+                             'continuing with oldest entry...')
+        return git_log[-1]['commit']
+    # Do binary search
+    low_index = 0
+    high_index = len(git_log) - 1
+    mid_index = high_index
+    while low_index != high_index:
+        mid_index = low_index + (high_index - low_index) // 2
+        if _get_gitiles_git_log_date(git_log[mid_index]) > target_datetime:
+            low_index = mid_index + 1
+        else:
+            high_index = mid_index
+    return git_log[mid_index]['commit']
+
+
+class _FallbackRepoManager:
+    """Retrieves fallback repos and caches data needed for determining repos"""
+
+    _GN_REPO_URL = 'https://gn.googlesource.com/gn.git'
+
+    def __init__(self):
+        self._cache_gn_version = None
+
+    @property
+    def gn_version(self):
+        """
+        Returns the version of the GN repo for the Chromium version used by buildkit
+        """
+        if not self._cache_gn_version:
+            # Because there seems to be no reference to the logic for generating the
+            # chromium-browser-official tar file, it's possible that it is being generated
+            # by an internal script that manually injects the GN repository files.
+            # Therefore, assume that the GN version used in the chromium-browser-official tar
+            # files correspond to the latest commit in the master branch of the GN repository
+            # at the time of the tar file's generation. We can get an approximation for the
+            # generation time by using the last modification date of the tar file on
+            # Google's file server.
+            self._cache_gn_version = _get_gitiles_commit_before_date(
+                self._GN_REPO_URL, 'master', _get_last_chromium_modification())
+        return self._cache_gn_version
+
+    def get_fallback(self, current_relative_path, current_node, root_deps_tree):
+        """
+        Helper for _download_source_file
+
+        It returns a new (repo_url, version, new_relative_path) to attempt a file download with
+        """
+        assert len(current_node) == 3
+        # GN special processing
+        try:
+            new_relative_path = current_relative_path.relative_to('tools/gn')
+        except ValueError:
+            pass
+        else:
+            if current_node is root_deps_tree[Path('src')]:
+                get_logger().info('Redirecting to GN repo version %s for path: %s', self.gn_version,
+                                  current_relative_path)
+                return (self._GN_REPO_URL, self.gn_version, new_relative_path)
+        return None, None, None
+
+
+def _get_target_file_deps_node(download_session, root_deps_tree, target_file):
+    """
+    Helper for _download_source_file
+
+    Returns the corresponding repo containing target_file based on the DEPS tree
     """
     # The "deps" from the current DEPS file
-    current_deps_tree = deps_tree
+    current_deps_tree = root_deps_tree
     current_node = None
     # Path relative to the current node (i.e. DEPS file)
     current_relative_path = Path('src', target_file)
@@ -185,14 +312,50 @@ def _download_source_file(download_session, deps_tree, target_file):
             except ValueError:
                 # previous_relative_path does not start with child_path
                 continue
-            # current_node will match with current_deps_tree after the next statement
             current_node = current_deps_tree[child_path]
+            # current_node will match with current_deps_tree after the following statement
             current_deps_tree, deps_use_relative_paths = _get_child_deps_tree(
                 download_session, current_deps_tree, child_path, deps_use_relative_paths)
             break
     assert not current_node is None
+    return current_node, current_relative_path
+
+
+def _download_source_file(download_session, root_deps_tree, fallback_repo_manager, target_file):
+    """
+    Downloads the source tree file from googlesource.com
+
+    download_session is an active requests.Session() object
+    deps_dir is a pathlib.Path to the directory containing a DEPS file.
+    """
+    current_node, current_relative_path = _get_target_file_deps_node(download_session,
+                                                                     root_deps_tree, target_file)
+    # Attempt download with potential fallback logic
     repo_url, version, _ = current_node
-    return _download_googlesource_file(download_session, repo_url, version, current_relative_path)
+    try:
+        # Download with DEPS-provided repo
+        return _download_googlesource_file(download_session, repo_url, version,
+                                           current_relative_path)
+    except _NotInRepoError:
+        pass
+    get_logger().debug(
+        'Path "%s" (relative: "%s") not found using DEPS tree; finding fallback repo...',
+        target_file, current_relative_path)
+    repo_url, version, current_relative_path = fallback_repo_manager.get_fallback(
+        current_relative_path, current_node, root_deps_tree)
+    if not repo_url:
+        get_logger().error('No fallback repo found for "%s" (relative: "%s")', target_file,
+                           current_relative_path)
+        raise _NotInRepoError()
+    try:
+        # Download with fallback repo
+        return _download_googlesource_file(download_session, repo_url, version,
+                                           current_relative_path)
+    except _NotInRepoError:
+        pass
+    get_logger().error('File "%s" (relative: "%s") not found in fallback repo "%s", version "%s"',
+                       target_file, current_relative_path, repo_url, version)
+    raise _NotInRepoError()
 
 
 def _initialize_deps_tree():
@@ -208,11 +371,11 @@ def _initialize_deps_tree():
 
     download_session is an active requests.Session() object
     """
-    deps_tree = {
+    root_deps_tree = {
         Path('src'): ('https://chromium.googlesource.com/chromium/src.git', get_chromium_version(),
                       'DEPS')
     }
-    return deps_tree
+    return root_deps_tree
 
 
 def _retrieve_remote_files(file_iter):
@@ -225,12 +388,9 @@ def _retrieve_remote_files(file_iter):
     Returns a dict of relative UNIX path strings to a list of lines in the file as strings
     """
 
-    # Load requests here so it isn't a dependency for local file reading
-    import requests
-
     files = dict()
 
-    deps_tree = _initialize_deps_tree()
+    root_deps_tree = _initialize_deps_tree()
 
     try:
         total_files = len(file_iter)
@@ -244,6 +404,7 @@ def _retrieve_remote_files(file_iter):
         logger.info('Downloading %d remote files...', total_files)
     last_progress = 0
     file_count = 0
+    fallback_repo_manager = _FallbackRepoManager()
     with requests.Session() as download_session:
         download_session.stream = False # To ensure connection to Google can be reused
         for file_path in file_iter:
@@ -258,8 +419,11 @@ def _retrieve_remote_files(file_iter):
                 if current_progress != last_progress:
                     last_progress = current_progress
                     logger.info('%d files downloaded', current_progress)
-            files[file_path] = _download_source_file(download_session, deps_tree,
-                                                     file_path).split('\n')
+            try:
+                files[file_path] = _download_source_file(
+                    download_session, root_deps_tree, fallback_repo_manager, file_path).split('\n')
+            except _NotInRepoError:
+                get_logger().warning('Could not find "%s" remotely. Skipping...', file_path)
     return files
 
 
@@ -426,10 +590,10 @@ def _apply_child_bundle_patches(child_path, had_failure, file_layers, patch_cach
                     branch_validation_failed = True
                     had_failure = had_failure or not patches_outdated
                     break
-                except BaseException:
+                except BaseException as exc:
                     # Branch failed validation; abort
-                    get_logger().exception("Error processing file '%s' from patch '%s'",
-                                           patched_file.path, patch_path_str)
+                    get_logger().exception("Error processing file '%s' from patch '%s': %s",
+                                           patched_file.path, patch_path_str, str(exc))
                     branch_validation_failed = True
                     had_failure = had_failure or not patches_outdated
                     break
@@ -441,8 +605,8 @@ def _apply_child_bundle_patches(child_path, had_failure, file_layers, patch_cach
         if branch_validation_failed != patches_outdated:
             # Metadata for patch validity is out-of-date
             get_logger().error(
-                '%s patch validity is inconsistent with patches_outdated marking in bundlemeta',
-                child_path.name)
+                ('%s patch validity is inconsistent with patches_outdated marking in bundlemeta. '
+                 'Please update patches or change marking.'), child_path.name)
             had_failure = True
     return had_failure, branch_validation_failed
 

@@ -1,6 +1,6 @@
 --- a/components/gcm_driver/gcm_channel_status_request.cc
 +++ b/components/gcm_driver/gcm_channel_status_request.cc
-@@ -23,8 +23,6 @@ namespace gcm {
+@@ -24,8 +24,6 @@ namespace gcm {
  
  namespace {
  
@@ -9,11 +9,15 @@
  const int kDefaultPollIntervalSeconds = 60 * 60;  // 60 minutes.
  const int kMinPollIntervalSeconds = 30 * 60;  // 30 minutes.
  
-@@ -57,61 +55,8 @@ int GCMChannelStatusRequest::min_poll_in
+@@ -57,73 +55,8 @@ int GCMChannelStatusRequest::min_poll_in
  }
  
  void GCMChannelStatusRequest::Start() {
--  DCHECK(!url_fetcher_);
+-  // url_loader_factory_ can be null for tests.
+-  if (!url_loader_factory_)
+-    return;
+-
+-  DCHECK(!simple_url_loader_);
 -
 -  GURL request_url(channel_status_request_url_);
 -
@@ -58,18 +62,26 @@
 -            "Not implemented, considered not useful."
 -        })");
 -
--  url_fetcher_ = net::URLFetcher::Create(request_url, net::URLFetcher::POST,
--                                         this, traffic_annotation);
--  data_use_measurement::DataUseUserData::AttachToFetcher(
--      url_fetcher_.get(), data_use_measurement::DataUseUserData::GCM_DRIVER);
--  url_fetcher_->SetRequestContext(request_context_getter_.get());
--  url_fetcher_->AddExtraRequestHeader("User-Agent: " + user_agent_);
--  url_fetcher_->SetUploadData(kRequestContentType, upload_data);
--  url_fetcher_->SetLoadFlags(net::LOAD_DO_NOT_SEND_COOKIES |
--                             net::LOAD_DO_NOT_SAVE_COOKIES);
--  url_fetcher_->Start();
+-  auto resource_request = std::make_unique<network::ResourceRequest>();
+-
+-  resource_request->url = request_url;
+-  resource_request->load_flags =
+-      net::LOAD_DO_NOT_SEND_COOKIES | net::LOAD_DO_NOT_SAVE_COOKIES;
+-  resource_request->method = "POST";
+-  resource_request->headers.SetHeader(net::HttpRequestHeaders::kUserAgent,
+-                                      user_agent_);
+-  // TODO(https://crbug.com/808498): Re-add data use measurement once
+-  // SimpleURLLoader supports it.
+-  // ID=data_use_measurement::DataUseUserData::GCM_DRIVER
+-  simple_url_loader_ = network::SimpleURLLoader::Create(
+-      std::move(resource_request), traffic_annotation);
+-  simple_url_loader_->AttachStringForUpload(upload_data, kRequestContentType);
+-  simple_url_loader_->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
+-      url_loader_factory_.get(),
+-      base::BindOnce(&GCMChannelStatusRequest::OnSimpleLoaderComplete,
+-                     base::Unretained(this)));
 +  // Simulate an empty response and disable GCM.
 +  callback_.Run(false, false, 0);
  }
  
- void GCMChannelStatusRequest::OnURLFetchComplete(
+ void GCMChannelStatusRequest::OnSimpleLoaderComplete(
