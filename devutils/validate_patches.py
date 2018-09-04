@@ -438,7 +438,12 @@ def _retrieve_local_files(file_iter, source_dir):
     """
     files = dict()
     for file_path in file_iter:
-        files[file_path] = (source_dir / file_path).read_text().split('\n')
+        try:
+            files[file_path] = (source_dir / file_path).read_text().split('\n')
+        except FileNotFoundError:
+            get_logger().warning('Missing file from patches: %s', file_path)
+    if not files:
+        get_logger().error('All files used by patches are missing!')
     return files
 
 
