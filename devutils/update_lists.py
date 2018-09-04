@@ -11,8 +11,8 @@ No binary pruning or domain substitution will be applied to the source tree afte
 the process has finished.
 """
 
-import sys
 import argparse
+import sys
 
 from pathlib import Path, PurePosixPath
 
@@ -92,6 +92,33 @@ DOMAIN_INCLUDE_PATTERNS = [
 _TEXTCHARS = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)) - {0x7f})
 
 
+class UnusedPatterns: #pylint: disable=too-few-public-methods
+    """Tracks unused prefixes and patterns"""
+
+    _all_names = ('pruning_include_patterns', 'pruning_exclude_patterns', 'domain_include_patterns',
+                  'domain_exclude_prefixes')
+
+    def __init__(self):
+        # Initialize all tracked patterns and prefixes in sets
+        # Users will discard elements that are used
+        for name in self._all_names:
+            setattr(self, name, set(globals()[name.upper()]))
+
+    def log_unused(self):
+        """
+        Logs unused patterns and prefixes
+
+        Returns True if there are unused patterns or prefixes; False otherwise
+        """
+        have_unused = False
+        for name in self._all_names:
+            current_set = getattr(self, name, None)
+            if current_set:
+                get_logger().error('Unused from %s: %s', name.upper(), current_set)
+                have_unused = True
+        return have_unused
+
+
 def _is_binary(bytes_data):
     """
     Returns True if the data seems to be binary data (i.e. not human readable); False otherwise
@@ -100,21 +127,24 @@ def _is_binary(bytes_data):
     return bool(bytes_data.translate(None, _TEXTCHARS))
 
 
-def should_prune(path, relative_path):
+def should_prune(path, relative_path, unused_patterns):
     """
     Returns True if a path should be pruned from the source tree; False otherwise
 
     path is the pathlib.Path to the file from the current working directory.
     relative_path is the pathlib.Path to the file from the source tree
+    unused_patterns is a UnusedPatterns object
     """
     # Match against include patterns
     for pattern in PRUNING_INCLUDE_PATTERNS:
         if relative_path.match(pattern):
+            unused_patterns.pruning_include_patterns.discard(pattern)
             return True
 
     # Match against exclude patterns
     for pattern in PRUNING_EXCLUDE_PATTERNS:
         if Path(str(relative_path).lower()).match(pattern):
+            unused_patterns.pruning_exclude_patterns.discard(pattern)
             return False
 
     # Do binary data detection
@@ -147,19 +177,22 @@ def _check_regex_match(file_path, search_regex):
     return False
 
 
-def should_domain_substitute(path, relative_path, search_regex):
+def should_domain_substitute(path, relative_path, search_regex, unused_patterns):
     """
     Returns True if a path should be domain substituted in the source tree; False otherwise
 
     path is the pathlib.Path to the file from the current working directory.
     relative_path is the pathlib.Path to the file from the source tree.
     search_regex is a compiled regex object to search for domain names
+    unused_patterns is a UnusedPatterns object
     """
     relative_path_posix = relative_path.as_posix().lower()
     for include_pattern in DOMAIN_INCLUDE_PATTERNS:
         if PurePosixPath(relative_path_posix).match(include_pattern):
+            unused_patterns.domain_include_patterns.discard(include_pattern)
             for exclude_prefix in DOMAIN_EXCLUDE_PREFIXES:
                 if relative_path_posix.startswith(exclude_prefix):
+                    unused_patterns.domain_exclude_prefixes.discard(exclude_prefix)
                     return False
             return _check_regex_match(path, search_regex)
     return False
@@ -179,6 +212,8 @@ def compute_lists(source_tree, search_regex):
     domain_substitution_set = set()
     deferred_symlinks = dict() # POSIX resolved path -> set of POSIX symlink paths
     source_tree = source_tree.resolve()
+    unused_patterns = UnusedPatterns()
+
     for path in source_tree.rglob('*'):
         if not path.is_file():
             # NOTE: Path.rglob() does not traverse symlink dirs; no need for special handling
@@ -203,18 +238,18 @@ def compute_lists(source_tree, search_regex):
             # Domain substitution: Only the real paths can be added, not symlinks
             continue
         try:
-            if should_prune(path, relative_path):
+            if should_prune(path, relative_path, unused_patterns):
                 relative_posix_path = relative_path.as_posix()
                 pruning_set.add(relative_posix_path)
                 symlink_set = deferred_symlinks.pop(relative_posix_path, tuple())
                 if symlink_set:
                     pruning_set.update(symlink_set)
-            elif should_domain_substitute(path, relative_path, search_regex):
+            elif should_domain_substitute(path, relative_path, search_regex, unused_patterns):
                 domain_substitution_set.add(relative_path.as_posix())
         except:
             get_logger().exception('Unhandled exception while processing %s', relative_path)
             raise BuildkitAbort()
-    return sorted(pruning_set), sorted(domain_substitution_set)
+    return sorted(pruning_set), sorted(domain_substitution_set), unused_patterns
 
 
 def main(args_list=None):
@@ -277,14 +312,18 @@ def main(args_list=None):
                                'is not specified. Aborting.')
             raise BuildkitAbort()
         get_logger().info('Computing lists...')
-        pruning_list, domain_substitution_list = compute_lists(args.tree,
-                                                               bundle.domain_regex.search_regex)
+        pruning_list, domain_substitution_list, unused_patterns = compute_lists(
+            args.tree, bundle.domain_regex.search_regex)
     except BuildkitAbort:
         exit(1)
     with args.pruning.open('w', encoding=ENCODING) as file_obj:
         file_obj.writelines('%s\n' % line for line in pruning_list)
     with args.domain_substitution.open('w', encoding=ENCODING) as file_obj:
         file_obj.writelines('%s\n' % line for line in domain_substitution_list)
+    if unused_patterns.log_unused():
+        get_logger().error('Please update or remove unused patterns and/or prefixes. '
+                           'The lists have still been updated with the remaining valid entries.')
+        exit(1)
 
 
 if __name__ == "__main__":
