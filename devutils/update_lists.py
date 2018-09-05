@@ -40,7 +40,6 @@ PRUNING_EXCLUDE_PATTERNS = [
     'tools/gn/visual_studio_writer.cc',
     'tools/gyp/pylib/gyp/generator/msvs.py',
     # Exclusions for DOM distiller (contains model data only)
-    'components/dom_distiller/core/data/distillable_page_model.bin',
     'components/dom_distiller/core/data/distillable_page_model_new.bin',
     'components/dom_distiller/core/data/long_page_model.bin',
     'third_party/icu/common/icudtl.dat', # Exclusion for ICU data
