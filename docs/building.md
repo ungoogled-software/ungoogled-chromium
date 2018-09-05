@@ -33,6 +33,7 @@ The final size of the sandbox with build artifacts is over 5 GB. On 64-bit syste
 
 * For 64-bit systems, at least 8 GB of RAM is highly recommended (as recommended in the Chromium source tree under `docs/linux_build_instructions.md`).
     * It may be possible to reduce RAM comsumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
+    * Debian's `chromium` package version `69.0.3497.81-1` uses a value of: 12
 * Filesystem space: 8 GB is the bare minimum. More is safer.
 
 ### Setting up the build environment
