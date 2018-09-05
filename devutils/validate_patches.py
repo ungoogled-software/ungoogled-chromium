@@ -590,15 +590,19 @@ def _apply_child_bundle_patches(child_path, had_failure, file_layers, patch_cach
                     _apply_file_unidiff(patched_file, file_layers.maps[0], file_layers.parents)
                 except _PatchValidationError as exc:
                     # Branch failed validation; abort
-                    get_logger().error("Validation failure for file '%s' from patch '%s': %s",
-                                       patched_file.path, patch_path_str, str(exc))
+                    get_logger().warning('Patch failed validation: %s', patch_path_str)
+                    get_logger().debug('Specifically, file "%s" failed validation: %s',
+                                       patched_file.path, exc)
                     branch_validation_failed = True
                     had_failure = had_failure or not patches_outdated
                     break
-                except BaseException as exc:
+                except BaseException:
                     # Branch failed validation; abort
-                    get_logger().exception("Error processing file '%s' from patch '%s': %s",
-                                           patched_file.path, patch_path_str, str(exc))
+                    get_logger().warning('Patch failed validation: %s', patch_path_str)
+                    get_logger().debug(
+                        'Specifically, file "%s" caused exception while applying:',
+                        patched_file.path,
+                        exc_info=True)
                     branch_validation_failed = True
                     had_failure = had_failure or not patches_outdated
                     break

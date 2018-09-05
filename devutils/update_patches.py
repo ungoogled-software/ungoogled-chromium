@@ -191,7 +191,11 @@ def _refresh_patches(patch_trie, bundle_cache, series_path, run_quilt, abort_on_
                     _LOGGER.error('Got exit status %s while refreshing %s', result.returncode,
                                   patch_path_str)
                     if result.stdout:
-                        _LOGGER.error('stdout: %s', result.stdout.rstrip('\n'))
+                        _LOGGER.error(
+                            """stdout from command:
+>>>>>>>>>>>> BEGIN STDOUT <<<<<<<<<<<<
+%s
+############  END STDOUT  ############""", result.stdout.strip('\n'))
                     branch_validation_failed = True
                     had_failure = True
                     break
