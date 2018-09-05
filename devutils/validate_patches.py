@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from buildkit.common import ENCODING, get_logger, get_chromium_version
 from buildkit.config import ConfigBundle
 from buildkit.third_party import unidiff
+from buildkit.third_party.unidiff.constants import LINE_TYPE_EMPTY, LINE_TYPE_NO_NEWLINE
 from buildkit.patches import DEFAULT_PATCH_DIR
 sys.path.pop(0)
 
@@ -540,7 +541,7 @@ def _modify_file_lines(patched_file, file_lines):
                         "Line '{}' does not match removal line '{}' from patch".format(
                             file_lines[line_cursor], normalized_line))
                 del file_lines[line_cursor]
-            else:
+            elif line.is_context:
                 assert line.is_context
                 if not normalized_line and line_cursor == len(file_lines):
                     # We reached the end of the file
@@ -550,6 +551,8 @@ def _modify_file_lines(patched_file, file_lines):
                         "Line '{}' does not match context line '{}' from patch".format(
                             file_lines[line_cursor], normalized_line))
                 line_cursor += 1
+            else:
+                assert line.line_type in (LINE_TYPE_EMPTY, LINE_TYPE_NO_NEWLINE)
 
 
 def _apply_file_unidiff(patched_file, child_files, parent_file_layers):
@@ -763,6 +766,8 @@ def main():
     orig_files = _get_orig_files(args, required_files, parser)
     had_failure = _test_patches(patch_trie, bundle_cache, patch_cache, orig_files)
     if had_failure:
+        if not args.verbose:
+            get_logger().info('(For more details, re-run with the "-v" flag)')
         parser.exit(status=1)
 
 
