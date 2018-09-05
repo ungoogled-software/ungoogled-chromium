@@ -766,7 +766,7 @@ def main():
     had_failure = _test_patches(patch_trie, bundle_cache, patch_cache, orig_files)
     if had_failure:
         if not args.verbose:
-            get_logger().info('(For more details, re-run with the "-v" flag)')
+            get_logger().info('(For more error details, re-run with the "-v" flag)')
         parser.exit(status=1)
 
 
