@@ -542,7 +542,6 @@ def _modify_file_lines(patched_file, file_lines):
                             file_lines[line_cursor], normalized_line))
                 del file_lines[line_cursor]
             elif line.is_context:
-                assert line.is_context
                 if not normalized_line and line_cursor == len(file_lines):
                     # We reached the end of the file
                     break
