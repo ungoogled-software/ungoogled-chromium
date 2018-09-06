@@ -147,6 +147,9 @@ def apply_substitution(config_bundle, source_tree, domainsub_cache):
             if not path.exists():
                 get_logger().warning('Skipping non-existant path: %s', path)
                 continue
+            if path.is_symlink():
+                get_logger().warning('Skipping path that has become a symlink: %s', path)
+                continue
             crc32_hash, orig_content = _substitute_path(path, regex_pairs)
             if crc32_hash is None:
                 get_logger().info('Path has no substitutions: %s', relative_path)
