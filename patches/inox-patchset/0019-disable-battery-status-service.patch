@@ -1,9 +1,23 @@
 --- a/services/device/battery/battery_status_service.cc
 +++ b/services/device/battery/battery_status_service.cc
-@@ -41,17 +41,8 @@ BatteryStatusService::AddCallback(const
-   if (!battery_fetcher_)
-     battery_fetcher_ = BatteryStatusManager::Create(update_callback_);
+@@ -19,10 +19,7 @@ BatteryStatusService::BatteryStatusServi
+     : main_thread_task_runner_(base::ThreadTaskRunnerHandle::Get()),
+       update_callback_(base::Bind(&BatteryStatusService::NotifyConsumers,
+                                   base::Unretained(this))),
+-      status_updated_(false),
+       is_shutdown_(false) {
+-  callback_list_.set_removal_callback(base::Bind(
+-      &BatteryStatusService::ConsumersChanged, base::Unretained(this)));
+ }
  
+ BatteryStatusService::~BatteryStatusService() {}
+@@ -38,57 +35,16 @@ BatteryStatusService::AddCallback(const
+   DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
+   DCHECK(!is_shutdown_);
+ 
+-  if (!battery_fetcher_)
+-    battery_fetcher_ = BatteryStatusManager::Create(update_callback_);
+-
 -  if (callback_list_.empty()) {
 -    bool success = battery_fetcher_->StartListeningBatteryChange();
 -    // On failure pass the default values back.
@@ -20,3 +34,68 @@
  
    return callback_list_.Add(callback);
  }
+ 
+-void BatteryStatusService::ConsumersChanged() {
+-  if (is_shutdown_)
+-    return;
+-
+-  if (callback_list_.empty()) {
+-    battery_fetcher_->StopListeningBatteryChange();
+-    status_updated_ = false;
+-  }
+-}
+-
+ void BatteryStatusService::NotifyConsumers(const mojom::BatteryStatus& status) {
+-  DCHECK(!is_shutdown_);
+-
+-  main_thread_task_runner_->PostTask(
+-      FROM_HERE, base::Bind(&BatteryStatusService::NotifyConsumersOnMainThread,
+-                            base::Unretained(this), status));
+-}
+-
+-void BatteryStatusService::NotifyConsumersOnMainThread(
+-    const mojom::BatteryStatus& status) {
+-  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
+-  if (callback_list_.empty())
+-    return;
+-
+-  status_ = status;
+-  status_updated_ = true;
+-  callback_list_.Notify(status_);
+ }
+ 
+ void BatteryStatusService::Shutdown() {
+-  if (!callback_list_.empty())
+-    battery_fetcher_->StopListeningBatteryChange();
+-  battery_fetcher_.reset();
+   is_shutdown_ = true;
+ }
+ 
+@@ -99,9 +55,6 @@ BatteryStatusService::GetUpdateCallbackF
+ 
+ void BatteryStatusService::SetBatteryManagerForTesting(
+     std::unique_ptr<BatteryStatusManager> test_battery_manager) {
+-  battery_fetcher_ = std::move(test_battery_manager);
+-  status_ = mojom::BatteryStatus();
+-  status_updated_ = false;
+   is_shutdown_ = false;
+   main_thread_task_runner_ = base::ThreadTaskRunnerHandle::Get();
+ }
+--- a/services/device/battery/battery_status_service.h
++++ b/services/device/battery/battery_status_service.h
+@@ -56,15 +56,10 @@ class BatteryStatusService {
+   // Updates current battery status and sends new status to interested
+   // render processes. Can be called on any thread via a callback.
+   void NotifyConsumers(const mojom::BatteryStatus& status);
+-  void NotifyConsumersOnMainThread(const mojom::BatteryStatus& status);
+-  void ConsumersChanged();
+ 
+   scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_;
+-  std::unique_ptr<BatteryStatusManager> battery_fetcher_;
+   BatteryUpdateCallbackList callback_list_;
+   BatteryUpdateCallback update_callback_;
+-  mojom::BatteryStatus status_;
+-  bool status_updated_;
+   bool is_shutdown_;
+ 
+   DISALLOW_COPY_AND_ASSIGN(BatteryStatusService);
