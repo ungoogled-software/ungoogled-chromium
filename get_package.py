@@ -82,11 +82,10 @@ def _get_current_commit():
 
     Raises BuildkitAbort if invoking git fails.
     """
-    result = subprocess.run(
-        ['git', 'rev-parse', '--verify', 'HEAD'],
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-        cwd=str(Path(__file__).resolve().parent))
+    result = subprocess.run(['git', 'rev-parse', '--verify', 'HEAD'],
+                            stdout=subprocess.PIPE,
+                            universal_newlines=True,
+                            cwd=str(Path(__file__).resolve().parent))
     if result.returncode:
         get_logger().error('Unexpected return code %s', result.returncode)
         get_logger().error('Command output: %s', result.stdout)

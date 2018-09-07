@@ -70,8 +70,10 @@ def _test_python2(error_exit):
         error_exit('Could not find "python" in PATH')
 
     # Check Python version is at least 2.7.9 to avoid exec issues
-    result = subprocess.run(
-        (python2_exe, '--version'), stderr=subprocess.PIPE, check=True, universal_newlines=True)
+    result = subprocess.run((python2_exe, '--version'),
+                            stderr=subprocess.PIPE,
+                            check=True,
+                            universal_newlines=True)
     match = re.fullmatch(r'Python 2\.7\.([0-9]+)', result.stderr.strip())
     if not match:
         error_exit('Could not detect Python 2 version from output: {}'.format(
