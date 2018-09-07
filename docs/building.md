@@ -108,9 +108,11 @@ When installing the SDK, the "Debugging Tools for Windows" feature must be enabl
     * Python 2.7 (for scripts in Chromium), with pypiwin32 module (`pip install pypiwin32`)
     * Python 3.5+ (for buildkit)
 
-2. Make sure Python 2.7 is accessible in `PATH` as `python`.
+2. Make sure Python 2.7 is set in the user or system environment variable `PATH` as `python`.
 
 ### Setup and build
+
+NOTE: The commands below assume the `py` command was installed by Python 3 into `PATH`. If this is not the case, then substitute it with the command to invoke **Python 3**.
 
 Run in `cmd.exe`:
 
