@@ -8,9 +8,13 @@
 ungoogled-chromium packaging script for Microsoft Windows
 """
 
+# NOTE: THIS SCRIPT MUST BE RUN WITH PYTHON 3, NOT 2
+import sys
+if sys.version_info.major < 3:
+    raise RuntimeError('Python 3 is required for this script.')
+
 import argparse
 import platform
-import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
