@@ -82,7 +82,7 @@ def _test_python2(error_exit):
         error_exit('At least Python 2.7.9 is required; found 2.7.{}'.format(match.group(1)))
 
     # Check for pypiwin32 module
-    result = subprocess.run((python2_exe, '-c', 'import pypiwin32'))
+    result = subprocess.run((python2_exe, '-c', 'import win32api'))
     if result.returncode:
         error_exit('Unable to find pypiwin32 in Python 2 installation.')
 
