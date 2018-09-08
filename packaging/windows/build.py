@@ -134,8 +134,8 @@ def main():
 
     # Retrieve downloads
     get_logger().info('Downloading required files...')
-    buildkit.downloads.unpack_downloads(bundle, args.downloads_cache, True,
-                                        args.disable_ssl_verification)
+    buildkit.downloads.retrieve_downloads(bundle, args.downloads_cache, True,
+                                          args.disable_ssl_verification)
     try:
         buildkit.downloads.check_downloads(bundle, args.downloads_cache)
     except buildkit.downloads.HashMismatchError as exc:
