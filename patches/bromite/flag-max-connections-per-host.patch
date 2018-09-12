@@ -102,44 +102,57 @@ with limited CPU/memory resources and it is disabled by default.
  // Enable use of experimental TCP sockets API for sending data in the
  // SYN packet.
  NETWORK_SWITCH(kEnableTcpFastOpen, "enable-tcp-fastopen")
---- a/net/socket/client_socket_pool_manager.cc
-+++ b/net/socket/client_socket_pool_manager.cc
-@@ -6,8 +6,10 @@
- 
- #include <memory>
- 
-+#include "base/command_line.h"
- #include "base/logging.h"
- #include "base/strings/stringprintf.h"
+--- a/chrome/browser/browser_process_impl.cc
++++ b/chrome/browser/browser_process_impl.cc
+@@ -18,12 +18,14 @@
+ #include "base/debug/leak_annotations.h"
+ #include "base/files/file_path.h"
+ #include "base/location.h"
++#include "base/logging.h"
+ #include "base/macros.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/path_service.h"
+ #include "base/run_loop.h"
+ #include "base/single_thread_task_runner.h"
 +#include "base/strings/string_number_conversions.h"
- #include "net/base/load_flags.h"
- #include "net/http/http_proxy_client_socket_pool.h"
- #include "net/http/http_request_info.h"
-@@ -19,6 +21,7 @@
- #include "net/socket/ssl_client_socket_pool.h"
- #include "net/socket/transport_client_socket_pool.h"
- #include "net/ssl/ssl_config.h"
+ #include "base/synchronization/waitable_event.h"
+ #include "base/task_scheduler/post_task.h"
+ #include "base/task_scheduler/task_traits.h"
+@@ -95,6 +97,7 @@
+ #include "components/metrics/metrics_service.h"
+ #include "components/metrics_services_manager/metrics_services_manager.h"
+ #include "components/net_log/chrome_net_log.h"
 +#include "components/network_session_configurator/common/network_switches.h"
+ #include "components/network_time/network_time_tracker.h"
+ #include "components/optimization_guide/optimization_guide_service.h"
+ #include "components/policy/core/common/policy_service.h"
+@@ -297,6 +300,18 @@ void BrowserProcessImpl::Init() {
+                  base::Unretained(this)));
+ #endif
  
- namespace net {
- 
-@@ -316,6 +319,19 @@ void ClientSocketPoolManager::set_max_so
- int ClientSocketPoolManager::max_sockets_per_group(
-     HttpNetworkSession::SocketPoolType pool_type) {
-   DCHECK_LT(pool_type, HttpNetworkSession::NUM_SOCKET_POOL_TYPES);
-+
-+  if (pool_type == HttpNetworkSession::NORMAL_SOCKET_POOL) {
-+      int maxConnectionsPerHost = 0;
-+      auto value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(switches::kMaxConnectionsPerHost);
-+      if (!value.empty() && !base::StringToInt(value, &maxConnectionsPerHost)) {
-+        LOG(DFATAL) << "--" << switches::kMaxConnectionsPerHost << " only accepts integers as arguments (\"" << value << "\" is invalid)";
-+      }
-+      if (maxConnectionsPerHost != 0) {
-+        return maxConnectionsPerHost;
-+      }
-+      // fallthrough for default value
++  int max_connections_per_host = 0;
++  auto switch_value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
++      switches::kMaxConnectionsPerHost);
++  if (!switch_value.empty() && !base::StringToInt(switch_value, &max_connections_per_host)) {
++    LOG(DFATAL) << "--" << switches::kMaxConnectionsPerHost
++      << " expected integer; got (\"" << switch_value << "\" instead)";
++  }
++  if (max_connections_per_host != 0) {
++    net::ClientSocketPoolManager::set_max_sockets_per_group(
++        net::HttpNetworkSession::NORMAL_SOCKET_POOL, max_connections_per_host);
 +  }
 +
-   return g_max_sockets_per_group[pool_type];
- }
- 
+   int max_per_proxy = local_state_->GetInteger(prefs::kMaxConnectionsPerProxy);
+   net::ClientSocketPoolManager::set_max_sockets_per_proxy_server(
+       net::HttpNetworkSession::NORMAL_SOCKET_POOL,
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1745,6 +1745,7 @@ jumbo_split_static_library("browser") {
+     "//components/net_log",
+     "//components/network_hints/common",
+     "//components/network_session_configurator/browser",
++    "//components/network_session_configurator/common",
+     "//components/network_time",
+     "//components/ntp_snippets",
+     "//components/ntp_tiles",
