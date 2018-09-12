@@ -1,0 +1,145 @@
+From: csagan5 <32685696+csagan5@users.noreply.github.com>
+Date: Sun, 8 Jul 2018 22:42:04 +0200
+Subject: Add flag to configure maximum connections per host
+
+With the introduction of this flag it is possible to increase the maximum
+allowed connections per host; this can however be detrimental to devices
+with limited CPU/memory resources and it is disabled by default.
+---
+ chrome/browser/about_flags.cc                            |  8 ++++++++
+ chrome/browser/flag_descriptions.cc                      |  4 ++++
+ chrome/browser/flag_descriptions.h                       |  3 +++
+ .../common/network_features.cc                           |  3 +++
+ .../common/network_features.h                            |  4 ++++
+ .../common/network_switch_list.h                         |  4 ++++
+ net/socket/client_socket_pool_manager.cc                 | 16 ++++++++++++++++
+ 7 files changed, 42 insertions(+)
+
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -849,6 +849,11 @@ const FeatureEntry::Choice kForceEffecti
+      net::kEffectiveConnectionType4G},
+ };
+ 
++const FeatureEntry::Choice kMaxConnectionsPerHostChoices[] = {
++    {features::kMaxConnectionsPerHostChoiceDefault, "", ""},
++    {features::kMaxConnectionsPerHostChoice15, switches::kMaxConnectionsPerHost, "15"},
++};
++
+ // Ensure that all effective connection types returned by Network Quality
+ // Estimator (NQE) are also exposed via flags.
+ static_assert(net::EFFECTIVE_CONNECTION_TYPE_LAST + 2 ==
+@@ -2466,6 +2471,9 @@ const FeatureEntry kFeatureEntries[] = {
+      flag_descriptions::kMaterialDesignIncognitoNTPName,
+      flag_descriptions::kMaterialDesignIncognitoNTPDescription, kOsAndroid,
+      FEATURE_VALUE_TYPE(features::kMaterialDesignIncognitoNTP)},
++    {"max-connections-per-host", flag_descriptions::kMaxConnectionsPerHostName,
++     flag_descriptions::kMaxConnectionsPerHostDescription, kOsAll,
++     MULTI_VALUE_TYPE(kMaxConnectionsPerHostChoices)},
+     {"safe-search-url-reporting",
+      flag_descriptions::kSafeSearchUrlReportingName,
+      flag_descriptions::kSafeSearchUrlReportingDescription, kOsAll,
+--- a/chrome/browser/flag_descriptions.cc
++++ b/chrome/browser/flag_descriptions.cc
+@@ -1065,6 +1065,10 @@ const char kMaterialDesignIncognitoNTPDe
+     "If enabled, the Incognito New Tab page uses the new material design with "
+     "a better readable text.";
+ 
++const char kMaxConnectionsPerHostName[] = "Maximum connections per host";
++const char kMaxConnectionsPerHostDescription[] =
++     "Customize maximum allowed connections per host.";
++
+ const char kMediaRouterCastAllowAllIPsName[] =
+     "Connect to Cast devices on all IP addresses";
+ const char kMediaRouterCastAllowAllIPsDescription[] =
+--- a/chrome/browser/flag_descriptions.h
++++ b/chrome/browser/flag_descriptions.h
+@@ -667,6 +667,9 @@ extern const char kMarkHttpAsWarningAndD
+ extern const char kMaterialDesignIncognitoNTPName[];
+ extern const char kMaterialDesignIncognitoNTPDescription[];
+ 
++extern const char kMaxConnectionsPerHostName[];
++extern const char kMaxConnectionsPerHostDescription[];
++
+ extern const char kMediaRouterCastAllowAllIPsName[];
+ extern const char kMediaRouterCastAllowAllIPsDescription[];
+ 
+--- a/components/network_session_configurator/common/network_features.cc
++++ b/components/network_session_configurator/common/network_features.cc
+@@ -8,6 +8,9 @@
+ 
+ namespace features {
+ 
++const char kMaxConnectionsPerHostChoiceDefault[] = "6",
++                 kMaxConnectionsPerHostChoice15[] = "15";
++
+ const base::Feature kTokenBinding{"token-binding",
+                                   base::FEATURE_DISABLED_BY_DEFAULT};
+ 
+--- a/components/network_session_configurator/common/network_features.h
++++ b/components/network_session_configurator/common/network_features.h
+@@ -10,6 +10,10 @@
+ 
+ namespace features {
+ 
++NETWORK_SESSION_CONFIGURATOR_EXPORT extern const char kMaxConnectionsPerHostChoiceDefault[],
++                 kMaxConnectionsPerHostChoice6[],
++                 kMaxConnectionsPerHostChoice15[];
++
+ // Enables token binding
+ // (https://www.ietf.org/id/draft-ietf-tokbind-protocol-04.txt).
+ NETWORK_SESSION_CONFIGURATOR_EXPORT extern const base::Feature kTokenBinding;
+--- a/components/network_session_configurator/common/network_switch_list.h
++++ b/components/network_session_configurator/common/network_switch_list.h
+@@ -21,6 +21,10 @@ NETWORK_SWITCH(kEnableUserAlternateProto
+ // Enables the QUIC protocol.  This is a temporary testing flag.
+ NETWORK_SWITCH(kEnableQuic, "enable-quic")
+ 
++// Allows specifying a higher number of maximum connections per host
++// (15 instead of 6, mirroring the value Mozilla uses).
++NETWORK_SWITCH(kMaxConnectionsPerHost, "max-connections-per-host")
++
+ // Enable use of experimental TCP sockets API for sending data in the
+ // SYN packet.
+ NETWORK_SWITCH(kEnableTcpFastOpen, "enable-tcp-fastopen")
+--- a/net/socket/client_socket_pool_manager.cc
++++ b/net/socket/client_socket_pool_manager.cc
+@@ -6,8 +6,10 @@
+ 
+ #include <memory>
+ 
++#include "base/command_line.h"
+ #include "base/logging.h"
+ #include "base/strings/stringprintf.h"
++#include "base/strings/string_number_conversions.h"
+ #include "net/base/load_flags.h"
+ #include "net/http/http_proxy_client_socket_pool.h"
+ #include "net/http/http_request_info.h"
+@@ -19,6 +21,7 @@
+ #include "net/socket/ssl_client_socket_pool.h"
+ #include "net/socket/transport_client_socket_pool.h"
+ #include "net/ssl/ssl_config.h"
++#include "components/network_session_configurator/common/network_switches.h"
+ 
+ namespace net {
+ 
+@@ -316,6 +319,19 @@ void ClientSocketPoolManager::set_max_so
+ int ClientSocketPoolManager::max_sockets_per_group(
+     HttpNetworkSession::SocketPoolType pool_type) {
+   DCHECK_LT(pool_type, HttpNetworkSession::NUM_SOCKET_POOL_TYPES);
++
++  if (pool_type == HttpNetworkSession::NORMAL_SOCKET_POOL) {
++      int maxConnectionsPerHost = 0;
++      auto value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(switches::kMaxConnectionsPerHost);
++      if (!value.empty() && !base::StringToInt(value, &maxConnectionsPerHost)) {
++        LOG(DFATAL) << "--" << switches::kMaxConnectionsPerHost << " only accepts integers as arguments (\"" << value << "\" is invalid)";
++      }
++      if (maxConnectionsPerHost != 0) {
++        return maxConnectionsPerHost;
++      }
++      // fallthrough for default value
++  }
++
+   return g_max_sockets_per_group[pool_type];
+ }
+ 
