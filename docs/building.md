@@ -154,7 +154,7 @@ A `.dmg` should appear in `build/`
 
 ## Arch Linux
 
-A PKGBUILD is used to build on Arch Linux. It handles downloading, unpacking, building, and packaging.
+A PKGBUILD is used to build on Arch Linux. It handles downloading, unpacking, building, and packaging. There is a package [available in the AUR](https://aur.archlinux.org/packages/ungoogled-chromium). If you want to generate the PKGBUILD manually, follow the steps below.
 
 Requirements: Python 3 is needed to generate the PKGBUILD. The PKGBUILD contains build dependency information.
 
