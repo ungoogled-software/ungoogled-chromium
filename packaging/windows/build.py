@@ -31,6 +31,10 @@ from buildkit.common import ENCODING, SEVENZIP_USE_REGISTRY, ExtractorEnum, get_
 sys.path.pop(0)
 
 
+def _path_quote_spaces(path):
+    return '"' + path + '"' if ' ' in path else path
+
+
 def _get_vcvars_path(name='64'):
     """
     Returns the path to the corresponding vcvars*.bat path
@@ -56,9 +60,10 @@ def _run_build_process(*args, **kwargs):
     Runs the subprocess with the correct environment variables for building
     """
     # Add call to set VC variables
-    cmd_input = [' '.join(('call', shlex.quote(str(_get_vcvars_path()))))]
-    cmd_input.append(' '.join(map(shlex.quote, args)))
-    subprocess.run('cmd.exe', input='\n'.join(cmd_input), check=True, **kwargs)
+    cmd_input = [' '.join(('call', _path_quote_spaces(str(_get_vcvars_path())), '>nul'))]
+    cmd_input.append(' '.join(_path_quote_spaces(arg) for arg in args))
+    cmd_input.append('exit\n')
+    subprocess.run(('cmd.exe', '/k'), input='\n'.join(cmd_input), check=True, encoding=ENCODING, **kwargs)
 
 
 def _test_python2(error_exit):
