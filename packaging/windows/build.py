@@ -172,7 +172,7 @@ def main():
 
     # Run GN bootstrap
     _run_build_process(
-        shutil.which('python'), 'tools\\gn\\bootstrap\\bootstrap.py', '-o'
+        shutil.which('python'), 'tools\\gn\\bootstrap\\bootstrap.py', '-o',
         'out\\Default\\gn.exe')
 
     # Run gn gen
