@@ -3,7 +3,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -298,8 +298,6 @@ jumbo_split_static_library("browser") {
+@@ -308,8 +308,6 @@ jumbo_split_static_library("browser") {
      "component_updater/subresource_filter_component_installer.h",
      "component_updater/supervised_user_whitelist_installer.cc",
      "component_updater/supervised_user_whitelist_installer.h",
@@ -12,10 +12,10 @@
      "conflicts/enumerate_input_method_editors_win.cc",
      "conflicts/enumerate_input_method_editors_win.h",
      "conflicts/enumerate_shell_extensions_win.cc",
-@@ -1595,11 +1593,11 @@ jumbo_split_static_library("browser") {
-     "//chrome/browser/metrics/variations:chrome_ui_string_overrider_factory",
+@@ -1674,11 +1672,11 @@ jumbo_split_static_library("browser") {
      "//chrome/browser/net:probe_message_proto",
      "//chrome/browser/profiling_host",
+     "//chrome/browser/resource_coordinator:mojo_bindings",
 -    "//chrome/browser/safe_browsing",
      "//chrome/browser/ssl:proto",
      "//chrome/browser/ui",
@@ -27,17 +27,17 @@
      "//components/app_modal",
 --- a/chrome/browser/extensions/BUILD.gn
 +++ b/chrome/browser/extensions/BUILD.gn
-@@ -789,7 +789,6 @@ static_library("extensions") {
-     "//chrome/browser/devtools",
+@@ -800,7 +800,6 @@ jumbo_static_library("extensions") {
      "//chrome/browser/media/router",
      "//chrome/browser/media/router/discovery",
+     "//chrome/browser/resource_coordinator:mojo_bindings",
 -    "//chrome/browser/safe_browsing",
+     "//chrome/browser/web_applications/extensions",
      "//chrome/common",
      "//chrome/common/extensions:mojo_bindings",
-     "//chrome/common/extensions/api:api_registration",
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -932,7 +932,6 @@ split_static_library("ui") {
+@@ -910,7 +910,6 @@ split_static_library("ui") {
      "//chrome/browser/engagement:mojo_bindings",
      "//chrome/browser/media:mojo_bindings",
      "//chrome/browser/profiling_host",
@@ -45,6 +45,17 @@
      "//chrome/browser/ssl:proto",
      "//chrome/browser/ui/webui/bluetooth_internals",
      "//chrome/browser/ui/webui/interventions_internals:mojo_bindings",
+@@ -2647,10 +2646,6 @@ split_static_library("ui") {
+       "network_profile_bubble.h",
+       "startup/default_browser_prompt_win.cc",
+       "views/certificate_viewer_win.cc",
+-      "views/chrome_cleaner_dialog_win.cc",
+-      "views/chrome_cleaner_dialog_win.h",
+-      "views/chrome_cleaner_reboot_dialog_win.cc",
+-      "views/chrome_cleaner_reboot_dialog_win.h",
+       "views/color_chooser_dialog.cc",
+       "views/color_chooser_dialog.h",
+       "views/color_chooser_win.cc",
 --- a/chrome/browser/chrome_browser_main_win.cc
 +++ b/chrome/browser/chrome_browser_main_win.cc
 @@ -44,9 +44,6 @@
@@ -57,7 +68,7 @@
  #include "chrome/browser/ui/simple_message_box.h"
  #include "chrome/browser/ui/uninstall_browser_prompt.h"
  #include "chrome/browser/win/browser_util.h"
-@@ -393,16 +390,6 @@ void ShowCloseBrowserFirstMessageBox() {
+@@ -398,16 +395,6 @@ void ShowCloseBrowserFirstMessageBox() {
        l10n_util::GetStringUTF16(IDS_UNINSTALL_CLOSE_APP));
  }
  
@@ -74,7 +85,7 @@
  }  // namespace
  
  int DoUninstallTasks(bool chrome_still_running) {
-@@ -540,23 +527,6 @@ void ChromeBrowserMainPartsWin::PostBrow
+@@ -564,23 +551,6 @@ void ChromeBrowserMainPartsWin::PostBrow
  
    InitializeChromeElf();
  
@@ -100,7 +111,7 @@
    content::BrowserThread::PostDelayedTask(
 --- a/chrome/browser/ui/webui/settings/chrome_cleanup_handler.cc
 +++ b/chrome/browser/ui/webui/settings/chrome_cleanup_handler.cc
-@@ -293,8 +293,6 @@ void ChromeCleanupHandler::HandleStartCl
+@@ -275,8 +275,6 @@ void ChromeCleanupHandler::HandleStartCl
    // The state is propagated to all open tabs and should be consistent.
    DCHECK_EQ(controller_->logs_enabled(), allow_logs_upload);
  
@@ -111,7 +122,7 @@
  
 --- a/chrome/browser/ui/webui/settings/md_settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/md_settings_ui.cc
-@@ -51,9 +51,6 @@
+@@ -52,9 +52,6 @@
  #include "printing/buildflags/buildflags.h"
  
  #if defined(OS_WIN)
@@ -119,103 +130,28 @@
 -#include "chrome/browser/safe_browsing/chrome_cleaner/srt_field_trial_win.h"
 -#include "chrome/browser/ui/webui/settings/chrome_cleanup_handler.h"
  #if defined(GOOGLE_CHROME_BUILD)
- #include "chrome/browser/conflicts/problematic_programs_updater_win.h"
+ #include "chrome/browser/conflicts/incompatible_applications_updater_win.h"
  #include "chrome/browser/conflicts/token_util_win.h"
-@@ -213,13 +210,6 @@ MdSettingsUI::MdSettingsUI(content::WebU
-   bool chromeCleanupEnabled = false;
-   bool userInitiatedCleanupsEnabled = false;
+@@ -240,7 +237,6 @@ MdSettingsUI::MdSettingsUI(content::WebU
+       content::WebUIDataSource::Create(chrome::kChromeUISettingsHost);
  
+ #if defined(OS_WIN)
 -  AddSettingsPageUIHandler(std::make_unique<ChromeCleanupHandler>(profile));
--
--  safe_browsing::ChromeCleanerController* cleaner_controller =
--      safe_browsing::ChromeCleanerController::GetInstance();
--  chromeCleanupEnabled = cleaner_controller->ShouldShowCleanupInSettingsUI();
--  userInitiatedCleanupsEnabled = safe_browsing::UserInitiatedCleanupsEnabled();
--
+ 
  #if defined(GOOGLE_CHROME_BUILD)
    html_source->AddResourcePath("partner-logo.svg", IDR_CHROME_CLEANUP_PARTNER);
- #if BUILDFLAG(OPTIMIZE_WEBUI)
-@@ -349,13 +339,6 @@ MdSettingsUI::MdSettingsUI(content::WebU
-   content::WebUIDataSource::Add(web_ui->GetWebContents()->GetBrowserContext(),
-                                 html_source);
- 
--#if defined(OS_WIN)
--  // This needs to be below content::WebUIDataSource::Add to make sure there
--  // is a WebUIDataSource to update if the observer is immediately notified.
--  cleanup_observer_.reset(
--      new safe_browsing::ChromeCleanerStateChangeObserver(base::Bind(
--          &MdSettingsUI::UpdateCleanupDataSource, base::Unretained(this))));
--#endif  // defined(OS_WIN)
- }
- 
- MdSettingsUI::~MdSettingsUI() {
-@@ -386,17 +369,4 @@ void MdSettingsUI::DocumentOnLoadComplet
-                       base::Time::Now() - load_start_time_);
- }
- 
--#if defined(OS_WIN)
--void MdSettingsUI::UpdateCleanupDataSource(bool cleanupEnabled) {
--  DCHECK(web_ui());
--  Profile* profile = Profile::FromWebUI(web_ui());
--
--  std::unique_ptr<base::DictionaryValue> update(new base::DictionaryValue);
--  update->SetBoolean("chromeCleanupEnabled", cleanupEnabled);
--
--  content::WebUIDataSource::Update(profile, chrome::kChromeUISettingsHost,
--                                   std::move(update));
--}
--#endif  // defined(OS_WIN)
--
- }  // namespace settings
---- a/chrome/browser/ui/webui/settings/md_settings_ui.h
-+++ b/chrome/browser/ui/webui/settings/md_settings_ui.h
-@@ -13,10 +13,6 @@
- #include "content/public/browser/web_contents_observer.h"
- #include "content/public/browser/web_ui_controller.h"
- 
--#if defined(OS_WIN)
--#include "chrome/browser/safe_browsing/chrome_cleaner/chrome_cleaner_state_change_observer_win.h"
--#endif
--
- namespace content {
- class WebUIMessageHandler;
- }
-@@ -49,12 +45,6 @@ class MdSettingsUI : public content::Web
- 
-   base::Time load_start_time_;
- 
--#if defined(OS_WIN)
--  void UpdateCleanupDataSource(bool cleanupEnabled);
--  std::unique_ptr<safe_browsing::ChromeCleanerStateChangeObserver>
--      cleanup_observer_;
--#endif
--
-   DISALLOW_COPY_AND_ASSIGN(MdSettingsUI);
- };
- 
 --- a/chrome/common/safe_browsing/BUILD.gn
 +++ b/chrome/common/safe_browsing/BUILD.gn
-@@ -15,35 +15,10 @@ proto_library("proto") {
- 
- source_set("safe_browsing") {
-   sources = [
--    "file_type_policies.cc",
--    "file_type_policies.h",
-+    "pe_image_reader_win.cc",
-+    "pe_image_reader_win.h",
+@@ -96,43 +96,8 @@ source_set("safe_browsing") {
+     ":file_type_policies",
    ]
  
 -  if (safe_browsing_mode == 1) {
--    sources += [
--      "archive_analyzer_results.cc",
--      "archive_analyzer_results.h",
+-    sources = [
 -      "binary_feature_extractor.cc",
 -      "binary_feature_extractor.h",
 -      "binary_feature_extractor_mac.cc",
--      "binary_feature_extractor_posix.cc",
 -      "binary_feature_extractor_win.cc",
--      "download_protection_util.cc",
--      "download_protection_util.h",
 -      "ipc_protobuf_message_macros.h",
 -      "ipc_protobuf_message_null_macros.h",
 -      "mach_o_image_reader_mac.cc",
@@ -228,14 +164,35 @@
 -      "zip_analyzer.cc",
 -      "zip_analyzer.h",
 -    ]
--  }
+-    if (is_posix) {
+-      sources += [ "binary_feature_extractor_posix.cc" ]
+-    }
 -
-   public_deps = [
-     "//base:i18n",
-     "//chrome/browser:resources",
+-    deps += [
+-      ":archive_analyzer_results",
+-      ":download_protection_util",
+-      ":rar_analyzer",
+-      "//components/safe_browsing:features",
+-    ]
+-
+-    public_deps = [
+-      ":proto",
+-      "//base:i18n",
+-      "//chrome/common:mojo_bindings",
+-      "//components/safe_browsing:csd_proto",
+-      "//crypto",
+-      "//ipc",
+-      "//third_party/zlib/google:zip",
+-    ]
+-  }
++  sources = [
++    "pe_image_reader_win.cc",
++    "pe_image_reader_win.h",
++  ]
+ }
 --- a/chrome/browser/chrome_browser_main.cc
 +++ b/chrome/browser/chrome_browser_main.cc
-@@ -235,7 +235,6 @@
+@@ -241,7 +241,6 @@
  #include "base/trace_event/trace_event_etw_export_win.h"
  #include "base/win/win_util.h"
  #include "chrome/browser/chrome_browser_main_win.h"
@@ -243,39 +200,40 @@
  #if defined(GOOGLE_CHROME_BUILD)
  #include "chrome/browser/component_updater/third_party_module_list_component_installer_win.h"
  #endif  // defined(GOOGLE_CHROME_BUILD)
-@@ -564,7 +563,6 @@ void RegisterComponentsForUpdate(PrefSer
- 
- #if defined(OS_WIN)
- #if defined(GOOGLE_CHROME_BUILD)
+@@ -603,7 +602,6 @@ void RegisterComponentsForUpdate(PrefSer
+   // on chromium build bots, it is always registered here and
+   // RegisterSwReporterComponent() has support for running only in official
+   // builds or tests.
 -  RegisterSwReporterComponent(cus);
+ #if defined(GOOGLE_CHROME_BUILD)
    RegisterThirdPartyModuleListComponent(cus);
  #endif  // defined(GOOGLE_CHROME_BUILD)
- #endif  // defined(OS_WIN)
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -97,7 +97,6 @@
+@@ -106,7 +106,6 @@
  #include "components/prefs/pref_service.h"
  #include "components/proxy_config/pref_proxy_config_tracker_impl.h"
  #include "components/rappor/rappor_service_impl.h"
 -#include "components/safe_browsing/common/safe_browsing_prefs.h"
  #include "components/search_engines/template_url_prepopulate_data.h"
- #include "components/signin/core/browser/profile_management_switches.h"
- #include "components/ssl_config/ssl_config_service_manager.h"
-@@ -275,13 +274,10 @@
+ #include "components/sessions/core/session_id_generator.h"
+ #include "components/startup_metric_utils/browser/startup_metric_utils.h"
+@@ -291,14 +290,11 @@
  
  #if defined(OS_WIN)
- #include "chrome/browser/apps/app_launch_for_metro_restart_win.h"
+ #include "chrome/browser/apps/platform_apps/app_launch_for_metro_restart_win.h"
 -#include "chrome/browser/component_updater/sw_reporter_installer_win.h"
  #if defined(GOOGLE_CHROME_BUILD)
+ #include "chrome/browser/conflicts/incompatible_applications_updater_win.h"
  #include "chrome/browser/conflicts/module_database_win.h"
- #include "chrome/browser/conflicts/problematic_programs_updater_win.h"
+ #include "chrome/browser/conflicts/third_party_conflicts_manager_win.h"
  #endif  // defined(GOOGLE_CHROME_BUILD)
 -#include "chrome/browser/safe_browsing/chrome_cleaner/settings_resetter_win.h"
 -#include "chrome/browser/safe_browsing/settings_reset_prompt/settings_reset_prompt_prefs_manager.h"
  #include "chrome/browser/ui/desktop_ios_promotion/desktop_ios_promotion_util.h"
  #endif
  
-@@ -470,7 +466,6 @@ void RegisterLocalState(PrefRegistrySimp
+@@ -490,7 +486,6 @@ void RegisterLocalState(PrefRegistrySimp
  
  #if defined(OS_WIN)
    app_metro_launch::RegisterPrefs(registry);
@@ -283,7 +241,7 @@
    desktop_ios_promotion::RegisterLocalPrefs(registry);
    password_manager::PasswordManager::RegisterLocalPrefs(registry);
  #if defined(GOOGLE_CHROME_BUILD)
-@@ -529,7 +524,6 @@ void RegisterProfilePrefs(user_prefs::Pr
+@@ -557,7 +552,6 @@ void RegisterProfilePrefs(user_prefs::Pr
    ProtocolHandlerRegistry::RegisterProfilePrefs(registry);
    PushMessagingAppIdentifier::RegisterProfilePrefs(registry);
    RegisterBrowserUserPrefs(registry);
@@ -291,7 +249,7 @@
    secure_origin_whitelist::RegisterProfilePrefs(registry);
    SafeBrowsingTriggeredPopupBlocker::RegisterProfilePrefs(registry);
    SessionStartupPref::RegisterProfilePrefs(registry);
-@@ -664,12 +658,8 @@ void RegisterProfilePrefs(user_prefs::Pr
+@@ -693,12 +687,8 @@ void RegisterProfilePrefs(user_prefs::Pr
  #endif
  
  #if defined(OS_WIN)
@@ -323,7 +281,7 @@
        prefs::kPluginsAlwaysOpenPdfExternally, pref_service);
 --- a/chrome/browser/profiles/off_the_record_profile_io_data.cc
 +++ b/chrome/browser/profiles/off_the_record_profile_io_data.cc
-@@ -161,14 +161,6 @@ void OffTheRecordProfileIOData::Handle::
+@@ -162,14 +162,6 @@ void OffTheRecordProfileIOData::Handle::
    // Set initialized_ to true at the beginning in case any of the objects
    // below try to get the ResourceContext pointer.
    initialized_ = true;
@@ -340,7 +298,7 @@
        prefs::kPluginsAlwaysOpenPdfExternally, profile_->GetPrefs());
 --- a/chrome/renderer/url_loader_throttle_provider_impl.cc
 +++ b/chrome/renderer/url_loader_throttle_provider_impl.cc
-@@ -54,8 +54,7 @@ URLLoaderThrottleProviderImpl::URLLoader
+@@ -59,8 +59,7 @@ URLLoaderThrottleProviderImpl::URLLoader
        chrome_content_renderer_client_(chrome_content_renderer_client) {
    DETACH_FROM_THREAD(thread_checker_);
  
@@ -350,7 +308,7 @@
      content::RenderThread::Get()->GetConnector()->BindInterface(
          content::mojom::kBrowserServiceName,
          mojo::MakeRequest(&safe_browsing_info_));
-@@ -84,10 +83,7 @@ URLLoaderThrottleProviderImpl::CreateThr
+@@ -107,10 +106,7 @@ URLLoaderThrottleProviderImpl::CreateThr
    DCHECK(!is_frame_resource ||
           type_ == content::URLLoaderThrottleProviderType::kFrame);
  
@@ -362,3 +320,37 @@
      if (safe_browsing_info_)
        safe_browsing_.Bind(std::move(safe_browsing_info_));
      throttles.push_back(
+--- a/chrome/browser/ui/browser_dialogs.h
++++ b/chrome/browser/ui/browser_dialogs.h
+@@ -50,9 +50,6 @@ class PaymentRequestDialog;
+ }
+ 
+ namespace safe_browsing {
+-class ChromeCleanerController;
+-class ChromeCleanerDialogController;
+-class ChromeCleanerRebootDialogController;
+ class SettingsResetPromptController;
+ }
+ 
+@@ -285,21 +282,6 @@ void ShowSettingsResetPrompt(
+     Browser* browser,
+     safe_browsing::SettingsResetPromptController* controller);
+ 
+-// Shows the Chrome Cleanup dialog asking the user if they want to clean their
+-// system from unwanted software. This is called when unwanted software has been
+-// detected on the system.
+-void ShowChromeCleanerPrompt(
+-    Browser* browser,
+-    safe_browsing::ChromeCleanerDialogController* dialog_controller,
+-    safe_browsing::ChromeCleanerController* cleaner_controller);
+-
+-// Shows the Chrome Cleanup reboot dialog asking the user if they want to
+-// restart their computer once a cleanup has finished. This is called when the
+-// Chrome Cleanup ends in a reboot required state.
+-void ShowChromeCleanerRebootPrompt(
+-    Browser* browser,
+-    safe_browsing::ChromeCleanerRebootDialogController* dialog_controller);
+-
+ #endif  // OS_WIN
+ 
+ }  // namespace chrome
