@@ -12,7 +12,6 @@ DOWNLOAD_CACHE=$(dirname $(readlink -f $0))/../../download_cache
 rm -rf out || true
 mkdir out
 mkdir out/Default
-mkdir out/gn_build
 
 pushd $(dirname $(readlink -f $0))
 mkdir $DOWNLOAD_CACHE
@@ -23,7 +22,6 @@ python3 -m buildkit patches apply -b config_bundles/$BUNDLE ../
 python3 -m buildkit domains apply -b config_bundles/$BUNDLE -c domainsubcache.tar.gz ../
 python3 -m buildkit gnargs print -b config_bundles/$BUNDLE > ../out/Default/args.gn
 popd
-cp out/Default/args.gn out/gn_build/args.gn
 
 # Set commands or paths to LLVM-provided tools outside the script via 'export ...'
 # or before these lines
@@ -34,7 +32,6 @@ export CXX=${CXX:=clang++}
 # You may also set CFLAGS, CPPFLAGS, CXXFLAGS, and LDFLAGS
 # See build/toolchain/linux/unbundle/ in the Chromium source for more details.
 
-./tools/gn/bootstrap/bootstrap.py -o out/Default/gn --build-path out/gn_build
-rm -rf out/gn_build
+./tools/gn/bootstrap/bootstrap.py -o out/Default/gn
 ./out/Default/gn gen out/Default --fail-on-unused-args
 ninja -C out/Default chrome chrome_sandbox chromedriver

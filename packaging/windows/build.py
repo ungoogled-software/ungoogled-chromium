@@ -169,14 +169,11 @@ def main():
     # Output args.gn
     (source_tree / 'out/Default').mkdir(parents=True)
     (source_tree / 'out/Default/args.gn').write_text('\n'.join(bundle.gn_flags), encoding=ENCODING)
-    (source_tree / 'out/gn_build').mkdir(parents=True)
-    (source_tree / 'out/gn_build/args.gn').write_text('\n'.join(bundle.gn_flags), encoding=ENCODING)
 
     # Run GN bootstrap
     _run_build_process(
         shutil.which('python'), 'tools\\gn\\bootstrap\\bootstrap.py', '-o'
-        'out\\Default\\gn.exe', '--build-path', 'out\\gn_build')
-    shutil.rmtree('out\\gn_build')
+        'out\\Default\\gn.exe')
 
     # Run gn gen
     _run_build_process('out\\Default\\gn.exe', 'gen', 'out\\Default', '--fail-on-unused-args')
