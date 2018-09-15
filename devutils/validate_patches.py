@@ -647,7 +647,7 @@ def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
         # Add storage for child's patched files
         file_layers = file_layers.new_child()
         # Apply children's patches
-        get_logger().info('Verifying at depth %s: %s', len(node_iter_stack), child_path.name)
+        get_logger().info('Verifying at depth %s: %s ...', len(node_iter_stack), child_path.name)
 
         # Potential optimization: Use interval tree data structure instead of copying
         # the entire array to track only diffs
@@ -765,9 +765,12 @@ def main():
     orig_files = _get_orig_files(args, required_files, parser)
     had_failure = _test_patches(patch_trie, bundle_cache, patch_cache, orig_files)
     if had_failure:
+        get_logger().error('***FAILED VALIDATION; SEE ABOVE***')
         if not args.verbose:
             get_logger().info('(For more error details, re-run with the "-v" flag)')
         parser.exit(status=1)
+    else:
+        get_logger().info('Passed validation')
 
 
 if __name__ == '__main__':
