@@ -74,14 +74,21 @@ def _process_templates(template_files, build_file_subs):
             new_file.truncate()
 
 
-def _get_current_commit():
+def _get_current_commit_or_tag():
     """
-    Returns a string of the current commit hash.
+    Returns a string of the current commit hash, or the tag name based
+    on version.ini if the script is not in a git repo.
 
     It assumes "git" is in PATH, and that buildkit is run within a git repository.
 
     Raises BuildkitAbort if invoking git fails.
     """
+    # Use presence of .git directory to determine if using git or not
+    # since git will be aggressive in finding a git repository otherwise
+    if not (Path(__file__).parent / '.git').exists(): #pylint: disable=no-member
+        # Probably not in a git checkout; extrapolate tag name based on
+        # version.ini
+        return '{}-{}'.format(get_chromium_version(), get_release_revision())
     result = subprocess.run(['git', 'rev-parse', '--verify', 'HEAD'],
                             stdout=subprocess.PIPE,
                             universal_newlines=True,
@@ -207,7 +214,7 @@ def main():
     packaging_subs = dict(
         chromium_version=get_chromium_version(),
         release_revision=get_release_revision(),
-        current_commit=_get_current_commit(),
+        current_commit_or_tag=_get_current_commit_or_tag(),
     )
     _process_templates(template_files, packaging_subs)
 
