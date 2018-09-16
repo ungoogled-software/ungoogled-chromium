@@ -92,7 +92,7 @@ Other platforms are discussed and tracked in GitHub's Issue Tracker. Learn more 
 
 [Website source code and contribution instructions](//github.com/ungoogled-software/ungoogled-chromium-binaries)
 
-The release versioning scheme follows that of the tags. See the next section for more details.
+The release versioning scheme follows that of the tags. Please see [Getting the source code](#getting-the-source-code) section for more details.
 
 ### Alternative installation methods
 
