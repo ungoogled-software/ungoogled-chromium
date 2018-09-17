@@ -615,9 +615,15 @@ def _apply_child_bundle_patches(child_path, had_failure, file_layers, patch_cach
                 break
         if branch_validation_failed != patches_outdated:
             # Metadata for patch validity is out-of-date
-            get_logger().error(
-                ('%s patch validity is inconsistent with patches_outdated marking in bundlemeta. '
-                 'Please update patches or change marking.'), child_path.name)
+            if branch_validation_failed:
+                get_logger().error(("%s patches have become outdated. "
+                                    "Please add 'patches_outdated = true' to its bundlemeta.ini"),
+                                   child_path.name)
+            else:
+                get_logger().error(
+                    ('"%s" is no longer out-of-date! '
+                     'Please remove the patches_outdated marking from its bundlemeta.ini'),
+                    child_path.name)
             had_failure = True
     return had_failure, branch_validation_failed
 
