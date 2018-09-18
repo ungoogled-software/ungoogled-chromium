@@ -14,7 +14,7 @@ mkdir out
 mkdir out/Default
 
 pushd $(dirname $(readlink -f $0))
-mkdir $DOWNLOAD_CACHE
+mkdir $DOWNLOAD_CACHE || true
 python3 -m buildkit downloads retrieve -b config_bundles/$BUNDLE -c $DOWNLOAD_CACHE
 python3 -m buildkit downloads unpack -b config_bundles/$BUNDLE -c $DOWNLOAD_CACHE ../
 python3 -m buildkit prune -b config_bundles/$BUNDLE ../
