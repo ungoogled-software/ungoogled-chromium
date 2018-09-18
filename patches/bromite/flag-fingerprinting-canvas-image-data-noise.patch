@@ -1,6 +1,6 @@
 # NOTE: Changes made:
-# * Added flag --fingerprinting-canvas-webgl-noise to enable/disable
-#   Canvas and WebGL fingerprinting deception
+# * Added flag --fingerprinting-canvas-image-data-noise to enable/disable
+#   Canvas image data fingerprinting deception
 # * Removed WebGLDebugRendererInfo disabling in favor of an alternative
 #   implementation in ungoogled-chromium/disable-webgl-renderer-info.patch
 # * Tweak subchannel noise generation to require fewer random number generation
@@ -36,7 +36,7 @@ approach to change color components.
                                            const SkPixmap& pixmap) const {
    DCHECK(is_valid_);
  
-+  if (RuntimeEnabledFeatures::FingerprintingCanvasWebGLNoiseEnabled()) {
++  if (RuntimeEnabledFeatures::FingerprintingCanvasImageDataNoiseEnabled()) {
 +    // shuffle subchannel color data within the pixmap
 +    StaticBitmapImage::ShuffleSubchannelColorData(pixmap_.writable_addr(), pixmap_.info(), 0, 0);
 +  }
@@ -73,7 +73,7 @@ approach to change color components.
           !sk_image->bounds().intersect(SkIRect::MakeXYWH(
               rect.X(), rect.Y(), info.width(), info.height())));
 +
-+  if (RuntimeEnabledFeatures::FingerprintingCanvasWebGLNoiseEnabled()) {
++  if (RuntimeEnabledFeatures::FingerprintingCanvasImageDataNoiseEnabled()) {
 +    ShuffleSubchannelColorData(result.Data(), info, rect.X(), rect.Y());
 +  }
 +
@@ -251,10 +251,10 @@ approach to change color components.
       "Enable Canvas::measureText() fingerprint deception",
       "Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.",
       kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasMeasureTextNoise)},
-+    {"fingerprinting-canvas-webgl-noise",
-+     "Enable Canvas and WebGL image data fingerprint deception",
-+     "Slightly modifies at most 10 pixels in Canvas and WebGL data extracted via JS APIs",
-+     kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasWebGLNoise)},
++    {"fingerprinting-canvas-image-data-noise",
++     "Enable Canvas image data fingerprint deception",
++     "Slightly modifies at most 10 pixels in Canvas image data extracted via JS APIs",
++     kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasImageDataNoise)},
      {"ignore-gpu-blacklist", flag_descriptions::kIgnoreGpuBlacklistName,
       flag_descriptions::kIgnoreGpuBlacklistDescription, kOsAll,
       SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
@@ -264,8 +264,8 @@ approach to change color components.
        command_line.HasSwitch(switches::kFingerprintingClientRectsNoise));
    WebRuntimeFeatures::EnableFingerprintingCanvasMeasureTextNoise(
        command_line.HasSwitch(switches::kFingerprintingCanvasMeasureTextNoise));
-+  WebRuntimeFeatures::EnableFingerprintingCanvasWebGLNoise(
-+      command_line.HasSwitch(switches::kFingerprintingCanvasWebGLNoise));
++  WebRuntimeFeatures::EnableFingerprintingCanvasImageDataNoise(
++      command_line.HasSwitch(switches::kFingerprintingCanvasImageDataNoise));
  
    // End individual features.
    // Do not add individual features below this line.
@@ -275,7 +275,7 @@ approach to change color components.
        name: "FingerprintingCanvasMeasureTextNoise",
      },
      {
-+      name: "FingerprintingCanvasWebGLNoise",
++      name: "FingerprintingCanvasImageDataNoise",
 +    },
 +    {
        name: "FocusOptions",
@@ -287,8 +287,8 @@ approach to change color components.
    RuntimeEnabledFeatures::SetFingerprintingCanvasMeasureTextNoiseEnabled(enable);
  }
  
-+void WebRuntimeFeatures::EnableFingerprintingCanvasWebGLNoise(bool enable) {
-+  RuntimeEnabledFeatures::SetFingerprintingCanvasWebGLNoiseEnabled(enable);
++void WebRuntimeFeatures::EnableFingerprintingCanvasImageDataNoise(bool enable) {
++  RuntimeEnabledFeatures::SetFingerprintingCanvasImageDataNoiseEnabled(enable);
 +}
 +
  }  // namespace blink
@@ -298,7 +298,7 @@ approach to change color components.
    BLINK_PLATFORM_EXPORT static void EnableMediaControlsExpandGesture(bool);
    BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
    BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasMeasureTextNoise(bool);
-+  BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasWebGLNoise(bool);
++  BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasImageDataNoise(bool);
  
   private:
    WebRuntimeFeatures();
@@ -308,7 +308,20 @@ approach to change color components.
      switches::kFileUrlPathAlias,
      switches::kFingerprintingClientRectsNoise,
      switches::kFingerprintingCanvasMeasureTextNoise,
-+    switches::kFingerprintingCanvasWebGLNoise,
++    switches::kFingerprintingCanvasImageDataNoise,
      switches::kFMPNetworkQuietTimeout,
      switches::kForceColorProfile,
      switches::kForceDeviceScaleFactor,
+--- a/third_party/blink/renderer/platform/BUILD.gn
++++ b/third_party/blink/renderer/platform/BUILD.gn
+@@ -1478,7 +1478,9 @@ jumbo_component("platform") {
+     "//third_party/blink/renderer:non_test_config",
+   ]
+ 
+-  include_dirs = []
++  include_dirs = [
++    "//third_party/skia/include/private", # For shuffler in graphics/static_bitmap_image.cc
++  ]
+ 
+   public_deps = [
+     ":blink_platform_public_deps",

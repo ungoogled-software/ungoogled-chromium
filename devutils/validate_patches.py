@@ -33,11 +33,12 @@ try:
 except ImportError:
 
     class _FakeRequests:
-        """Dummy requests that throws NotImplementedError"""
+        """Pseudo requests module that throws RuntimeError"""
 
         @classmethod
         def _not_implemented(cls):
-            raise NotImplementedError('"requests" module is required for remote file downloading')
+            raise RuntimeError('The Python module "requests" is required for remote'
+                               'file downloading. It can be installed from PyPI.')
 
         @classmethod
         def get(cls, *_, **__):
@@ -615,9 +616,15 @@ def _apply_child_bundle_patches(child_path, had_failure, file_layers, patch_cach
                 break
         if branch_validation_failed != patches_outdated:
             # Metadata for patch validity is out-of-date
-            get_logger().error(
-                ('%s patch validity is inconsistent with patches_outdated marking in bundlemeta. '
-                 'Please update patches or change marking.'), child_path.name)
+            if branch_validation_failed:
+                get_logger().error(("%s patches have become outdated. "
+                                    "Please add 'patches_outdated = true' to its bundlemeta.ini"),
+                                   child_path.name)
+            else:
+                get_logger().error(
+                    ('"%s" is no longer out-of-date! '
+                     'Please remove the patches_outdated marking from its bundlemeta.ini'),
+                    child_path.name)
             had_failure = True
     return had_failure, branch_validation_failed
 
@@ -727,12 +734,19 @@ def main():
         '-v', '--verbose', action='store_true', help='Log more information to stdout/stderr')
     file_source_group = parser.add_mutually_exclusive_group(required=True)
     file_source_group.add_argument(
-        '-l', '--local', type=Path, metavar='DIRECTORY', help='Use a local source tree')
+        '-l',
+        '--local',
+        type=Path,
+        metavar='DIRECTORY',
+        help=
+        'Use a local source tree. It must be UNMODIFIED, otherwise the results will not be valid.')
     file_source_group.add_argument(
         '-r',
         '--remote',
         action='store_true',
-        help='Download the required source tree files from Google')
+        help=('Download the required source tree files from Google. '
+              'This feature requires the Python module "requests". If you do not want to '
+              'install this, consider using --local instead.'))
     file_source_group.add_argument(
         '-c',
         '--cache-remote',
