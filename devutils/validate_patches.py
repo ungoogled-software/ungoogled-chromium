@@ -59,6 +59,7 @@ except ImportError:
 
 _CONFIG_BUNDLES_PATH = Path(__file__).parent.parent / 'config_bundles'
 _PATCHES_PATH = Path(__file__).parent.parent / 'patches'
+_SRC_PATH = Path('src')
 
 
 class _PatchValidationError(Exception):
@@ -285,7 +286,7 @@ class _FallbackRepoManager:
         except ValueError:
             pass
         else:
-            if current_node is root_deps_tree[Path('src')]:
+            if current_node is root_deps_tree[_SRC_PATH]:
                 get_logger().info('Redirecting to GN repo version %s for path: %s', self.gn_version,
                                   current_relative_path)
                 return (self._GN_REPO_URL, self.gn_version, new_relative_path)
@@ -374,8 +375,8 @@ def _initialize_deps_tree():
     download_session is an active requests.Session() object
     """
     root_deps_tree = {
-        Path('src'): ('https://chromium.googlesource.com/chromium/src.git', get_chromium_version(),
-                      'DEPS')
+        _SRC_PATH: ('https://chromium.googlesource.com/chromium/src.git', get_chromium_version(),
+                    'DEPS')
     }
     return root_deps_tree
 
