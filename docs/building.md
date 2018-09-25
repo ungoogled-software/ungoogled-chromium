@@ -67,6 +67,8 @@ Packages will appear under `build/`.
 
 ### Building via source package
 
+To build via a Debian source package (i.e. `.dsc`, `.orig.tar.xz`, and `.debian.tar.xz`). This is useful for online build services like Launchpad and openSUSE Build Service.
+
 ```sh
 # Run from inside the clone of the repository
 mkdir -p build/src
