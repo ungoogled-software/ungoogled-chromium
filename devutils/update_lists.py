@@ -88,7 +88,7 @@ DOMAIN_EXCLUDE_PREFIXES = ['components/test/', 'net/http/transport_security_stat
 DOMAIN_INCLUDE_PATTERNS = [
     '*.h', '*.hh', '*.hpp', '*.hxx', '*.cc', '*.cpp', '*.cxx', '*.c', '*.h', '*.json', '*.js',
     '*.html', '*.htm', '*.css', '*.py*', '*.grd', '*.sql', '*.idl', '*.mk', '*.gyp*', 'makefile',
-    '*.txt', '*.xml', '*.mm', '*.jinja*'
+    '*.txt', '*.xml', '*.mm', '*.jinja*', '*.gn', '*.gni'
 ]
 
 # Binary-detection constant
