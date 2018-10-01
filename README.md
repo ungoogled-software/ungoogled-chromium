@@ -2,22 +2,23 @@
 
 *Bringing back the "Don't" in "Don't be evil"*
 
-**ungoogled-chromium is Google Chromium**, sans integration with Google. It also features some changes to enhance privacy, control, and transparency.
+**ungoogled-chromium is Google Chromium**, sans integration with Google. It also features some tweaks to enhance privacy, control, and transparency *(almost all of which require manual activation or enabling)*.
+
+**ungoogled-chromium retains the default Chromium experience as closely as possible**. Unlike other Chromium forks that have their own visions of a web browser, ungoogled-chromium is essentially a drop-in replacement for Chromium.
 
 ## Motivation and Description
 
 A number of features or background services communicate with Google servers despite the absence of an associated Google account or compiled-in Google API keys. Furthermore, the normal build process for Chromium involves running Google's own high-level commands that invoke many scripts and utilities, some of which download and use pre-built binaries provided by Google. Even the final build output includes some pre-built binaries. Fortunately, the source code is available for everything.
 
-ungoogled-chromium is a set of configuration flags, patches, and custom scripts. These components altogether strive to accomplish the following:
+From a technical standpoint, ungoogled-chromium is a set of configuration flags, patches, and custom scripts. These components altogether strive to accomplish the following:
+
 * Disable or remove offending services and features that communicate with Google or weaken privacy
 * Strip binaries from the source tree, and use those provided by the system or build them from source
-* Disable features that inhibit control and transparency, and add or modify features that promote them (these changes are minor and do not have significant impacts on the general user experience)
-
-**ungoogled-chromium should not be considered a fork of Chromium**. The main reason for this is that a fork is associated with more significant deviations from the Chromium, such as branding, configuration formats, file locations, and other interface changes. ungoogled-chromium will not modify the Chromium browser outside of the project's goals.
+* Disable features that inhibit control and transparency, and add or modify features that promote them (these changes will almost always require manual activation or enabling).
 
 Since these goals and requirements are not precise, unclear situations are discussed and decided on a case-by-case basis.
 
-**ungoogled-chromium is looking for contributors**. See the [Contributing, Reporting, Contacting](#contributing-reporting-contacting) section for more information.
+**ungoogled-chromium always welcomes more help!**. See the [Contributing, Reporting, Contacting](#contributing-reporting-contacting) section for more information.
 
 ## Table of Contents
 
@@ -138,7 +139,12 @@ Subsections of this section:
 
 ### How to help
 
-Anyone is free to help others in need of support in the Issue Tracker.
+Generally, ungoogled-chromium needs maintainers to help:
+
+* Keep up-to-date with the latest stable Chromium, and any problematic changes in the new version that needs modification.
+* Implement feature requests ("enhancements" in the Issue Tracker), large or small.
+
+In addition, anyone is free to help others in need of support in the Issue Tracker.
 
 Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
 
