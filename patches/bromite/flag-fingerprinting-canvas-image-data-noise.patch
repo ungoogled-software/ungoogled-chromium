@@ -31,8 +31,8 @@ approach to change color components.
 +#include "base/logging.h"
  #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
  #include "third_party/blink/renderer/platform/image-encoders/image_encoder.h"
- #include "third_party/blink/renderer/platform/network/mime/mime_type_registry.h"
-@@ -129,6 +131,11 @@ bool ImageDataBuffer::EncodeImageInterna
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+@@ -128,6 +130,11 @@ bool ImageDataBuffer::EncodeImageInterna
                                            const SkPixmap& pixmap) const {
    DCHECK(is_valid_);
  
@@ -41,7 +41,7 @@ approach to change color components.
 +    StaticBitmapImage::ShuffleSubchannelColorData(pixmap_.writable_addr(), pixmap_.info(), 0, 0);
 +  }
 +
-   if (mime_type == "image/jpeg") {
+   if (mime_type == kMimeTypeJpeg) {
      SkJpegEncoder::Options options;
      options.fQuality = ImageEncoder::ComputeJpegQuality(quality);
 --- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
@@ -247,7 +247,7 @@ approach to change color components.
    // Methods overridden by all sub-classes
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -1248,6 +1248,10 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1395,6 +1395,10 @@ const FeatureEntry kFeatureEntries[] = {
       "Enable Canvas::measureText() fingerprint deception",
       "Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.",
       kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasMeasureTextNoise)},
@@ -260,7 +260,7 @@ approach to change color components.
       SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
 --- a/content/child/runtime_features.cc
 +++ b/content/child/runtime_features.cc
-@@ -467,6 +467,8 @@ void SetRuntimeFeaturesDefaultsAndUpdate
+@@ -481,6 +481,8 @@ void SetRuntimeFeaturesDefaultsAndUpdate
        command_line.HasSwitch(switches::kFingerprintingClientRectsNoise));
    WebRuntimeFeatures::EnableFingerprintingCanvasMeasureTextNoise(
        command_line.HasSwitch(switches::kFingerprintingCanvasMeasureTextNoise));
@@ -271,19 +271,19 @@ approach to change color components.
    // Do not add individual features below this line.
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -511,6 +511,9 @@
+@@ -474,6 +474,9 @@
        name: "FingerprintingCanvasMeasureTextNoise",
      },
      {
 +      name: "FingerprintingCanvasImageDataNoise",
 +    },
 +    {
-       name: "FocusOptions",
-       status: "stable",
+       name: "FontCacheScaling",
+       status: "test",
      },
 --- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
 +++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-@@ -564,4 +564,8 @@ void WebRuntimeFeatures::EnableFingerpri
+@@ -580,4 +580,8 @@ void WebRuntimeFeatures::EnableFingerpri
    RuntimeEnabledFeatures::SetFingerprintingCanvasMeasureTextNoiseEnabled(enable);
  }
  
@@ -294,8 +294,8 @@ approach to change color components.
  }  // namespace blink
 --- a/third_party/blink/public/platform/web_runtime_features.h
 +++ b/third_party/blink/public/platform/web_runtime_features.h
-@@ -201,6 +201,7 @@ class WebRuntimeFeatures {
-   BLINK_PLATFORM_EXPORT static void EnableMediaControlsExpandGesture(bool);
+@@ -206,6 +206,7 @@ class WebRuntimeFeatures {
+   BLINK_PLATFORM_EXPORT static void EnableHrefTranslate(bool);
    BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
    BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasMeasureTextNoise(bool);
 +  BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasImageDataNoise(bool);
@@ -304,17 +304,17 @@ approach to change color components.
    WebRuntimeFeatures();
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -2866,6 +2866,7 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3001,6 +3001,7 @@ void RenderProcessHostImpl::PropagateBro
      switches::kFileUrlPathAlias,
      switches::kFingerprintingClientRectsNoise,
      switches::kFingerprintingCanvasMeasureTextNoise,
 +    switches::kFingerprintingCanvasImageDataNoise,
-     switches::kFMPNetworkQuietTimeout,
      switches::kForceColorProfile,
      switches::kForceDeviceScaleFactor,
+     switches::kForceGpuMemAvailableMb,
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1478,7 +1478,9 @@ jumbo_component("platform") {
+@@ -1428,7 +1428,9 @@ jumbo_component("platform") {
      "//third_party/blink/renderer:non_test_config",
    ]
  
