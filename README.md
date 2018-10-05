@@ -18,7 +18,7 @@ From a technical standpoint, ungoogled-chromium is a set of configuration flags,
 
 Since these goals and requirements are not precise, unclear situations are discussed and decided on a case-by-case basis.
 
-**ungoogled-chromium always welcomes more help!**. See the [Contributing, Reporting, Contacting](#contributing-reporting-contacting) section for more information.
+**ungoogled-chromium always welcomes more help!** See the [Contributing, Reporting, Contacting](#contributing-reporting-contacting) section for more information.
 
 ## Table of Contents
 
