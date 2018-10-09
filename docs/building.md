@@ -261,6 +261,20 @@ cd build/src
 
 A compressed tar archive will appear in `build/src/ungoogled_packaging/`
 
-### Building an AppImage, Flatpak, or Snap package
+### Building an AppImage
 
-TODO. See [Issue #36](//github.com/Eloston/ungoogled-chromium/issues/36)
+A portable build and tar package is required prior to achieving an AppImage
+```
+# Portable build & tar package
+./ungoogled_packaging/build.sh
+./ungoogled_packaging/package.sh
+# Create an AppImage
+./ungoogled_packaging/package.appimage.sh
+```
+
+More details [Issue #36](//github.com/Eloston/ungoogled-chromium/issues/36)
+
+
+### Building a Flatpak, or Snap package
+
+TODO.
