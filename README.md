@@ -97,6 +97,8 @@ The release versioning scheme follows that of the tags. Please see [Getting the 
 
 Arch Linux: [Available in AUR as `ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
 
+* **NOTE**: `ungoogled-chromium-bin` is *not* officially part of ungoogled-chromium. Please submit all issues to the maintainer of the PKGBUILD.
+
 macOS cask: Available as `eloston-chromium`
 
 ## Getting the source code
