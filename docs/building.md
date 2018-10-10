@@ -263,18 +263,12 @@ A compressed tar archive will appear in `build/src/ungoogled_packaging/`
 
 ### Building an AppImage
 
-A portable build and tar package is required prior to achieving an AppImage
+First, follow the instructions in [Build a tar archive](#build-a-tar-archive).
+
+Then, run the following:
+
 ```
-# Portable build & tar package
-./ungoogled_packaging/build.sh
-./ungoogled_packaging/package.sh
-# Create an AppImage
 ./ungoogled_packaging/package.appimage.sh
 ```
 
-More details [Issue #36](//github.com/Eloston/ungoogled-chromium/issues/36)
-
-
-### Building a Flatpak, or Snap package
-
-TODO.
+An `.AppImage` file will appear in `build/src/ungoogled_packaging/`
