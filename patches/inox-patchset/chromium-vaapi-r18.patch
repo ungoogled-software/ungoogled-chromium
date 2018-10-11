@@ -398,31 +398,27 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  CONTENT_EXPORT extern const char kEnableWebRtcSrtpAesGcm[];
  CONTENT_EXPORT extern const char kEnableWebRtcSrtpEncryptedHeaders[];
  CONTENT_EXPORT extern const char kEnableWebRtcStunOrigin[];
---- a/content/renderer/media/webrtc/video_codec_factory.cc
-+++ b/content/renderer/media/webrtc/video_codec_factory.cc
-@@ -183,7 +183,11 @@ std::unique_ptr<webrtc::VideoEncoderFact
+--- a/content/renderer/media/webrtc/peer_connection_dependency_factory.cc
++++ b/content/renderer/media/webrtc/peer_connection_dependency_factory.cc
+@@ -276,10 +276,18 @@ void PeerConnectionDependencyFactory::In
  
    const base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
-   if (gpu_factories && gpu_factories->IsGpuVideoAcceleratorEnabled() &&
+   if (gpu_factories && gpu_factories->IsGpuVideoAcceleratorEnabled()) {
 +#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
-+      cmd_line->HasSwitch(switches::kEnableAcceleratedVideo)) {
++    if (cmd_line->HasSwitch(switches::kEnableAcceleratedVideo))
 +#else
-       !cmd_line->HasSwitch(switches::kDisableWebRtcHWEncoding)) {
+     if (!cmd_line->HasSwitch(switches::kDisableWebRtcHWDecoding))
 +#endif
-     encoder_factory.reset(new RTCVideoEncoderFactory(gpu_factories));
+       decoder_factory.reset(new RTCVideoDecoderFactory(gpu_factories));
+ 
++#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
++    if (cmd_line->HasSwitch(switches::kEnableAcceleratedVideo))
++#else
+     if (!cmd_line->HasSwitch(switches::kDisableWebRtcHWEncoding))
++#endif
+       encoder_factory.reset(new RTCVideoEncoderFactory(gpu_factories));
    }
  
-@@ -201,7 +205,11 @@ std::unique_ptr<webrtc::VideoDecoderFact
- 
-   const base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
-   if (gpu_factories && gpu_factories->IsGpuVideoAcceleratorEnabled() &&
-+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
-+      cmd_line->HasSwitch(switches::kEnableAcceleratedVideo)) {
-+#else
-       !cmd_line->HasSwitch(switches::kDisableWebRtcHWDecoding)) {
-+#endif
-     decoder_factory.reset(new RTCVideoDecoderFactory(gpu_factories));
-   }
 --- a/content/renderer/render_thread_impl.cc
 +++ b/content/renderer/render_thread_impl.cc
 @@ -1415,7 +1415,11 @@ media::GpuVideoAcceleratorFactories* Ren
@@ -459,7 +455,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
        "cr_bugs": [145531, 332596, 571899, 629434],
 --- a/media/gpu/BUILD.gn
 +++ b/media/gpu/BUILD.gn
-@@ -499,6 +499,14 @@ if (use_v4l2_codec || use_vaapi || is_ma
+@@ -501,6 +501,14 @@ if (use_v4l2_codec || use_vaapi || is_ma
    }
  }
  
@@ -474,7 +470,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  if (use_vaapi) {
    test("jpeg_encode_accelerator_unittest") {
      deps = [
-@@ -569,6 +577,10 @@ if (use_v4l2_codec || use_vaapi) {
+@@ -571,6 +579,10 @@ if (use_v4l2_codec || use_vaapi) {
      if (use_ozone) {
        deps += [ "//ui/ozone" ]
      }
@@ -544,7 +540,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  MEDIA_EXPORT extern const char kMuteAudio[];
 --- a/content/browser/utility_process_host.cc
 +++ b/content/browser/utility_process_host.cc
-@@ -298,7 +298,11 @@ bool UtilityProcessHost::StartProcess()
+@@ -304,7 +304,11 @@ bool UtilityProcessHost::StartProcess()
        switches::kOverrideUseSoftwareGLForTests,
        switches::kOverrideEnabledCdmInterfaceVersion,
        switches::kProxyServer,
