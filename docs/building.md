@@ -8,7 +8,7 @@ For configurations, you may try augmenting the standard Chromium build procedure
 
 **Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses). *Please check the status before attempting a build or posting an issue*.
 
-**Choosing a version**: *It is highly recommended to choose a tag version for building.* `master` and other branches are not guarenteed to be in a working state.
+**Choosing a version**: *It is highly recommended to choose a tag version for building.* `master` and other branches are not guaranteed to be in a working state.
 
 ## Contents
 
@@ -32,7 +32,7 @@ The final size of the sandbox with build artifacts is over 5 GB. On 64-bit syste
 ### Hardware requirements
 
 * For 64-bit systems, at least 8 GB of RAM is highly recommended (as recommended in the Chromium source tree under `docs/linux_build_instructions.md`).
-    * It may be possible to reduce RAM comsumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
+    * It may be possible to reduce RAM consumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
     * Debian's `chromium` package version `69.0.3497.81-1` uses a value of: 12
 * Filesystem space: 8 GB is the bare minimum. More is safer.
 
@@ -50,7 +50,7 @@ mkdir -p build/src
 ./get_package.py PACKAGE_TYPE_HERE build/src/debian
 cd build/src
 # Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
-# If necessary, change the dependencies in debian/control to accomodate your environment.
+# If necessary, change the dependencies in debian/control to accommodate your environment.
 # If necessary, modify AR, NM, CC, and CXX variables in debian/rules
 debian/rules setup-local-src
 dpkg-buildpackage -b -uc
@@ -74,7 +74,7 @@ To build via a Debian source package (i.e. `.dsc`, `.orig.tar.xz`, and `.debian.
 mkdir -p build/src
 ./get_package.py PACKAGE_TYPE_HERE build/src/debian
 cd build/src
-# If necessary, change the dependencies in debian/control to accomodate your environment.
+# If necessary, change the dependencies in debian/control to accommodate your environment.
 # If necessary, modify AR, NM, CC, and CXX variables in debian/rules
 debian/rules get-orig-source
 debuild -S -sa
@@ -96,7 +96,7 @@ NOTE: The default configuration will build 64-bit binaries for maximum security 
 
 [Follow the official Windows build instructions](https://chromium.googlesource.com/chromium/src/+/64.0.3282.168/docs/windows_build_instructions.md#visual-studio).
 
-**IMPORTANT**: According to [a Chromium developer in Google Groups](https://groups.google.com/a/chromium.org/d/msg/chromium-dev/PsqFiJ-j5B4/9wO3wflWCQAJ), due to bugs in the 10.0.16299.15 SDK (that comes with Visual Studio 2017 as of Feburary 2018) *will not work* to build Chromium. The 10.0.15063 SDK must be downloaded and installed. This can be downloaded from the [Windows SDK Archive](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive).
+**IMPORTANT**: According to [a Chromium developer in Google Groups](https://groups.google.com/a/chromium.org/d/msg/chromium-dev/PsqFiJ-j5B4/9wO3wflWCQAJ), due to bugs in the 10.0.16299.15 SDK (that comes with Visual Studio 2017 as of February 2018) *will not work* to build Chromium. The 10.0.15063 SDK must be downloaded and installed. This can be downloaded from the [Windows SDK Archive](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive).
 
 When installing the SDK, the "Debugging Tools for Windows" feature must be enabled. Visual Studio 2017 does not enable this by default, so it has to be added in by selecting "Modify" on the SDK entry in "Add or remove programs".
 
@@ -229,7 +229,7 @@ These instructions will build packages compatible with any Linux distribution th
 ### Hardware requirements
 
 * For 64-bit systems, at least 8 GB of RAM is highly recommended (per the document in the Chromium source tree under `docs/linux_build_instructions.md`).
-    * It may be possible to reduce RAM comsumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
+    * It may be possible to reduce RAM consumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
 * At least 8 GB of filesystem space. 16 GB should be safe.
 
 ### Software requirements

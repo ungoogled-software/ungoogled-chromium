@@ -126,7 +126,7 @@ Not all tags are stable for all platforms. See the [Statuses in the Wiki](//ungo
 
 ## Contributing, Reporting, Contacting
 
-* For reporting and contating, see [SUPPORT.md](SUPPORT.md)
+* For reporting and contacting, see [SUPPORT.md](SUPPORT.md)
 * For contributing (e.g. how to help, submitting changes, criteria for new features), see [docs/contributing.md](docs/contributing.md)
 
 ## Credits

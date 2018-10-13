@@ -42,7 +42,7 @@ This is an example workflow on Linux that can be modified for your specific usag
 
 ### Downloading the source code and updating lists
 
-The utility `devutils/update_lists.py` automates this process. By default, it will update the `common` base bundle automatically. Pass in `-h` or `--help` for availabe options.
+The utility `devutils/update_lists.py` automates this process. By default, it will update the `common` base bundle automatically. Pass in `-h` or `--help` for available options.
 
 Here's an example for updating the `common` configuration type:
 
