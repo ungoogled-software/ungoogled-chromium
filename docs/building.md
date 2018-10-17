@@ -6,9 +6,11 @@ For configurations, you may try augmenting the standard Chromium build procedure
 
 ## IMPORTANT - Please read this section first
 
-**Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses). *Please check the status before attempting a build or posting an issue*.
-
 **Choosing a version**: *It is highly recommended to choose a tag version for building.* `master` and other branches are not guaranteed to be in a working state.
+
+**Use the documentation included with the code you downloaded**. The documentation in the `master` branch changes frequently, and may not correspond to the code you downloaded.
+
+**Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses). *Please check the status before attempting a build or posting an issue*.
 
 ## Contents
 
