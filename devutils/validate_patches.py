@@ -62,7 +62,7 @@ try:
                 total=10,
                 read=10,
                 connect=10,
-                backoff_factor=0.5,
+                backoff_factor=1,
                 status_forcelist=urllib3.Retry.RETRY_AFTER_STATUS_CODES,
                 raise_on_status=False))
         session.mount('http://', http_adapter)
