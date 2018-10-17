@@ -30,32 +30,50 @@ sys.path.pop(0)
 
 try:
     import requests
+    import requests.adapters
+    import urllib3.util
+
+    class _VerboseRetry(urllib3.util.Retry):
+        """A more verbose version of HTTP Adatper about retries"""
+
+        def sleep_for_retry(self, response=None):
+            """Sleeps for Retry-After, and logs the sleep time"""
+            if response:
+                retry_after = self.get_retry_after(response)
+                if retry_after:
+                    get_logger().info(
+                        'Got HTTP status %s with Retry-After header. Retrying after %s seconds...',
+                        response.status_code, retry_after)
+                else:
+                    get_logger().info(
+                        'Could not find Retry-After header for HTTP response %s. Status reason: %s',
+                        response.status_code, response.reason)
+            return super().sleep_for_retry(response)
+
+        def _sleep_backoff(self):
+            """Log info about backoff sleep"""
+            get_logger().info('Running HTTP request sleep backoff')
+            super()._sleep_backoff()
+
+    def _get_requests_session():
+        session = requests.Session()
+        http_adapter = requests.adapters.HTTPAdapter(
+            max_retries=_VerboseRetry(
+                total=10,
+                read=10,
+                connect=10,
+                backoff_factor=0.5,
+                status_forcelist=urllib3.Retry.RETRY_AFTER_STATUS_CODES,
+                raise_on_status=False))
+        session.mount('http://', http_adapter)
+        session.mount('https://', http_adapter)
+        return session
 except ImportError:
 
-    class _FakeRequests:
-        """Pseudo requests module that throws RuntimeError"""
+    def _get_requests_session():
+        raise RuntimeError('The Python module "requests" is required for remote'
+                           'file downloading. It can be installed from PyPI.')
 
-        @classmethod
-        def _not_implemented(cls):
-            raise RuntimeError('The Python module "requests" is required for remote'
-                               'file downloading. It can be installed from PyPI.')
-
-        @classmethod
-        def get(cls, *_, **__):
-            """Placeholder"""
-            cls._not_implemented()
-
-        @classmethod
-        def head(cls, *_, **__):
-            """Placeholder"""
-            cls._not_implemented()
-
-        @classmethod
-        def Session(cls): #pylint: disable=invalid-name
-            """Placeholder"""
-            cls._not_implemented()
-
-    requests = _FakeRequests()
 
 _CONFIG_BUNDLES_PATH = Path(__file__).parent.parent / 'config_bundles'
 _PATCHES_PATH = Path(__file__).parent.parent / 'patches'
@@ -99,7 +117,7 @@ def _validate_deps(deps_text):
     try:
         _DepsNodeVisitor().visit(ast.parse(deps_text))
     except _UnexpectedSyntaxError as exc:
-        print('ERROR: %s' % exc)
+        get_logger().error('%s', exc)
         return False
     return True
 
@@ -203,11 +221,12 @@ def _get_child_deps_tree(download_session, current_deps_tree, child_path, deps_u
 
 def _get_last_chromium_modification():
     """Returns the last modification date of the chromium-browser-official tar file"""
-    response = requests.head(
-        'https://storage.googleapis.com/chromium-browser-official/chromium-{}.tar.xz'.format(
-            get_chromium_version()))
-    response.raise_for_status()
-    return email.utils.parsedate_to_datetime(response.headers['Last-Modified'])
+    with _get_requests_session() as session:
+        response = session.head(
+            'https://storage.googleapis.com/chromium-browser-official/chromium-{}.tar.xz'.format(
+                get_chromium_version()))
+        response.raise_for_status()
+        return email.utils.parsedate_to_datetime(response.headers['Last-Modified'])
 
 
 def _get_gitiles_git_log_date(log_entry):
@@ -218,9 +237,10 @@ def _get_gitiles_git_log_date(log_entry):
 def _get_gitiles_commit_before_date(repo_url, target_branch, target_datetime):
     """Returns the hexadecimal hash of the closest commit before target_datetime"""
     json_log_url = '{repo}/+log/{branch}?format=JSON'.format(repo=repo_url, branch=target_branch)
-    response = requests.get(json_log_url)
-    response.raise_for_status()
-    git_log = json.loads(response.text[5:]) # Trim closing delimiters for various structures
+    with _get_requests_session() as session:
+        response = session.get(json_log_url)
+        response.raise_for_status()
+        git_log = json.loads(response.text[5:]) # Trim closing delimiters for various structures
     assert len(git_log) == 2 # 'log' and 'next' entries
     assert 'log' in git_log
     assert git_log['log']
@@ -408,7 +428,7 @@ def _retrieve_remote_files(file_iter):
     last_progress = 0
     file_count = 0
     fallback_repo_manager = _FallbackRepoManager()
-    with requests.Session() as download_session:
+    with _get_requests_session() as download_session:
         download_session.stream = False # To ensure connection to Google can be reused
         for file_path in file_iter:
             if total_files:
