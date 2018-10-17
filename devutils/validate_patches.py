@@ -43,11 +43,11 @@ try:
                 if retry_after:
                     get_logger().info(
                         'Got HTTP status %s with Retry-After header. Retrying after %s seconds...',
-                        response.status_code, retry_after)
+                        response.status, retry_after)
                 else:
                     get_logger().info(
                         'Could not find Retry-After header for HTTP response %s. Status reason: %s',
-                        response.status_code, response.reason)
+                        response.status, response.reason)
             return super().sleep_for_retry(response)
 
         def _sleep_backoff(self):
