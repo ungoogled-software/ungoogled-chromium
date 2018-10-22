@@ -154,7 +154,7 @@ cd build/src
 ./ungoogled_packaging/build.sh
 ```
 
-A `.dmg` should appear in `build/`
+A `.dmg` should appear in `build/src/ungoogled_packaging/`
 
 ## Arch Linux
 
