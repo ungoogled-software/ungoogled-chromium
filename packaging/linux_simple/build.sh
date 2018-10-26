@@ -1,5 +1,6 @@
 #!/bin/bash
 
+PARAM1=$1
 set -eux
 
 # Simple build script for Linux
@@ -34,4 +35,6 @@ export CXX=${CXX:=clang++}
 
 ./tools/gn/bootstrap/bootstrap.py -o out/Default/gn
 ./out/Default/gn gen out/Default --fail-on-unused-args
-ninja -C out/Default chrome chrome_sandbox chromedriver
+if [[ $PARAM1 != "prepareonly" ]]; then
+  ninja -C out/Default chrome chrome_sandbox chromedriver
+fi
