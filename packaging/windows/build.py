@@ -168,7 +168,8 @@ def main():
 
     # Output args.gn
     (source_tree / 'out/Default').mkdir(parents=True)
-    (source_tree / 'out/Default/args.gn').write_text('\n'.join(bundle.gn_flags), encoding=ENCODING)
+    (source_tree / 'out/Default/args.gn').write_text(
+        '\n'.join(str(bundle.gn_flags)), encoding=ENCODING)
 
     # Run GN bootstrap
     _run_build_process(
