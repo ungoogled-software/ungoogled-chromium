@@ -241,7 +241,11 @@ TODO: Document all libraries and tools needed to build. For now, see the build d
 * Python 3 (tested on 3.5) for buildkit
 * Python 2 (tested on 2.7) for building GN and running other build-time scripts
 * [Ninja](//ninja-build.org/) for running the build command
-* LLVM 7.0 or 8.0 (including Clang and LLD)
+* One of the following LLVM toolchain versions (which include Clang and LLD):
+    * The latest stable LLVM version
+    * A build of the LLVM revision used by Google to build Chromium. This is specified in the Chromium source tree under `tools/clang/scripts/update.py` in the constant `CLANG_REVISION`. (For more info about how Google manages its prebuilt LLVM toolchain, see the file in the Chromium source tree `docs/updating_clang.md`)
+
+    Note that any other LLVM version may outright fail, or [cause unexpected behavior](https://github.com/Eloston/ungoogled-chromium/issues/586).
 
 For Debian-based systems:
 
