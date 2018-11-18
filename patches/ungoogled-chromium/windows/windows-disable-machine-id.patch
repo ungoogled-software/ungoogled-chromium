@@ -1,0 +1,53 @@
+# Disable machine ID generation on Windows.
+# See https://github.com/Eloston/ungoogled-chromium/issues/444
+
+--- a/services/preferences/tracked/device_id_win.cc
++++ b/services/preferences/tracked/device_id_win.cc
+@@ -10,11 +10,15 @@
+
+ #include <memory>
+
++#include "base/command_line.h"
+ #include "base/logging.h"
+ #include "base/macros.h"
+
+ MachineIdStatus GetDeterministicMachineSpecificId(std::string* machine_id) {
+   DCHECK(machine_id);
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("disable-machine-id")) {
++    return MachineIdStatus::NOT_IMPLEMENTED;
++  }
+
+   wchar_t computer_name[MAX_COMPUTERNAME_LENGTH + 1] = {};
+   DWORD computer_name_size = arraysize(computer_name);
+--- a/components/metrics/machine_id_provider_win.cc
++++ b/components/metrics/machine_id_provider_win.cc
+@@ -9,6 +9,7 @@
+ #include <winioctl.h>
+ 
+ #include "base/base_paths.h"
++#include "base/command_line.h"
+ #include "base/files/file_path.h"
+ #include "base/path_service.h"
+ #include "base/threading/scoped_blocking_call.h"
+@@ -18,6 +19,9 @@ namespace metrics {
+ 
+ // static
+ bool MachineIdProvider::HasId() {
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("disable-machine-id")) {
++    return false;
++  }
+   return true;
+ }
+ 
+@@ -25,6 +29,11 @@ bool MachineIdProvider::HasId() {
+ // is running from.
+ // static
+ std::string MachineIdProvider::GetMachineId() {
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("disable-machine-id")) {
++    NOTREACHED();
++    return std::string();
++  }
++
+   base::ScopedBlockingCall scoped_blocking_call(base::BlockingType::MAY_BLOCK);
+ 
+   // Use the program's path to get the drive used for the machine id. This means
