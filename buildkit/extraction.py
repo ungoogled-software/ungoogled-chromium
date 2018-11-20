@@ -67,8 +67,6 @@ def _process_relative_to(unpack_root, relative_to):
         raise BuildkitAbort()
     for src_path in relative_root.iterdir():
         dest_path = unpack_root / src_path.name
-        if os.path.exists(dest_path):
-            os.remove(dest_path)
         src_path.rename(dest_path)
     relative_root.rmdir()
 
@@ -92,8 +90,6 @@ def prune_dir(unpack_root, ignore_files):
 
 def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
     get_logger().debug('Using 7-zip extractor')
-    if os.path.exists(output_dir / relative_to):
-        shutil.rmtree(output_dir / relative_to)
     if not relative_to is None and (output_dir / relative_to).exists():
         get_logger().error('Temporary unpacking directory already exists: %s',
                            output_dir / relative_to)
