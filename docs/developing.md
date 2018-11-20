@@ -89,3 +89,7 @@ If domain substitution is applied, then the steps for the initial update will no
 2. Follow the patch updating section above
 3. Reapply domain substitution: `python3 -m buildkit domains apply -b BUNDLE_PATH_HERE -c CACHE_PATH_HERE build/src`
 4. Reattempt build. Repeat steps as necessary.
+
+## Updating Debian patches and packaging files
+
+See [ungoogled-chromium-debian repo](https://github.com/ungoogled-software/ungoogled-chromium-debian) for info.
