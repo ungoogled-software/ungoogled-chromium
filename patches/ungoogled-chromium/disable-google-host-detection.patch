@@ -459,24 +459,92 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -33,8 +33,6 @@ void GoogleURLLoaderThrottle::WillStartR
-   if (!is_off_the_record_ &&
-       variations::ShouldAppendVariationHeaders(request->url) &&
-       !variation_ids_header_.empty()) {
+@@ -7,10 +7,6 @@
+ #include "chrome/common/net/safe_search_util.h"
+ #include "components/variations/net/variations_http_headers.h"
+ 
+-#if BUILDFLAG(ENABLE_EXTENSIONS)
+-#include "extensions/common/extension_urls.h"
+-#endif
+-
+ GoogleURLLoaderThrottle::GoogleURLLoaderThrottle(
+     bool is_off_the_record,
+     bool force_safe_search,
+@@ -30,34 +26,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+ void GoogleURLLoaderThrottle::WillStartRequest(
+     network::ResourceRequest* request,
+     bool* defer) {
+-  if (!is_off_the_record_ &&
+-      variations::ShouldAppendVariationHeaders(request->url) &&
+-      !variation_ids_header_.empty()) {
 -    request->headers.SetHeaderIfMissing(variations::kClientDataHeader,
 -                                        variation_ids_header_);
-   }
+-  }
+-
+-  if (force_safe_search_) {
+-    GURL new_url;
+-    safe_search_util::ForceGoogleSafeSearch(request->url, &new_url);
+-    if (!new_url.is_empty())
+-      request->url = new_url;
+-  }
+-
+-  static_assert(safe_search_util::YOUTUBE_RESTRICT_OFF == 0,
+-                "OFF must be first");
+-  if (youtube_restrict_ > safe_search_util::YOUTUBE_RESTRICT_OFF &&
+-      youtube_restrict_ < safe_search_util::YOUTUBE_RESTRICT_COUNT) {
+-    safe_search_util::ForceYouTubeRestrict(
+-        request->url, &request->headers,
+-        static_cast<safe_search_util::YouTubeRestrictMode>(youtube_restrict_));
+-  }
+-
+-  if (!allowed_domains_for_apps_.empty() &&
+-      request->url.DomainIs("google.com")) {
+-    request->headers.SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
+-                               allowed_domains_for_apps_);
+-  }
+ }
  
-   if (force_safe_search_) {
-@@ -66,8 +64,6 @@ void GoogleURLLoaderThrottle::WillRedire
+ void GoogleURLLoaderThrottle::WillRedirectRequest(
+@@ -66,21 +34,6 @@ void GoogleURLLoaderThrottle::WillRedire
      bool* /* defer */,
      std::vector<std::string>* to_be_removed_headers,
-     net::HttpRequestHeaders* /* modified_headers */) {
+     net::HttpRequestHeaders* modified_headers) {
 -  if (!variations::ShouldAppendVariationHeaders(redirect_info.new_url))
 -    to_be_removed_headers->push_back(variations::kClientDataHeader);
+-
+-  if (youtube_restrict_ > safe_search_util::YOUTUBE_RESTRICT_OFF &&
+-      youtube_restrict_ < safe_search_util::YOUTUBE_RESTRICT_COUNT) {
+-    safe_search_util::ForceYouTubeRestrict(
+-        redirect_info.new_url, modified_headers,
+-        static_cast<safe_search_util::YouTubeRestrictMode>(youtube_restrict_));
+-  }
+-
+-  if (!allowed_domains_for_apps_.empty() &&
+-      redirect_info.new_url.DomainIs("google.com")) {
+-    modified_headers->SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
+-                                allowed_domains_for_apps_);
+-  }
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
+@@ -88,17 +41,5 @@ void GoogleURLLoaderThrottle::WillProces
+     const GURL& response_url,
+     network::ResourceResponseHead* response_head,
+     bool* defer) {
+-  // Built-in additional protection for the chrome web store origin.
+-  GURL webstore_url(extension_urls::GetWebstoreLaunchURL());
+-  if (response_url.SchemeIsHTTPOrHTTPS() &&
+-      response_url.DomainIs(webstore_url.host_piece())) {
+-    if (response_head && response_head->headers &&
+-        !response_head->headers->HasHeaderValue("x-frame-options", "deny") &&
+-        !response_head->headers->HasHeaderValue("x-frame-options",
+-                                                "sameorigin")) {
+-      response_head->headers->RemoveHeader("x-frame-options");
+-      response_head->headers->AddHeader("x-frame-options: sameorigin");
+-    }
+-  }
+ }
+ #endif
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
 @@ -1628,7 +1628,7 @@ void ChromeContentRendererClient::WillDe
