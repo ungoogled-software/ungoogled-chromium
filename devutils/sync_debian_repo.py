@@ -282,9 +282,57 @@ def pull_changes(args):
             _write_blobs(patches_path, 'debian/patches', patches_blobs)
 
 
+def _copy_overwrite(src_dir, dest_dir):
+    '''Copies files from src_dir to dest_dir, overwriting as necessary'''
+    for src_file in src_dir.rglob('*'):
+        if src_file.is_dir():
+            continue
+        destination = dest_dir / src_file.relative_to(src_dir)
+        if destination.exists():
+            destination.unlink()
+        else:
+            destination.mkdir(parents=True, exist_ok=True)
+        shutil.copy(str(src_file), str(destination), follow_symlinks=False)
+
+
 def push_changes(args):
     '''Push changes to ungoogled-chromium-debian'''
-    pass
+    other_repo = _get_other_repo(args)
+
+    if not args.force:
+        if other_repo.is_dirty(index=False, untracked_files=True):
+            _get_logger().error(
+                'ungoogled-chromium-debian repo has unstaged changes and/or untracked files. '
+                'Please add, commit, or stash them, or use --force to override.')
+            exit(1)
+        if not other_repo.head.is_detached and other_repo.head.ref.name != (
+                _BRANCH_PREFIX + args.name):
+            _get_logger().error(('ungoogled-chromium-debian repo is not on branch "%s". '
+                                 'Please switch to it or use --force to override.'),
+                                _BRANCH_PREFIX + args.name)
+            exit(1)
+    debian_dir = Path(__file__).parent.parent / 'packaging' / args.name
+    other_debian_dir = Path(other_repo.working_dir) / 'debian'
+    print(debian_dir, other_debian_dir)
+    other_debian_dir.mkdir(exist_ok=True) #pylint: disable=no-member
+    if debian_dir.exists():
+        _copy_overwrite(debian_dir, other_debian_dir)
+    else:
+        _get_logger().info('%s does not exist. Skipping debian copying...')
+    patches_dir = Path(__file__).parent.parent / 'patches' / args.name
+    other_patches_dir = Path(other_repo.working_dir) / 'debian' / 'patches'
+    if patches_dir.exists():
+        if other_patches_dir.exists(): #pylint: disable=no-member
+            for other_path in tuple(other_patches_dir.iterdir()): #pylint: disable=no-member
+                if other_path.name == 'series':
+                    continue
+                if other_path.is_dir():
+                    shutil.rmtree(str(other_path))
+                else:
+                    other_path.unlink()
+        _copy_overwrite(patches_dir, other_patches_dir)
+    else:
+        _get_logger().info('%s does not exist. Skipping patches copying...')
 
 
 def main():
