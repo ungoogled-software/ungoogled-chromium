@@ -246,7 +246,6 @@ def pull_changes(args):
         _get_logger().error(
             'Branches have missing dependencies: %s', ', '.join(
                 map(lambda x: '{} by {}'.format(*x), unresolved_dependencies.items())))
-        print(all_packaging_blobs)
         exit(1)
 
     if not args.force:
@@ -291,7 +290,7 @@ def _copy_overwrite(src_dir, dest_dir):
         if destination.exists():
             destination.unlink()
         else:
-            destination.mkdir(parents=True, exist_ok=True)
+            destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(str(src_file), str(destination), follow_symlinks=False)
 
 
@@ -313,7 +312,6 @@ def push_changes(args):
             exit(1)
     debian_dir = Path(__file__).parent.parent / 'packaging' / args.name
     other_debian_dir = Path(other_repo.working_dir) / 'debian'
-    print(debian_dir, other_debian_dir)
     other_debian_dir.mkdir(exist_ok=True) #pylint: disable=no-member
     if debian_dir.exists():
         _copy_overwrite(debian_dir, other_debian_dir)
