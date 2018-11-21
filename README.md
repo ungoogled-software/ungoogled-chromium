@@ -109,7 +109,7 @@ To build ungoogled-chromium, see [Source Code](#source-code).
 
 **IMPORTANT**: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).
 
-##### [Download from the contributor binaries website](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+[**Download from the contributor binaries website**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
 
 The release versioning scheme follows that of the tags. Please see [Getting the source code](#getting-the-source-code) section for more details.
 
