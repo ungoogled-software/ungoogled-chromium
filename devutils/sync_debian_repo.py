@@ -21,7 +21,7 @@ _ENCODING = 'UTF-8'
 def _get_logger():
     '''Gets logger'''
 
-    logger = logging.getLogger(__package__)
+    logger = logging.getLogger(__name__)
 
     if logger.level == logging.NOTSET:
         logger.setLevel(logging.DEBUG)
@@ -216,6 +216,7 @@ def _get_new_blobs(packaging_name, all_packaging_blobs):
     '''Helper for pull_changes'''
     dependency_name, debian_blobs, patches_blobs = all_packaging_blobs[packaging_name]
     if dependency_name:
+        _get_logger().info('%s has dependency %s', packaging_name, dependency_name)
         # Remove common blobs
         _, parent_debian_blobs, parent_patches_blobs = all_packaging_blobs[dependency_name]
         removed_debian_paths = _get_removed_paths(parent_debian_blobs, debian_blobs)
