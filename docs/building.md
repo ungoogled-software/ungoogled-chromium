@@ -42,7 +42,7 @@ The final size of the sandbox with build artifacts is over 5 GB. On 64-bit syste
 
 Install base requirements: `# apt install packaging-dev python3 ninja-build`
 
-On Debian 9 (stretch), `stretch-backports` APT source is used to obtain LLVM 6.0. Do NOT use debhelper 11 from backports, as it will be incompatible with other dpkg tools.
+At least LLVM 7 is required. On Debian 9 (stretch), LLVM 7 can be backported from buster without modifications. Alternatively, [apt.llvm.org](https://apt.llvm.org) has builds of LLVM 7.
 
 ### Building locally
 
@@ -250,7 +250,7 @@ TODO: Document all libraries and tools needed to build. For now, see the build d
 For Debian-based systems:
 
 1. Add the [the LLVM APT repo](//apt.llvm.org/) for the appropriate LLVM version.
-2. `# apt install clang-7.0 lld-7.0 llvm-7.0-dev python python3 ninja-build`
+2. `# apt install clang-7 lld-7 llvm-7-dev python python3 ninja-build`
 
 ### Build a tar archive
 
