@@ -38,13 +38,31 @@ The final size of the sandbox with build artifacts is over 5 GB. On 64-bit syste
     * Debian's `chromium` package version `69.0.3497.81-1` uses a value of: 12
 * Filesystem space: 8 GB is the bare minimum. More is safer.
 
-### Setting up the build environment
+### Determining the packaging type
 
-Install base requirements: `# apt install packaging-dev python3 ninja-build`
+You will need to select a *packaging type*, which is a set of packaging files for a certain target system (e.g. a Debian-based distribution name and version). This will be used in the following sections to configure building.
 
-At least LLVM 7 is required. On Debian 9 (stretch), LLVM 7 can be backported from buster without modifications. Alternatively, [apt.llvm.org](https://apt.llvm.org) has builds of LLVM 7.
+Packaging types are identified by a short string. The following is a list of all Debian-based packaging types:
+
+* `debian_stretch` for Debian 9 (stretch)
+* `debian_buster` for Debian 10 (buster)
+* `ubuntu_bionic` for Ubuntu 18.04 (bionic)
+* `debian_minimal` for any other Debian-based system that isn't based on one of the above versions.
+
+All Debian-based packaging types require LLVM 7, except `debian_minimal`. `debian_minimal` requires LLVM 8.
+
+* On Debian 9 (stretch), LLVM 7 can be backported from buster without modifications.
+* Pre-built LLVM toolchains are available from [apt.llvm.org](https://apt.llvm.org).
+    * Note that the APT URLs for development (aka nightly snapshot) LLVM versions *do not contain* the LLVM version in them.
+* You may use newer LLVM versions by adjusting `debian/rules` and `debian/control` accordingly. However, there are caveats; see the LLVM requirements under [Any Linux distribution](#any-linux-distribution) for more details.
 
 ### Building locally
+
+*Download and build .deb packages all in the same environment*
+
+First, install base requirements: `# apt install packaging-dev python3 ninja-build`
+
+Then, run the following as a regular user:
 
 ```sh
 # Run from inside the clone of the repository
@@ -58,18 +76,17 @@ debian/rules setup-local-src
 dpkg-buildpackage -b -uc
 ```
 
-where `PACKAGE_TYPE_HERE` is one of the following:
+where `PACKAGE_TYPE_HERE` is one of the packaging types listed above.
 
-* `debian_stretch` for Debian 9 (stretch)
-* `debian_buster` for Debian 10 (buster)
-* `ubuntu_bionic` for Ubuntu 18.04 (bionic)
-* `debian_minimal` for any other Debian-based system that isn't based on one of the above versions.
-
-Packages will appear under `build/`.
+Packages will appear under `build/`
 
 ### Building via source package
 
-To build via a Debian source package (i.e. `.dsc`, `.orig.tar.xz`, and `.debian.tar.xz`). This is useful for online build services like Launchpad and openSUSE Build Service.
+*Build via a Debian source package (i.e. `.dsc`, `.orig.tar.xz`, and `.debian.tar.xz`). This is useful for online build services like Launchpad and openSUSE Build Service.*
+
+First, install base requirements: `# apt install packaging-dev python3`
+
+Then, run the following as a regular user:
 
 ```sh
 # Run from inside the clone of the repository
@@ -84,7 +101,7 @@ debuild -S -sa
 
 (`PACKAGE_TYPE_HERE` is the same as above)
 
-Source package files should appear in `build/`
+Source package files will appear under `build/`
 
 ## Windows
 
@@ -244,13 +261,15 @@ TODO: Document all libraries and tools needed to build. For now, see the build d
 * One of the following LLVM toolchain versions (which include Clang and LLD):
     * The latest stable LLVM version
     * A build of the LLVM revision used by Google to build Chromium. This is specified in the Chromium source tree under `tools/clang/scripts/update.py` in the constant `CLANG_REVISION`. (For more info about how Google manages its prebuilt LLVM toolchain, see the file in the Chromium source tree `docs/updating_clang.md`)
+    * A nightly snapshot LLVM build, available from [the LLVM apt repo](//apt.llvm.org). However, this may result in instability.
 
     Note that any other LLVM version may outright fail, or [cause unexpected behavior](https://github.com/Eloston/ungoogled-chromium/issues/586).
 
 For Debian-based systems:
 
-1. Add the [the LLVM APT repo](//apt.llvm.org/) for the appropriate LLVM version.
-2. `# apt install clang-7 lld-7 llvm-7-dev python python3 ninja-build`
+1. Add the [the LLVM APT repo](//apt.llvm.org/) for the appropriate LLVM version (currently 8).
+    * Note that the APT URLs for development (aka nightly snapshot) LLVM versions *do not contain* the LLVM version in them.
+2. `# apt install clang-8 lld-8 llvm-8-dev python python3 ninja-build`
 
 ### Build a tar archive
 
