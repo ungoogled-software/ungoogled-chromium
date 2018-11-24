@@ -6,9 +6,9 @@
 
 **ungoogled-chromium retains the default Chromium experience as closely as possible**. Unlike other Chromium forks that have their own visions of a web browser, ungoogled-chromium is essentially a drop-in replacement for Chromium.
 
-**ungoogled-chromium always welcomes more help!** See the [docs/contributing.md](docs/contributing.md) document for more information.
+**Help is always welcome!** See the [docs/contributing.md](docs/contributing.md) document for more information.
 
-## Table of Contents
+## Content Overview
 
 * [Motivation and Philosophy](#motivation-and-philosophy)
 * [Feature Overview](#feature-overview)
