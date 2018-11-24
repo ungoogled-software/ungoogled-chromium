@@ -6,14 +6,12 @@
 
 **ungoogled-chromium retains the default Chromium experience as closely as possible**. Unlike other Chromium forks that have their own visions of a web browser, ungoogled-chromium is essentially a drop-in replacement for Chromium.
 
+**ungoogled-chromium always welcomes more help!** See the [docs/contributing.md](docs/contributing.md) document for more information.
+
 ## Table of Contents
 
-* [Motivation and Description](#motivation-and-description)
+* [Motivation and Philosophy](#motivation-and-philosophy)
 * [Feature Overview](#feature-overview)
-    * [Key Features](#key-features)
-    * [Enhancing Features](#enhancing-features)
-    * [Borrowed Features](#borrowed-features)
-    * [Supported Platforms and Distributions](#supported-platforms-and-distributions)
 * [**Downloads**](#downloads)
     * [Software Repositories](#software-repositories)
     * [Contributor Binaries](#contributor-binaries)
@@ -25,7 +23,7 @@
 * [Credits](#credits)
 * [License](#license)
 
-## Motivation and Description
+## Motivation and Philosophy
 
 A number of features or background services communicate with Google servers despite the absence of an associated Google account or compiled-in Google API keys. Furthermore, the normal build process for Chromium involves running Google's own high-level commands that invoke many scripts and utilities, some of which download and use pre-built binaries provided by Google. Even the final build output includes some pre-built binaries. Fortunately, the source code is available for everything.
 
@@ -36,8 +34,6 @@ From a technical standpoint, ungoogled-chromium is a set of configuration flags,
 * Disable features that inhibit control and transparency, and add or modify features that promote them (these changes will almost always require manual activation or enabling).
 
 Since these goals and requirements are not precise, unclear situations are discussed and decided on a case-by-case basis.
-
-**ungoogled-chromium always welcomes more help!** See the [docs/contributing.md](docs/contributing.md) document for more information.
 
 ## Feature Overview
 
