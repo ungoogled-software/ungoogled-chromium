@@ -28,7 +28,6 @@ class HashesURLEnum(str, enum.Enum):
 
 class HashMismatchError(BuildkitError):
     """Exception for computed hashes not matching expected hashes"""
-    pass
 
 
 class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
