@@ -4,6 +4,13 @@ This document contains an assortment of information for those who want to develo
 
 Information targeted towards developers *and* other users live in [the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/).
 
+Contents:
+
+* [Branches](#branches)
+* [Adding command-line flags and chrome://flags options](#adding-command-line-flags-and-chromeflags-options)
+* [Workflow of updating patches](#workflow-of-updating-patches)
+* [Updating Debian patches and packaging files](#updating-debian-patches-and-packaging-files)
+
 ## Branches
 
 Development is focused on `master`, and any changes in there should not break anything unless platforms break during a Chromium version rebase.
@@ -92,4 +99,4 @@ If domain substitution is applied, then the steps for the initial update will no
 
 ## Updating Debian patches and packaging files
 
-See [ungoogled-chromium-debian repo](https://github.com/ungoogled-software/ungoogled-chromium-debian) for info.
+To add support for new Debian-based systems or update support, see [ungoogled-chromium-debian repo](https://github.com/ungoogled-software/ungoogled-chromium-debian) for info.
