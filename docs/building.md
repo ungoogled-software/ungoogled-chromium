@@ -46,7 +46,8 @@ Packaging types are identified by a short string. The following is a list of all
 
 * `debian_stretch` for Debian 9 (stretch)
 * `debian_buster` for Debian 10 (buster)
-* `ubuntu_bionic` for Ubuntu 18.04 (bionic)
+* `ubuntu_bionic` for Ubuntu 18.04 LTS (bionic)
+* `ubuntu_cosmic` for Ubuntu 18.10 (cosmic)
 * `debian_minimal` for any other Debian-based system that isn't based on one of the above versions.
 
 All Debian-based packaging types require LLVM 7, except `debian_minimal`. `debian_minimal` requires LLVM 8.
