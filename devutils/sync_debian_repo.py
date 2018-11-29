@@ -66,7 +66,6 @@ def _generate_ungoogled_heads(repo):
 
 class _NoMatchingPathError(BaseException):
     '''No git.Tree or git.Blob matching the parameters could be found'''
-    pass
 
 
 def _get_path_safely(base_tree, file_path, must_exist=True):
