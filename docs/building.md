@@ -156,6 +156,7 @@ A zip archive will be created in `build\src`
 * Xcode 8-9
 * Homebrew
 * Perl (for creating a `.dmg` package)
+* Python 2, specifically 2.7.12 or newer
 
 ### Setting up the build environment
 
