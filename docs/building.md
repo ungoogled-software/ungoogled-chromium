@@ -165,6 +165,8 @@ A zip archive will be created in `build\src`
 
 ### Building
 
+First, ensure the Xcode application is open. Then, run the following:
+
 ```sh
 # Run from inside the clone of the repository
 mkdir -p build/src/ungoogled_packaging
