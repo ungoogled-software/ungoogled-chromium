@@ -33,7 +33,7 @@
  
 --- a/components/variations/net/variations_http_headers.cc
 +++ b/components/variations/net/variations_http_headers.cc
-@@ -26,25 +26,6 @@ namespace variations {
+@@ -27,25 +27,6 @@ namespace variations {
  
  namespace {
  
@@ -59,7 +59,7 @@
  // The result of checking if a URL should have variations headers appended.
  // This enum is used to record UMA histogram values, and should not be
  // reordered.
-@@ -61,28 +42,6 @@ enum URLValidationResult {
+@@ -62,28 +43,6 @@ enum URLValidationResult {
  // Checks whether headers should be appended to the |url|, based on the domain
  // of |url|. |url| is assumed to be valid, and to have an http/https scheme.
  bool IsGoogleDomain(const GURL& url) {
@@ -75,12 +75,12 @@
 -  // Some domains don't have international TLD extensions, so testing for them
 -  // is very straight forward.
 -  const std::string host = url.host();
--  for (size_t i = 0; i < arraysize(kSuffixesToSetHeadersFor); ++i) {
+-  for (size_t i = 0; i < base::size(kSuffixesToSetHeadersFor); ++i) {
 -    if (base::EndsWith(host, kSuffixesToSetHeadersFor[i],
 -                       base::CompareCase::INSENSITIVE_ASCII))
 -      return true;
 -  }
--  for (size_t i = 0; i < arraysize(kHostsToSetHeadersFor); ++i) {
+-  for (size_t i = 0; i < base::size(kHostsToSetHeadersFor); ++i) {
 -    if (base::LowerCaseEqualsASCII(host, kHostsToSetHeadersFor[i]))
 -      return true;
 -  }
@@ -88,7 +88,7 @@
    return false;
  }
  
-@@ -99,37 +58,14 @@ void LogUrlValidationHistogram(URLValida
+@@ -100,37 +59,14 @@ void LogUrlValidationHistogram(URLValida
  void RemoveVariationsHeader(const net::RedirectInfo& redirect_info,
                              const network::ResourceResponseHead& response_head,
                              std::vector<std::string>* to_be_removed_headers) {
@@ -126,7 +126,7 @@
    return false;
  }
  
-@@ -143,8 +79,6 @@ bool AppendVariationHeadersUnknownSigned
+@@ -144,8 +80,6 @@ bool AppendVariationHeadersUnknownSigned
  
  void StripVariationHeaderIfNeeded(const GURL& new_location,
                                    net::URLRequest* request) {
@@ -165,7 +165,7 @@
  bool TemplateURLRef::ExtractSearchTermsFromURL(
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
-@@ -42,118 +42,16 @@ namespace {
+@@ -43,118 +43,16 @@ namespace {
  
  bool gUseMockLinkDoctorBaseURLForTesting = false;
  
@@ -242,9 +242,9 @@
 -  // same page.
 -  StripTrailingDot(&tld);
 -
--  CR_DEFINE_STATIC_LOCAL(std::set<std::string>, google_tlds,
--                         ({GOOGLE_TLD_LIST}));
--  return base::ContainsKey(google_tlds, tld.as_string());
+-  static base::NoDestructor<std::set<std::string>> google_tlds(
+-      {GOOGLE_TLD_LIST});
+-  return base::ContainsKey(*google_tlds, tld.as_string());
 -}
 -
 -// True if |url| is a valid URL with a host that is in the static list of
@@ -257,10 +257,10 @@
 -  base::StringPiece host(url.host_piece());
 -  StripTrailingDot(&host);
 -
--  CR_DEFINE_STATIC_LOCAL(std::set<std::string>, google_subdomains,
--                         ({"ipv4.google.com", "ipv6.google.com"}));
+-  static base::NoDestructor<std::set<std::string>> google_subdomains(
+-      {"ipv4.google.com", "ipv6.google.com"});
 -
--  return base::ContainsKey(google_subdomains, host.as_string());
+-  return base::ContainsKey(*google_subdomains, host.as_string());
 -}
 -
  }  // namespace
@@ -285,7 +285,7 @@
  }
  
  void SetMockLinkDoctorBaseURLForTesting() {
-@@ -167,120 +65,49 @@ std::string GetGoogleLocale(const std::s
+@@ -168,120 +66,50 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -331,18 +331,19 @@
 -  // Unit tests may add command-line flags after the first call to this
 -  // function, so we don't simply initialize a static |base_url| directly and
 -  // then unconditionally return it.
--  CR_DEFINE_STATIC_LOCAL(std::string, switch_value, ());
-   CR_DEFINE_STATIC_LOCAL(GURL, base_url, ());
+-  static base::NoDestructor<std::string> switch_value;
+   static base::NoDestructor<GURL> base_url;
 -  std::string current_switch_value(
 -      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
 -          switches::kGoogleBaseURL));
--  if (current_switch_value != switch_value) {
--    switch_value = current_switch_value;
--    base_url = url_formatter::FixupURL(switch_value, std::string());
--    if (!base_url.is_valid() || base_url.has_query() || base_url.has_ref())
--      base_url = GURL();
+-  if (current_switch_value != *switch_value) {
+-    *switch_value = current_switch_value;
+-    *base_url = url_formatter::FixupURL(*switch_value, std::string());
+-    if (!base_url->is_valid() || base_url->has_query() || base_url->has_ref())
+-      *base_url = GURL();
 -  }
-   return base_url;
++  *base_url = GURL();
+   return *base_url;
  }
  
  bool StartsWithCommandLineGoogleBaseURL(const GURL& url) {
@@ -547,7 +548,7 @@
  #endif
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -1628,7 +1628,7 @@ void ChromeContentRendererClient::WillDe
+@@ -1625,7 +1625,7 @@ void ChromeContentRendererClient::WillDe
  
  bool ChromeContentRendererClient::IsExcludedHeaderForServiceWorkerFetchEvent(
      const std::string& header_name) {

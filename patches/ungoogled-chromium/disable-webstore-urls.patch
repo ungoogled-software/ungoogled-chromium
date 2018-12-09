@@ -30,8 +30,8 @@
  
 --- a/extensions/browser/updater/extension_downloader.cc
 +++ b/extensions/browser/updater/extension_downloader.cc
-@@ -92,27 +92,18 @@ const char kDefaultInstallSource[] = "";
- const char kDefaultInstallLocation[] = "";
+@@ -89,27 +89,18 @@ const char kNotFromWebstoreInstallSource
+ const char kDefaultInstallSource[] = "";
  const char kReinstallInstallSource[] = "reinstall";
  
 -const char kGoogleDotCom[] = "google.com";
@@ -60,26 +60,20 @@
  
  bool ShouldRetryRequest(network::SimpleURLLoader* loader) {
    DCHECK(loader);
-@@ -308,18 +299,6 @@ void ExtensionDownloader::StartBlacklist
-     const std::string& version,
-     const ManifestFetchData::PingData& ping_data,
-     int request_id) {
--  // Note: it is very important that we use the https version of the update
--  // url here to avoid DNS hijacking of the blacklist, which is not validated
--  // by a public key signature like .crx files are.
--  std::unique_ptr<ManifestFetchData> blacklist_fetch(
--      CreateManifestFetchData(extension_urls::GetWebstoreUpdateUrl(),
--                              request_id, ManifestFetchData::BACKGROUND));
--  DCHECK(blacklist_fetch->base_url().SchemeIsCryptographic());
--  blacklist_fetch->AddExtension(kBlacklistAppID, version, &ping_data,
--                                std::string(), kDefaultInstallSource,
--                                kDefaultInstallLocation,
--                                ManifestFetchData::FetchPriority::BACKGROUND);
--  StartUpdateCheck(std::move(blacklist_fetch));
+@@ -291,12 +282,6 @@ void ExtensionDownloader::DoStartAllPend
+   ReportStats();
+   url_stats_ = URLStats();
+ 
+-  for (auto it = fetches_preparing_.begin(); it != fetches_preparing_.end();
+-       ++it) {
+-    std::vector<std::unique_ptr<ManifestFetchData>>& list = it->second;
+-    for (size_t i = 0; i < list.size(); ++i)
+-      StartUpdateCheck(std::move(list[i]));
+-  }
+   fetches_preparing_.clear();
  }
  
- void ExtensionDownloader::SetWebstoreAuthenticationCapabilities(
-@@ -352,23 +331,16 @@ bool ExtensionDownloader::AddExtensionDa
+@@ -330,23 +315,16 @@ bool ExtensionDownloader::AddExtensionDa
      return false;
    }
  
@@ -105,7 +99,7 @@
    } else {
      url_stats_.other_url_count++;
    }
-@@ -692,20 +664,6 @@ void ExtensionDownloader::HandleManifest
+@@ -654,20 +632,6 @@ void ExtensionDownloader::HandleManifest
          fetch_data->request_ids()));
    }
  
@@ -126,7 +120,7 @@
    NotifyExtensionsDownloadFailed(
        no_updates, fetch_data->request_ids(),
        ExtensionDownloaderDelegate::NO_UPDATE_AVAILABLE);
-@@ -1113,11 +1071,7 @@ bool ExtensionDownloader::IterateFetchCr
+@@ -1073,11 +1037,7 @@ bool ExtensionDownloader::IterateFetchCr
    // fetch.
    switch (fetch->credentials) {
      case ExtensionFetch::CREDENTIALS_NONE:

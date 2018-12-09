@@ -1,0 +1,85 @@
+description: disable support for safe browsing inspection of rar files
+author: Michael Gilbert <mgilbert@debian.org>
+bug: http://bugs.debian.org/914487
+
+--- a/chrome/common/safe_browsing/BUILD.gn
++++ b/chrome/common/safe_browsing/BUILD.gn
+@@ -56,40 +56,6 @@ if (safe_browsing_mode == 1) {
+     ]
+   }
+ 
+-  source_set("rar_analyzer") {
+-    sources = [
+-      "rar_analyzer.cc",
+-      "rar_analyzer.h",
+-    ]
+-
+-    deps = [
+-      ":archive_analyzer_results",
+-      ":download_protection_util",
+-      ":file_type_policies",
+-      "//base",
+-      "//base:i18n",
+-      "//third_party/unrar:unrar",
+-    ]
+-
+-    defines = [
+-      "_FILE_OFFSET_BITS=64",
+-      "LARGEFILE_SOURCE",
+-      "RAR_SMP",
+-      "SILENT",
+-
+-      # The following is set to disable certain macro definitions in the unrar
+-      # source code.
+-      "CHROMIUM_UNRAR",
+-
+-      # Disables exceptions in unrar, replaces them with process termination.
+-      "UNRAR_NO_EXCEPTIONS",
+-    ]
+-
+-    public_deps = [
+-      "//components/safe_browsing:csd_proto",
+-    ]
+-  }
+-
+   source_set("disk_image_type_sniffer_mac") {
+     sources = [
+       "disk_image_type_sniffer_mac.cc",
+@@ -136,7 +102,6 @@ source_set("safe_browsing") {
+     deps += [
+       ":archive_analyzer_results",
+       ":download_protection_util",
+-      ":rar_analyzer",
+       "//components/safe_browsing:features",
+     ]
+ 
+--- a/chrome/services/file_util/safe_archive_analyzer.cc
++++ b/chrome/services/file_util/safe_archive_analyzer.cc
+@@ -7,7 +7,6 @@
+ #include "base/macros.h"
+ #include "build/build_config.h"
+ #include "chrome/common/safe_browsing/archive_analyzer_results.h"
+-#include "chrome/common/safe_browsing/rar_analyzer.h"
+ #include "chrome/common/safe_browsing/zip_analyzer.h"
+ #include "mojo/public/cpp/bindings/strong_binding.h"
+ 
+@@ -49,7 +48,7 @@ void SafeArchiveAnalyzer::AnalyzeRarFile
+                                          AnalyzeRarFileCallback callback) {
+   DCHECK(rar_file.IsValid());
+ 
++  LOG(FATAL) << "AnalyzeRarFile is disabled in this build";
+   safe_browsing::ArchiveAnalyzerResults results;
+-  safe_browsing::rar_analyzer::AnalyzeRarFile(std::move(rar_file), &results);
+   std::move(callback).Run(results);
+ }
+--- a/chrome/browser/safe_browsing/download_protection/check_client_download_request.cc
++++ b/chrome/browser/safe_browsing/download_protection/check_client_download_request.cc
+@@ -383,7 +383,7 @@ void CheckClientDownloadRequest::Analyze
+   } else if (item_->GetTargetFilePath().MatchesExtension(
+                  FILE_PATH_LITERAL(".rar")) &&
+              base::FeatureList::IsEnabled(kInspectDownloadedRarFiles)) {
+-    StartExtractRarFeatures();
++    LOG(WARNING) << "Safebrowser inspection of rar files is disabled in this build";
+ #if defined(OS_MACOSX)
+   } else if (item_->GetTargetFilePath().MatchesExtension(
+                  FILE_PATH_LITERAL(".dmg")) ||

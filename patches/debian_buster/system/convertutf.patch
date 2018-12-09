@@ -29,7 +29,7 @@ author: Michael Gilbert <mgilbert@debian.org>
 -  ConversionResult result = ConvertUTF8toUTF16(&source_ptr, source_end_ptr,
 -                                               &target_ptr, target_end_ptr,
 -                                               strictConversion);
-+int UTF8ToUTF16Char(const char *in, int in_length, char16_t out[2]) {
++int UTF8ToUTF16Char(const char *in, int in_length, UChar out[2]) {
 +  int dest_length = 0;
 +  UErrorCode result = U_ZERO_ERROR;
 +  u_strFromUTF8(out, 2, &dest_length, in, in_length, &result);
@@ -94,7 +94,7 @@ author: Michael Gilbert <mgilbert@debian.org>
 -  ConversionResult result = ConvertUTF32toUTF16(&source_ptr, source_end_ptr,
 -                                                &target_ptr, target_end_ptr,
 -                                                strictConversion);
-+void UTF32ToUTF16Char(wchar_t in, char16_t out[2]) {
++void UTF32ToUTF16Char(wchar_t in, UChar out[2]) {
 +  int32_t dest_length = 0;
 +  UErrorCode result = U_ZERO_ERROR;
 +  u_strFromWCS(out, 2, &dest_length, &in, 1, &result);
@@ -145,7 +145,15 @@ author: Michael Gilbert <mgilbert@debian.org>
  }  // namespace google_breakpad
 --- a/third_party/breakpad/breakpad/src/common/string_conversion.h
 +++ b/third_party/breakpad/breakpad/src/common/string_conversion.h
-@@ -42,26 +42,15 @@ namespace google_breakpad {
+@@ -35,6 +35,7 @@
+ #include <string>
+ #include <vector>
+ 
++#include <unicode/umachine.h>
+ #include "common/using_std_string.h"
+ #include "google_breakpad/common/breakpad_types.h"
+ 
+@@ -42,26 +43,15 @@ namespace google_breakpad {
    
  using std::vector;
  
@@ -162,7 +170,7 @@ author: Michael Gilbert <mgilbert@debian.org>
 -// Convert |in| to UTF-16 into |out|.  Use platform byte ordering.  If the
 -// conversion failed, |out| will be zero length.
 -void UTF32ToUTF16(const wchar_t *in, vector<uint16_t> *out);
-+int UTF8ToUTF16Char(const char *in, int in_length, char16_t out[2]);
++int UTF8ToUTF16Char(const char *in, int in_length, UChar out[2]);
  
  // Convert |in| to UTF-16 into |out|.  Any unused characters in |out| will be
  // initialized to 0.  No memory will be allocated by this routine.
@@ -170,7 +178,7 @@ author: Michael Gilbert <mgilbert@debian.org>
 -
 -// Convert |in| to UTF-8.  If |swap| is true, swap bytes before converting.
 -string UTF16ToUTF8(const vector<uint16_t> &in, bool swap);
-+void UTF32ToUTF16Char(wchar_t in, char16_t out[2]);
++void UTF32ToUTF16Char(wchar_t in, UChar out[2]);
  
  }  // namespace google_breakpad
  
@@ -192,12 +200,12 @@ author: Michael Gilbert <mgilbert@debian.org>
                                                TypedMDRVA<MDString> *mdstring) {
    bool result = true;
 -  if (sizeof(wchar_t) == sizeof(uint16_t)) {
-+  if (sizeof(wchar_t) == sizeof(char16_t)) {
++  if (sizeof(wchar_t) == sizeof(UChar)) {
      // Shortcut if wchar_t is the same size as MDString's buffer
      result = mdstring->Copy(str, mdstring->get()->length);
    } else {
 -    uint16_t out[2];
-+    char16_t out[2];
++    UChar out[2];
      int out_idx = 0;
  
      // Copy the string character by character
@@ -206,7 +214,7 @@ author: Michael Gilbert <mgilbert@debian.org>
        // UTF-32.
        int out_count = out[1] ? 2 : 1;
 -      size_t out_size = sizeof(uint16_t) * out_count;
-+      size_t out_size = sizeof(char16_t) * out_count;
++      size_t out_size = sizeof(UChar) * out_count;
        result = mdstring->CopyIndexAfterObject(out_idx, out, out_size);
        out_idx += out_count;
      }
@@ -215,7 +223,7 @@ author: Michael Gilbert <mgilbert@debian.org>
                                                TypedMDRVA<MDString> *mdstring) {
    bool result = true;
 -  uint16_t out[2];
-+  char16_t out[2];
++  UChar out[2];
    int out_idx = 0;
  
    // Copy the string character by character
@@ -224,7 +232,7 @@ author: Michael Gilbert <mgilbert@debian.org>
      // Append the one or two UTF-16 characters
      int out_count = out[1] ? 2 : 1;
 -    size_t out_size = sizeof(uint16_t) * out_count;
-+    size_t out_size = sizeof(char16_t) * out_count;
++    size_t out_size = sizeof(UChar) * out_count;
      result = mdstring->CopyIndexAfterObject(out_idx, out, out_size);
      out_idx += out_count;
    }
