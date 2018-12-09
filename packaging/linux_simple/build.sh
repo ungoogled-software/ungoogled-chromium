@@ -32,6 +32,6 @@ export CXX=${CXX:=clang++}
 # You may also set CFLAGS, CPPFLAGS, CXXFLAGS, and LDFLAGS
 # See build/toolchain/linux/unbundle/ in the Chromium source for more details.
 
-./tools/gn/bootstrap/bootstrap.py -o out/Default/gn
+./tools/gn/bootstrap/bootstrap.py -o out/Default/gn --skip-generate-buildfiles
 ./out/Default/gn gen out/Default --fail-on-unused-args
 ninja -C out/Default chrome chrome_sandbox chromedriver
