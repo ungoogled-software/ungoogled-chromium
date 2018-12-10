@@ -3,13 +3,43 @@
 
 --- a/media/gpu/vaapi/vaapi_jpeg_decode_accelerator.cc
 +++ b/media/gpu/vaapi/vaapi_jpeg_decode_accelerator.cc
-@@ -295,7 +295,8 @@ bool VaapiJpegDecodeAccelerator::Initial
-   // TODO(crbug.com/828119): Try a list of possible supported formats rather
-   // than hardcoding the format to I420 here.
-   va_image_format_ = base::WrapUnique(new VAImageFormat{});
--  va_image_format_->fourcc = VA_FOURCC_I420;
-+  const uint32_t kI420Fourcc = VA_FOURCC('I', '4', '2', '0');
-+  va_image_format_->fourcc = kI420Fourcc;
-   va_image_format_->byte_order = VA_LSB_FIRST;
-   va_image_format_->bits_per_pixel = 12;
+@@ -47,9 +47,11 @@ static void ReportToUMA(VAJDADecoderFail
+ // macro in the header file without pulling in the entire <va/va.h>.
+ static_assert(VA_FOURCC_YUYV == VA_FOURCC('Y', 'U', 'Y', 'V'),
+               "VA_FOURCC_YUYV must be equal to VA_FOURCC('Y', 'U', 'Y', 'V')");
++#ifdef VA_FOURCC_I420
+ constexpr VAImageFormat kImageFormatI420 = {.fourcc = VA_FOURCC_I420,
+                                             .byte_order = VA_LSB_FIRST,
+                                             .bits_per_pixel = 12};
++#endif
+ constexpr VAImageFormat kImageFormatYUYV = {.fourcc = VA_FOURCC_YUYV,
+                                             .byte_order = VA_LSB_FIRST,
+                                             .bits_per_pixel = 16};
+@@ -58,9 +60,11 @@ constexpr VAImageFormat kImageFormatYUYV
+ bool VaSurfaceFormatToImageFormat(uint32_t va_rt_format,
+                                   VAImageFormat* va_image_format) {
+   switch (va_rt_format) {
++#ifdef VA_FOURCC_I420
+     case VA_RT_FORMAT_YUV420:
+       *va_image_format = kImageFormatI420;
+       return true;
++#endif
+     case VA_RT_FORMAT_YUV422:
+       *va_image_format = kImageFormatYUYV;
+       return true;
+@@ -383,6 +387,7 @@ bool VaapiJpegDecodeAccelerator::OutputP
+   size_t dst_v_stride = video_frame->stride(VideoFrame::kVPlane);
  
+   switch (va_image_format.fourcc) {
++#ifdef VA_FOURCC_I420
+     case VA_FOURCC_I420: {
+       DCHECK_EQ(image->num_planes, 3u);
+       const uint8_t* src_y = mem + image->offsets[0];
+@@ -400,6 +405,7 @@ bool VaapiJpegDecodeAccelerator::OutputP
+       }
+       break;
+     }
++#endif
+     case VA_FOURCC_YUY2:
+     case VA_FOURCC_YUYV: {
+       DCHECK_EQ(image->num_planes, 1u);
