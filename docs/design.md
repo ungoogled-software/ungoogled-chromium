@@ -92,7 +92,7 @@ The list of files to remove are determined by the config file `pruning.list`. Th
 
 **Domain Substitution**: Replaces Google and several other web domain names in the Chromium source code with non-existent alternatives ending in `qjz9zk`. These changes are mainly used as a backup measure to to detect potentially unpatched requests to Google. Note that domain substitution is a crude process, and *may not be easily undone*.
 
-With a few patches from ungoogled-chromium, any requests with these domain names sent via `net::URLRequest` in the Chromium code are blocked and notify the user via a info bar. 
+With a few patches from ungoogled-chromium, any requests with these domain names sent via `net::URLRequest` in the Chromium code are blocked and notify the user via a info bar.
 
 Similar to binary pruning, the list of files to modify are listed in `domain_substitution.list`; it is also updated with `developer_utilities/update_lists.py`.
 
@@ -163,7 +163,7 @@ buildkit is a Python 3 library and CLI application for building ungoogled-chromi
 
 Use `buildkit-launcher.py` to invoke the buildkit CLI. Pass in `-h` or `--help` for usage details.
 
-For examples of using buildkit's CLI, see [docs/building.md](docs/building.md).
+For examples of using buildkit's CLI, see [docs/building.md](/docs/building.md).
 
 There is currently no API documentation for buildkit. However, all public classes, functions, and methods have docstrings that explain their usage and behavior.
 

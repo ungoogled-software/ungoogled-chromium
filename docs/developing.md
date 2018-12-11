@@ -25,7 +25,7 @@ For new flags, first add a constant to `third_party/ungoogled/ungoogled_switches
 
 ## Notes on updating bundles
 
-* It is highly recommended to have a read through [docs/design.md](docs/design.md) *and* reference existing bundles to understand the divisions of configuration.
+* It is highly recommended to have a read through [docs/design.md](/docs/design.md) *and* reference existing bundles to understand the divisions of configuration.
 * Anytime the bundles or patches are modified, use `devutils/validate_config.py` to run several sanity checking algorithms.
 * Whenever patch orders or patches are modified, use `devutils/validate_patches.py` for validation. See the following section for more details on updating patches.
 * If you are rebasing patches against a new Chromium version, please add `patches_outdated = true` to the `bundlemeta.ini` of any config bundles that you are not able to update. This will prevent failing CI status checks until those bundles' patches have been updated.
@@ -34,7 +34,7 @@ For new flags, first add a constant to `third_party/ungoogled/ungoogled_switches
 
 Tested on Debian 9.0 (stretch). Exact instructions should work on any other Linux or macOS system with the proper dependencies.
 
-It is recommended to read the [docs/building.md](docs/building.md) and [docs/design.md](docs/design.md) documents first to gain a deeper understanding of the process.
+It is recommended to read the [docs/building.md](/docs/building.md) and [docs/design.md](/docs/design.md) documents first to gain a deeper understanding of the process.
 
 ### Dependencies
 

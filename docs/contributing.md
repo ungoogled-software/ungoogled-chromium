@@ -40,8 +40,7 @@ Guidelines:
 
 2. New features should live behind a setting that is **off by default**.
 
-    * Settings are usually added via a command-line flag and `chrome://flags` entries. See [the relevant section in docs/developing.md](docs/developing.md#adding-command-line-flags-and-chromeflags-options) for more information.
+    * Settings are usually added via a command-line flag and `chrome://flags` entries. See [the relevant section in docs/developing.md](/docs/developing.md#adding-command-line-flags-and-chromeflags-options) for more information.
     * Unless there are significant benefits, adding the setting to `chrome://settings` is *not recommended* due to the additional maintenance required (caused by the infrastructure that backs preferences).
 
 **NOTE**: In the event that the codebase changes significantly for a non-essential patch (i.e. a patch that does not contribute to the main objectives of ungoogled-chromium), it will be removed until someone updates it.
-
