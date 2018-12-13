@@ -2,7 +2,7 @@
 
 This is an exhaustive list of command-line switches and `chrome://flags` introduced by ungoogled-chromium:
 
-* `--disable-beforeunload` - (Not in `chrome://flags`) Disables JavaScript dialog boxes triggered by `beforeunload`
+* `--disable-beforeunload` (Not in `chrome://flags`) - Disables JavaScript dialog boxes triggered by `beforeunload`
 * `--disable-encryption` (Windows only, not in `chrome://flags`) - Disable encryption of cookies, passwords, and settings which uses a generated machine-specific encryption key. This is used to enable portable user data directories.
 * `--disable-machine-id` (Windows only, not in `chrome://flags`) - Disables use of a generated machine-specific ID to lock the user data directory to that machine. This is used to enable portable user data directories.
 * `--disable-search-engine-collection` - Disable automatic search engine scraping from webpages.
@@ -14,3 +14,4 @@ This is an exhaustive list of command-line switches and `chrome://flags` introdu
 * `--max-connections-per-host` (from Bromite) - Configure the maximum allowed connections per host.
 * `--set-ipv6-probe-false` - (Not in `chrome://flags`) Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
 * `--show-avatar-button` - Sets visibility of the avatar button. The flag requires one of the values: `always`, `incognito-and-guest` (only show Incognito or Guest modes), or `never`.
+* `--hide-crashed-bubble` (Not in `chrome://flags`) - Hides the bubble box with the message "Restore Pages? Chromium didn't shut down correctly." that shows on startup after the browser did not exit cleanly.
