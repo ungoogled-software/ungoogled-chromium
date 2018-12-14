@@ -1,0 +1,87 @@
+# Default to https for (non-standard) URLs without scheme.
+#
+# This patch handles URLs like user:pass@example.com and trims scheme in suggestions if it is implicit.
+# URLs entered in md_bookmarks (chrome://bookmarks) will also get https:// prefix.
+#
+# Note that there is a small hack in AutocompleteInput::HasHTTPScheme: we check kHttpsScheme instead.
+# All other changes in omnibox were made to preserve old behavior.
+
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -436,9 +436,9 @@
+         (*text)[semicolon] = ';';
+     }
+     if (!found_scheme) {
+-      // Couldn't determine the scheme, so just default to http.
++      // Couldn't determine the scheme, so just default to https.
+       parts->scheme.reset();
+-      scheme = url::kHttpScheme;
++      scheme = url::kHttpsScheme;
+     }
+   }
+
+--- a/components/omnibox/browser/autocomplete_input.cc
++++ b/components/omnibox/browser/autocomplete_input.cc
+@@ -233,7 +233,7 @@
+     // We don't know about this scheme.  It might be that the user typed a
+     // URL of the form "username:password@foo.com".
+     const base::string16 http_scheme_prefix =
+-        base::ASCIIToUTF16(std::string(url::kHttpScheme) +
++        base::ASCIIToUTF16(std::string(url::kHttpsScheme) +
+                            url::kStandardSchemeSeparator);
+     url::Parsed http_parts;
+     base::string16 http_scheme;
+@@ -241,7 +241,7 @@
+     metrics::OmniboxInputType http_type =
+         Parse(http_scheme_prefix + text, desired_tld, scheme_classifier,
+               &http_parts, &http_scheme, &http_canonicalized_url);
+-    DCHECK_EQ(std::string(url::kHttpScheme),
++    DCHECK_EQ(std::string(url::kHttpsScheme),
+               base::UTF16ToUTF8(http_scheme));
+ 
+     if ((http_type == metrics::OmniboxInputType::URL) &&
+@@ -570,7 +570,7 @@
+   } else if (url::FindAndCompareScheme(utf8_input, kViewSourceScheme, &scheme)) {
+     utf8_input.erase(0, scheme.end() + 1);
+   }
+-  return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
++  return url::FindAndCompareScheme(utf8_input, url::kHttpsScheme, nullptr);
+ }
+ 
+ void AutocompleteInput::UpdateText(const base::string16& text,
+--- a/components/omnibox/browser/autocomplete_provider.cc
++++ b/components/omnibox/browser/autocomplete_provider.cc
+@@ -188,11 +188,11 @@
+   if (!AutocompleteInput::HasHTTPScheme(*url))
+     return 0;
+   size_t scheme_pos =
+-      url->find(base::ASCIIToUTF16(url::kHttpScheme) + base::char16(':'));
++      url->find(base::ASCIIToUTF16(url::kHttpsScheme) + base::char16(':'));
+   DCHECK_NE(base::string16::npos, scheme_pos);
+ 
+   // Erase scheme plus up to two slashes.
+-  size_t prefix_end = scheme_pos + strlen(url::kHttpScheme) + 1;
++  size_t prefix_end = scheme_pos + strlen(url::kHttpsScheme) + 1;
+   const size_t after_slashes = std::min(url->length(), prefix_end + 2);
+   while ((prefix_end < after_slashes) && ((*url)[prefix_end] == '/'))
+     ++prefix_end;
+--- a/chrome/browser/resources/md_bookmarks/edit_dialog.js
++++ b/chrome/browser/resources/md_bookmarks/edit_dialog.js
+@@ -93,7 +93,7 @@
+ 
+   /**
+    * Validates the value of the URL field, returning true if it is a valid URL.
+-   * May modify the value by prepending 'http://' in order to make it valid.
++   * May modify the value by prepending 'https://' in order to make it valid.
+    * @return {boolean}
+    * @private
+    */
+@@ -104,7 +104,7 @@
+     if (urlInput.validate())
+       return true;
+ 
+-    this.urlValue_ = 'http://' + originalValue;
++    this.urlValue_ = 'https://' + originalValue;
+ 
+     if (urlInput.validate())
+       return true;
