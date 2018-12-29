@@ -18,6 +18,7 @@ mkdir $DOWNLOAD_CACHE || true
 python3 -m buildkit downloads retrieve -b config_bundles/$BUNDLE -c $DOWNLOAD_CACHE
 python3 -m buildkit downloads unpack -b config_bundles/$BUNDLE -c $DOWNLOAD_CACHE ../
 python3 -m buildkit prune -b config_bundles/$BUNDLE ../
+../build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
 python3 -m buildkit patches apply -b config_bundles/$BUNDLE ../
 python3 -m buildkit domains apply -b config_bundles/$BUNDLE -c domainsubcache.tar.gz ../
 python3 -m buildkit gnargs print -b config_bundles/$BUNDLE > ../out/Default/args.gn
