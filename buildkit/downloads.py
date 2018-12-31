@@ -38,15 +38,23 @@ class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
         self._last_percentage = None
 
     def __call__(self, block_count, block_size, total_size):
-        downloaded_estimate = block_count * block_size
-        percentage = round(downloaded_estimate / total_size, ndigits=3)
-        if percentage == self._last_percentage:
-            return # Do not needlessly update the console
-        self._last_percentage = percentage
-        print('\r' + ' ' * self._max_len_printed, end='')
-        if total_size > 0:
+        # Use total_blocks to handle case total_size < block_size
+        # total_blocks is ceiling of total_size / block_size
+        # Ceiling division from: https://stackoverflow.com/a/17511341
+        total_blocks = -(-total_size // block_size)
+        if total_blocks > 0:
+            # Do not needlessly update the console. Since the console is
+            # updated synchronously, we don't want updating the console to
+            # bottleneck downloading. Thus, only refresh the output when the
+            # displayed value should change.
+            percentage = round(block_count / total_blocks, ndigits=3)
+            if percentage == self._last_percentage:
+                return
+            self._last_percentage = percentage
+            print('\r' + ' ' * self._max_len_printed, end='')
             status_line = 'Progress: {:.1%} of {:,d} B'.format(percentage, total_size)
         else:
+            downloaded_estimate = block_count * block_size
             status_line = 'Progress: {:,d} B of unknown size'.format(downloaded_estimate)
         self._max_len_printed = len(status_line)
         print('\r' + status_line, end='')
