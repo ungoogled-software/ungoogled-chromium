@@ -1,8 +1,8 @@
 # ungoogled-chromium
 
-*Bringing back the "Don't" in "Don't be evil"*
+*A lightweight approach to removing Google web service dependency*
 
-**ungoogled-chromium is Google Chromium**, sans integration with Google. It also features some tweaks to enhance privacy, control, and transparency *(almost all of which require manual activation or enabling)*.
+**ungoogled-chromium is Google Chromium**, sans dependency on Google web services. It also features some tweaks to enhance privacy, control, and transparency *(almost all of which require manual activation or enabling)*.
 
 **ungoogled-chromium retains the default Chromium experience as closely as possible**. Unlike other Chromium forks that have their own visions of a web browser, ungoogled-chromium is essentially a drop-in replacement for Chromium.
 
@@ -25,15 +25,16 @@
 
 ## Motivation and Philosophy
 
-A number of features or background services communicate with Google servers despite the absence of an associated Google account or compiled-in Google API keys. Furthermore, the normal build process for Chromium involves running Google's own high-level commands that invoke many scripts and utilities, some of which download and use pre-built binaries provided by Google. Even the final build output includes some pre-built binaries. Fortunately, the source code is available for everything.
+Without signing in to a Google Account, Chromium does pretty well in terms of security and privacy. However, Chromium still has some dependency on Google web services and binaries. In addition, Google designed Chromium to be easy and intuitive for users, which means they compromise on transparency and control of inner operations.
 
-From a technical standpoint, ungoogled-chromium is a set of configuration flags, patches, and custom scripts. These components altogether strive to accomplish the following:
+ungoogled-chromium addresses these issues in the following ways:
 
-* Disable or remove offending services and features that communicate with Google or weaken privacy
-* Strip binaries from the source tree, and use those provided by the system or build them from source
-* Disable features that inhibit control and transparency, and add or modify features that promote them (these changes will almost always require manual activation or enabling).
+1. Remove all remaining background requests to any web services while building and running the browser
+2. Remove all code specific to Google web services
+3. Remove all uses of pre-made binaries from the source code, and replace them with user-provided alternatives when possible.
+4. Disable features that inhibit control and transparency, and add or modify features that promote them (these changes will almost always require manual activation or enabling).
 
-Since these goals and requirements are not precise, unclear situations are discussed and decided on a case-by-case basis.
+These features are implemented as configuration flags, patches, and custom scripts. For more details, consult the [Design Documentation](docs/design.md).
 
 ## Feature Overview
 
