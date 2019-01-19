@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-# Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2019 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
-Module for substituting domain names in the source tree with blockable strings.
+Substitute domain names in the source tree with blockable strings.
 """
 
+import collections
 import io
 import re
 import tarfile
@@ -14,16 +16,51 @@ import tempfile
 import zlib
 from pathlib import Path
 
-from .extraction import extract_tar_file
-from .common import ENCODING, get_logger
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _extraction import extract_tar_file
+from _common import ENCODING, get_logger
 
 # Encodings to try on source tree files
-TREE_ENCODINGS = (ENCODING, 'ISO-8859-1')
+TREE_ENCODINGS = ('UTF-8', 'ISO-8859-1')
 
 # Constants for domain substitution cache
 _INDEX_LIST = 'cache_index.list'
 _INDEX_HASH_DELIMITER = '|'
 _ORIG_DIR = 'orig'
+
+class DomainRegexList:
+    """Representation of a domain_regex.list file"""
+    _regex_pair_tuple = collections.namedtuple('DomainRegexPair', ('pattern', 'replacement'))
+
+    # Constants for format:
+    _PATTERN_REPLACE_DELIM = '#'
+
+    def __init__(self, path):
+        self._data = tuple(filter(len, path.read_text().splitlines()))
+
+        # Cache of compiled regex pairs
+        self._compiled_regex = None
+
+    def _compile_regex(self, line):
+        """Generates a regex pair tuple for the given line"""
+        pattern, replacement = line.split(self._PATTERN_REPLACE_DELIM)
+        return self._regex_pair_tuple(re.compile(pattern), replacement)
+
+    @property
+    def regex_pairs(self):
+        """
+        Returns a tuple of compiled regex pairs
+        """
+        if not self._compiled_regex:
+            self._compiled_regex = tuple(map(self._compile_regex, self._data))
+        return self._compiled_regex
+
+    @property
+    def search_regex(self):
+        """
+        Returns a single expression to search for domains
+        """
+        return re.compile('|'.join(map(lambda x: x.split(self._PATTERN_REPLACE_DELIM, 1)[0], self._data)))
 
 # Private Methods
 
@@ -109,12 +146,13 @@ def _validate_file_index(index_file, resolved_tree, cache_index_files):
 # Public Methods
 
 
-def apply_substitution(config_bundle, source_tree, domainsub_cache):
+def apply_substitution(regex_path, files_path, config_bundle, source_tree, domainsub_cache):
     """
     Substitute domains in source_tree with files and substitutions from config_bundle,
         and save the pre-domain substitution archive to presubdom_archive.
 
-    config_bundle is a config.ConfigBundle
+    regex_path is a pathlib.Path to domain_regex.list
+    files_path is a pathlib.Path to domain_substitution.list
     source_tree is a pathlib.Path to the source tree.
     domainsub_cache is a pathlib.Path to the domain substitution cache.
 
@@ -126,16 +164,20 @@ def apply_substitution(config_bundle, source_tree, domainsub_cache):
     """
     if not source_tree.exists():
         raise FileNotFoundError(source_tree)
+    if not regex_path.exists():
+        raise FileNotFoundError(regex_path)
+    if not files_path.exists():
+        raise FileNotFoundError(files_path)
     if domainsub_cache.exists():
         raise FileExistsError(domainsub_cache)
     resolved_tree = source_tree.resolve()
-    regex_pairs = config_bundle.domain_regex.regex_pairs
+    regex_pairs = DomainRegexList(regex_path).regex_pairs
     fileindex_content = io.BytesIO()
     with tarfile.open(
             str(domainsub_cache), 'w:%s' % domainsub_cache.suffix[1:],
             compresslevel=1) as cache_tar:
         orig_dir = Path(_ORIG_DIR)
-        for relative_path in config_bundle.domain_substitution:
+        for relative_path in filter(len, files_path.read_text().splitlines()):
             if _INDEX_HASH_DELIMITER in relative_path:
                 # Cache tar will be incomplete; remove it for convenience
                 cache_tar.close()
@@ -230,3 +272,68 @@ def revert_substitution(domainsub_cache, source_tree):
         get_logger().warning('Cache contains unused files. Not removing.')
     else:
         domainsub_cache.unlink()
+
+def _callback(args):
+    try:
+        if args.reverting:
+            domain_substitution.revert_substitution(args.cache, args.directory)
+        else:
+            domain_substitution.apply_substitution(args.regex, args.files, args.directory, args.cache)
+    except FileExistsError as exc:
+        get_logger().error('File or directory already exists: %s', exc)
+        raise _CLIError()
+    except FileNotFoundError as exc:
+        get_logger().error('File or directory does not exist: %s', exc)
+        raise _CLIError()
+    except NotADirectoryError as exc:
+        get_logger().error('Patches directory does not exist: %s', exc)
+        raise _CLIError()
+    except KeyError as exc:
+        get_logger().error('%s', exc)
+        raise _CLIError()
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.set_defaults(callback=_callback)
+    subparsers = parser.add_subparsers(title='', dest='packaging')
+
+    # apply
+    apply_parser = subparsers.add_parser(
+        'apply',
+        help='Apply domain substitution',
+        description='Applies domain substitution and creates the domain substitution cache.')
+    apply_parser.add_argument(
+        '-r', '--regex', type=Path, required=True, help='Path to domain_regex.list')
+    apply_parser.add_argument(
+        '-f', '--files', type=Path, required=True, help='Path to domain_substitution.list')
+    apply_parser.add_argument(
+        '-c',
+        '--cache',
+        type=Path,
+        required=True,
+        help='The path to the domain substitution cache. The path must not already exist.')
+    apply_parser.add_argument(
+        'directory', type=Path, help='The directory to apply domain substitution')
+    apply_parser.set_defaults(reverting=False)
+
+    # revert
+    revert_parser = subparsers.add_parser(
+        'revert',
+        help='Revert domain substitution',
+        description='Reverts domain substitution based only on the domain substitution cache.')
+    revert_parser.add_argument(
+        'directory', type=Path, help='The directory to reverse domain substitution')
+    revert_parser.add_argument(
+        '-c',
+        '--cache',
+        type=Path,
+        required=True,
+        help=('The path to the domain substitution cache. '
+              'The path must exist and will be removed if successful.'))
+    revert_parser.set_defaults(reverting=True)
+
+    args = parser.parse_args()
+    args.callback(args)
+
+if __name__ == '__main__':
+    main()

@@ -5,9 +5,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
-FILES.cfg processing and packaging
+Operations with FILES.cfg (for portable packages)
 """
 
+import argparse
+import platform
 from pathlib import Path
 
 
@@ -90,3 +92,85 @@ def create_archive(file_iter, include_iter, build_outputs, output_path):
             add_func(build_outputs / relative_path, archive_root / relative_path)
         for include_path in include_iter:
             add_func(include_path, archive_root / include_path.name)
+
+def _files_generator_by_args(args):
+    """Returns a files_generator() instance from the CLI args"""
+    # --build-outputs
+    if not args.build_outputs.exists():
+        get_logger().error('Could not find build outputs: %s', args.build_outputs)
+        raise _CLIError()
+
+    # --cfg
+    if not args.cfg.exists():
+        get_logger().error('Could not find FILES.cfg at %s', args.cfg)
+        raise _CLIError()
+
+    return filescfg_generator(args.cfg, args.build_outputs, args.cpu_arch)
+
+def _list_callback(args):
+    """List files needed to run Chromium."""
+    sys.stdout.writelines('%s\n' % x for x in _files_generator_by_args(args))
+
+def _archive_callback(args):
+    """
+    Create an archive of the build outputs. Supports zip and compressed tar archives.
+    """
+    create_archive(
+        filescfg_generator(args.cfg, args.build_outputs, args.cpu_arch), args.include,
+        args.build_outputs, args.output)
+
+def main():
+    """CLI Entrypoint"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-c',
+        '--cfg',
+        metavar='PATH',
+        type=Path,
+        required=True,
+        help=('The FILES.cfg to use. They are usually located under a '
+              'directory in chrome/tools/build/ of the source tree.'))
+    parser.add_argument(
+        '--build-outputs',
+        metavar='PATH',
+        type=Path,
+        default='out/Default',
+        help=('The path to the build outputs directory relative to the '
+              'source tree. Default: %(default)s'))
+    parser.add_argument(
+        '--cpu-arch',
+        metavar='ARCH',
+        default=platform.architecture()[0],
+        choices=('64bit', '32bit'),
+        help=('Filter build outputs by a target CPU. '
+              'This is the same as the "arch" key in FILES.cfg. '
+              'Default (from platform.architecture()): %(default)s'))
+
+    subparsers = parser.add_subparsers(title='filescfg actions')
+
+    # list
+    list_parser = subparsers.add_parser('list', help=_list_callback.__doc__)
+    list_parser.set_defaults(callback=_list_callback)
+
+    # archive
+    archive_parser = subparsers.add_parser('archive', help=_archive_callback.__doc__)
+    archive_parser.add_argument(
+        '-o',
+        '--output',
+        type=Path,
+        metavar='PATH',
+        required=True,
+        help=('The output path for the archive. The type of archive is selected'
+              ' by the file extension. Currently supported types: .zip and'
+              ' .tar.{gz,bz2,xz}'))
+    archive_parser.add_argument(
+        '-i',
+        '--include',
+        type=Path,
+        metavar='PATH',
+        action='append',
+        default=list(),
+        help=('File or directory to include in the root of the archive. Specify '
+              'multiple times to include multiple different items. '
+              'For zip files, these contents must only be regular files.'))
+    archive_parser.set_defaults(callback=_archive_callback)

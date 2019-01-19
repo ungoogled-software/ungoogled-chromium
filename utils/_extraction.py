@@ -71,23 +71,6 @@ def _process_relative_to(unpack_root, relative_to):
     relative_root.rmdir()
 
 
-def prune_dir(unpack_root, ignore_files):
-    """
-    Delete files under unpack_root listed in ignore_files. Returns an iterable of unremovable files.
-
-    unpack_root is a pathlib.Path to the directory to be pruned
-    ignore_files is an iterable of files to be removed.
-    """
-    unremovable_files = set()
-    for relative_file in ignore_files:
-        file_path = unpack_root / relative_file
-        try:
-            file_path.unlink()
-        except FileNotFoundError:
-            unremovable_files.add(Path(relative_file).as_posix())
-    return unremovable_files
-
-
 def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
     get_logger().debug('Using 7-zip extractor')
     if not relative_to is None and (output_dir / relative_to).exists():
