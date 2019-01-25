@@ -45,3 +45,6 @@ def main():
 
     args = parser.parse_args()
     args.callback(args)
+
+if __name__ == '__main__':
+    main()

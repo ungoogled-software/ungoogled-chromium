@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2019 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-"""Run Pylint over buildkit"""
+"""Run Pylint over utils"""
 
 import argparse
 import sys
@@ -16,7 +16,7 @@ sys.path.pop(0)
 
 def main():
     """CLI entrypoint"""
-    parser = argparse.ArgumentParser(description='Run Pylint over buildkit')
+    parser = argparse.ArgumentParser(description='Run Pylint over utils')
     parser.add_argument('--hide-fixme', action='store_true', help='Hide "fixme" Pylint warnings.')
     parser.add_argument(
         '--show-locally-disabled',
@@ -38,7 +38,7 @@ def main():
     ]
 
     result = pylint_devutils.run_pylint(
-        str(Path(__file__).parent.parent / 'buildkit'),
+        str(Path(__file__).parent.parent / 'utils'),
         pylint_options,
     )
     if not result:

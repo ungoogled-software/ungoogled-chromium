@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-# Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2019 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -174,3 +174,6 @@ def main():
               'multiple times to include multiple different items. '
               'For zip files, these contents must only be regular files.'))
     archive_parser.set_defaults(callback=_archive_callback)
+
+if __name__ == '__main__':
+    main()
