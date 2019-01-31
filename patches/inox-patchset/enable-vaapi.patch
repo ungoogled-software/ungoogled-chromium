@@ -1,0 +1,158 @@
+From abc7295ca1653c85472916909f0eb76e28e79a58 Mon Sep 17 00:00:00 2001
+From: Akarshan Biswas <akarshan.biswas@gmail.com>
+Date: Thu, 24 Jan 2019 12:45:29 +0530
+Subject: [PATCH] Enable mojo with VDA2 on Linux
+
+---
+ chrome/browser/about_flags.cc                |  8 ++++----
+ chrome/browser/flag_descriptions.cc          |  9 +++++++--
+ chrome/browser/flag_descriptions.h           | 10 ++++++++--
+ gpu/config/software_rendering_list.json      |  3 ++-
+ media/media_options.gni                      |  9 ++++++---
+ media/mojo/services/gpu_mojo_media_client.cc |  4 ++--
+ 6 files changed, 29 insertions(+), 14 deletions(-)
+
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -1771,7 +1771,7 @@ const FeatureEntry kFeatureEntries[] = {
+         "disable-accelerated-video-decode",
+         flag_descriptions::kAcceleratedVideoDecodeName,
+         flag_descriptions::kAcceleratedVideoDecodeDescription,
+-        kOsMac | kOsWin | kOsCrOS | kOsAndroid,
++        kOsMac | kOsWin | kOsCrOS | kOsAndroid | kOsLinux,
+         SINGLE_DISABLE_VALUE_TYPE(switches::kDisableAcceleratedVideoDecode),
+     },
+ #if defined(OS_WIN)
+@@ -2402,12 +2402,12 @@ const FeatureEntry kFeatureEntries[] = {
+      FEATURE_VALUE_TYPE(service_manager::features::kXRSandbox)},
+ #endif  // ENABLE_ISOLATED_XR_SERVICE
+ #endif  // ENABLE_VR
+-#if defined(OS_CHROMEOS)
++#if defined(OS_CHROMEOS) || defined(OS_LINUX)
+     {"disable-accelerated-mjpeg-decode",
+      flag_descriptions::kAcceleratedMjpegDecodeName,
+-     flag_descriptions::kAcceleratedMjpegDecodeDescription, kOsCrOS,
++     flag_descriptions::kAcceleratedMjpegDecodeDescription, kOsCrOS | kOsLinux,
+      SINGLE_DISABLE_VALUE_TYPE(switches::kDisableAcceleratedMjpegDecode)},
+-#endif  // OS_CHROMEOS
++#endif  // OS_CHROMEOS // OS_LINUX
+     {"v8-cache-options", flag_descriptions::kV8CacheOptionsName,
+      flag_descriptions::kV8CacheOptionsDescription, kOsAll,
+      MULTI_VALUE_TYPE(kV8CacheOptionsChoices)},
+--- a/chrome/browser/flag_descriptions.cc
++++ b/chrome/browser/flag_descriptions.cc
+@@ -3089,15 +3089,20 @@ const char kTextSuggestionsTouchBarDescr
+ 
+ #endif
+ 
+-// Chrome OS -------------------------------------------------------------------
++// Chrome OS Linux-------------------------------------------------------------------
+ 
+-#if defined(OS_CHROMEOS)
++#if defined(OS_CHROMEOS) || (defined(OS_LINUX) && !defined(OS_ANDROID))
+ 
+ const char kAcceleratedMjpegDecodeName[] =
+     "Hardware-accelerated mjpeg decode for captured frame";
+ const char kAcceleratedMjpegDecodeDescription[] =
+     "Enable hardware-accelerated mjpeg decode for captured frame where "
+     "available.";
++#endif
++
++// Chrome OS --------------------------------------------------
++
++#if defined(OS_CHROMEOS)
+ 
+ const char kAllowTouchpadThreeFingerClickName[] = "Touchpad three-finger-click";
+ const char kAllowTouchpadThreeFingerClickDescription[] =
+--- a/chrome/browser/flag_descriptions.h
++++ b/chrome/browser/flag_descriptions.h
+@@ -1849,13 +1849,19 @@ extern const char kPermissionPromptPersi
+ 
+ #endif  // defined(OS_MACOSX)
+ 
+-// Chrome OS ------------------------------------------------------------------
++// Chrome OS and Linux ------------------------------------------------------------------
+ 
+-#if defined(OS_CHROMEOS)
++#if defined(OS_CHROMEOS) || (defined(OS_LINUX) && !defined(OS_ANDROID))
+ 
+ extern const char kAcceleratedMjpegDecodeName[];
+ extern const char kAcceleratedMjpegDecodeDescription[];
+ 
++#endif // defined(OS_CHROMEOS) || (defined(OS_LINUX) && !defined(OS_ANDROID))
++
++// Chrome OS ------------------------------------------------------------------------
++
++#if defined(OS_CHROMEOS)
++
+ extern const char kAllowTouchpadThreeFingerClickName[];
+ extern const char kAllowTouchpadThreeFingerClickDescription[];
+ 
+--- a/gpu/config/software_rendering_list.json
++++ b/gpu/config/software_rendering_list.json
+@@ -371,11 +371,12 @@
+     },
+     {
+       "id": 48,
+-      "description": "Accelerated video decode is unavailable on Linux",
++      "description": "Accelerated VA-API video decode is not supported on NVIDIA platforms",
+       "cr_bugs": [137247],
+       "os": {
+         "type": "linux"
+       },
++      "vendor_id": "0x10de",
+       "features": [
+         "accelerated_video_decode"
+       ]
+--- a/media/media_options.gni
++++ b/media/media_options.gni
+@@ -5,6 +5,7 @@
+ import("//build/config/chrome_build.gni")
+ import("//build/config/chromecast_build.gni")
+ import("//build/config/features.gni")
++import("//media/gpu/args.gni")
+ import("//testing/libfuzzer/fuzzer_test.gni")
+ 
+ # Do not expand this list without double-checking with OWNERS, this is a list of
+@@ -129,8 +130,9 @@ declare_args() {
+   # |mojo_media_services|). When enabled, selected mojo paths will be enabled in
+   # the media pipeline and corresponding services will hosted in the selected
+   # remote process (e.g. "utility" process, see |mojo_media_host|).
+-  enable_mojo_media = is_android || is_chromecast || is_chromeos || is_mac ||
+-                      is_win || enable_library_cdms
++  enable_mojo_media =
++      is_android || is_chromecast || is_chromeos || is_mac || is_win ||
++      enable_library_cdms || (is_desktop_linux && use_vaapi)
+ 
+   # Enable the TestMojoMediaClient to be used in mojo MediaService. This is for
+   # testing only and will override the default platform MojoMediaClient, if any.
+@@ -200,7 +202,8 @@ if (enable_mojo_media) {
+       ]
+       _default_mojo_media_host = "gpu"
+     }
+-  } else if (is_chromeos || is_mac || is_win) {
++  } else if (is_chromeos || is_mac || is_win ||
++             (is_desktop_linux && use_vaapi)) {
+     _default_mojo_media_services = [ "video_decoder" ]
+     _default_mojo_media_host = "gpu"
+   }
+--- a/media/mojo/services/gpu_mojo_media_client.cc
++++ b/media/mojo/services/gpu_mojo_media_client.cc
+@@ -54,7 +54,7 @@ namespace media {
+ namespace {
+ 
+ #if defined(OS_ANDROID) || defined(OS_CHROMEOS) || defined(OS_MACOSX) || \
+-    defined(OS_WIN)
++    defined(OS_WIN) || defined(OS_LINUX)
+ gpu::CommandBufferStub* GetCommandBufferStub(
+     base::WeakPtr<MediaGpuChannelManager> media_gpu_channel_manager,
+     base::UnguessableToken channel_token,
+@@ -148,7 +148,7 @@ std::unique_ptr<VideoDecoder> GpuMojoMed
+       android_overlay_factory_cb_, std::move(request_overlay_info_cb),
+       std::make_unique<VideoFrameFactoryImpl>(gpu_task_runner_,
+                                               std::move(get_stub_cb)));
+-#elif defined(OS_CHROMEOS) || defined(OS_MACOSX) || defined(OS_WIN)
++#elif defined(OS_CHROMEOS) || defined(OS_MACOSX) || defined(OS_WIN) || defined(OS_LINUX)
+   std::unique_ptr<VideoDecoder> vda_video_decoder = VdaVideoDecoder::Create(
+       task_runner, gpu_task_runner_, media_log->Clone(), target_color_space,
+       gpu_preferences_, gpu_workarounds_,
