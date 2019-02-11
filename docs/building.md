@@ -164,12 +164,15 @@ A zip archive will be created in `build\src`
 * Xcode 8-9
 * Homebrew
 * Perl (for creating a `.dmg` package)
-* Python 2, specifically 2.7.13 or newer
+* Python 2, specifically 2.7.13 or newer, as `python` in PATH
+* Python 3.5 or newer as `python3` in PATH
 
 ### Setting up the build environment
 
 1. Install Ninja via Homebrew: `brew install ninja`
 2. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
+
+TODO: Document installing Perl, Python 2, and Python 3 (via Homebrew?)
 
 ### Building
 
@@ -178,7 +181,7 @@ First, ensure the Xcode application is open. Then, run the following:
 ```sh
 # Run from inside the clone of the repository
 mkdir -p build/src/ungoogled_packaging
-./get_package.py macos build/src/ungoogled_packaging
+python3 get_package.py macos build/src/ungoogled_packaging
 cd build/src
 ./ungoogled_packaging/build.sh
 ```
