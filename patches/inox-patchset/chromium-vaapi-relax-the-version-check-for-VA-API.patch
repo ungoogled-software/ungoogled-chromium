@@ -1,0 +1,55 @@
+From 6f1309ef8fe10965e4d0018b4f1b80ac6deccdaa Mon Sep 17 00:00:00 2001
+From: Azhar Shaikh <azhar.shaikh@intel.com>
+Date: Fri, 30 Nov 2018 23:11:57 +0000
+Subject: [PATCH] media/gpu/vaapi: Relax the version check for VA-API
+
+Since the newer versions of VA-API are ABI compatible, relax the
+version checks for VA-API, by using VA_CHECK_VERSION().
+This will help in updating the libva to the latest releases,
+while still supporting the old versions, till the new version of
+libva is merged and picked by the builds. Thus ensuring that
+hardware accleration is not broken while updating the libva.
+
+Bug: 905814
+TEST=libva-2.3.0 and libva-2.1.0 are able to do hardware acceleration.
+
+Suggested-by: Alexandre Courbot <acourbot@chromium.org>
+Signed-off-by: Azhar Shaikh <azhar.shaikh@intel.com>
+Change-Id: I510549f72290d20676927eeeeb89a87199c062af
+Reviewed-on: https://chromium-review.googlesource.com/c/1352519
+Reviewed-by: Alexandre Courbot <acourbot@chromium.org>
+Reviewed-by: Hirokazu Honda <hiroh@chromium.org>
+Commit-Queue: Miguel Casas <mcasas@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#612832}
+---
+ AUTHORS                          | 1 +
+ media/gpu/vaapi/vaapi_wrapper.cc | 8 +++++++-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+--- a/AUTHORS
++++ b/AUTHORS
+@@ -103,6 +103,7 @@ Asish Singh <asish.singh@samsung.com>
+ Attila Dusnoki <dati91@gmail.com>
+ Avinaash Doreswamy <avi.nitk@samsung.com>
+ Ayush Khandelwal <k.ayush@samsung.com>
++Azhar Shaikh <azhar.shaikh@intel.com>
+ Balazs Kelemen <b.kelemen@samsung.com>
+ Baul Eun <baul.eun@samsung.com>
+ Behara Mani Shyam Patro <behara.ms@samsung.com>
+--- a/media/gpu/vaapi/vaapi_wrapper.cc
++++ b/media/gpu/vaapi/vaapi_wrapper.cc
+@@ -333,7 +333,13 @@ bool VADisplayState::InitializeOnce() {
+   DVLOG(1) << "VAAPI version: " << major_version << "." << minor_version << " "
+            << va_vendor_string_;
+ 
+-  if (major_version != VA_MAJOR_VERSION || minor_version != VA_MINOR_VERSION) {
++  // The VAAPI version is determined from what is loaded on the system by
++  // calling vaInitialize(). We want a runtime evaluation of libva version,
++  // of what is loaded on the system, with, what browser is compiled with.
++  // Also since the libva is now ABI-compatible, relax the version check
++  // which helps in upgrading the libva, without breaking any existing
++  // functionality.
++  if (!VA_CHECK_VERSION(major_version, minor_version, 0)) {
+     LOG(ERROR) << "This build of Chromium requires VA-API version "
+                << VA_MAJOR_VERSION << "." << VA_MINOR_VERSION
+                << ", system version: " << major_version << "." << minor_version;
