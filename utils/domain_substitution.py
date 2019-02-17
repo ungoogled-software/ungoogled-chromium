@@ -8,6 +8,7 @@
 Substitute domain names in the source tree with blockable strings.
 """
 
+import argparse
 import collections
 import io
 import re
@@ -16,7 +17,6 @@ import tempfile
 import zlib
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _extraction import extract_tar_file
 from _common import ENCODING, get_logger
 
@@ -27,6 +27,7 @@ TREE_ENCODINGS = ('UTF-8', 'ISO-8859-1')
 _INDEX_LIST = 'cache_index.list'
 _INDEX_HASH_DELIMITER = '|'
 _ORIG_DIR = 'orig'
+
 
 class DomainRegexList:
     """Representation of a domain_regex.list file"""
@@ -60,7 +61,9 @@ class DomainRegexList:
         """
         Returns a single expression to search for domains
         """
-        return re.compile('|'.join(map(lambda x: x.split(self._PATTERN_REPLACE_DELIM, 1)[0], self._data)))
+        return re.compile('|'.join(
+            map(lambda x: x.split(self._PATTERN_REPLACE_DELIM, 1)[0], self._data)))
+
 
 # Private Methods
 
@@ -146,9 +149,9 @@ def _validate_file_index(index_file, resolved_tree, cache_index_files):
 # Public Methods
 
 
-def apply_substitution(regex_path, files_path, config_bundle, source_tree, domainsub_cache):
+def apply_substitution(regex_path, files_path, source_tree, domainsub_cache):
     """
-    Substitute domains in source_tree with files and substitutions from config_bundle,
+    Substitute domains in source_tree with files and substitutions,
         and save the pre-domain substitution archive to presubdom_archive.
 
     regex_path is a pathlib.Path to domain_regex.list
@@ -176,7 +179,6 @@ def apply_substitution(regex_path, files_path, config_bundle, source_tree, domai
     with tarfile.open(
             str(domainsub_cache), 'w:%s' % domainsub_cache.suffix[1:],
             compresslevel=1) as cache_tar:
-        orig_dir = Path(_ORIG_DIR)
         for relative_path in filter(len, files_path.read_text().splitlines()):
             if _INDEX_HASH_DELIMITER in relative_path:
                 # Cache tar will be incomplete; remove it for convenience
@@ -198,7 +200,7 @@ def apply_substitution(regex_path, files_path, config_bundle, source_tree, domai
                 continue
             fileindex_content.write('{}{}{:08x}\n'.format(relative_path, _INDEX_HASH_DELIMITER,
                                                           crc32_hash).encode(ENCODING))
-            orig_tarinfo = tarfile.TarInfo(str(orig_dir / relative_path))
+            orig_tarinfo = tarfile.TarInfo(str(Path(_ORIG_DIR) / relative_path))
             orig_tarinfo.size = len(orig_content)
             with io.BytesIO(orig_content) as orig_file:
                 cache_tar.addfile(orig_tarinfo, orig_file)
@@ -273,26 +275,17 @@ def revert_substitution(domainsub_cache, source_tree):
     else:
         domainsub_cache.unlink()
 
+
 def _callback(args):
-    try:
-        if args.reverting:
-            domain_substitution.revert_substitution(args.cache, args.directory)
-        else:
-            domain_substitution.apply_substitution(args.regex, args.files, args.directory, args.cache)
-    except FileExistsError as exc:
-        get_logger().error('File or directory already exists: %s', exc)
-        raise _CLIError()
-    except FileNotFoundError as exc:
-        get_logger().error('File or directory does not exist: %s', exc)
-        raise _CLIError()
-    except NotADirectoryError as exc:
-        get_logger().error('Patches directory does not exist: %s', exc)
-        raise _CLIError()
-    except KeyError as exc:
-        get_logger().error('%s', exc)
-        raise _CLIError()
+    """CLI Callback"""
+    if args.reverting:
+        revert_substitution(args.cache, args.directory)
+    else:
+        apply_substitution(args.regex, args.files, args.directory, args.cache)
+
 
 def main():
+    """CLI Entrypoint"""
     parser = argparse.ArgumentParser()
     parser.set_defaults(callback=_callback)
     subparsers = parser.add_subparsers(title='', dest='packaging')
@@ -334,6 +327,7 @@ def main():
 
     args = parser.parse_args()
     args.callback(args)
+
 
 if __name__ == '__main__':
     main()

@@ -5,12 +5,9 @@
 # found in the LICENSE file.
 """Common code and constants"""
 
-import configparser
 import enum
 import logging
-import os
 import platform
-import sys
 from pathlib import Path
 
 # Constants
@@ -20,6 +17,7 @@ ENCODING = 'UTF-8' # For config files and patches
 SEVENZIP_USE_REGISTRY = '_use_registry'
 
 # Public classes
+
 
 class PlatformEnum(enum.Enum):
     """Enum for platforms that need distinction for certain functionality"""
@@ -35,17 +33,18 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
 
 # Public methods
 
+
 def get_logger():
-    '''Gets the named logger'''
+    """Gets the named logger"""
 
     logger = logging.getLogger('ungoogled')
 
     if logger.level == logging.NOTSET:
-        logger.setLevel(initial_level)
+        logger.setLevel(logging.DEBUG)
 
         if not logger.hasHandlers():
             console_handler = logging.StreamHandler()
-            console_handler.setLevel(initial_level)
+            console_handler.setLevel(logging.DEBUG)
 
             format_string = '%(levelname)s: %(message)s'
             formatter = logging.Formatter(format_string)
@@ -53,6 +52,7 @@ def get_logger():
 
             logger.addHandler(console_handler)
     return logger
+
 
 def get_running_platform():
     """
@@ -66,6 +66,7 @@ def get_running_platform():
         return PlatformEnum.WINDOWS
     # Only Windows and UNIX-based platforms need to be distinguished right now.
     return PlatformEnum.UNIX
+
 
 def get_chromium_version():
     """Returns the Chromium version."""

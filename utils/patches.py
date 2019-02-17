@@ -7,13 +7,12 @@
 """Applies unified diff patches"""
 
 import argparse
-import logging
 import shutil
 import subprocess
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import get_logger
+
 
 def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None):
     """
@@ -54,6 +53,7 @@ def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None
         logger.debug(' '.join(cmd))
         subprocess.run(cmd, check=True)
 
+
 def generate_patches_from_series(patches_dir, resolve=False):
     """Generates pathlib.Path for patches from a directory in GNU Quilt format"""
 
@@ -65,11 +65,13 @@ def generate_patches_from_series(patches_dir, resolve=False):
             else:
                 yield patch_path
 
+
 def _copy_files(path_iter, source, destination):
     """Copy files from source to destination with relative paths from path_iter"""
     for path in path_iter:
         (path / destination).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(source / path), str(destination / path))
+
 
 def merge_patches(source_iter, destination, append=False):
     """
@@ -83,7 +85,9 @@ def merge_patches(source_iter, destination, append=False):
     if destination.exists():
         if append:
             if not (destination / 'series').exists():
-                raise FileNotFoundError('Could not find series file in existing destination: {}'.format(destination / 'series'))
+                raise FileNotFoundError(
+                    'Could not find series file in existing destination: {}'.format(
+                        destination / 'series'))
             series.extend(generate_patches_from_series(destination))
             known_paths.update(series)
         else:
@@ -92,11 +96,14 @@ def merge_patches(source_iter, destination, append=False):
         patch_paths = tuple(generate_patches_from_series(source_dir))
         patch_intersection = known_paths.intersection(patch_paths)
         if patch_intersection:
-            raise FileExistsError('Patches from {} have conflicting paths with other sources: {}'.format(source_dir, patch_intersection))
+            raise FileExistsError(
+                'Patches from {} have conflicting paths with other sources: {}'.format(
+                    source_dir, patch_intersection))
         series.extend(patch_paths)
         _copy_files(patch_paths, source_dir, destination)
     with (destination / 'series').open('w') as series_file:
         series_file.write('\n'.join(series))
+
 
 def _apply_callback(args):
     logger = get_logger()
@@ -104,12 +111,13 @@ def _apply_callback(args):
         logger.info('Applying patches from %s', patch_dir)
         try:
             apply_patches(
-                generate_patches_from_series(patch_dir, resolve=True)
+                generate_patches_from_series(patch_dir, resolve=True),
                 args.directory,
                 patch_bin_path=args.patch_bin)
         except FileNotFoundError as exc:
             logger.error('File not found: %s', exc)
             exit(1)
+
 
 def _merge_callback(args):
     try:
@@ -121,6 +129,7 @@ def _merge_callback(args):
         get_logger().error('File exists: %s', exc)
         exit(1)
 
+
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser()
@@ -128,22 +137,36 @@ def main():
 
     apply_parser = subparsers.add_parser(
         'apply', help='Applies a config bundle\'s patches to the specified source tree')
-    setup_bundle_arg(apply_parser)
     apply_parser.add_argument(
         '--patch-bin', help='The GNU patch command to use. Omit to find it automatically.')
     apply_parser.add_argument('target', type=Path, help='The directory tree to apply patches onto.')
-    apply_parser.add_argument('patches', type=Path, nargs='+', help='The directories containing patches to apply. They must be in GNU quilt format')
+    apply_parser.add_argument(
+        'patches',
+        type=Path,
+        nargs='+',
+        help='The directories containing patches to apply. They must be in GNU quilt format')
     apply_parser.set_defaults(callback=_apply_callback)
 
     merge_parser = subparsers.add_parser(
         'merge', help='Merges patches directories in GNU quilt format')
-    merge_parser.add_argument('--append', '-a', action='store_true', help='If "destination" exists, append patches from sources into it. By default, merging will fail if the destination already exists.')
-    merge_parser.add_argument('destination', type=Path, help='The directory to write the merged patches to. The destination must not exist unless --append is specified.')
-    merge_parser.add_argument('source', type=Path, nargs='+', help='The GNU quilt patches to merge.')
+    merge_parser.add_argument(
+        '--append',
+        '-a',
+        action='store_true',
+        help=('If "destination" exists, append patches from sources into it.'
+              ' By default, merging will fail if the destination already exists.'))
+    merge_parser.add_argument(
+        'destination',
+        type=Path,
+        help=('The directory to write the merged patches to. '
+              'The destination must not exist unless --append is specified.'))
+    merge_parser.add_argument(
+        'source', type=Path, nargs='+', help='The GNU quilt patches to merge.')
     merge_parser.set_defaults(callback=_merge_callback)
 
     args = parser.parse_args()
     args.callback(args)
+
 
 if __name__ == '__main__':
     main()

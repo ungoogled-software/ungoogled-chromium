@@ -13,7 +13,7 @@ import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 
-from .common import (SEVENZIP_USE_REGISTRY, BuildkitAbort, PlatformEnum, ExtractorEnum, get_logger,
+from _common import (SEVENZIP_USE_REGISTRY, PlatformEnum, ExtractorEnum, get_logger,
                      get_running_platform)
 
 DEFAULT_EXTRACTORS = {
@@ -22,11 +22,15 @@ DEFAULT_EXTRACTORS = {
 }
 
 
+class ExtractionError(BaseException):
+    """Exceptions thrown in this module's methods"""
+
+
 def _find_7z_by_registry():
     """
     Return a string to 7-zip's 7z.exe from the Windows Registry.
 
-    Raises BuildkitAbort if it fails.
+    Raises ExtractionError if it fails.
     """
     import winreg #pylint: disable=import-error
     sub_key_7zfm = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\7zFM.exe'
@@ -35,7 +39,7 @@ def _find_7z_by_registry():
             sevenzipfm_dir = winreg.QueryValueEx(key_handle, 'Path')[0]
     except OSError:
         get_logger().exception('Unable to locate 7-zip from the Windows Registry')
-        raise BuildkitAbort()
+        raise ExtractionError()
     sevenzip_path = Path(sevenzipfm_dir, '7z.exe')
     if not sevenzip_path.is_file():
         get_logger().error('7z.exe not found at path from registry: %s', sevenzip_path)
@@ -64,7 +68,7 @@ def _process_relative_to(unpack_root, relative_to):
     if not relative_root.is_dir():
         get_logger().error('Could not find relative_to directory in extracted files: %s',
                            relative_to)
-        raise BuildkitAbort()
+        raise ExtractionError()
     for src_path in relative_root.iterdir():
         dest_path = unpack_root / src_path.name
         src_path.rename(dest_path)
@@ -76,7 +80,7 @@ def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
     if not relative_to is None and (output_dir / relative_to).exists():
         get_logger().error('Temporary unpacking directory already exists: %s',
                            output_dir / relative_to)
-        raise BuildkitAbort()
+        raise ExtractionError()
     cmd1 = (binary, 'x', str(archive_path), '-so')
     cmd2 = (binary, 'x', '-si', '-aoa', '-ttar', '-o{}'.format(str(output_dir)))
     get_logger().debug('7z command line: %s | %s', ' '.join(cmd1), ' '.join(cmd2))
@@ -89,7 +93,7 @@ def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
         get_logger().error('7z commands returned non-zero status: %s', proc2.returncode)
         get_logger().debug('stdout: %s', stdout_data)
         get_logger().debug('stderr: %s', stderr_data)
-        raise BuildkitAbort()
+        raise ExtractionError()
 
     _process_relative_to(output_dir, relative_to)
 
@@ -102,7 +106,7 @@ def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
     result = subprocess.run(cmd)
     if result.returncode != 0:
         get_logger().error('tar command returned %s', result.returncode)
-        raise BuildkitAbort()
+        raise ExtractionError()
 
     # for gnu tar, the --transform option could be used. but to keep compatibility with
     # bsdtar on macos, we just do this ourselves
@@ -131,7 +135,7 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to):
     except BaseException:
         # Unexpected exception
         get_logger().exception('Unexpected exception during symlink support check.')
-        raise BuildkitAbort()
+        raise ExtractionError()
 
     with tarfile.open(str(archive_path), 'r|%s' % archive_path.suffix[1:]) as tar_file_obj:
         tar_file_obj.members = NoAppendList()
@@ -157,7 +161,7 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to):
                 tar_file_obj._extract_member(tarinfo, str(destination)) # pylint: disable=protected-access
             except BaseException:
                 get_logger().exception('Exception thrown for tar member: %s', tarinfo.name)
-                raise BuildkitAbort()
+                raise ExtractionError()
 
 
 def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
@@ -172,7 +176,7 @@ def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
     extractors is a dictionary of PlatformEnum to a command or path to the
         extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
 
-    Raises BuildkitAbort if unexpected issues arise during unpacking.
+    Raises ExtractionError if unexpected issues arise during unpacking.
     """
     if extractors is None:
         extractors = DEFAULT_EXTRACTORS
@@ -216,7 +220,7 @@ def extract_with_7z(
     extractors is a dictionary of PlatformEnum to a command or path to the
     extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
 
-    Raises BuildkitAbort if unexpected issues arise during unpacking.
+    Raises ExtractionError if unexpected issues arise during unpacking.
     """
     # TODO: It would be nice to extend this to support arbitrary standard IO chaining of 7z
     # instances, so _extract_tar_with_7z and other future formats could use this.
@@ -226,20 +230,20 @@ def extract_with_7z(
     if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
         if not get_running_platform() == PlatformEnum.WINDOWS:
             get_logger().error('"%s" for 7-zip is only available on Windows', sevenzip_cmd)
-            raise BuildkitAbort()
+            raise ExtractionError()
         sevenzip_cmd = str(_find_7z_by_registry())
     sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
 
     if not relative_to is None and (output_dir / relative_to).exists():
         get_logger().error('Temporary unpacking directory already exists: %s',
                            output_dir / relative_to)
-        raise BuildkitAbort()
+        raise ExtractionError()
     cmd = (sevenzip_bin, 'x', str(archive_path), '-aoa', '-o{}'.format(str(output_dir)))
     get_logger().debug('7z command line: %s', ' '.join(cmd))
 
     result = subprocess.run(cmd)
     if result.returncode != 0:
         get_logger().error('7z command returned %s', result.returncode)
-        raise BuildkitAbort()
+        raise ExtractionError()
 
     _process_relative_to(output_dir, relative_to)

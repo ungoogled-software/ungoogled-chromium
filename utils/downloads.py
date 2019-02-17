@@ -16,21 +16,24 @@ import sys
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import ENCODING, ExtractorEnum, get_logger, get_chromium_version
+from _common import ENCODING, SEVENZIP_USE_REGISTRY, ExtractorEnum, get_logger, get_chromium_version
 from _extraction import extract_tar_file, extract_with_7z
 
 sys.path.insert(0, str(Path(__file__).parent / 'third_party'))
-import schema
+import schema #pylint: disable=wrong-import-position
+sys.path.pop(0)
 
 # Constants
+
 
 class HashesURLEnum(str, enum.Enum):
     """Enum for supported hash URL schemes"""
     chromium = 'chromium'
 
+
 class HashMismatchError(BaseException):
     """Exception for computed hashes not matching expected hashes"""
+
 
 class DownloadInfo: #pylint: disable=too-few-public-methods
     """Representation of an downloads.ini file for downloading files"""
@@ -109,7 +112,7 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
         with path.open(encoding=ENCODING) as ini_file:
             new_data.read_file(ini_file, source=str(path))
         if self._schema is None:
-            raise ConfigError('No schema defined for %s' % type(self).__name__)
+            raise ValueError('No schema defined for %s' % type(self).__name__)
         try:
             self._schema.validate(dict(_section_generator(new_data)))
         except schema.SchemaError as exc:
@@ -145,8 +148,7 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
     def properties_iter(self):
         """Iterator for the download properties sorted by output path"""
         return sorted(
-            map(lambda x: (x, self[x]), self),
-            key=(lambda x: str(Path(x[1].output_path))))
+            map(lambda x: (x, self[x]), self), key=(lambda x: str(Path(x[1].output_path))))
 
 
 class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
@@ -205,7 +207,6 @@ def _chromium_hashes_generator(hashes_path):
             yield hash_name, hash_hex
         else:
             get_logger().warning('Skipping unknown hash algorithm: %s', hash_name)
-
 
 
 def _get_hash_pairs(download_properties, cache_dir):
@@ -315,23 +316,27 @@ def unpack_downloads(download_info, cache_dir, output_dir, extractors=None):
             relative_to=strip_leading_dirs_path,
             extractors=extractors)
 
+
 def _add_common_args(parser):
-    parser.add_argument('-i', '--ini', type=Path, nargs='+', help='The downloads INI to parse for downloads. Can be specified multiple times.')
     parser.add_argument(
-        '-c',
-        '--cache',
+        '-i',
+        '--ini',
         type=Path,
-        required=True,
-        help='Path to the directory to cache downloads.')
+        nargs='+',
+        help='The downloads INI to parse for downloads. Can be specified multiple times.')
+    parser.add_argument(
+        '-c', '--cache', type=Path, required=True, help='Path to the directory to cache downloads.')
+
 
 def _retrieve_callback(args):
-    retrieve_downloads(DownloadInfo(args.ini), args.cache, args.show_progress,
-                                 args.disable_ssl_verification)
+    retrieve_downloads(
+        DownloadInfo(args.ini), args.cache, args.show_progress, args.disable_ssl_verification)
     try:
         check_downloads(DownloadInfo(args.ini), args.cache)
     except HashMismatchError as exc:
         get_logger().error('File checksum does not match: %s', exc)
-        raise _CLIError()
+        exit(1)
+
 
 def _unpack_callback(args):
     extractors = {
@@ -339,6 +344,7 @@ def _unpack_callback(args):
         ExtractorEnum.TAR: args.tar_path,
     }
     unpack_downloads(DownloadInfo(args.ini), args.cache, args.output, extractors)
+
 
 def main():
     """CLI Entrypoint"""
@@ -384,6 +390,7 @@ def main():
 
     args = parser.parse_args()
     args.callback(args)
+
 
 if __name__ == '__main__':
     main()

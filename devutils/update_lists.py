@@ -16,12 +16,12 @@ import sys
 
 from pathlib import Path, PurePosixPath
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from buildkit.common import ENCODING, BuildkitAbort, get_logger, dir_empty
-from buildkit.config import ConfigBundle
-from buildkit.domain_substitution import TREE_ENCODINGS
-from buildkit import downloads
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
+from domain_substitution import DomainRegexList, TREE_ENCODINGS
 sys.path.pop(0)
+
+# Encoding for output files
+_ENCODING = 'UTF-8'
 
 # NOTE: Include patterns have precedence over exclude patterns
 # pathlib.Path.match() paths to include in binary pruning
@@ -120,6 +120,24 @@ class UnusedPatterns: #pylint: disable=too-few-public-methods
                 have_unused = True
         return have_unused
 
+def get_logger():
+    '''Gets the named logger'''
+
+    logger = logging.getLogger('ungoogled')
+
+    if logger.level == logging.NOTSET:
+        logger.setLevel(initial_level)
+
+        if not logger.hasHandlers():
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(initial_level)
+
+            format_string = '%(levelname)s: %(message)s'
+            formatter = logging.Formatter(format_string)
+            console_handler.setFormatter(formatter)
+
+            logger.addHandler(console_handler)
+    return logger
 
 def _is_binary(bytes_data):
     """
@@ -250,7 +268,7 @@ def compute_lists(source_tree, search_regex):
                 domain_substitution_set.add(relative_path.as_posix())
         except:
             get_logger().exception('Unhandled exception while processing %s', relative_path)
-            raise BuildkitAbort()
+            exit(1)
     return sorted(pruning_set), sorted(domain_substitution_set), unused_patterns
 
 
@@ -258,69 +276,43 @@ def main(args_list=None):
     """CLI entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        '-a',
-        '--auto-download',
-        action='store_true',
-        help='If specified, it will download the source code and dependencies '
-        'for the --bundle given. Otherwise, only an existing '
-        'source tree will be used.')
-    parser.add_argument(
-        '-b',
-        '--bundle',
-        metavar='PATH',
-        type=Path,
-        default='config_bundles/common',
-        help='The bundle to use. Default: %(default)s')
-    parser.add_argument(
         '--pruning',
         metavar='PATH',
         type=Path,
-        default='config_bundles/common/pruning.list',
+        default='pruning.list',
         help='The path to store pruning.list. Default: %(default)s')
     parser.add_argument(
         '--domain-substitution',
         metavar='PATH',
         type=Path,
-        default='config_bundles/common/domain_substitution.list',
+        default='domain_substitution.list',
         help='The path to store domain_substitution.list. Default: %(default)s')
+    parser.add_argument(
+        '--domain-regex',
+        metavar='PATH',
+        type=Path,
+        default='domain_regex.list'
+        help='The path to domain_regex.list. Default: %(default)s')
     parser.add_argument(
         '-t',
         '--tree',
         metavar='PATH',
         type=Path,
         required=True,
-        help=('The path to the source tree to create. '
-              'If it is not empty, the source will not be unpacked.'))
-    parser.add_argument(
-        '-c', '--cache', metavar='PATH', type=Path, help='The path to the downloads cache.')
+        help='The path to the source tree to use.')
     try:
         args = parser.parse_args(args_list)
-        try:
-            bundle = ConfigBundle(args.bundle)
-        except BaseException:
-            get_logger().exception('Error loading config bundle')
-            raise BuildkitAbort()
         if args.tree.exists() and not dir_empty(args.tree):
             get_logger().info('Using existing source tree at %s', args.tree)
-        elif args.auto_download:
-            if not args.cache:
-                get_logger().error('--cache is required with --auto-download')
-                raise BuildkitAbort()
-            downloads.retrieve_downloads(bundle, args.cache, True)
-            downloads.check_downloads(bundle, args.cache)
-            downloads.unpack_downloads(bundle, args.cache, args.tree)
         else:
-            get_logger().error('No source tree found and --auto-download '
-                               'is not specified. Aborting.')
-            raise BuildkitAbort()
+            get_logger().error('No source tree found. Aborting.')
+            exit(1)
         get_logger().info('Computing lists...')
         pruning_list, domain_substitution_list, unused_patterns = compute_lists(
-            args.tree, bundle.domain_regex.search_regex)
-    except BuildkitAbort:
-        exit(1)
-    with args.pruning.open('w', encoding=ENCODING) as file_obj:
+            args.tree, DomainRegexList(args.domain_regex).search_regex)
+    with args.pruning.open('w', encoding=_ENCODING) as file_obj:
         file_obj.writelines('%s\n' % line for line in pruning_list)
-    with args.domain_substitution.open('w', encoding=ENCODING) as file_obj:
+    with args.domain_substitution.open('w', encoding=_ENCODING) as file_obj:
         file_obj.writelines('%s\n' % line for line in domain_substitution_list)
     if unused_patterns.log_unused():
         get_logger().error('Please update or remove unused patterns and/or prefixes. '

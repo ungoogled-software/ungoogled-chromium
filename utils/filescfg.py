@@ -10,7 +10,10 @@ Operations with FILES.cfg (for portable packages)
 
 import argparse
 import platform
+import sys
 from pathlib import Path
+
+from _common import get_logger
 
 
 def filescfg_generator(cfg_path, build_outputs, cpu_arch):
@@ -93,23 +96,26 @@ def create_archive(file_iter, include_iter, build_outputs, output_path):
         for include_path in include_iter:
             add_func(include_path, archive_root / include_path.name)
 
+
 def _files_generator_by_args(args):
     """Returns a files_generator() instance from the CLI args"""
     # --build-outputs
     if not args.build_outputs.exists():
         get_logger().error('Could not find build outputs: %s', args.build_outputs)
-        raise _CLIError()
+        raise FileNotFoundError(args.build_outputs)
 
     # --cfg
     if not args.cfg.exists():
         get_logger().error('Could not find FILES.cfg at %s', args.cfg)
-        raise _CLIError()
+        raise FileNotFoundError(args.cfg)
 
     return filescfg_generator(args.cfg, args.build_outputs, args.cpu_arch)
+
 
 def _list_callback(args):
     """List files needed to run Chromium."""
     sys.stdout.writelines('%s\n' % x for x in _files_generator_by_args(args))
+
 
 def _archive_callback(args):
     """
@@ -118,6 +124,7 @@ def _archive_callback(args):
     create_archive(
         filescfg_generator(args.cfg, args.build_outputs, args.cpu_arch), args.include,
         args.build_outputs, args.output)
+
 
 def main():
     """CLI Entrypoint"""
@@ -174,6 +181,7 @@ def main():
               'multiple times to include multiple different items. '
               'For zip files, these contents must only be regular files.'))
     archive_parser.set_defaults(callback=_archive_callback)
+
 
 if __name__ == '__main__':
     main()

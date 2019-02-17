@@ -9,9 +9,7 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import pylint_devutils
-sys.path.pop(0)
+import pylint_other
 
 
 def main():
@@ -34,13 +32,17 @@ def main():
     pylint_options = [
         '--disable={}'.format(','.join(disable)),
         '--jobs=4',
+        '--score=n',
+        '--persistent=n',
         '--ignore=third_party',
     ]
 
-    result = pylint_devutils.run_pylint(
+    sys.path.insert(0, str(Path(__file__).parent.parent / 'utils' / 'third_party'))
+    result = pylint_other.run_pylint(
         str(Path(__file__).parent.parent / 'utils'),
         pylint_options,
     )
+    sys.path.pop(0)
     if not result:
         exit(1)
     exit(0)

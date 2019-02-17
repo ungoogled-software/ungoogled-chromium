@@ -2,4 +2,4 @@
 
 set -eux
 
-python3 -m yapf --style '.style.yapf' -e '*/third_party/*' -rpi buildkit
+python3 -m yapf --style '.style.yapf' -e '*/third_party/*' -rpi utils

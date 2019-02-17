@@ -9,8 +9,8 @@
 import argparse
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import get_logger
+
 
 def prune_dir(unpack_root, ignore_files):
     """
@@ -28,6 +28,7 @@ def prune_dir(unpack_root, ignore_files):
             unremovable_files.add(Path(relative_file).as_posix())
     return unremovable_files
 
+
 def _callback(args):
     if not args.directory.exists():
         get_logger().error('Specified directory does not exist: %s', args.directory)
@@ -37,7 +38,9 @@ def _callback(args):
         get_logger().error('Files could not be pruned: %s', unremovable_files)
         exit(1)
 
+
 def main():
+    """CLI Entrypoint"""
     parser = argparse.ArgumentParser()
     parser.add_argument('directory', type=Path, help='The directory to apply binary pruning.')
     parser.add_argument('pruning_list', type=Path, help='Path to pruning.list')
@@ -45,6 +48,7 @@ def main():
 
     args = parser.parse_args()
     args.callback(args)
+
 
 if __name__ == '__main__':
     main()
