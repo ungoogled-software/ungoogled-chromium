@@ -1,0 +1,97 @@
+From 31225b9c5f3f685d65f742dc129241c30c32157c Mon Sep 17 00:00:00 2001
+From: Julien Isorce <julien.isorce@chromium.org>
+Date: Sat, 15 Dec 2018 01:02:18 +0000
+Subject: [PATCH] Enable mojo video decoders by default on Linux desktop if
+ use_vaapi is true
+
+Already the case for ChromeOS, Mac and Win. And run the service
+in the GPU process too. Except that here the gn arg use_vaapi
+has to be true as well.
+
+Note that this CL does not change the following:
+  - the gn arg 'use_vaapi' is still false by default on Linux,
+    see media/gpu/args.gni
+  - 'accelerated_video_decode' is still black listed on Linux,
+    see entry 48 in gpu/config/software_rendering_list.json
+  - it is still not possible to enable hw video decode from
+    about:flags, see chrome/browser/about_flags.cc
+
+Also note that with this CL the ffmpeg and libvpx video decoders
+are still selected thanks to media::DecoderSelector::SelectDecoder
+in case vaapi fails to initialize.
+
+Also see https://chromium-review.googlesource.com/c/chromium/src/+/1225275/
+which was very similar but for ChromeOS.
+
+Tested on Linux desktop with gn args:
+  - use_vaapi = true (default is false)
+  ./out/release/chrome --ignore-gpu-blacklist --use-gl=desktop url_to_vp9_video
+  ./out/release/chrome --ignore-gpu-blacklist --use-gl=egl url_to_vp9_video
+   -> MojoVideoDecoder was in use and VaapiVideoDecodeAccelerator runing in the
+      GPU process, through MojoVideoDecoderService
+
+
+Bug: 522298
+Change-Id: Ia19f9f3edc0af488a477a16001b7de4f4818b3b2
+Reviewed-on: https://chromium-review.googlesource.com/c/1370717
+Reviewed-by: Dan Sanders <sandersd@chromium.org>
+Commit-Queue: Julien Isorce <julien.isorce@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#616901}
+---
+ media/media_options.gni                      | 9 ++++++---
+ media/mojo/services/gpu_mojo_media_client.cc | 5 +++--
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+--- a/media/media_options.gni
++++ b/media/media_options.gni
+@@ -5,6 +5,7 @@
+ import("//build/config/chrome_build.gni")
+ import("//build/config/chromecast_build.gni")
+ import("//build/config/features.gni")
++import("//media/gpu/args.gni")
+ import("//testing/libfuzzer/fuzzer_test.gni")
+ 
+ # Do not expand this list without double-checking with OWNERS, this is a list of
+@@ -129,8 +130,9 @@ declare_args() {
+   # |mojo_media_services|). When enabled, selected mojo paths will be enabled in
+   # the media pipeline and corresponding services will hosted in the selected
+   # remote process (e.g. "utility" process, see |mojo_media_host|).
+-  enable_mojo_media = is_android || is_chromecast || is_chromeos || is_mac ||
+-                      is_win || enable_library_cdms
++  enable_mojo_media =
++      is_android || is_chromecast || is_chromeos || is_mac || is_win ||
++      enable_library_cdms || (is_desktop_linux && use_vaapi)
+ 
+   # Enable the TestMojoMediaClient to be used in mojo MediaService. This is for
+   # testing only and will override the default platform MojoMediaClient, if any.
+@@ -200,7 +202,8 @@ if (enable_mojo_media) {
+       ]
+       _default_mojo_media_host = "gpu"
+     }
+-  } else if (is_chromeos || is_mac || is_win) {
++  } else if (is_chromeos || is_mac || is_win ||
++             (is_desktop_linux && use_vaapi)) {
+     _default_mojo_media_services = [ "video_decoder" ]
+     _default_mojo_media_host = "gpu"
+   }
+--- a/media/mojo/services/gpu_mojo_media_client.cc
++++ b/media/mojo/services/gpu_mojo_media_client.cc
+@@ -54,7 +54,7 @@ namespace media {
+ namespace {
+ 
+ #if defined(OS_ANDROID) || defined(OS_CHROMEOS) || defined(OS_MACOSX) || \
+-    defined(OS_WIN)
++    defined(OS_WIN) || defined(OS_LINUX)
+ gpu::CommandBufferStub* GetCommandBufferStub(
+     base::WeakPtr<MediaGpuChannelManager> media_gpu_channel_manager,
+     base::UnguessableToken channel_token,
+@@ -148,7 +148,8 @@ std::unique_ptr<VideoDecoder> GpuMojoMed
+       android_overlay_factory_cb_, std::move(request_overlay_info_cb),
+       std::make_unique<VideoFrameFactoryImpl>(gpu_task_runner_,
+                                               std::move(get_stub_cb)));
+-#elif defined(OS_CHROMEOS) || defined(OS_MACOSX) || defined(OS_WIN)
++#elif defined(OS_CHROMEOS) || defined(OS_MACOSX) || defined(OS_WIN) || \
++    defined(OS_LINUX)
+   std::unique_ptr<VideoDecoder> vda_video_decoder = VdaVideoDecoder::Create(
+       task_runner, gpu_task_runner_, media_log->Clone(), target_color_space,
+       gpu_preferences_, gpu_workarounds_,

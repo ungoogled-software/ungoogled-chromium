@@ -1,0 +1,69 @@
+From 674fb0486a1b525cb850530c4cdc79506338bd37 Mon Sep 17 00:00:00 2001
+From: Azhar Shaikh <azhar.shaikh@intel.com>
+Date: Fri, 11 Jan 2019 07:44:38 +0000
+Subject: [PATCH] media/gpu/vaapi: Fix the VA_CHECK_VERSION
+
+commit 6f1309ef8fe109 ("media/gpu/vaapi: Relax the version
+check for VA-API") added the VA_CHECK_VERSION to relax the
+VA-API version check. But it still does the same thing as
+the previous check. VA_CHECK_VERSION will return 'true', only
+when the VA-API version is greater than or equal to the
+parameters passed to it. So in this case when the major and
+minor version were passed from vaInitialize() output, it did
+the same strict check as earlier. When trying to update libva
+to a newer version, there will still be a mismatch, since
+vaInitialize() would return the updated/newer libva version
+installed on the system, but the chromium would still be built
+with older version (libva-2.1.0 as of now).
+To fix this and actually relax the check, make sure the system
+version of libva is greater than the libva version with which
+the browser is built, since libva is backward compatible. This
+will allow any future libva updates without breaking existing code.
+
+Fixes: 6f1309ef8fe109 ("media/gpu/vaapi: Relax the version check for VA-API")
+
+Bug: 905814
+TEST=Below scenarios were tested and h/w acceleration is working successfully.
+TEST=Build chromium with libva-2.3.0 and system version 2.3.0
+TEST=Build chromium with libva-2.1.0 and system version 2.3.0
+TEST=Build chromium with libva 2.1.0 and system version 2.1.0
+
+Signed-off-by: Azhar Shaikh <azhar.shaikh@intel.com>
+Change-Id: I1ec14aabed21b7d6b6fc55080bbac17233c40ec0
+Reviewed-on: https://chromium-review.googlesource.com/c/1376716
+Commit-Queue: Alexandre Courbot <acourbot@chromium.org>
+Reviewed-by: Alexandre Courbot <acourbot@chromium.org>
+Reviewed-by: Miguel Casas <mcasas@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#621940}
+---
+ media/gpu/vaapi/vaapi_wrapper.cc | 19 ++++++++++---------
+ 1 file changed, 10 insertions(+), 9 deletions(-)
+
+--- a/media/gpu/vaapi/vaapi_wrapper.cc
++++ b/media/gpu/vaapi/vaapi_wrapper.cc
+@@ -334,15 +334,16 @@ bool VADisplayState::InitializeOnce() {
+            << va_vendor_string_;
+ 
+   // The VAAPI version is determined from what is loaded on the system by
+-  // calling vaInitialize(). We want a runtime evaluation of libva version,
+-  // of what is loaded on the system, with, what browser is compiled with.
+-  // Also since the libva is now ABI-compatible, relax the version check
+-  // which helps in upgrading the libva, without breaking any existing
+-  // functionality.
+-  if (!VA_CHECK_VERSION(major_version, minor_version, 0)) {
+-    LOG(ERROR) << "This build of Chromium requires VA-API version "
+-               << VA_MAJOR_VERSION << "." << VA_MINOR_VERSION
+-               << ", system version: " << major_version << "." << minor_version;
++  // calling vaInitialize(). Since the libva is now ABI-compatible, relax the
++  // version check which helps in upgrading the libva, without breaking any
++  // existing functionality. Make sure the system version is not older than
++  // the version with which the chromium is built since libva is only
++  // guaranteed to be backward (and not forward) compatible.
++  if (VA_MAJOR_VERSION > major_version ||
++     (VA_MAJOR_VERSION == major_version && VA_MINOR_VERSION > minor_version)) {
++    LOG(ERROR) << "The system version " << major_version << "." << minor_version
++               << " should be greater than or equal to "
++               << VA_MAJOR_VERSION << "." << VA_MINOR_VERSION;
+     return false;
+   }
+   return true;
