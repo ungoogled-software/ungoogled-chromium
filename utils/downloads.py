@@ -111,13 +111,10 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
         new_data = configparser.ConfigParser(defaults=self._ini_vars)
         with path.open(encoding=ENCODING) as ini_file:
             new_data.read_file(ini_file, source=str(path))
-        if self._schema is None:
-            raise ValueError('No schema defined for %s' % type(self).__name__)
         try:
             self._schema.validate(dict(_section_generator(new_data)))
         except schema.SchemaError as exc:
-            get_logger().error('INI file for %s failed schema validation: %s',
-                               type(self).__name__, path)
+            get_logger().error('downloads.ini failed schema validation (located in %s)', path)
             raise exc
         return new_data
 

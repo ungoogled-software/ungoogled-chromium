@@ -10,27 +10,55 @@ import os
 import shutil
 from pathlib import Path
 
-from pylint import epylint as lint
+from pylint import lint
 
 
-def run_pylint(modulepath, pylint_options):
+class ChangeDir:
+    """
+    Changes directory to path in with statement
+    """
+
+    def __init__(self, path):
+        self._path = path
+        self._orig_path = os.getcwd()
+
+    def __enter__(self):
+        os.chdir(str(self._path))
+
+    def __exit__(self, *_):
+        os.chdir(self._orig_path)
+
+
+def run_pylint(module_path, pylint_options, ignore_prefixes=tuple()):
     """Runs Pylint. Returns a boolean indicating success"""
     pylint_stats = Path('/run/user/{}/pylint_stats'.format(os.getuid()))
     if not pylint_stats.parent.is_dir(): #pylint: disable=no-member
         pylint_stats = Path('/run/shm/pylint_stats')
     os.environ['PYLINTHOME'] = str(pylint_stats)
 
-    result = lint.lint(
-        filename=str(modulepath),
-        options=pylint_options,
-    )
+    input_paths = list()
+    if not module_path.exists():
+        print('ERROR: Cannot find', module_path)
+        exit(1)
+    if module_path.is_dir():
+        for path in module_path.rglob('*.py'):
+            ignore_matched = False
+            for prefix in ignore_prefixes:
+                if path.parts[:len(prefix)] == prefix:
+                    ignore_matched = True
+                    break
+            if ignore_matched:
+                continue
+            input_paths.append(str(path))
+    else:
+        input_paths.append(str(module_path))
+    runner = lint.Run((*input_paths, *pylint_options), do_exit=False)
 
     if pylint_stats.is_dir():
         shutil.rmtree(str(pylint_stats))
 
-    if result != 0:
-        print('WARNING: {}() returned non-zero result: {}'.format(
-            '.'.join((lint.lint.__module__, lint.lint.__name__)), result))
+    if runner.linter.msg_status != 0:
+        print('WARNING: Non-zero exit status:', runner.linter.msg_status)
         return False
     return True
 
@@ -44,11 +72,11 @@ def main():
         '--show-locally-disabled',
         action='store_true',
         help='Show "locally-disabled" Pylint warnings.')
-    parser.add_argument('modulepath', type=Path, help='Path to the module to check')
+    parser.add_argument('module_path', type=Path, help='Path to the module to check')
     args = parser.parse_args()
 
-    if not args.modulepath.exists():
-        print('ERROR: Module path "{}" does not exist'.format(args.modulepath))
+    if not args.module_path.exists():
+        print('ERROR: Module path "{}" does not exist'.format(args.module_path))
         exit(1)
 
     disables = [
@@ -68,7 +96,7 @@ def main():
         '--persistent=n',
     ]
 
-    if not run_pylint(args.modulepath, pylint_options):
+    if not run_pylint(args.module_path, pylint_options):
         exit(1)
     exit(0)
 

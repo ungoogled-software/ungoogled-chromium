@@ -3,18 +3,18 @@
 # Copyright (c) 2019 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-"""Run Pylint over utils"""
+"""Run Pylint over devutils"""
 
 import argparse
 import sys
 from pathlib import Path
 
-import pylint_other
+from run_other_pylint import ChangeDir, run_pylint
 
 
 def main():
     """CLI entrypoint"""
-    parser = argparse.ArgumentParser(description='Run Pylint over utils')
+    parser = argparse.ArgumentParser(description='Run Pylint over devutils')
     parser.add_argument('--hide-fixme', action='store_true', help='Hide "fixme" Pylint warnings.')
     parser.add_argument(
         '--show-locally-disabled',
@@ -22,27 +22,35 @@ def main():
         help='Show "locally-disabled" Pylint warnings.')
     args = parser.parse_args()
 
-    disable = ['bad-continuation']
+    disables = [
+        'wrong-import-position',
+        'bad-continuation',
+    ]
 
     if args.hide_fixme:
-        disable.append('fixme')
+        disables.append('fixme')
     if not args.show_locally_disabled:
-        disable.append('locally-disabled')
+        disables.append('locally-disabled')
 
     pylint_options = [
-        '--disable={}'.format(','.join(disable)),
+        '--disable={}'.format(','.join(disables)),
         '--jobs=4',
         '--score=n',
         '--persistent=n',
-        '--ignore=third_party',
     ]
 
-    sys.path.insert(0, str(Path(__file__).parent.parent / 'utils' / 'third_party'))
-    result = pylint_other.run_pylint(
-        str(Path(__file__).parent.parent / 'utils'),
-        pylint_options,
-    )
-    sys.path.pop(0)
+    ignore_prefixes = [
+        ('third_party', ),
+    ]
+
+    sys.path.insert(1, str(Path(__file__).resolve().parent.parent / 'utils'))
+    with ChangeDir(Path(__file__).parent):
+        result = run_pylint(
+            Path(),
+            pylint_options,
+            ignore_prefixes=ignore_prefixes,
+        )
+    sys.path.pop(1)
     if not result:
         exit(1)
     exit(0)

@@ -12,11 +12,13 @@ the process has finished.
 """
 
 import argparse
+import os
 import sys
 
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
+from _common import get_logger
 from domain_substitution import DomainRegexList, TREE_ENCODINGS
 sys.path.pop(0)
 
@@ -120,24 +122,6 @@ class UnusedPatterns: #pylint: disable=too-few-public-methods
                 have_unused = True
         return have_unused
 
-def get_logger():
-    '''Gets the named logger'''
-
-    logger = logging.getLogger('ungoogled')
-
-    if logger.level == logging.NOTSET:
-        logger.setLevel(initial_level)
-
-        if not logger.hasHandlers():
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(initial_level)
-
-            format_string = '%(levelname)s: %(message)s'
-            formatter = logging.Formatter(format_string)
-            console_handler.setFormatter(formatter)
-
-            logger.addHandler(console_handler)
-    return logger
 
 def _is_binary(bytes_data):
     """
@@ -145,6 +129,19 @@ def _is_binary(bytes_data):
     """
     # From: https://stackoverflow.com/a/7392391
     return bool(bytes_data.translate(None, _TEXTCHARS))
+
+
+def _dir_empty(path):
+    """
+    Returns True if the directory is empty; False otherwise
+
+    path is a pathlib.Path or string to a directory to test.
+    """
+    try:
+        next(os.scandir(str(path)))
+    except StopIteration:
+        return True
+    return False
 
 
 def should_prune(path, relative_path, unused_patterns):
@@ -266,7 +263,7 @@ def compute_lists(source_tree, search_regex):
                     pruning_set.update(symlink_set)
             elif should_domain_substitute(path, relative_path, search_regex, unused_patterns):
                 domain_substitution_set.add(relative_path.as_posix())
-        except:
+        except BaseException:
             get_logger().exception('Unhandled exception while processing %s', relative_path)
             exit(1)
     return sorted(pruning_set), sorted(domain_substitution_set), unused_patterns
@@ -291,7 +288,7 @@ def main(args_list=None):
         '--domain-regex',
         metavar='PATH',
         type=Path,
-        default='domain_regex.list'
+        default='domain_regex.list',
         help='The path to domain_regex.list. Default: %(default)s')
     parser.add_argument(
         '-t',
@@ -300,16 +297,16 @@ def main(args_list=None):
         type=Path,
         required=True,
         help='The path to the source tree to use.')
-    try:
-        args = parser.parse_args(args_list)
-        if args.tree.exists() and not dir_empty(args.tree):
-            get_logger().info('Using existing source tree at %s', args.tree)
-        else:
-            get_logger().error('No source tree found. Aborting.')
-            exit(1)
-        get_logger().info('Computing lists...')
-        pruning_list, domain_substitution_list, unused_patterns = compute_lists(
-            args.tree, DomainRegexList(args.domain_regex).search_regex)
+    args = parser.parse_args(args_list)
+    if args.tree.exists() and not _dir_empty(args.tree):
+        get_logger().info('Using existing source tree at %s', args.tree)
+    else:
+        get_logger().error('No source tree found. Aborting.')
+        exit(1)
+    get_logger().info('Computing lists...')
+    pruning_list, domain_substitution_list, unused_patterns = compute_lists(
+        args.tree,
+        DomainRegexList(args.domain_regex).search_regex)
     with args.pruning.open('w', encoding=_ENCODING) as file_obj:
         file_obj.writelines('%s\n' % line for line in pruning_list)
     with args.domain_substitution.open('w', encoding=_ENCODING) as file_obj:
