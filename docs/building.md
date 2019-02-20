@@ -178,7 +178,7 @@ A zip archive will be created in `build\src`
 7. Install Python 2.7.13: `pyenv install 2.7.13`
 8. Set Terminal's `python` command to use Python 2.7.13 instead of 3.x. Edit/create `~/.bash_profile` and add:
 ```sh
-	alias python="~/.pyenv/versions/2.7.13/bin/python2.7"
+alias python="~/.pyenv/versions/2.7.13/bin/python2.7"
 ```
 9. Restart your Terminal
 
