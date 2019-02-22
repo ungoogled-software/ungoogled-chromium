@@ -176,13 +176,13 @@ A zip archive will be created in `build\src`
 5. Install Python 3.x: `brew install python`
 6. Install Python's pyenv to manage python version: `brew install pyenv`
 7. Install Python 2.7.13: `pyenv install 2.7.13`
-8. Set Terminal's `python` command to use Python 2.7.13 instead of 3.x. Edit/create `~/.bash_profile` and add:
-```sh
-alias python="~/.pyenv/versions/2.7.13/bin/python2.7"
-```
-9. Restart your Terminal
-
 **Note**: in some cases you might get `Build failed: "ERROR: The Python zlib extension was not compiled. Missing the zlib?"` during Python 2.7.13 installation, this can be fixed by running `CPPFLAGS="-I$(brew --prefix zlib)/include" pyenv install 2.7.13`. 
+8. Setup `pyenv`:
+```sh
+echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi' >> ~/.bash_profile
+```
+8. Set global `python` command to use Python 2.7.13: `pyenv global 2.7.13`.
+9. Restart your Terminal
 
 ### Building
 
