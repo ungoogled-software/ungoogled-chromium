@@ -171,8 +171,18 @@ A zip archive will be created in `build\src`
 
 1. Install Ninja via Homebrew: `brew install ninja`
 2. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
-
-TODO: Document installing Perl, Python 2, and Python 3 (via Homebrew?)
+3. Install GNU readline: `brew install readline`
+4. Install the data compression tools xz and zlib: `brew install xz zlib`
+5. Install Python 3.x: `brew install python`
+6. Install Python's pyenv to manage python version: `brew install pyenv`
+7. Install Python 2.7.13: `pyenv install 2.7.13`
+**Note**: in some cases you might get `Build failed: "ERROR: The Python zlib extension was not compiled. Missing the zlib?"` during Python 2.7.13 installation, this can be fixed by running `CPPFLAGS="-I$(brew --prefix zlib)/include" pyenv install 2.7.13`. 
+8. Setup `pyenv`:
+```sh
+echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi' >> ~/.bash_profile
+```
+8. Set global `python` command to use Python 2.7.13: `pyenv global 2.7.13`.
+9. Restart your Terminal
 
 ### Building
 
