@@ -106,6 +106,7 @@ To build ungoogled-chromium, see [Source Code](#source-code).
 * Arch Linux: [Available in AUR as `ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
     * NOTE: `ungoogled-chromium-bin` is *not* officially part of ungoogled-chromium. Please submit all issues to the maintainer of the PKGBUILD.
 * Gentoo Linux: [`::chaoslab`](https://gitlab.com/chaoslab/chaoslab-overlay) overlay maintains an *unofficial*  [`ungoogled-chromium`](https://gitlab.com/chaoslab/chaoslab-overlay/tree/master/www-client/ungoogled-chromium) ebuild.
+* GNU Guix: Available as `ungoogled-chromium`.
 * macOS cask: Available as `eloston-chromium`
 
 ### Contributor Binaries
