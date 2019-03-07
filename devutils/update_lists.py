@@ -27,8 +27,6 @@ sys.path.pop(0)
 # pathlib.Path.match() paths to include in binary pruning
 PRUNING_INCLUDE_PATTERNS = [
     'components/domain_reliability/baked_in_configs/*',
-    'third_party/analytics/*',
-    'ui/webui/resources/js/analytics.js',
 ]
 
 # pathlib.Path.match() paths to exclude from binary pruning
