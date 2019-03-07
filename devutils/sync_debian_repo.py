@@ -85,8 +85,7 @@ def _get_path_safely(base_tree, file_path, must_exist=True):
         if must_exist:
             _get_logger().error('Could not find path "%s". Aborting.', file_path)
             raise _NoMatchingPathError()
-        else:
-            return None
+        return None
     return git_object
 
 
