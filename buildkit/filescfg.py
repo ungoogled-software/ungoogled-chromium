@@ -46,7 +46,7 @@ def _get_archive_writer(output_path):
     """
     if not output_path.suffixes:
         raise ValueError('Output name has no suffix: %s' % output_path.name)
-    elif output_path.suffixes[-1].lower() == '.zip':
+    if output_path.suffixes[-1].lower() == '.zip':
         import zipfile
         archive_root = Path(output_path.stem)
         output_archive = zipfile.ZipFile(str(output_path), 'w', zipfile.ZIP_DEFLATED)

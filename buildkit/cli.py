@@ -45,7 +45,7 @@ class NewBundleAction(argparse.Action): #pylint: disable=too-few-public-methods
     def __call__(self, parser, namespace, values, option_string=None):
         try:
             bundle = ConfigBundle(values)
-        except BaseException:
+        except: #pylint: disable=broad-except
             get_logger().exception('Error loading config bundle')
             parser.exit(status=1)
         setattr(namespace, self.dest, bundle)
@@ -384,6 +384,6 @@ def main(arg_list=None):
         args.callback(args=args)
     except (_CLIError, BuildkitAbort):
         parser.exit(status=1)
-    except BaseException:
+    except: #pylint: disable=broad-except
         get_logger().exception('Unexpected exception caught.')
         parser.exit(status=1)
