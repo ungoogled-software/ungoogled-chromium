@@ -250,9 +250,6 @@ def main():
         parser.error('Cannot find patches directory at: {}'.format(patches_dir))
 
     series_path = Path(os.environ.get('QUILT_SERIES', 'series'))
-    if not series_path.exists() and not (patches_dir / series_path).exists(): #pylint: disable=no-member
-        parser.error('Cannot find series file at "{}" or "{}"'.format(series_path,
-                                                                      patches_dir / series_path))
 
     # Path to bundle -> ConfigBundle without dependencies
     bundle_cache = dict(
