@@ -620,7 +620,7 @@ def _apply_child_bundle_patches(child_path, had_failure, file_layers, patch_cach
                     branch_validation_failed = True
                     had_failure = had_failure or not patches_outdated
                     break
-                except BaseException:
+                except: #pylint: disable=bare-except
                     # Branch failed validation; abort
                     get_logger().warning('Patch failed validation: %s', patch_path_str)
                     get_logger().debug(

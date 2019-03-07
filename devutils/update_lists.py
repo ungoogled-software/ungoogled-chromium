@@ -298,7 +298,7 @@ def main(args_list=None):
         args = parser.parse_args(args_list)
         try:
             bundle = ConfigBundle(args.bundle)
-        except BaseException:
+        except: #pylint: disable=bare-except
             get_logger().exception('Error loading config bundle')
             raise BuildkitAbort()
         if args.tree.exists() and not dir_empty(args.tree):
