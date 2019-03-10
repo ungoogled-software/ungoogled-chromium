@@ -164,12 +164,25 @@ A zip archive will be created in `build\src`
 * Xcode 8-9
 * Homebrew
 * Perl (for creating a `.dmg` package)
-* Python 2, specifically 2.7.13 or newer
+* Python 2, specifically 2.7.13 or newer, as `python` in PATH
+* Python 3.5 or newer as `python3` in PATH
 
 ### Setting up the build environment
 
 1. Install Ninja via Homebrew: `brew install ninja`
 2. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
+3. Install GNU readline: `brew install readline`
+4. Install the data compression tools xz and zlib: `brew install xz zlib`
+5. Install Python 3.x: `brew install python`
+6. Install Python's pyenv to manage python version: `brew install pyenv`
+7. Install Python 2.7.13: `pyenv install 2.7.13`
+**Note**: in some cases you might get `Build failed: "ERROR: The Python zlib extension was not compiled. Missing the zlib?"` during Python 2.7.13 installation, this can be fixed by running `CPPFLAGS="-I$(brew --prefix zlib)/include" pyenv install 2.7.13`. 
+8. Setup `pyenv`:
+```sh
+echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi' >> ~/.bash_profile
+```
+8. Set global `python` command to use Python 2.7.13: `pyenv global 2.7.13`.
+9. Restart your Terminal
 
 ### Building
 
@@ -178,7 +191,7 @@ First, ensure the Xcode application is open. Then, run the following:
 ```sh
 # Run from inside the clone of the repository
 mkdir -p build/src/ungoogled_packaging
-./get_package.py macos build/src/ungoogled_packaging
+python3 get_package.py macos build/src/ungoogled_packaging
 cd build/src
 ./ungoogled_packaging/build.sh
 ```

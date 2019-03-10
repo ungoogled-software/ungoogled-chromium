@@ -16,7 +16,7 @@ author: Michael Gilbert <mgilbert@debian.org>
  namespace media {
 --- a/third_party/webrtc/modules/video_coding/codecs/vp9/vp9_impl.cc
 +++ b/third_party/webrtc/modules/video_coding/codecs/vp9/vp9_impl.cc
-@@ -15,10 +15,10 @@
+@@ -17,10 +17,10 @@
  #include <limits>
  #include <vector>
  
@@ -31,7 +31,14 @@ author: Michael Gilbert <mgilbert@debian.org>
  
  #include "absl/memory/memory.h"
  #include "api/video/color_space.h"
-@@ -609,34 +609,6 @@ int VP9EncoderImpl::InitAndSetControlSet
+@@ -631,42 +631,12 @@ int VP9EncoderImpl::InitAndSetControlSet
+                     inst->VP9().adaptiveQpMode ? 3 : 0);
+ 
+   vpx_codec_control(encoder_, VP9E_SET_FRAME_PARALLEL_DECODING, 0);
+-  vpx_codec_control(encoder_, VP9E_SET_SVC_GF_TEMPORAL_REF, 0);
+ 
+   if (is_svc_) {
+     vpx_codec_control(encoder_, VP9E_SET_SVC, 1);
      vpx_codec_control(encoder_, VP9E_SET_SVC_PARAMETERS, &svc_params_);
    }
  
@@ -55,7 +62,8 @@ author: Michael Gilbert <mgilbert@debian.org>
 -    // quality flickering and is not compatible with RTP non-flexible mode.
 -    vpx_svc_frame_drop_t svc_drop_frame;
 -    memset(&svc_drop_frame, 0, sizeof(svc_drop_frame));
--    svc_drop_frame.framedrop_mode = FULL_SUPERFRAME_DROP;
+-    svc_drop_frame.framedrop_mode =
+-        full_superframe_drop_ ? FULL_SUPERFRAME_DROP : CONSTRAINED_LAYER_DROP;
 -    svc_drop_frame.max_consec_drop = std::numeric_limits<int>::max();
 -    for (size_t i = 0; i < num_spatial_layers_; ++i) {
 -      svc_drop_frame.framedrop_thresh[i] = config_->rc_dropframe_thresh;
@@ -66,19 +74,39 @@ author: Michael Gilbert <mgilbert@debian.org>
    // Register callback for getting each spatial layer.
    vpx_codec_priv_output_cx_pkt_cb_pair_t cbp = {
        VP9EncoderImpl::EncoderOutputCodedPacketCallback,
-@@ -786,11 +758,6 @@ int VP9EncoderImpl::Encode(const VideoFr
+@@ -762,10 +732,6 @@ int VP9EncoderImpl::Encode(const VideoFr
+     }
+   }
+ 
+-  for (int sl_idx = 0; sl_idx < num_active_spatial_layers_; ++sl_idx) {
+-    layer_id.temporal_layer_id_per_spatial[sl_idx] = layer_id.temporal_layer_id;
+-  }
+-
+   vpx_codec_control(encoder_, VP9E_SET_SVC_LAYER_ID, &layer_id);
+ 
+   if (requested_bitrate_allocation_) {
+@@ -854,20 +820,6 @@ int VP9EncoderImpl::Encode(const VideoFr
      flags = VPX_EFLAG_FORCE_KF;
    }
  
 -  if (external_ref_control_) {
--    vpx_svc_ref_frame_config_t ref_config = SetReferences(force_key_frame_);
+-    vpx_svc_ref_frame_config_t ref_config =
+-        SetReferences(force_key_frame_, layer_id.spatial_layer_id);
+-
+-    if (VideoCodecMode::kScreensharing == codec_.mode) {
+-      for (uint8_t sl_idx = 0; sl_idx < num_active_spatial_layers_; ++sl_idx) {
+-        ref_config.duration[sl_idx] = static_cast<int64_t>(
+-            90000 / framerate_controller_[sl_idx].GetTargetRate());
+-      }
+-    }
+-
 -    vpx_codec_control(encoder_, VP9E_SET_SVC_REF_FRAME_CONFIG, &ref_config);
 -  }
 -
+   first_frame_in_picture_ = true;
+ 
    // TODO(ssilkin): Frame duration should be specified per spatial layer
-   // since their frame rate can be different. For now calculate frame duration
-   // based on target frame rate of the highest spatial layer, which frame rate
-@@ -894,10 +861,8 @@ void VP9EncoderImpl::PopulateCodecSpecif
+@@ -980,10 +932,8 @@ void VP9EncoderImpl::PopulateCodecSpecif
    vp9_info->num_spatial_layers = num_active_spatial_layers_;
  
    vp9_info->num_ref_pics = 0;
@@ -87,18 +115,18 @@ author: Michael Gilbert <mgilbert@debian.org>
      vp9_info->gof_idx = kNoGofIdx;
 -    FillReferenceIndices(pkt, pics_since_key_, vp9_info->inter_layer_predicted,
 -                         vp9_info);
-     // TODO(webrtc:9794): Add fake reference to empty reference list to
-     // workaround the frame buffer issue on receiver.
    } else {
-@@ -925,6 +890,7 @@ void VP9EncoderImpl::PopulateCodecSpecif
-   }
+     vp9_info->gof_idx =
+         static_cast<uint8_t>(pics_since_key_ % gof_.num_frames_in_gof);
+@@ -1011,6 +961,7 @@ void VP9EncoderImpl::PopulateCodecSpecif
+   first_frame_in_picture_ = false;
  }
  
 +/*
  void VP9EncoderImpl::FillReferenceIndices(const vpx_codec_cx_pkt& pkt,
                                            const size_t pic_num,
                                            const bool inter_layer_predicted,
-@@ -1137,6 +1103,7 @@ vpx_svc_ref_frame_config_t VP9EncoderImp
+@@ -1243,6 +1194,7 @@ vpx_svc_ref_frame_config_t VP9EncoderImp
  
    return ref_config;
  }
@@ -106,8 +134,8 @@ author: Michael Gilbert <mgilbert@debian.org>
  
  int VP9EncoderImpl::GetEncodedLayerFrame(const vpx_codec_cx_pkt* pkt) {
    RTC_DCHECK_EQ(pkt->kind, VPX_CODEC_CX_FRAME_PKT);
-@@ -1183,10 +1150,6 @@ int VP9EncoderImpl::GetEncodedLayerFrame
-                         input_image_->timestamp(), first_frame_in_picture);
+@@ -1288,10 +1240,6 @@ int VP9EncoderImpl::GetEncodedLayerFrame
+                         input_image_->timestamp());
    encoded_image_.SetSpatialIndex(spatial_index);
  
 -  if (is_flexible_mode_) {
@@ -117,7 +145,7 @@ author: Michael Gilbert <mgilbert@debian.org>
    TRACE_COUNTER1("webrtc", "EncodedFrameSize", encoded_image_._length);
    encoded_image_.SetTimestamp(input_image_->timestamp());
    encoded_image_.capture_time_ms_ = input_image_->render_time_ms();
-@@ -1194,10 +1157,8 @@ int VP9EncoderImpl::GetEncodedLayerFrame
+@@ -1299,10 +1247,8 @@ int VP9EncoderImpl::GetEncodedLayerFrame
    encoded_image_.content_type_ = (codec_.mode == VideoCodecMode::kScreensharing)
                                       ? VideoContentType::SCREENSHARE
                                       : VideoContentType::UNSPECIFIED;
