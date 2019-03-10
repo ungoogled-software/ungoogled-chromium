@@ -277,7 +277,7 @@ class _FallbackRepoManager:
     @property
     def gn_version(self):
         """
-        Returns the version of the GN repo for the Chromium version used by buildkit
+        Returns the version of the GN repo for the Chromium version used by this code
         """
         if not self._cache_gn_version:
             # Because there seems to be no reference to the logic for generating the

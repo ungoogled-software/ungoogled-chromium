@@ -56,7 +56,7 @@ def get_logger(initial_level=logging.DEBUG):
 
 def get_running_platform():
     """
-    Returns a PlatformEnum value indicating the platform that buildkit is running on.
+    Returns a PlatformEnum value indicating the platform that utils is running on.
 
     NOTE: Platform detection should only be used when no cross-platform alternative is available.
     """
