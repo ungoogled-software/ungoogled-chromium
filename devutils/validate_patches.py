@@ -13,19 +13,19 @@ The required source tree files can be retrieved from Google directly.
 import argparse
 import ast
 import base64
-import collections
 import email.utils
 import json
 import logging
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from buildkit.common import ENCODING, get_logger, get_chromium_version
-from buildkit.config import ConfigBundle
-from buildkit.third_party import unidiff
-from buildkit.third_party.unidiff.constants import LINE_TYPE_EMPTY, LINE_TYPE_NO_NEWLINE
-from buildkit.patches import DEFAULT_PATCH_DIR
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'third_party'))
+import unidiff
+from unidiff.constants import LINE_TYPE_EMPTY, LINE_TYPE_NO_NEWLINE
+sys.path.pop(0)
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
+from _common import ENCODING, get_logger, get_chromium_version
 sys.path.pop(0)
 
 try:
@@ -75,8 +75,7 @@ except ImportError:
                            'file downloading. It can be installed from PyPI.')
 
 
-_CONFIG_BUNDLES_PATH = Path(__file__).parent.parent / 'config_bundles'
-_PATCHES_PATH = Path(__file__).parent.parent / 'patches'
+_ROOT_DIR = Path(__file__).resolve().parent.parent
 _SRC_PATH = Path('src')
 
 
@@ -470,78 +469,6 @@ def _retrieve_local_files(file_iter, source_dir):
     return files
 
 
-def _generate_full_bundle_depends(bundle_path, bundle_cache, unexplored_bundles):
-    """
-    Generates the bundle's and dependencies' dependencies ordered by the deepest dependency first
-    """
-    for dependency_name in reversed(bundle_cache[bundle_path].bundlemeta.depends):
-        dependency_path = bundle_path.with_name(dependency_name)
-        if dependency_path in unexplored_bundles:
-            # Remove the bundle from being explored in _get_patch_trie()
-            # Since this bundle is a dependency of something else, it must be checked first
-            # before the dependent
-            unexplored_bundles.remove(dependency_path)
-        # First, get all dependencies of the current dependency in order
-        yield from _generate_full_bundle_depends(dependency_path, bundle_cache, unexplored_bundles)
-        # Then, add the dependency itself
-        yield dependency_path
-
-
-def _get_patch_trie(bundle_cache, target_bundles=None):
-    """
-    Returns a trie of config bundles and their dependencies. It is a dict of the following format:
-    key: pathlib.Path of config bundle
-    value: dict of direct dependents of said bundle, in the same format as the surrounding dict.
-    """
-    # Returned trie
-    patch_trie = dict()
-
-    # Set of bundles that are not children of the root node (i.e. not the lowest dependency)
-    # It is assumed that any bundle that is not used as a lowest dependency will never
-    # be used as a lowest dependency. This is the case for mixin bundles.
-    non_root_children = set()
-
-    # All bundles that haven't been added to the trie, either as a dependency or
-    # in this function explicitly
-    if target_bundles:
-        unexplored_bundles = set(target_bundles)
-    else:
-        unexplored_bundles = set(bundle_cache.keys())
-    # Construct patch_trie
-    while unexplored_bundles:
-        current_path = unexplored_bundles.pop()
-        current_trie_node = patch_trie # The root node of the trie
-        # Construct a branch in the patch trie up to the closest dependency
-        # by using the desired traversal to the config bundle.
-        # This is essentially a depth-first tree construction algorithm
-        for dependency_path in _generate_full_bundle_depends(current_path, bundle_cache,
-                                                             unexplored_bundles):
-            if current_trie_node != patch_trie:
-                non_root_children.add(dependency_path)
-            if not dependency_path in current_trie_node:
-                current_trie_node[dependency_path] = dict()
-            # Walk to the child node
-            current_trie_node = current_trie_node[dependency_path]
-        # Finally, add the dependency itself as a leaf node of the trie
-        # If the assertion fails, the algorithm is broken
-        assert current_path not in current_trie_node
-        current_trie_node[current_path] = dict()
-    # Remove non-root node children
-    for non_root_child in non_root_children.intersection(patch_trie.keys()):
-        del patch_trie[non_root_child]
-    # Potential optimization: Check if leaves patch the same files as their parents.
-    # (i.e. if the set of files patched by the bundle is disjoint from that of the parent bundle)
-    # If not, move them up to their grandparent, rescan the tree leaves, and repeat
-    # Then, group leaves and their parents and see if the set of files patched is disjoint from
-    # that of the grandparents. Repeat this with great-grandparents and increasingly larger
-    # groupings until all groupings end up including the top-level nodes.
-    # This optimization saves memory by not needing to store all the patched files of
-    # a long branch at once.
-    # However, since the trie for the current structure is quite flat and all bundles are
-    # quite small (except common, which is by far the largest), this isn't necessary for now.
-    return patch_trie
-
-
 def _modify_file_lines(patched_file, file_lines):
     """Helper for _apply_file_unidiff"""
     # Cursor for keeping track of the current line during hunk application
@@ -576,134 +503,56 @@ def _modify_file_lines(patched_file, file_lines):
                 assert line.line_type in (LINE_TYPE_EMPTY, LINE_TYPE_NO_NEWLINE)
 
 
-def _apply_file_unidiff(patched_file, child_files, parent_file_layers):
-    """Applies the unidiff.PatchedFile to the files at the current file layer"""
+def _apply_file_unidiff(patched_file, files_under_test):
+    """Applies the unidiff.PatchedFile to the source files under testing"""
     patched_file_path = Path(patched_file.path)
     if patched_file.is_added_file:
-        if patched_file_path in child_files:
-            assert child_files[patched_file_path] is None
+        if patched_file_path in files_under_test:
+            assert files_under_test[patched_file_path] is None
         assert len(patched_file) == 1 # Should be only one hunk
         assert patched_file[0].removed == 0
         assert patched_file[0].target_start == 1
-        child_files[patched_file_path] = [x.value for x in patched_file[0]]
+        files_under_test[patched_file_path] = [x.value for x in patched_file[0]]
     elif patched_file.is_removed_file:
-        child_files[patched_file_path] = None
+        files_under_test[patched_file_path] = None
     else: # Patching an existing file
         assert patched_file.is_modified_file
-        if patched_file_path not in child_files:
-            child_files[patched_file_path] = parent_file_layers[patched_file_path].copy()
-        _modify_file_lines(patched_file, child_files[patched_file_path])
+        _modify_file_lines(patched_file, files_under_test[patched_file_path])
 
 
-def _apply_child_bundle_patches(child_path, had_failure, file_layers, patch_cache, bundle_cache):
-    """Helper for _test_patches"""
-    # Whether the curent patch trie branch failed validation
-    branch_validation_failed = False
-
-    assert child_path in bundle_cache
-    try:
-        child_patch_order = bundle_cache[child_path].patch_order
-    except KeyError:
-        # No patches in the bundle
-        pass
-    else:
-        patches_outdated = bundle_cache[child_path].bundlemeta.patches_outdated
-        for patch_path_str in child_patch_order:
-            for patched_file in patch_cache[patch_path_str]:
-                try:
-                    _apply_file_unidiff(patched_file, file_layers.maps[0], file_layers.parents)
-                except _PatchValidationError as exc:
-                    # Branch failed validation; abort
-                    get_logger().warning('Patch failed validation: %s', patch_path_str)
-                    get_logger().debug('Specifically, file "%s" failed validation: %s',
-                                       patched_file.path, exc)
-                    branch_validation_failed = True
-                    had_failure = had_failure or not patches_outdated
-                    break
-                except BaseException:
-                    # Branch failed validation; abort
-                    get_logger().warning('Patch failed validation: %s', patch_path_str)
-                    get_logger().debug(
-                        'Specifically, file "%s" caused exception while applying:',
-                        patched_file.path,
-                        exc_info=True)
-                    branch_validation_failed = True
-                    had_failure = had_failure or not patches_outdated
-                    break
-            if branch_validation_failed:
-                if patches_outdated:
-                    get_logger().warning('%s is marked with outdated patches. Ignoring failure...',
-                                         child_path.name)
-                break
-        if branch_validation_failed != patches_outdated:
-            # Metadata for patch validity is out-of-date
-            if branch_validation_failed:
-                get_logger().error(("%s patches have become outdated. "
-                                    "Please update the patches, or add 'patches_outdated = true' "
-                                    "to its bundlemeta.ini"), child_path.name)
-            else:
-                get_logger().error(
-                    ('"%s" is no longer out-of-date! '
-                     'Please remove the patches_outdated marking from its bundlemeta.ini'),
-                    child_path.name)
-            had_failure = True
-    return had_failure, branch_validation_failed
-
-
-def _test_patches(patch_trie, bundle_cache, patch_cache, orig_files):
+def _test_patches(series_iter, patch_cache, files_under_test):
     """
-    Tests the patches with DFS in the trie of config bundles
+    Tests the patches specified in the iterable series_iter
 
     Returns a boolean indicating if any of the patches have failed
     """
-    # Stack of iterables over each node's children
-    # First, insert iterable over root node's children
-    node_iter_stack = [iter(patch_trie.items())]
-    # Stack of files at each node differing from the parent
-    # The root node thus contains all the files to be patched
-    file_layers = collections.ChainMap(orig_files)
-    # Whether any branch had failed validation
-    had_failure = False
-    while node_iter_stack:
-        try:
-            child_path, grandchildren = next(node_iter_stack[-1])
-        except StopIteration:
-            # Finished exploring all children of this node
-            node_iter_stack.pop()
-            del file_layers.maps[0]
-            continue
-        # Add storage for child's patched files
-        file_layers = file_layers.new_child()
-        # Apply children's patches
-        get_logger().info('Verifying at depth %s: %s ...', len(node_iter_stack), child_path.name)
-
-        # Potential optimization: Use interval tree data structure instead of copying
-        # the entire array to track only diffs
-
-        had_failure, branch_validation_failed = _apply_child_bundle_patches(
-            child_path, had_failure, file_layers, patch_cache, bundle_cache)
-        if branch_validation_failed:
-            # Add blank children to force stack to move onto the next branch
-            node_iter_stack.append(iter(tuple()))
-        else:
-            # Explore this child's children
-            node_iter_stack.append(iter(grandchildren.items()))
-    return had_failure
+    for patch_path_str in series_iter:
+        for patched_file in patch_cache[patch_path_str]:
+            try:
+                _apply_file_unidiff(patched_file, files_under_test)
+            except _PatchValidationError as exc:
+                get_logger().warning('Patch failed validation: %s', patch_path_str)
+                get_logger().debug('Specifically, file "%s" failed validation: %s',
+                                   patched_file.path, exc)
+                return True
+            except: #pylint: disable=bare-except
+                get_logger().warning('Patch failed validation: %s', patch_path_str)
+                get_logger().debug(
+                    'Specifically, file "%s" caused exception while applying:',
+                    patched_file.path,
+                    exc_info=True)
+                return True
+    return False
 
 
-def _load_all_patches(bundle_iter, patch_dir=DEFAULT_PATCH_DIR):
+def _load_all_patches(series_iter, patches_dir):
     """Returns a dict of relative UNIX path strings to unidiff.PatchSet"""
     unidiff_dict = dict()
-    for bundle in bundle_iter:
-        try:
-            patch_order_iter = iter(bundle.patch_order)
-        except KeyError:
+    for relative_path in series_iter:
+        if relative_path in unidiff_dict:
             continue
-        for relative_path in patch_order_iter:
-            if relative_path in unidiff_dict:
-                continue
-            unidiff_dict[relative_path] = unidiff.PatchSet.from_filename(
-                str(patch_dir / relative_path), encoding=ENCODING)
+        unidiff_dict[relative_path] = unidiff.PatchSet.from_filename(
+            str(patches_dir / relative_path), encoding=ENCODING)
     return unidiff_dict
 
 
@@ -720,37 +569,50 @@ def _get_required_files(patch_cache):
     return file_set
 
 
-def _get_orig_files(args, required_files, parser):
+def _get_files_under_test(args, required_files, parser):
     """
-    Helper for main to get orig_files
+    Helper for main to get files_under_test
 
     Exits the program if --cache-remote debugging option is used
     """
     if args.local:
-        orig_files = _retrieve_local_files(required_files, args.local)
+        files_under_test = _retrieve_local_files(required_files, args.local)
     else: # --remote and --cache-remote
-        orig_files = _retrieve_remote_files(required_files)
+        files_under_test = _retrieve_remote_files(required_files)
         if args.cache_remote:
-            for file_path, file_content in orig_files.items():
+            for file_path, file_content in files_under_test.items():
                 if not (args.cache_remote / file_path).parent.exists():
                     (args.cache_remote / file_path).parent.mkdir(parents=True)
                 with (args.cache_remote / file_path).open('w', encoding=ENCODING) as cache_file:
                     cache_file.write('\n'.join(file_content))
             parser.exit()
-    return orig_files
+    return files_under_test
+
+
+def _get_series_iterable(series_path):
+    """Returns an iterable of the relative patch paths in the series file"""
+    with series_path.open(encoding=ENCODING) as series_file:
+        series_iter = filter(len, map(str.strip, series_file.read().splitlines()))
+        return tuple(series_iter)
 
 
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        '-b',
-        '--bundle',
-        action='append',
+        '-s',
+        '--series',
+        type=Path,
+        metavar='FILE',
+        default=str(_ROOT_DIR / 'patches' / 'series'),
+        help='The series file listing patches to apply. Default: %(default)s')
+    parser.add_argument(
+        '-p',
+        '--patches',
         type=Path,
         metavar='DIRECTORY',
-        help=('Verify patches for a config bundle. Specify multiple times to '
-              'verify multiple bundles. Without specifying, all bundles will be verified.'))
+        default=str(_ROOT_DIR / 'patches'),
+        help='The patches directory to read from. Default: %(default)s')
     parser.add_argument(
         '-v', '--verbose', action='store_true', help='Log more information to stdout/stderr')
     file_source_group = parser.add_mutually_exclusive_group(required=True)
@@ -781,24 +643,21 @@ def main():
         else:
             parser.error('Parent of cache path {} does not exist'.format(args.cache_remote))
 
+    if not args.series.is_file():
+        parser.error('--series path is not a file or not found: {}'.format(args.series))
+    if not args.patches.is_dir():
+        parser.error('--patches path is not a directory or not found: {}'.format(args.patches))
+
     if args.verbose:
-        get_logger(initial_level=logging.DEBUG, prepend_timestamp=False, log_init=False)
+        get_logger(initial_level=logging.DEBUG)
     else:
-        get_logger(initial_level=logging.INFO, prepend_timestamp=False, log_init=False)
+        get_logger(initial_level=logging.INFO)
 
-    if args.bundle:
-        for bundle_path in args.bundle:
-            if not bundle_path.exists():
-                parser.error('Could not find config bundle at: {}'.format(bundle_path))
-
-    # Path to bundle -> ConfigBundle without dependencies
-    bundle_cache = dict(
-        map(lambda x: (x, ConfigBundle(x, load_depends=False)), _CONFIG_BUNDLES_PATH.iterdir()))
-    patch_trie = _get_patch_trie(bundle_cache, args.bundle)
-    patch_cache = _load_all_patches(bundle_cache.values())
+    series_iterable = _get_series_iterable(args.series)
+    patch_cache = _load_all_patches(series_iterable, args.patches)
     required_files = _get_required_files(patch_cache)
-    orig_files = _get_orig_files(args, required_files, parser)
-    had_failure = _test_patches(patch_trie, bundle_cache, patch_cache, orig_files)
+    files_under_test = _get_files_under_test(args, required_files, parser)
+    had_failure = _test_patches(series_iterable, patch_cache, files_under_test)
     if had_failure:
         get_logger().error('***FAILED VALIDATION; SEE ABOVE***')
         if not args.verbose:

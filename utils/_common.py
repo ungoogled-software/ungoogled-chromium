@@ -34,17 +34,17 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
 # Public methods
 
 
-def get_logger():
+def get_logger(initial_level=logging.DEBUG):
     """Gets the named logger"""
 
     logger = logging.getLogger('ungoogled')
 
     if logger.level == logging.NOTSET:
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(initial_level)
 
         if not logger.hasHandlers():
             console_handler = logging.StreamHandler()
-            console_handler.setLevel(logging.DEBUG)
+            console_handler.setLevel(initial_level)
 
             format_string = '%(levelname)s: %(message)s'
             formatter = logging.Formatter(format_string)

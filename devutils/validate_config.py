@@ -24,7 +24,7 @@ from pathlib import Path
 
 from third_party import unidiff
 
-sys.path.insert(0, str(Path(__file__).parent.parent / 'utils'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from _common import ENCODING, get_logger
 from downloads import DownloadInfo, schema
 sys.path.pop(0)
@@ -135,7 +135,7 @@ def main():
     """CLI entrypoint"""
 
     warnings = False
-    root_dir = Path(__file__).parent.parent
+    root_dir = Path(__file__).resolve().parent.parent
     patches_dir = root_dir / 'patches'
 
     # Check patches
