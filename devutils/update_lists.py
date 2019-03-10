@@ -40,8 +40,6 @@ PRUNING_EXCLUDE_PATTERNS = [
     # TabRanker example preprocessor config
     # Details in chrome/browser/resource_coordinator/tab_ranker/README.md
     'chrome/browser/resource_coordinator/tab_ranker/example_preprocessor_config.pb',
-    # Exclusions for Visual Studio Project generation with GN (PR #445)
-    'tools/gn/tools/gn/visual_studio_writer.cc',
     # Exclusions for DOM distiller (contains model data only)
     'components/dom_distiller/core/data/distillable_page_model_new.bin',
     'components/dom_distiller/core/data/long_page_model.bin',
@@ -81,7 +79,12 @@ PRUNING_EXCLUDE_PATTERNS = [
 
 # NOTE: Domain substitution path prefix exclusion has precedence over inclusion patterns
 # Paths to exclude by prefixes of the POSIX representation for domain substitution
-DOMAIN_EXCLUDE_PREFIXES = ['components/test/', 'net/http/transport_security_state_static.json']
+DOMAIN_EXCLUDE_PREFIXES = [
+    'components/test/',
+    'net/http/transport_security_state_static.json',
+    # Exclusions for Visual Studio Project generation with GN (PR #445)
+    'tools/gn/tools/gn/visual_studio_writer.cc',
+]
 
 # pathlib.Path.match() patterns to include in domain substitution
 DOMAIN_INCLUDE_PATTERNS = [
