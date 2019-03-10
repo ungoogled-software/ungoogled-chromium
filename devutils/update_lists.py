@@ -263,7 +263,7 @@ def compute_lists(source_tree, search_regex):
                     pruning_set.update(symlink_set)
             elif should_domain_substitute(path, relative_path, search_regex, unused_patterns):
                 domain_substitution_set.add(relative_path.as_posix())
-        except: #pylint: disable=broad-except
+        except: #pylint: disable=bare-except
             get_logger().exception('Unhandled exception while processing %s', relative_path)
             exit(1)
     return sorted(pruning_set), sorted(domain_substitution_set), unused_patterns
