@@ -73,23 +73,22 @@ def _copy_files(path_iter, source, destination):
         shutil.copy2(str(source / path), str(destination / path))
 
 
-def merge_patches(source_iter, destination, append=False):
+def merge_patches(source_iter, destination, prepend=False):
     """
     Merges GNU quilt-formatted patches directories from sources into destination
 
-    destination must not already exist, unless append is True. If append is True, then
-    the source patches will be appended to the destination.
+    destination must not already exist, unless prepend is True. If prepend is True, then
+    the source patches will be prepended to the destination.
     """
     series = list()
     known_paths = set()
     if destination.exists():
-        if append:
+        if prepend:
             if not (destination / 'series').exists():
                 raise FileNotFoundError(
                     'Could not find series file in existing destination: {}'.format(
                         destination / 'series'))
-            series.extend(generate_patches_from_series(destination))
-            known_paths.update(series)
+            known_paths.update(generate_patches_from_series(destination))
         else:
             raise FileExistsError('destination already exists: {}'.format(destination))
     for source_dir in source_iter:
@@ -101,6 +100,8 @@ def merge_patches(source_iter, destination, append=False):
                     source_dir, patch_intersection))
         series.extend(patch_paths)
         _copy_files(patch_paths, source_dir, destination)
+    if prepend and (destination / 'series').exists():
+        series.extend(generate_patches_from_series(destination))
     with (destination / 'series').open('w') as series_file:
         series_file.write('\n'.join(series))
 
@@ -121,7 +122,7 @@ def _apply_callback(args):
 
 def _merge_callback(args):
     try:
-        merge_patches(args.sources, args.destination, args.append)
+        merge_patches(args.sources, args.destination, args.prepend)
     except FileNotFoundError as exc:
         get_logger().error('File not found: %s', exc)
         exit(1)
@@ -150,16 +151,16 @@ def main():
     merge_parser = subparsers.add_parser(
         'merge', help='Merges patches directories in GNU quilt format')
     merge_parser.add_argument(
-        '--append',
-        '-a',
+        '--prepend',
+        '-p',
         action='store_true',
-        help=('If "destination" exists, append patches from sources into it.'
+        help=('If "destination" exists, prepend patches from sources into it.'
               ' By default, merging will fail if the destination already exists.'))
     merge_parser.add_argument(
         'destination',
         type=Path,
         help=('The directory to write the merged patches to. '
-              'The destination must not exist unless --append is specified.'))
+              'The destination must not exist unless --prepend is specified.'))
     merge_parser.add_argument(
         'source', type=Path, nargs='+', help='The GNU quilt patches to merge.')
     merge_parser.set_defaults(callback=_merge_callback)
