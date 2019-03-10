@@ -44,12 +44,14 @@ def main():
     ]
 
     sys.path.insert(1, str(Path(__file__).resolve().parent.parent / 'utils'))
+    sys.path.insert(2, str(Path(__file__).resolve().parent.parent / 'devutils' / 'third_party'))
     with ChangeDir(Path(__file__).parent):
         result = run_pylint(
             Path(),
             pylint_options,
             ignore_prefixes=ignore_prefixes,
         )
+    sys.path.pop(2)
     sys.path.pop(1)
     if not result:
         exit(1)
