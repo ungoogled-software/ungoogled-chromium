@@ -29,8 +29,6 @@ _ENCODING = 'UTF-8'
 # pathlib.Path.match() paths to include in binary pruning
 PRUNING_INCLUDE_PATTERNS = [
     'components/domain_reliability/baked_in_configs/*',
-    'third_party/analytics/*',
-    'ui/webui/resources/js/analytics.js',
 ]
 
 # pathlib.Path.match() paths to exclude from binary pruning
@@ -43,7 +41,7 @@ PRUNING_EXCLUDE_PATTERNS = [
     # Details in chrome/browser/resource_coordinator/tab_ranker/README.md
     'chrome/browser/resource_coordinator/tab_ranker/example_preprocessor_config.pb',
     # Exclusions for Visual Studio Project generation with GN (PR #445)
-    'tools/gn/visual_studio_writer.cc',
+    'tools/gn/tools/gn/visual_studio_writer.cc',
     # Exclusions for DOM distiller (contains model data only)
     'components/dom_distiller/core/data/distillable_page_model_new.bin',
     'components/dom_distiller/core/data/long_page_model.bin',
