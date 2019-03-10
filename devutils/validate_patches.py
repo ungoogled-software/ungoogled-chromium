@@ -25,6 +25,7 @@ from unidiff.constants import LINE_TYPE_EMPTY, LINE_TYPE_NO_NEWLINE
 sys.path.pop(0)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
+from domain_substitution import TREE_ENCODINGS
 from _common import ENCODING, get_logger, get_chromium_version
 sys.path.pop(0)
 
@@ -461,9 +462,19 @@ def _retrieve_local_files(file_iter, source_dir):
     files = dict()
     for file_path in file_iter:
         try:
-            files[file_path] = (source_dir / file_path).read_text().split('\n')
+            raw_content = (source_dir / file_path).read_bytes()
         except FileNotFoundError:
             get_logger().warning('Missing file from patches: %s', file_path)
+            continue
+        for encoding in TREE_ENCODINGS:
+            try:
+                content = raw_content.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if not content:
+            raise UnicodeDecodeError('Unable to decode with any encoding: %s' % file_path)
+        files[file_path] = content.split('\n')
     if not files:
         get_logger().error('All files used by patches are missing!')
     return files
