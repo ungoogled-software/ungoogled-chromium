@@ -63,14 +63,14 @@
 -  if (base::FeatureList::IsEnabled(safe_browsing::kSettingsResetPrompt)) {
 -    content::BrowserThread::PostAfterStartupTask(
 -        FROM_HERE,
--        content::BrowserThread::GetTaskRunnerForThread(
--            content::BrowserThread::UI),
+-        base::CreateSingleThreadTaskRunnerWithTraits(
+-            {content::BrowserThread::UI}),
 -        base::Bind(safe_browsing::MaybeShowSettingsResetPromptWithDelay));
 -  }
 -}
 -
  }  // namespace
-
+ 
  int DoUninstallTasks(bool chrome_still_running) {
 @@ -555,23 +542,6 @@ void ChromeBrowserMainPartsWin::PostBrowserStart() {
 
@@ -116,10 +116,10 @@
  #include "components/search_engines/template_url_prepopulate_data.h"
  #include "components/sessions/core/session_id_generator.h"
  #include "components/startup_metric_utils/browser/startup_metric_utils.h"
-@@ -301,14 +300,11 @@
+@@ -301,14 +301,11 @@
+ #endif
+ 
  #if defined(OS_WIN)
- #include "chrome/browser/apps/platform_apps/app_launch_for_metro_restart_win.h"
- #include "chrome/browser/browser_switcher/browser_switcher_prefs.h"
 -#include "chrome/browser/component_updater/sw_reporter_installer_win.h"
  #if defined(GOOGLE_CHROME_BUILD)
  #include "chrome/browser/conflicts/incompatible_applications_updater_win.h"
@@ -128,17 +128,17 @@
  #endif  // defined(GOOGLE_CHROME_BUILD)
 -#include "chrome/browser/safe_browsing/chrome_cleaner/settings_resetter_win.h"
 -#include "chrome/browser/safe_browsing/settings_reset_prompt/settings_reset_prompt_prefs_manager.h"
- #include "chrome/browser/ui/desktop_ios_promotion/desktop_ios_promotion_util.h"
  #endif
-
-@@ -504,7 +500,6 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
-
+ 
+ #if defined(OS_WIN) || defined(OS_MACOSX) || \
+@@ -545,7 +541,6 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+ #endif
+ 
  #if defined(OS_WIN)
-   app_metro_launch::RegisterPrefs(registry);
 -  component_updater::RegisterPrefsForSwReporter(registry);
-   desktop_ios_promotion::RegisterLocalPrefs(registry);
  #if defined(GOOGLE_CHROME_BUILD)
    IncompatibleApplicationsUpdater::RegisterLocalStatePrefs(registry);
+   ModuleDatabase::RegisterLocalStatePrefs(registry);
 @@ -571,7 +566,6 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
    ProtocolHandlerRegistry::RegisterProfilePrefs(registry);
    PushMessagingAppIdentifier::RegisterProfilePrefs(registry);
@@ -147,50 +147,49 @@
    secure_origin_whitelist::RegisterProfilePrefs(registry);
    SafeBrowsingTriggeredPopupBlocker::RegisterProfilePrefs(registry);
    SessionStartupPref::RegisterProfilePrefs(registry);
-@@ -712,12 +706,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
-
+@@ -753,11 +747,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+ #endif
+ 
  #if defined(OS_WIN)
-   browser_switcher::prefs::RegisterProfilePrefs(registry);
 -  component_updater::RegisterProfilePrefsForSwReporter(registry);
-   desktop_ios_promotion::RegisterProfilePrefs(registry);
    NetworkProfileBubble::RegisterProfilePrefs(registry);
 -  safe_browsing::SettingsResetPromptPrefsManager::RegisterProfilePrefs(
 -      registry);
 -  safe_browsing::PostCleanupSettingsResetter::RegisterProfilePrefs(registry);
  #endif
-
- #if defined(TOOLKIT_VIEWS)
+ 
+ #if defined(OS_WIN) || defined(OS_MACOSX) || \
 --- a/chrome/browser/profiles/off_the_record_profile_io_data.cc
 +++ b/chrome/browser/profiles/off_the_record_profile_io_data.cc
-@@ -177,14 +177,6 @@ void OffTheRecordProfileIOData::Handle::LazyInitialize() const {
+@@ -167,14 +167,6 @@ void OffTheRecordProfileIOData::Handle::LazyInitialize() const {
    // Set initialized_ to true at the beginning in case any of the objects
    // below try to get the ResourceContext pointer.
    initialized_ = true;
 -  io_data_->safe_browsing_enabled()->Init(prefs::kSafeBrowsingEnabled,
 -      profile_->GetPrefs());
 -  io_data_->safe_browsing_enabled()->MoveToThread(
--      BrowserThread::GetTaskRunnerForThread(BrowserThread::IO));
+-      base::CreateSingleThreadTaskRunnerWithTraits({BrowserThread::IO}));
 -  io_data_->safe_browsing_whitelist_domains()->Init(
 -      prefs::kSafeBrowsingWhitelistDomains, profile_->GetPrefs());
 -  io_data_->safe_browsing_whitelist_domains()->MoveToThread(
--      BrowserThread::GetTaskRunnerForThread(BrowserThread::IO));
+-      base::CreateSingleThreadTaskRunnerWithTraits({BrowserThread::IO}));
  #if BUILDFLAG(ENABLE_PLUGINS)
    io_data_->always_open_pdf_externally()->Init(
        prefs::kPluginsAlwaysOpenPdfExternally, profile_->GetPrefs());
 --- a/chrome/browser/profiles/profile_impl_io_data.cc
 +++ b/chrome/browser/profiles/profile_impl_io_data.cc
-@@ -378,14 +378,6 @@ void ProfileImplIOData::Handle::LazyInitialize() const {
+@@ -331,14 +331,6 @@ void ProfileImplIOData::Handle::LazyInitialize() const {
    // below try to get the ResourceContext pointer.
    initialized_ = true;
    PrefService* pref_service = profile_->GetPrefs();
 -  io_data_->safe_browsing_enabled()->Init(prefs::kSafeBrowsingEnabled,
 -      pref_service);
 -  io_data_->safe_browsing_enabled()->MoveToThread(
--      BrowserThread::GetTaskRunnerForThread(BrowserThread::IO));
+-      base::CreateSingleThreadTaskRunnerWithTraits({BrowserThread::IO}));
 -  io_data_->safe_browsing_whitelist_domains()->Init(
 -      prefs::kSafeBrowsingWhitelistDomains, pref_service);
 -  io_data_->safe_browsing_whitelist_domains()->MoveToThread(
--      BrowserThread::GetTaskRunnerForThread(BrowserThread::IO));
+-      base::CreateSingleThreadTaskRunnerWithTraits({BrowserThread::IO}));
  #if BUILDFLAG(ENABLE_PLUGINS)
    io_data_->always_open_pdf_externally()->Init(
        prefs::kPluginsAlwaysOpenPdfExternally, pref_service);
@@ -272,20 +271,20 @@
  #if defined(GOOGLE_CHROME_BUILD)
  #include "chrome/browser/conflicts/incompatible_applications_updater_win.h"
  #include "chrome/browser/conflicts/token_util_win.h"
-@@ -257,7 +254,6 @@ MdSettingsUI::MdSettingsUI(content::WebUI* web_ui)
+@@ -244,7 +241,6 @@ MdSettingsUI::MdSettingsUI(content::WebUI* web_ui)
        content::WebUIDataSource::Create(chrome::kChromeUISettingsHost);
-
+ 
  #if defined(OS_WIN)
 -  AddSettingsPageUIHandler(std::make_unique<ChromeCleanupHandler>(profile));
-
- #if defined(GOOGLE_CHROME_BUILD)
-   html_source->AddResourcePath("partner-logo.svg", IDR_CHROME_CLEANUP_PARTNER);
+ #endif  // defined(OS_WIN)
+ 
+ #if defined(OS_WIN) && defined(GOOGLE_CHROME_BUILD)
 --- a/chrome/common/safe_browsing/BUILD.gn
 +++ b/chrome/common/safe_browsing/BUILD.gn
-@@ -95,44 +95,8 @@ source_set("safe_browsing") {
-   deps = [
-     ":file_type_policies",
-   ]
+@@ -90,43 +90,8 @@ source_set("safe_browsing") {
+  if (is_mac) {
+    deps += [ ":disk_image_type_sniffer_mac" ]
+  }
 -
 -  if (safe_browsing_mode == 1) {
 -    sources = [
@@ -311,8 +310,7 @@
 -
 -    deps += [
 -      ":archive_analyzer_results",
--      ":download_protection_util",
--      ":rar_analyzer",
+-      ":download_type_util",
 -      "//components/safe_browsing:features",
 -    ]
 -
