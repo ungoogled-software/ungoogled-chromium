@@ -69,7 +69,7 @@ def generate_patches_from_series(patches_dir, resolve=False):
 def _copy_files(path_iter, source, destination):
     """Copy files from source to destination with relative paths from path_iter"""
     for path in path_iter:
-        (path / destination).parent.mkdir(parents=True, exist_ok=True)
+        (destination / path).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(source / path), str(destination / path))
 
 
@@ -103,32 +103,21 @@ def merge_patches(source_iter, destination, prepend=False):
     if prepend and (destination / 'series').exists():
         series.extend(generate_patches_from_series(destination))
     with (destination / 'series').open('w') as series_file:
-        series_file.write('\n'.join(series))
+        series_file.write('\n'.join(map(str, series)))
 
 
 def _apply_callback(args):
     logger = get_logger()
     for patch_dir in args.patches:
         logger.info('Applying patches from %s', patch_dir)
-        try:
-            apply_patches(
-                generate_patches_from_series(patch_dir, resolve=True),
-                args.directory,
-                patch_bin_path=args.patch_bin)
-        except FileNotFoundError as exc:
-            logger.error('File not found: %s', exc)
-            exit(1)
+        apply_patches(
+            generate_patches_from_series(patch_dir, resolve=True),
+            args.directory,
+            patch_bin_path=args.patch_bin)
 
 
 def _merge_callback(args):
-    try:
-        merge_patches(args.sources, args.destination, args.prepend)
-    except FileNotFoundError as exc:
-        get_logger().error('File not found: %s', exc)
-        exit(1)
-    except FileExistsError as exc:
-        get_logger().error('File exists: %s', exc)
-        exit(1)
+    merge_patches(args.source, args.destination, args.prepend)
 
 
 def main():
