@@ -315,7 +315,7 @@ def push_changes(args):
     if debian_dir.exists():
         _copy_overwrite(debian_dir, other_debian_dir)
     else:
-        _get_logger().info('%s does not exist. Skipping debian copying...')
+        _get_logger().info('%s does not exist. Skipping debian copying...', debian_dir)
     patches_dir = Path(__file__).parent.parent / 'patches' / args.name
     other_patches_dir = Path(other_repo.working_dir) / 'debian' / 'patches'
     if patches_dir.exists():
@@ -329,7 +329,7 @@ def push_changes(args):
                     other_path.unlink()
         _copy_overwrite(patches_dir, other_patches_dir)
     else:
-        _get_logger().info('%s does not exist. Skipping patches copying...')
+        _get_logger().info('%s does not exist. Skipping patches copying...', patches_dir)
 
 
 def main():
