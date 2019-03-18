@@ -9,18 +9,18 @@
 import argparse
 from pathlib import Path
 
-from _common import get_logger
+from _common import ENCODING, get_logger
 
 
-def prune_dir(unpack_root, ignore_files):
+def prune_dir(unpack_root, prune_files):
     """
-    Delete files under unpack_root listed in ignore_files. Returns an iterable of unremovable files.
+    Delete files under unpack_root listed in prune_files. Returns an iterable of unremovable files.
 
     unpack_root is a pathlib.Path to the directory to be pruned
-    ignore_files is an iterable of files to be removed.
+    prune_files is an iterable of files to be removed.
     """
     unremovable_files = set()
-    for relative_file in ignore_files:
+    for relative_file in prune_files:
         file_path = unpack_root / relative_file
         try:
             file_path.unlink()
@@ -33,7 +33,10 @@ def _callback(args):
     if not args.directory.exists():
         get_logger().error('Specified directory does not exist: %s', args.directory)
         exit(1)
-    unremovable_files = prune_dir(args.directory, args.bundle.pruning)
+    if not args.pruning_list.exists():
+        get_logger().error('Could not find the pruning list: %s', args.pruning_list)
+    prune_files = tuple(filter(len, args.pruning_list.read_text(encoding=ENCODING).splitlines()))
+    unremovable_files = prune_dir(args.directory, prune_files)
     if unremovable_files:
         get_logger().error('Files could not be pruned: %s', unremovable_files)
         exit(1)
