@@ -1,0 +1,30 @@
+From 1fb4edaf534c278a0b7a3150efff8e712c1efe91 Mon Sep 17 00:00:00 2001
+From: Peng Huang <penghuang@chromium.org>
+Date: Tue, 19 Feb 2019 22:01:52 +0000
+Subject: [PATCH] Avoid log flooding in GLSurfacePresentationHelper
+
+Bug: 879929
+Change-Id: Ifb452736573e65791ed5e3f143778f576854a167
+Reviewed-on: https://chromium-review.googlesource.com/c/1477918
+Commit-Queue: Peng Huang <penghuang@chromium.org>
+Reviewed-by: Antoine Labour <piman@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#633415}
+---
+
+--- a/ui/gl/gl_surface_presentation_helper.cc
++++ b/ui/gl/gl_surface_presentation_helper.cc
+@@ -234,7 +234,13 @@ void GLSurfacePresentationHelper::CheckP
+                                                         &vsync_interval_)) {
+       vsync_timebase_ = base::TimeTicks();
+       vsync_interval_ = base::TimeDelta();
+-      LOG(ERROR) << "GetVSyncParametersIfAvailable() failed!";
++      static unsigned int count = 0;
++      ++count;
++      // GetVSyncParametersIfAvailable() could be called and failed frequently,
++      // so we have to limit the LOG to avoid flooding the log.
++      LOG_IF(ERROR, count < 20 || !(count & 0xff))
++          << "GetVSyncParametersIfAvailable() failed for " << count
++          << " times!";
+     }
+   }
+ 
