@@ -1,6 +1,6 @@
 ---
-name: Question
-about: Ask a question about the project itself
+name: Other
+about: Anything else not listed
 
 ---
 
