@@ -1,334 +1,50 @@
 # Building ungoogled-chromium
 
-This document contains building instructions for supported platforms and configurations.
+To build ungoogled-chromium, please consult [the repository for your supported platform (links here)](docs/platforms.md).
 
-For configurations, you may try augmenting the standard Chromium build procedure with tools from ungoogled-chromium; please read [design.md](design.md) for more details.
+If your platform is not supported, or you want to customize your own build, you may have a look at the example below and the code for supported platforms.
 
-## IMPORTANT - Please read this section first
+## Rough example
 
-**Choosing a version**: *It is highly recommended to choose a tag version for building.* `master` and other branches are not guaranteed to be in a working state.
+Here is a rough example for building Chromium with only the changes from the main repository:
 
-**Use the documentation included with the code you downloaded**. The documentation in the `master` branch changes frequently, and may not correspond to the code you downloaded.
-
-**Statuses of platform support**: Because platform support varies across stable versions, [this Wiki page tracks platform support for the current stable](//github.com/Eloston/ungoogled-chromium/wiki/statuses). *Please check the status before attempting a build or posting an issue*.
-
-## Contents
-
-* [Debian and its derivatives](#debian-and-its-derivatives)
-* [Windows](#windows)
-* [macOS](#macos)
-* [Arch Linux](#arch-linux)
-* [OpenSUSE](#opensuse)
-* [Any Linux distribution](#any-linux-distribution)
-
-## Debian and its derivatives
-
-These instructions will create `.deb` packages. It uses ungoogled-chromium's variation of Debian's `debian` directory.
-
-The build should work on CPU architecture `amd64`
-
-* `i386`, `arm64`, `armhf`, and cross-compilation are unsupported at this time due to the lack of contributors.
-
-The final size of the sandbox with build artifacts is over 5 GB. On 64-bit systems with enough RAM, it can be built entirely within `tmpfs` without swap memory.
-
-### Hardware requirements
-
-* For 64-bit systems, at least 8 GB of RAM is highly recommended (as recommended in the Chromium source tree under `docs/linux_build_instructions.md`).
-    * It may be possible to reduce RAM consumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
-    * Debian's `chromium` package version `69.0.3497.81-1` uses a value of: 12
-* Filesystem space: 8 GB is the bare minimum. More is safer.
-
-### Determining the packaging type
-
-You will need to select a *packaging type*, which is a set of packaging files for a certain target system (e.g. a Debian-based distribution name and version). This will be used in the following sections to configure building.
-
-Packaging types are identified by a short string. The following is a list of all Debian-based packaging types:
-
-* `debian_stretch` for Debian 9 (stretch)
-* `debian_buster` for Debian 10 (buster)
-* `ubuntu_bionic` for Ubuntu 18.04 LTS (bionic)
-* `ubuntu_cosmic` for Ubuntu 18.10 (cosmic)
-* `debian_minimal` for any other Debian-based system that isn't based on one of the above versions.
-
-All Debian-based packaging types require LLVM 7, except `debian_minimal`. `debian_minimal` requires LLVM 8.
-
-* On Debian 9 (stretch), LLVM 7 can be backported from buster without modifications.
-* Pre-built LLVM toolchains are available from [apt.llvm.org](https://apt.llvm.org).
-    * Note that the APT URLs for development (aka nightly snapshot) LLVM versions *do not contain* the LLVM version in them.
-* You may use newer LLVM versions by adjusting `debian/rules` and `debian/control` accordingly. However, there are caveats; see the LLVM requirements under [Any Linux distribution](#any-linux-distribution) for more details.
-
-### Building locally
-
-*Download and build .deb packages all in the same environment*
-
-First, install base requirements: `# apt install packaging-dev python3 ninja-build`
-
-Then, run the following as a regular user:
+1. Download and unpack the source code:
 
 ```sh
-# Run from inside the clone of the repository
-mkdir -p build/src
-./get_package.py PACKAGE_TYPE_HERE build/src/debian
+./utils/downloads.py retrieve -c build/downloads_cache -i downloads.ini
+./utils/downloads.py unpack -c build/downloads_cache -i downloads.ini build/src
+```
+
+2. Prune binaries: 
+
+```sh
+./utils/prune_binaries.py build/src pruning.list
+```
+
+3. Apply patches:
+
+```sh
+./utils/patches.py apply build/src patches
+```
+
+4. Substitute domains:
+
+```sh
+./utils/domain_substitution.py apply -r domain_regex.list -f domain_substitution.list -c build/domsubcache.tar.gz
+```
+
+5. Build GN:
+
+```sh
+mkdir -p build/src/out/Default
+cp flags.gn build/src/out/Default/args.gn
 cd build/src
-# Use dpkg-checkbuilddeps (from dpkg-dev) or mk-build-deps (from devscripts) to check for additional packages.
-# If necessary, change the dependencies in debian/control to accommodate your environment.
-# If necessary, modify AR, NM, CC, and CXX variables in debian/rules
-debian/rules setup-local-src
-dpkg-buildpackage -b -uc
+./tools/gn/bootstrap.py --skip-generate-buildfiles -j4 -o out/Default/gn
 ```
 
-where `PACKAGE_TYPE_HERE` is one of the packaging types listed above. Packages will appear under `build/`
-
-**NOTE**: If the build fails, you must take additional steps before re-running the build:
-
-* If the build fails while downloading the Chromium source code, it can be fixed by removing `build/download_cache` and re-running the build instructions.
-* If the build fails at any other point, it can be fixed by removing `build/src` and re-running the build instructions. This will clear out all the code used by the build, and any files generated by the build. However, if the build fails during the `ninja` command during `dpkg-buildpackage`, you can use `dpkg-buildpackage -b -uc -nc` to resume building.
-
-### Building via source package
-
-*Build via a Debian source package (i.e. `.dsc`, `.orig.tar.xz`, and `.debian.tar.xz`). This is useful for online build services like Launchpad and openSUSE Build Service.*
-
-First, install base requirements: `# apt install packaging-dev python3`
-
-Then, run the following as a regular user:
-
-```sh
-# Run from inside the clone of the repository
-mkdir -p build/src
-./get_package.py PACKAGE_TYPE_HERE build/src/debian
-cd build/src
-# If necessary, change the dependencies in debian/control to accommodate your environment.
-# If necessary, modify AR, NM, CC, and CXX variables in debian/rules
-debian/rules get-orig-source
-debuild -S -sa
-```
-
-(`PACKAGE_TYPE_HERE` is the same as above)
-
-Source package files will appear under `build/`
-
-## Windows
-
-Google only supports [Windows 7 x64 or newer](https://chromium.googlesource.com/chromium/src/+/72.0.3626.122/docs/windows_build_instructions.md#system-requirements). These instructions are tested on Windows 7 Professional x64.
-
-NOTE: The default configuration will build 64-bit binaries for maximum security (TODO: Link some explanation). This can be changed to 32-bit by following the instructions in `build.py`
-
-### Setting up the build environment
-
-#### Setting up Visual Studio
-
-[Follow the official Windows build instructions](https://chromium.googlesource.com/chromium/src/+/72.0.3626.122/docs/windows_build_instructions.md#visual-studio).
-
-**IMPORTANT**: You must have the 10.0.17134 SDK (that exact version) downloaded and installed either through Visual Studio 2017 (install the "Desktop development with C++" component) or from the [Windows SDK Archive](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive).
-
-When installing the SDK, the "Debugging Tools for Windows" feature must be enabled. Visual Studio 2017 does not enable this by default, so it has to be added in by selecting "Modify" on the SDK entry in "Add or remove programs".
-
-#### Other build requirements
-
-**IMPORTANT**: Currently, the `MAX_PATH` path length restriction (which is 260 characters by default) must be lifted in order for buildkit to function properly. One such setup that works is Windows 10 (which added this option since Anniversary) with Python 3.6 or newer from the official installer (which contains the manifest files that allow use of long file paths). Other possible setups are being discussed in [Issue #345](https://github.com/Eloston/ungoogled-chromium/issues/345).
-
-1. Setup the following:
-
-    * 7-zip
-    * Python 2.7 (for scripts in the Chromium source tree), with pypiwin32 module (`pip install pypiwin32`)
-    * Python 3.5+ (for build and packaging scripts used below)
-
-2. Make sure Python 2.7 is set in the user or system environment variable `PATH` as `python`.
-
-### Setup and build
-
-NOTE: The commands below assume the `py` command was installed by Python 3 into `PATH`. If this is not the case, then substitute it with the command to invoke **Python 3**.
-
-Run in `cmd.exe`:
-
-```cmd
-mkdir build\src
-py get_package.py windows build\src\ungoogled_packaging
-cd build\src
-py ungoogled_packaging\build.py
-py ungoogled_packaging\package.py
-```
-
-A zip archive will be created in `build\src`
-
-**NOTE**: If the build fails, you must take additional steps before re-running the build:
-
-* If the build fails while downloading the Chromium source code (which is during `build.py`), it can be fixed by removing `build\download_cache` and re-running the build instructions.
-* If the build fails at any other point during `build.py`, it can be fixed by removing `build\src` and re-running the build instructions. This will clear out all the code used by the build, and any files generated by the build.
-
-## macOS
-
-### Software requirements
-
-* macOS 10.12+
-* Xcode 8-9
-* Homebrew
-* Perl (for creating a `.dmg` package)
-* Python 2, specifically 2.7.13 or newer, as `python` in PATH
-* Python 3.5 or newer as `python3` in PATH
-
-### Setting up the build environment
-
-1. Install Ninja via Homebrew: `brew install ninja`
-2. Install GNU coreutils (for `greadlink` in packaging script): `brew install coreutils`
-3. Install GNU readline: `brew install readline`
-4. Install the data compression tools xz and zlib: `brew install xz zlib`
-5. Install Python 3.x: `brew install python`
-6. Install Python's pyenv to manage python version: `brew install pyenv`
-7. Install Python 2.7.13: `pyenv install 2.7.13`
-**Note**: in some cases you might get `Build failed: "ERROR: The Python zlib extension was not compiled. Missing the zlib?"` during Python 2.7.13 installation, this can be fixed by running `CPPFLAGS="-I$(brew --prefix zlib)/include" pyenv install 2.7.13`. 
-8. Setup `pyenv`:
-```sh
-echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi' >> ~/.bash_profile
-```
-8. Set global `python` command to use Python 2.7.13: `pyenv global 2.7.13`.
-9. Restart your Terminal
-
-### Building
-
-First, ensure the Xcode application is open. Then, run the following:
-
-```sh
-# Run from inside the clone of the repository
-mkdir -p build/src/ungoogled_packaging
-python3 get_package.py macos build/src/ungoogled_packaging
-cd build/src
-./ungoogled_packaging/build.sh
-```
-
-A `.dmg` should appear in `build/src/ungoogled_packaging/`
-
-**NOTE**: If the build fails, you must take additional steps before re-running the build:
-
-* If the build fails while downloading the Chromium source code, it can be fixed by removing `build/download_cache` and re-running the build instructions.
-* If the build fails at any other point after downloading, it can be fixed by removing `build/src` and re-running the build instructions. This will clear out all the code used by the build, and any files generated by the build.
-
-## Arch Linux
-
-A PKGBUILD is used to build on Arch Linux. It handles downloading, unpacking, building, and packaging. There is a package [available in the AUR](https://aur.archlinux.org/packages/ungoogled-chromium). If you want to generate the PKGBUILD manually, follow the steps below.
-
-Requirements: Python 3 is needed to generate the PKGBUILD. The PKGBUILD contains build dependency information.
-
-Generate the PKGBUILD:
+6. Build Chromium:
 
 ```
-./get_package.py archlinux ./
+./out/Default/gn gen out/Default --fail-on-unused-args
+ninja -C out/Default chrome chromedriver chrome_sandbox
 ```
-
-A PKGBUILD will be generated in the current directory. It is a standalone file that can be relocated as necessary.
-
-## openSUSE
-
-Tested on openSUSE Leap 42.3
-
-### Setting up the build environment
-
-Install the following packages : `# sudo zypper install perl-Switch dirac-devel hunspell-devel imlib2-devel libdc1394 libdc1394-devel libavcodec-devel yasm-devel libexif-devel libtheora-devel schroedinger-devel minizip-devel python-beautifulsoup4 python-simplejson libvdpau-devel slang-devel libjack-devel libavformat-devel SDL-devel ninja binutils-gold bison cups-devel desktop-file-utils fdupes flex gperf hicolor-icon-theme libcap-devel libelf-devel libgcrypt-devel libgsm libgsm-devel libjpeg-devel libpng-devel libva-devel ncurses-devel pam-devel pkgconfig re2-devel snappy-devel update-desktop-files util-linux wdiff alsa Mesa-dri-devel cairo-devel libavutil-devel libavfilter-devel libdrm2 libdrm-devel libwebp-devel libxslt-devel libopus-devel rpm-build` 
-
-**Note**: There may be additional package requirements besides those listed above, if so they will be listed when using `rpmbuild` to create the ungoogled-chromium package. 
-
-Follow the following guide to set up Python 3.6.4: [https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7](https://gist.github.com/antivanov/01ed4eac2d7486a170be598b5a0a4ac7) 
-
-As of Chromium 66.0.3359.117, llvm, lld and clang version 6 or greater is required to avoid compiler errors.
-
-### Generate packaging scripts
-
-Before executing the following commands, make sure you are using python 3.6 as was mentioned in the build environment section of this guide.
-
-```sh
-# Run from inside the clone of the repository
-mkdir -p build/{download_cache,src}
-# TODO: The download commands should be moved into the packaging scripts
-./get_package.py opensuse build/src/ungoogled_packaging
-```
-
-Before proceeding to the build chromium, open a new tab or otherwise exit the python 3.6 virtual environment, as it will cause errors in the next steps.
-
-### Setting up environment for RPM build
-
-Note: This section only has to be performed once.
-
-Execute the following commands:
-
-```sh
-mkdir -p ~/rpm/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-
-cat <<EOF >~/.rpmmacros
-%HOME       %{expand:%%(cd; pwd)}
-%_topdir    %{HOME}/rpm
-EOF
-```
-
-### Invoking build and installing package
-
-```sh
-# Run from inside the clone of the repository
-cd build/src
-./ungoogled_packaging/setup.sh
-cd ~/rpm
-rpmbuild -v -bb --clean SPECS/ungoogled-chromium.spec
-```
-
-The RPM will be located in `~/rpm/RPMS/{arch}/` once rpmbuild has finished. It can be installed with the command `sudo rpm -i {path to RPM}`
-
-## Any Linux distribution
-
-These instructions will build packages compatible with any Linux distribution that Chromium supports. Unlike distro-specific packages, they are portable and have minimal dependencies with system libraries (just as in regular Chromium).
-
-### Hardware requirements
-
-* For 64-bit systems, at least 8 GB of RAM is highly recommended (per the document in the Chromium source tree under `docs/linux_build_instructions.md`).
-    * It may be possible to reduce RAM consumption with a lower value for the GN flag `jumbo_file_merge_limit` (documented in the Chromium source code under `docs/jumbo.md`).
-* At least 8 GB of filesystem space. 16 GB should be safe.
-
-### Software requirements
-
-TODO: Document all libraries and tools needed to build. For now, see the build dependencies for Debian systems.
-
-* Python 3 (tested on 3.5) for buildkit
-* Python 2 (tested on 2.7) for building GN and running other build-time scripts
-* [Ninja](//ninja-build.org/) for running the build command
-* One of the following LLVM toolchain versions (which include Clang and LLD):
-    * The latest stable LLVM version
-    * A build of the LLVM revision used by Google to build Chromium. This is specified in the Chromium source tree under `tools/clang/scripts/update.py` in the constant `CLANG_REVISION`. (For more info about how Google manages its prebuilt LLVM toolchain, see the file in the Chromium source tree `docs/updating_clang.md`)
-    * A nightly snapshot LLVM build, available from [the LLVM apt repo](//apt.llvm.org). However, this may result in instability.
-
-    Note that any other LLVM version may outright fail, or [cause unexpected behavior](https://github.com/Eloston/ungoogled-chromium/issues/586).
-
-For Debian-based systems:
-
-1. Add the [the LLVM APT repo](//apt.llvm.org/) for the appropriate LLVM version (currently 8).
-    * Note that the APT URLs for development (aka nightly snapshot) LLVM versions *do not contain* the LLVM version in them.
-2. `# apt install clang-8 lld-8 llvm-8-dev python python3 ninja-build`
-
-### Build a tar archive
-
-```sh
-# Run from inside the clone of the repository
-mkdir -p build/src
-./get_package.py linux_simple build/src/ungoogled_packaging
-cd build/src
-# Use "export ..." for AR, NM, CC, CXX, or others to specify the compiler to use
-# It defaults to LLVM tools. See ./ungoogled_packaging/build.sh for more details
-./ungoogled_packaging/build.sh
-./ungoogled_packaging/package.sh
-```
-
-A compressed tar archive will appear in `build/src/ungoogled_packaging/`
-
-**NOTE**: If the build fails, you must take additional steps before re-running the build:
-
-* If the build fails while downloading the Chromium source code (during `build.sh`), it can be fixed by removing `build/download_cache` and re-running the build instructions.
-* If the build fails at any other point after downloading, it can be fixed by removing `build/src` and re-running the build instructions. This will clear out all the code used by the build, and any files generated by the build.
-
-### Building an AppImage
-
-First, follow the instructions in [Build a tar archive](#build-a-tar-archive).
-
-Then, run the following:
-
-```
-./ungoogled_packaging/package.appimage.sh
-```
-
-An `.AppImage` file will appear in `build/src/ungoogled_packaging/`
