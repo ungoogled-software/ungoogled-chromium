@@ -87,9 +87,9 @@ In addition to the features introduced by ungoogled-chromium, ungoogled-chromium
 
 ### Supported Platforms and Distributions
 
-Currently, only desktop platforms are supported. Functionality of specific desktop platforms may vary across different releases. For more details, see [Statuses in the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/statuses).
+[See docs/platforms.md for a list of supported platforms](docs/platforms.md).
 
-Other platforms are discussed and tracked in GitHub's Issue Tracker. Learn more about using the Issue Tracker under the section [Contributing, Reporting, Contacting](#contributing-reporting-contacting).
+Other platforms are discussed and tracked in this repository's Issue Tracker. Learn more about using the Issue Tracker under the section [Contributing, Reporting, Contacting](#contributing-reporting-contacting).
 
 ## Downloads
 
@@ -114,22 +114,20 @@ To build ungoogled-chromium, see [Source Code](#source-code).
 
 *Download, install, and run ungoogled-chromium from machine code provided by volunteers.*
 
+[**Download from here**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+
 **IMPORTANT**: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).
 
-[**Download from the contributor binaries website**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
-
-The release versioning scheme follows that of the tags. Please see [Getting the source code](#getting-the-source-code) section for more details.
-
-**To contribute binaries**, [consult the instructions in the ungoogled-chromium-binaries repository](//github.com/ungoogled-software/ungoogled-chromium-binaries)
+To contribute binaries, [consult the instructions in the ungoogled-chromium-binaries repository](//github.com/ungoogled-software/ungoogled-chromium-binaries)
 
 ### Source Code
 
-**Picking the version to download**: You are encouraged to download [one of the tags](//github.com/Eloston/ungoogled-chromium/tags). The latest tag may not be the applicable for all platforms. To determine the tag to use, please see the [Status page in the Wiki](https://ungoogled-software.github.io/ungoogled-chromium-wiki/statuses). Tags are versioned in the following format: `{chromium_version}-{release_revision}` where
+This repository contains the common code for all platforms. To build ungoogled-chromium for a specific platform, [consult the repository for that plaform](docs/platforms.md).
+
+[Tags (listed here)](//github.com/Eloston/ungoogled-chromium/tags) denote versions ready to be used. Tags follow the format `{chromium_version}-{revision}` where
 
 * `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
-* `release_revision` is a number indicating the version of ungoogled-chromium for the corresponding Chromium version.
-
-Not all tags are stable for all platforms. See the [Statuses in the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/statuses) to determine the tag to use.
+* `revision` is a number indicating the version of ungoogled-chromium for the corresponding Chromium version.
 
 **Building the source code**: [See docs/building.md](docs/building.md)
 

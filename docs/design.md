@@ -33,6 +33,7 @@ Configuration files (or config files) are files that store build configuration a
 List of configuration files:
 
 * `chromium_version.txt` - The Chromium version used by ungoogled-chromium
+* `revision.txt` - The revision of the changes on top of the given Chromium version.
 * `pruning.list` - [See the Source File Processors section](#source-file-processors)
 * `domain_regex.list` - [See the Source File Processors section](#source-file-processors)
 * `domain_substitution.list` - [See the Source File Processors section](#source-file-processors)
