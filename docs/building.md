@@ -1,5 +1,7 @@
 # Building ungoogled-chromium
 
+**NOTICE (2019-03-22): Not all platforms are updated yet. If your platform is not updated yet, please use the instructions and code in tag 72.0.3626.122-2**
+
 To build ungoogled-chromium, please consult [the repository for your supported platform (links here)](platforms.md).
 
 If your platform is not supported, or you want to customize your own build, you may have a look at the example below and the code for supported platforms.
