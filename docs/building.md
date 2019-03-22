@@ -1,6 +1,6 @@
 # Building ungoogled-chromium
 
-To build ungoogled-chromium, please consult [the repository for your supported platform (links here)](docs/platforms.md).
+To build ungoogled-chromium, please consult [the repository for your supported platform (links here)](platforms.md).
 
 If your platform is not supported, or you want to customize your own build, you may have a look at the example below and the code for supported platforms.
 
