@@ -182,6 +182,9 @@ def main():
               'For zip files, these contents must only be regular files.'))
     archive_parser.set_defaults(callback=_archive_callback)
 
+    args = parser.parse_args()
+    args.callback(args)
+
 
 if __name__ == '__main__':
     main()
