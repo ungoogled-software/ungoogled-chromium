@@ -112,7 +112,7 @@ def _apply_callback(args):
         logger.info('Applying patches from %s', patch_dir)
         apply_patches(
             generate_patches_from_series(patch_dir, resolve=True),
-            args.directory,
+            args.target,
             patch_bin_path=args.patch_bin)
 
 
@@ -126,7 +126,7 @@ def main():
     subparsers = parser.add_subparsers()
 
     apply_parser = subparsers.add_parser(
-        'apply', help='Applies a config bundle\'s patches to the specified source tree')
+        'apply', help='Applies patches (in GNU Quilt format) to the specified source tree')
     apply_parser.add_argument(
         '--patch-bin', help='The GNU patch command to use. Omit to find it automatically.')
     apply_parser.add_argument('target', type=Path, help='The directory tree to apply patches onto.')
