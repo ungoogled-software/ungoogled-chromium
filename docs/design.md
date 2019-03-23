@@ -60,10 +60,15 @@ The regular expressions to use are listed in `domain_regex.list`; the search and
 
 ### Patches
 
-All of ungoogled-chromium's patches for the Chromium source code are located in `patches/`. **Patches must be applied in the order specified in the `patches/series` file**
+All of ungoogled-chromium's patches for the Chromium source code are located in `patches/`. This directory conforms to the default GNU Quilt format. That is:
 
-A file with the extension `.patch` is patch using the [unified format](https://en.wikipedia.org/wiki/Diff_utility#Unified_format). The requirements and recommendations for patch files are as follows:
+* All patches must reside inside `patches/`
+* There is a `patches/series` text file that defines the order to apply all the patches. These patches are listed as a relative path from the `patches` directory.
 
+All patch files in ungoogled-chromium must satisfy these formatting requirements:
+
+* Patch filenames must end with the extension `.patch`
+* The content must be in [unified format](https://en.wikipedia.org/wiki/Diff_utility#Unified_format).
 * All paths in the hunk headers must begin after the first slash (which corresponds to the argument `-p1` for GNU patch).
 * All patches must apply cleanly (i.e. no fuzz).
 * It is recommended that hunk paths have the `a/` and `b/` prefixes, and a context of 3 (like the git default).
