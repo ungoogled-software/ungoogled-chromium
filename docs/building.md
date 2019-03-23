@@ -2,19 +2,23 @@
 
 **NOTICE (2019-03-22): Not all platforms are updated yet. If your platform is not updated yet, please use the instructions and code in tag 72.0.3626.122-2**
 
-To build ungoogled-chromium, please consult [the repository for your supported platform (links here)](platforms.md).
+The recommended way to build ungoogled-chromium is by consulting [the repository for your supported platform (links here)](platforms.md).
 
-If your platform is not supported, or you want to customize your own build, you may have a look at the example below and the code for supported platforms.
+* *Linux users*: If your distribution is not listed, you will need to use Portable Linux.
+
+If you want to make a custom build, you will need to develop your own build process. *Beware that this may be a time-consuming process.* The easiest way to do this is to modify an existing platform's code, like Portable Linux. Additionally, you may have a look at the example below for some inspiration.
 
 ## Rough example
 
-Here is a rough example for building Chromium with only the changes from the main repository:
+**NOTE: These are for users who want to make a custom build.** You should already be familiar with the [standard Chromium build process](https://chromium.googlesource.com/chromium/src/+/lkgr/docs/get_the_code.md), and [ungoogled-chromium's design documentation](design.md).
+
+The following example demonstrates a typical build process. Please note that these steps alone may not be sufficient to get a working build.
 
 1. Download and unpack the source code:
 
 ```sh
-./utils/downloads.py retrieve -c build/downloads_cache -i downloads.ini
-./utils/downloads.py unpack -c build/downloads_cache -i downloads.ini build/src
+./utils/downloads.py retrieve -c build/download_cache -i downloads.ini
+./utils/downloads.py unpack -c build/download_cache -i downloads.ini build/src
 ```
 
 2. Prune binaries: 
