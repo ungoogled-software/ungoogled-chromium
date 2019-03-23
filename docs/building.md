@@ -17,8 +17,9 @@ The following example demonstrates a typical build process. Please note that the
 1. Download and unpack the source code:
 
 ```sh
+mkdir -p build/download_cache
 ./utils/downloads.py retrieve -c build/download_cache -i downloads.ini
-./utils/downloads.py unpack -c build/download_cache -i downloads.ini build/src
+./utils/downloads.py unpack -c build/download_cache -i downloads.ini -- build/src
 ```
 
 2. Prune binaries: 
