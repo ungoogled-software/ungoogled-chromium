@@ -37,7 +37,7 @@ mkdir -p build/download_cache
 4. Substitute domains:
 
 ```sh
-./utils/domain_substitution.py apply -r domain_regex.list -f domain_substitution.list -c build/domsubcache.tar.gz
+./utils/domain_substitution.py apply -r domain_regex.list -f domain_substitution.list -c build/domsubcache.tar.gz build/src
 ```
 
 5. Build GN:
