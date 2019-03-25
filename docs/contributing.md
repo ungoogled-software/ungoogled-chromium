@@ -8,17 +8,15 @@ Subsections of this section:
 
 ### How to help
 
-Generally, ungoogled-chromium needs maintainers to help:
+Generally, ungoogled-chromium needs contributors to help:
 
 * Keep up-to-date with the latest stable Chromium, and any problematic changes in the new version that needs modification.
 * Implement feature requests ("enhancements" in the Issue Tracker), large or small.
+* Help with issues marked with the `help wanted` tag (usually either questions for other users, or request for help from other developers)
+* Implement issues marked with the `backlog` tag (that are closed).
+	* If it requires new code, please read through the [Submitting changes](#submitting-changes) section below.
 
 In addition, anyone is free to help others in need of support in the Issue Tracker.
-
-Issues marked with the `help wanted` tag are changes that needs discussion or assistance.
-
-* If it requires new code, please read through the [Submitting changes](#submitting-changes) section below.
-* If you want to work on an issue, please state your intent to do so first to let others know.
 
 If there are fixes, tweaks, or additions you want to make, continue onto the following section.
 
@@ -29,6 +27,7 @@ Please submit all changes via Pull Requests.
 Guidelines:
 
 * You are welcome to submit minor changes, such as bug fixes, documentation fixes, and tweaks.
+* If your change has an associated issue, please let others know that you are working on it.
 * If you want to submit a new feature, please read through the [Criteria for new features](#criteria-for-new-features) below.
 * When in doubt about the acceptance of a change, you are welcome to ask via an issue first.
 
