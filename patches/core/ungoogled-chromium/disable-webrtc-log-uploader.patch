@@ -2,12 +2,11 @@
 
 --- a/chrome/browser/media/webrtc/webrtc_log_uploader.cc
 +++ b/chrome/browser/media/webrtc/webrtc_log_uploader.cc
-@@ -121,30 +121,11 @@ void WebRtcLogUploader::LoggingStoppedDo
+@@ -129,29 +129,11 @@ void WebRtcLogUploader::LoggingStoppedDo
    DCHECK(meta_data.get());
    DCHECK(!upload_done_data.log_path.empty());
  
--  std::string compressed_log;
--  CompressLog(&compressed_log, log_buffer.get());
+-  std::string compressed_log = CompressLog(log_buffer.get());
 -
 -  std::string local_log_id;
 -
@@ -30,11 +29,11 @@
 -  upload_done_data_with_log_id.local_log_id = local_log_id;
 -  PrepareMultipartPostData(compressed_log, std::move(meta_data),
 -                           upload_done_data_with_log_id);
-+  NotifyUploadDone(net::HTTP_OK, "", upload_done_data);
++  NotifyUploadDoneAndLogStats(net::HTTP_OK, net::OK, "", upload_done_data);
  }
  
  void WebRtcLogUploader::PrepareMultipartPostData(
-@@ -155,27 +136,7 @@ void WebRtcLogUploader::PrepareMultipart
+@@ -162,27 +144,7 @@ void WebRtcLogUploader::PrepareMultipart
    DCHECK(!compressed_log.empty());
    DCHECK(meta_data.get());
  
@@ -50,7 +49,7 @@
 -  // implemented according to the test plan. http://crbug.com/257329.
 -  if (post_data_) {
 -    *post_data_ = *post_data;
--    NotifyUploadDone(net::HTTP_OK, "", upload_done_data);
+-    NotifyUploadDoneAndLogStats(net::HTTP_OK, net::OK, "", upload_done_data);
 -    return;
 -  }
 -
@@ -59,11 +58,11 @@
 -      base::BindOnce(&WebRtcLogUploader::UploadCompressedLog,
 -                     base::Unretained(this), upload_done_data,
 -                     std::move(post_data)));
-+  NotifyUploadDone(net::HTTP_OK, "", upload_done_data);
++  NotifyUploadDoneAndLogStats(net::HTTP_OK, net::OK, "", upload_done_data);
  }
  
  void WebRtcLogUploader::UploadStoredLog(
-@@ -246,48 +207,6 @@ void WebRtcLogUploader::LoggingStoppedDo
+@@ -253,47 +215,6 @@ void WebRtcLogUploader::LoggingStoppedDo
  
    webrtc_logging::DeleteOldWebRtcLogFiles(log_paths.log_path);
  
@@ -72,8 +71,7 @@
 -          log_paths.log_path);
 -
 -  // Store the native log with a ".gz" extension.
--  std::string compressed_log;
--  CompressLog(&compressed_log, log_buffer.get());
+-  std::string compressed_log = CompressLog(log_buffer.get());
 -  base::FilePath native_log_path =
 -      log_paths.log_path.AppendASCII(log_id).AddExtension(
 -          FILE_PATH_LITERAL(".gz"));
