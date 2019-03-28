@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -131,6 +131,7 @@
+@@ -132,6 +132,7 @@
  #include "third_party/blink/public/common/experiments/memory_ablation_experiment.h"
  #include "third_party/blink/public/common/features.h"
  #include "third_party/leveldatabase/leveldb_features.h"
@@ -17,7 +17,7 @@
  #include "ui/accessibility/accessibility_switches.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/base/ui_base_switches.h"
-@@ -1317,6 +1318,14 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1217,6 +1218,14 @@ const FeatureEntry kFeatureEntries[] = {
       "Force punycode hostnames",
       "Force punycode in hostnames instead of Unicode when displaying Internationalized Domain Names (IDNs).",
       kOsAll, SINGLE_VALUE_TYPE("force-punycode-hostnames")},
@@ -42,9 +42,9 @@
  #include "ui/events/blink/blink_features.h"
  #include "ui/gfx/switches.h"
  #include "ui/gl/gl_switches.h"
-@@ -486,6 +487,11 @@ void SetRuntimeFeaturesDefaultsAndUpdate
-   if (base::FeatureList::IsEnabled(blink::features::kWritableFilesAPI))
-     WebRuntimeFeatures::EnableFeatureFromString("WritableFiles", true);
+@@ -477,6 +478,11 @@ void SetRuntimeFeaturesDefaultsAndUpdate
+     WebRuntimeFeatures::EnableForbidSyncXHRInPageDismissal(true);
+   }
  
 +  WebRuntimeFeatures::EnableFingerprintingClientRectsNoise(
 +      command_line.HasSwitch(switches::kFingerprintingClientRectsNoise));
@@ -56,15 +56,15 @@
  
 --- a/third_party/blink/renderer/core/dom/document.cc
 +++ b/third_party/blink/renderer/core/dom/document.cc
-@@ -33,6 +33,7 @@
- 
+@@ -34,6 +34,7 @@
  #include "base/auto_reset.h"
+ #include "base/macros.h"
  #include "base/optional.h"
 +#include "base/rand_util.h"
  #include "services/metrics/public/cpp/mojo_ukm_recorder.h"
  #include "services/metrics/public/cpp/ukm_builders.h"
  #include "services/metrics/public/cpp/ukm_source_id.h"
-@@ -758,6 +759,15 @@ Document::Document(const DocumentInit& i
+@@ -770,6 +771,15 @@ Document::Document(const DocumentInit& i
  #ifndef NDEBUG
    liveDocumentSet().insert(this);
  #endif
@@ -80,7 +80,7 @@
  }
  
  Document::~Document() {
-@@ -784,6 +794,14 @@ Range* Document::CreateRangeAdjustedToTr
+@@ -796,6 +806,14 @@ Range* Document::CreateRangeAdjustedToTr
                         Position::BeforeNode(*shadow_host));
  }
  
@@ -97,7 +97,7 @@
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -418,6 +418,10 @@ class CORE_EXPORT Document : public Cont
+@@ -389,6 +389,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -106,9 +106,9 @@
 +  double GetNoiseFactorY();
 +
    String visibilityState() const;
-   mojom::PageVisibilityState GetPageVisibilityState() const;
+   bool IsPageVisible() const;
    bool hidden() const;
-@@ -1776,6 +1780,9 @@ class CORE_EXPORT Document : public Cont
+@@ -1798,6 +1802,9 @@ class CORE_EXPORT Document : public Cont
  
    double start_time_;
  
@@ -169,8 +169,8 @@
  // TODO(editing-dev): We should make
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -507,6 +507,12 @@
-       name: "FirstContentfulPaintPlusPlus",
+@@ -510,6 +510,12 @@
+       settable_from_internals: true,
      },
      {
 +      name: "FingerprintingClientRectsNoise",
@@ -184,8 +184,8 @@
      },
 --- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
 +++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-@@ -614,4 +614,12 @@ void WebRuntimeFeatures::EnableGetDispla
-   RuntimeEnabledFeatures::SetGetDisplayMediaEnabled(enable);
+@@ -608,4 +608,12 @@ void WebRuntimeFeatures::EnableForbidSyn
+   RuntimeEnabledFeatures::SetForbidSyncXHRInPageDismissalEnabled(enable);
  }
  
 +void WebRuntimeFeatures::EnableFingerprintingClientRectsNoise(bool enable) {
@@ -199,10 +199,10 @@
  }  // namespace blink
 --- a/third_party/blink/public/platform/web_runtime_features.h
 +++ b/third_party/blink/public/platform/web_runtime_features.h
-@@ -221,6 +221,8 @@ class WebRuntimeFeatures {
-   BLINK_PLATFORM_EXPORT static void EnableTranslateService(bool);
+@@ -219,6 +219,8 @@ class WebRuntimeFeatures {
    BLINK_PLATFORM_EXPORT static void EnableMergeBlockingNonBlockingPools(bool);
    BLINK_PLATFORM_EXPORT static void EnableGetDisplayMedia(bool);
+   BLINK_PLATFORM_EXPORT static void EnableForbidSyncXHRInPageDismissal(bool);
 +  BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
 +  BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasMeasureTextNoise(bool);
  
@@ -210,7 +210,7 @@
    WebRuntimeFeatures();
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -1973,6 +1973,7 @@ jumbo_split_static_library("browser") {
+@@ -1989,6 +1989,7 @@ jumbo_split_static_library("browser") {
      "//third_party/metrics_proto",
      "//third_party/re2",
      "//third_party/smhasher:cityhash",
@@ -220,7 +220,7 @@
      "//third_party/widevine/cdm:buildflags",
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -188,6 +188,7 @@ jumbo_source_set("browser") {
+@@ -190,6 +190,7 @@ jumbo_source_set("browser") {
      "//third_party/libyuv",
      "//third_party/re2",
      "//third_party/sqlite",
@@ -230,7 +230,7 @@
      "//third_party/zlib",
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -217,6 +217,7 @@
+@@ -216,6 +216,7 @@
  #include "storage/browser/fileapi/sandbox_file_system_backend.h"
  #include "third_party/blink/public/common/page/launching_process_state.h"
  #include "third_party/blink/public/public_buildflags.h"
@@ -238,9 +238,9 @@
  #include "third_party/skia/include/core/SkBitmap.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/base/ui_base_switches.h"
-@@ -3033,6 +3034,8 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3135,6 +3136,8 @@ void RenderProcessHostImpl::PropagateBro
+     switches::kEnableWebGLImageChromium,
      switches::kEnableWebVR,
-     switches::kExplicitlyAllowedPorts,
      switches::kFileUrlPathAlias,
 +    switches::kFingerprintingClientRectsNoise,
 +    switches::kFingerprintingCanvasMeasureTextNoise,
@@ -259,7 +259,7 @@
      "//ui/events/blink",
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1459,6 +1459,7 @@ jumbo_component("platform") {
+@@ -1462,6 +1462,7 @@ jumbo_component("platform") {
      "//third_party/blink/public/common",
      "//third_party/ced",
      "//third_party/icu",
@@ -269,7 +269,7 @@
      "//third_party/zlib/google:compression_utils",
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
-@@ -783,8 +783,15 @@ TextMetrics* CanvasRenderingContext2D::m
+@@ -784,8 +784,15 @@ TextMetrics* CanvasRenderingContext2D::m
    else
      direction = ToTextDirection(GetState().GetDirection(), canvas());
  
@@ -290,7 +290,7 @@
 +++ b/third_party/blink/renderer/core/html/canvas/text_metrics.h
 @@ -71,6 +71,8 @@ class CORE_EXPORT TextMetrics final : pu
  
-   void Trace(blink::Visitor*) override;
+   void Trace(Visitor*) override;
  
 +  void Shuffle(const double factor);
 +
@@ -299,7 +299,7 @@
                const TextDirection&,
 --- a/third_party/blink/renderer/core/html/canvas/text_metrics.cc
 +++ b/third_party/blink/renderer/core/html/canvas/text_metrics.cc
-@@ -45,6 +45,24 @@ void TextMetrics::Trace(blink::Visitor*
+@@ -45,6 +45,24 @@ void TextMetrics::Trace(Visitor* visitor
  
  TextMetrics::TextMetrics() : baselines_(Baselines::Create()) {}
  
