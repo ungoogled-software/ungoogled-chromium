@@ -13,9 +13,7 @@
 * [Motivation and Philosophy](#motivation-and-philosophy)
 * [Feature Overview](#feature-overview)
 * [**Downloads**](#downloads)
-    * [Software Repositories](#software-repositories)
-    * [Contributor Binaries](#contributor-binaries)
-    * [Source Code](#source-code)
+* [Source Code](#source-code)
 * [**FAQ**](#faq)
 * [Building Instructions](#building-instructions)
 * [Design Documentation](#design-documentation)
@@ -93,16 +91,13 @@ Other platforms are discussed and tracked in this repository's Issue Tracker. Le
 
 ## Downloads
 
-*To download and run ungoogled-chromium:*
+[**Download binaries from here**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
 
-* Download from [Software Repositories](#software-repositories) if your system is supported.
-* Otherwise, download [Contributor Binaries](#contributor-binaries).
+*NOTE: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).*
 
-To build ungoogled-chromium, see [Source Code](#source-code).
+These binaries are known as **contributor binaries**.
 
-### Software Repositories
-
-*Install and run ungoogled-chromium from a software repository:*
+Also, ungoogled-chromium is available in several **software repositories**:
 
 * Arch Linux: [Available in AUR as `ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
     * NOTE: `ungoogled-chromium-bin` is *not* officially part of ungoogled-chromium. Please submit all issues to the maintainer of the PKGBUILD.
@@ -110,17 +105,7 @@ To build ungoogled-chromium, see [Source Code](#source-code).
 * GNU Guix: Available as `ungoogled-chromium`.
 * macOS cask: Available as `eloston-chromium`
 
-### Contributor Binaries
-
-*Download, install, and run ungoogled-chromium from machine code provided by volunteers.*
-
-[**Download from here**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
-
-**IMPORTANT**: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).
-
-To contribute binaries, [consult the instructions in the ungoogled-chromium-binaries repository](//github.com/ungoogled-software/ungoogled-chromium-binaries)
-
-### Source Code
+## Source Code
 
 This repository contains the common code for all platforms. To build ungoogled-chromium for a specific platform, [consult the repository for that plaform](docs/platforms.md).
 
