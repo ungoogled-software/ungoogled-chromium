@@ -10,7 +10,9 @@ If you want to make a custom build, you will need to develop your own build proc
 
 ## Rough example
 
-**NOTE: These are for users who want to make a custom build.** You should already be familiar with the [standard Chromium build process](https://chromium.googlesource.com/chromium/src/+/lkgr/docs/get_the_code.md), and [ungoogled-chromium's design documentation](design.md).
+**NOTE: This example is intended only for users who want to make a custom build.** If you are trying to build for a supported platform, please consult the [repository for your supported platform](platforms.md).
+
+In order to get a working build from this example, you will need to develop your own build process. **This may be a time-consuming process.** Before continuing, you should be familiar with the [standard Chromium build process](https://chromium.googlesource.com/chromium/src/+/lkgr/docs/get_the_code.md), and [ungoogled-chromium's design documentation](design.md).
 
 The following example demonstrates a typical build process. Please note that these steps alone may not be sufficient to get a working build.
 
@@ -46,7 +48,7 @@ mkdir -p build/download_cache
 mkdir -p build/src/out/Default
 cp flags.gn build/src/out/Default/args.gn
 cd build/src
-./tools/gn/bootstrap.py --skip-generate-buildfiles -j4 -o out/Default/gn
+./tools/gn/bootstrap/bootstrap.py --skip-generate-buildfiles -j4 -o out/Default/gn
 ```
 
 6. Build Chromium:
