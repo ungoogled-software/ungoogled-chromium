@@ -603,7 +603,8 @@ def _get_files_under_test(args, required_files, parser):
 def _get_series_iterable(series_path):
     """Returns an iterable of the relative patch paths in the series file"""
     with series_path.open(encoding=ENCODING) as series_file:
-        series_iter = filter(len, map(str.strip, series_file.read().splitlines()))
+        lines = [l for l in series_file.read().splitlines() if not l.startswith('#')]
+        series_iter = filter(len, map(str.strip, lines))
         return tuple(series_iter)
 
 
