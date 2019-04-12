@@ -26,7 +26,7 @@ sys.path.pop(0)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from domain_substitution import TREE_ENCODINGS
-from _common import ENCODING, get_logger, get_chromium_version
+from _common import ENCODING, get_logger, get_chromium_version, parse_series
 sys.path.pop(0)
 
 try:
@@ -600,13 +600,6 @@ def _get_files_under_test(args, required_files, parser):
     return files_under_test
 
 
-def _get_series_iterable(series_path):
-    """Returns an iterable of the relative patch paths in the series file"""
-    with series_path.open(encoding=ENCODING) as series_file:
-        series_iter = filter(len, map(str.strip, series_file.read().splitlines()))
-        return tuple(series_iter)
-
-
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -664,7 +657,7 @@ def main():
     else:
         get_logger(initial_level=logging.INFO)
 
-    series_iterable = _get_series_iterable(args.series)
+    series_iterable = tuple(parse_series(args.series))
     patch_cache = _load_all_patches(series_iterable, args.patches)
     required_files = _get_required_files(patch_cache)
     files_under_test = _get_files_under_test(args, required_files, parser)

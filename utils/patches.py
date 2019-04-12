@@ -11,7 +11,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from _common import get_logger
+from _common import get_logger, parse_series
 
 
 def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None):
@@ -56,14 +56,11 @@ def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None
 
 def generate_patches_from_series(patches_dir, resolve=False):
     """Generates pathlib.Path for patches from a directory in GNU Quilt format"""
-
-    series_path = patches_dir / 'series'
-    with series_path.open() as series_file:
-        for patch_path in map(Path, filter(len, series_file.read().splitlines())):
-            if resolve:
-                yield (patches_dir / patch_path).resolve()
-            else:
-                yield patch_path
+    for patch_path in parse_series(patches_dir / 'series'):
+        if resolve:
+            yield (patches_dir / patch_path).resolve()
+        else:
+            yield patch_path
 
 
 def _copy_files(path_iter, source, destination):

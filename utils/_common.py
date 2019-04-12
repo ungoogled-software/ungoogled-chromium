@@ -71,3 +71,20 @@ def get_running_platform():
 def get_chromium_version():
     """Returns the Chromium version."""
     return (Path(__file__).parent.parent / 'chromium_version.txt').read_text().strip()
+
+
+def parse_series(series_path):
+    """
+    Returns an iterator of paths over the series file
+
+    series_path is a pathlib.Path to the series file
+    """
+    with series_path.open(encoding=ENCODING) as series_file:
+        series_lines = series_file.read().splitlines()
+    # Filter blank lines
+    series_lines = filter(len, series_lines)
+    # Filter comment lines
+    series_lines = filter((lambda x: x.startswith('#')), series_lines)
+    # Strip in-line comments
+    series_lines = map((lambda x: x.strip().split(' #')[0]), series_lines)
+    return series_lines

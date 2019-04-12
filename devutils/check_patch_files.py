@@ -23,7 +23,7 @@ from pathlib import Path
 from third_party import unidiff
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
-from _common import ENCODING, get_logger
+from _common import ENCODING, get_logger, parse_series
 sys.path.pop(0)
 
 # File suffixes to ignore for checking unused patches
@@ -39,9 +39,7 @@ def _read_series_file(patches_dir, series_file, join_dir=False):
 
     join_dir indicates if the patches_dir should be joined with the series entries
     """
-    with (patches_dir / series_file).open(encoding=ENCODING) as file_obj:
-        series_entries = filter(len, file_obj.read().splitlines())
-    for entry in series_entries:
+    for entry in parse_series(series_file):
         if join_dir:
             yield patches_dir / entry
         else:

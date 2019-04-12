@@ -64,6 +64,8 @@ All of ungoogled-chromium's patches for the Chromium source code are located in 
 
 * All patches must reside inside `patches/`
 * There is a `patches/series` text file that defines the order to apply all the patches. These patches are listed as a relative path from the `patches` directory.
+    * Lines starting with the pound symbol (`#`) are ignored
+    * For lines with patch paths: If there is a space followed by a pound symbol, the text after the patch path will be ignored.
 
 All patch files in ungoogled-chromium must satisfy these formatting requirements:
 
