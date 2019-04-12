@@ -137,7 +137,7 @@ def unmerge_platform_patches(platform_patches_dir):
         if current_path in path_inline_comments:
             new_series[series_index] = current_path + ' #' + path_inline_comments[current_path]
         if current_path in path_comments:
-            new_series.insert(series_index + 1, '\n'.join(path_comments[current_path]) + '\n')
+            new_series.insert(series_index + 1, '\n'.join(path_comments[current_path]))
             series_index += 1
         series_index += 1
 
