@@ -84,7 +84,7 @@ def parse_series(series_path):
     # Filter blank lines
     series_lines = filter(len, series_lines)
     # Filter comment lines
-    series_lines = filter((lambda x: x.startswith('#')), series_lines)
+    series_lines = filter((lambda x: not x.startswith('#')), series_lines)
     # Strip in-line comments
     series_lines = map((lambda x: x.strip().split(' #')[0]), series_lines)
     return series_lines

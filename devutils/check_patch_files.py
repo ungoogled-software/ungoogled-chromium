@@ -39,7 +39,7 @@ def _read_series_file(patches_dir, series_file, join_dir=False):
 
     join_dir indicates if the patches_dir should be joined with the series entries
     """
-    for entry in parse_series(series_file):
+    for entry in parse_series(patches_dir / series_file):
         if join_dir:
             yield patches_dir / entry
         else:
