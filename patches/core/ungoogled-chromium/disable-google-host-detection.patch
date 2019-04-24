@@ -2,7 +2,7 @@
 
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -383,28 +383,6 @@ void GetIdentityFromURL(const GURL& url,
+@@ -392,28 +392,6 @@ void GetIdentityFromURL(const GURL& url,
  }
  
  bool HasGoogleHost(const GURL& url) {
@@ -33,109 +33,76 @@
  
 --- a/components/variations/net/variations_http_headers.cc
 +++ b/components/variations/net/variations_http_headers.cc
-@@ -27,26 +27,6 @@ namespace variations {
+@@ -29,10 +29,6 @@ namespace variations {
  
  namespace {
  
--const char* kSuffixesToSetHeadersFor[] = {
--    ".android.com",
--    ".doubleclick.com",
--    ".doubleclick.net",
--    ".ggpht.com",
--    ".googleadservices.com",
--    ".googleapis.com",
--    ".googlesyndication.com",
--    ".googleusercontent.com",
--    ".googlevideo.com",
--    ".gstatic.com",
--    ".litepages.googlezip.net",
--    ".ytimg.com",
--};
--
--// Exact hostnames in lowercase to set headers for.
--const char* kHostsToSetHeadersFor[] = {
--    "googleweblight.com",
--};
+-// The name string for the header for variations information.
+-// Note that prior to M33 this header was named X-Chrome-Variations.
+-const char kClientDataHeader[] = "X-Client-Data";
 -
  // The result of checking if a URL should have variations headers appended.
  // This enum is used to record UMA histogram values, and should not be
  // reordered.
-@@ -63,28 +43,6 @@ enum URLValidationResult {
- // Checks whether headers should be appended to the |url|, based on the domain
- // of |url|. |url| is assumed to be valid, and to have an http/https scheme.
- bool IsGoogleDomain(const GURL& url) {
--  if (google_util::IsGoogleDomainUrl(url, google_util::ALLOW_SUBDOMAIN,
--                                     google_util::ALLOW_NON_STANDARD_PORTS)) {
--    return true;
--  }
--  if (google_util::IsYoutubeDomainUrl(url, google_util::ALLOW_SUBDOMAIN,
--                                      google_util::ALLOW_NON_STANDARD_PORTS)) {
--    return true;
--  }
--
--  // Some domains don't have international TLD extensions, so testing for them
--  // is very straight forward.
--  const std::string host = url.host();
--  for (size_t i = 0; i < base::size(kSuffixesToSetHeadersFor); ++i) {
--    if (base::EndsWith(host, kSuffixesToSetHeadersFor[i],
--                       base::CompareCase::INSENSITIVE_ASCII))
--      return true;
--  }
--  for (size_t i = 0; i < base::size(kHostsToSetHeadersFor); ++i) {
--    if (base::LowerCaseEqualsASCII(host, kHostsToSetHeadersFor[i]))
--      return true;
--  }
--
-   return false;
- }
+@@ -96,33 +92,7 @@ class VariationsHeaderHelper {
+       : VariationsHeaderHelper(request, null_url_request, variations_header) {}
  
-@@ -101,37 +59,14 @@ void LogUrlValidationHistogram(URLValida
- void RemoveVariationsHeader(const net::RedirectInfo& redirect_info,
-                             const network::ResourceResponseHead& response_head,
-                             std::vector<std::string>* to_be_removed_headers) {
--  if (!ShouldAppendVariationHeaders(redirect_info.new_url))
+   bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
+-    // Note the criteria for attaching client experiment headers:
+-    // 1. We only transmit to Google owned domains which can evaluate
+-    // experiments.
+-    //    1a. These include hosts which have a standard postfix such as:
+-    //         *.doubleclick.net or *.googlesyndication.com or
+-    //         exactly www.googleadservices.com or
+-    //         international TLD domains *.google.<TLD> or *.youtube.<TLD>.
+-    // 2. Only transmit for non-Incognito profiles.
+-    // 3. For the X-Client-Data header, only include non-empty variation IDs.
+-    if ((incognito == InIncognito::kYes) || !ShouldAppendVariationsHeader(url))
+-      return false;
+-
+-    if (variations_header_.empty())
+-      return false;
+-
+-    if (resource_request_) {
+-      // Set the variations header to client_data_header rather than headers to
+-      // be exempted from CORS checks.
+-      resource_request_->client_data_header = variations_header_;
+-    } else if (url_request_) {
+-      url_request_->SetExtraRequestHeaderByName(kClientDataHeader,
+-                                                variations_header_, false);
+-    } else {
+-      NOTREACHED();
+-      return false;
+-    }
+-    return true;
++    return false;
+   }
+ 
+  private:
+@@ -188,14 +158,10 @@ void RemoveVariationsHeaderIfNeeded(
+     const net::RedirectInfo& redirect_info,
+     const network::ResourceResponseHead& response_head,
+     std::vector<std::string>* to_be_removed_headers) {
+-  if (!ShouldAppendVariationsHeader(redirect_info.new_url))
 -    to_be_removed_headers->push_back(kClientDataHeader);
  }
  
- }  // namespace
- 
--const char kClientDataHeader[] = "X-Client-Data";
--
- bool AppendVariationHeaders(const GURL& url,
-                             InIncognito incognito,
-                             SignedIn signed_in,
-                             net::HttpRequestHeaders* headers) {
--  // Note the criteria for attaching client experiment headers:
--  // 1. We only transmit to Google owned domains which can evaluate experiments.
--  //    1a. These include hosts which have a standard postfix such as:
--  //         *.doubleclick.net or *.googlesyndication.com or
--  //         exactly www.googleadservices.com or
--  //         international TLD domains *.google.<TLD> or *.youtube.<TLD>.
--  // 2. Only transmit for non-Incognito profiles.
--  // 3. For the X-Client-Data header, only include non-empty variation IDs.
--  if ((incognito == InIncognito::kYes) || !ShouldAppendVariationHeaders(url))
--    return false;
--
--  const std::string variation_ids_header =
--      VariationsHttpHeaderProvider::GetInstance()->GetClientDataHeader(
--          signed_in == SignedIn::kYes);
--  if (!variation_ids_header.empty()) {
--    // Note that prior to M33 this header was named X-Chrome-Variations.
--    headers->SetHeaderIfMissing(kClientDataHeader, variation_ids_header);
--    return true;
--  }
-   return false;
- }
- 
-@@ -145,8 +80,6 @@ bool AppendVariationHeadersUnknownSigned
- 
- void StripVariationHeaderIfNeeded(const GURL& new_location,
-                                   net::URLRequest* request) {
--  if (!ShouldAppendVariationHeaders(new_location))
+ void StripVariationsHeaderIfNeeded(const GURL& new_location,
+                                    net::URLRequest* request) {
+-  if (!ShouldAppendVariationsHeader(new_location))
 -    request->RemoveRequestHeaderByName(kClientDataHeader);
  }
  
  std::unique_ptr<network::SimpleURLLoader>
+@@ -225,7 +191,7 @@ CreateSimpleURLLoaderWithVariationsHeade
+ }
+ 
+ bool IsVariationsHeader(const std::string& header_name) {
+-  return header_name == kClientDataHeader;
++  return false;
+ }
+ 
+ bool HasVariationsHeader(const network::ResourceRequest& request) {
 --- a/chrome/browser/page_load_metrics/page_load_metrics_util.cc
 +++ b/chrome/browser/page_load_metrics/page_load_metrics_util.cc
 @@ -169,9 +169,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
@@ -151,7 +118,7 @@
  bool IsGoogleSearchResultUrl(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -504,11 +504,7 @@ base::string16 TemplateURLRef::SearchTer
+@@ -505,11 +505,7 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -288,7 +255,7 @@
  }
  
  void SetMockLinkDoctorBaseURLForTesting() {
-@@ -172,120 +68,50 @@ std::string GetGoogleLocale(const std::s
+@@ -172,162 +68,53 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -418,7 +385,49 @@
 +  return false;
  }
  
- const std::vector<std::string>& GetGoogleRegistrableDomains() {
+ bool IsGoogleAssociatedDomainUrl(const GURL& url) {
+-  if (IsGoogleDomainUrl(url, ALLOW_SUBDOMAIN, ALLOW_NON_STANDARD_PORTS))
+-    return true;
+-
+-  if (IsYoutubeDomainUrl(url, ALLOW_SUBDOMAIN, ALLOW_NON_STANDARD_PORTS))
+-    return true;
+-
+-  // Some domains don't have international TLD extensions, so testing for them
+-  // is very straightforward.
+-  static const char* kSuffixesToSetHeadersFor[] = {
+-      ".android.com",
+-      ".doubleclick.com",
+-      ".doubleclick.net",
+-      ".ggpht.com",
+-      ".googleadservices.com",
+-      ".googleapis.com",
+-      ".googlesyndication.com",
+-      ".googleusercontent.com",
+-      ".googlevideo.com",
+-      ".gstatic.com",
+-      ".litepages.googlezip.net",
+-      ".ytimg.com",
+-  };
+-  const std::string host = url.host();
+-  for (size_t i = 0; i < base::size(kSuffixesToSetHeadersFor); ++i) {
+-    if (base::EndsWith(host, kSuffixesToSetHeadersFor[i],
+-                       base::CompareCase::INSENSITIVE_ASCII)) {
+-      return true;
+-    }
+-  }
+-
+-  // Exact hostnames in lowercase to set headers for.
+-  static const char* kHostsToSetHeadersFor[] = {
+-      "googleweblight.com",
+-  };
+-  for (size_t i = 0; i < base::size(kHostsToSetHeadersFor); ++i) {
+-    if (base::LowerCaseEqualsASCII(host, kHostsToSetHeadersFor[i]))
+-      return true;
+-  }
+-
+   return false;
+ }
+ 
 --- a/chrome/common/page_load_metrics/page_load_metrics_util.cc
 +++ b/chrome/common/page_load_metrics/page_load_metrics_util.cc
 @@ -12,38 +12,7 @@
@@ -478,11 +487,11 @@
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
--  if (!is_off_the_record_ &&
--      variations::ShouldAppendVariationHeaders(request->url) &&
--      !dynamic_params_.variation_ids_header.empty()) {
--    request->client_data_header = dynamic_params_.variation_ids_header;
--  }
+-  variations::AppendVariationsHeaderWithCustomValue(
+-      request->url,
+-      is_off_the_record_ ? variations::InIncognito::kYes
+-                         : variations::InIncognito::kNo,
+-      dynamic_params_.variation_ids_header, request);
 -
 -  if (dynamic_params_.force_safe_search) {
 -    GURL new_url;
@@ -515,8 +524,8 @@
      bool* /* defer */,
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers) {
--  if (!variations::ShouldAppendVariationHeaders(redirect_info->new_url))
--    to_be_removed_headers->push_back(variations::kClientDataHeader);
+-  variations::RemoveVariationsHeaderIfNeeded(*redirect_info, response_head,
+-                                             to_be_removed_headers);
 -
 -  // URLLoaderThrottles can only change the redirect URL when the network
 -  // service is enabled. The non-network service path handles this in
@@ -563,14 +572,3 @@
 -  }
  }
  #endif
---- a/chrome/renderer/chrome_content_renderer_client.cc
-+++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -1547,7 +1547,7 @@ void ChromeContentRendererClient::WillDe
- 
- bool ChromeContentRendererClient::IsExcludedHeaderForServiceWorkerFetchEvent(
-     const std::string& header_name) {
--  return header_name == variations::kClientDataHeader;
-+  return false;
- }
- 
- // If we're in an extension, there is no need disabling multiple routes as
