@@ -19,6 +19,7 @@
 * [Design Documentation](#design-documentation)
 * [**Contributing, Reporting, Contacting**](#contributing-reporting-contacting)
 * [Credits](#credits)
+* [Related Projects](#related-projects)
 * [License](#license)
 
 ## Motivation and Philosophy
@@ -141,6 +142,13 @@ This repository contains the common code for all platforms. To build ungoogled-c
 * [Bromite](//github.com/bromite/bromite)
 * [Iridium Browser](//iridiumbrowser.de/)
 * The users for testing and debugging, [contributing code](//github.com/Eloston/ungoogled-chromium/graphs/contributors), providing feedback, or simply using ungoogled-chromium in some capacity.
+
+## Related Projects
+
+List of known projects that fork or use changes from ungoogled-chromium:
+
+* [Bromite](//github.com/bromite/bromite) (Borrows some patches. Features builds for Android)
+* [ppc64le fork](//github.com/leo-lb/ungoogled-chromium) (Fork with changes to build for ppc64le CPUs)
 
 ## License
 
