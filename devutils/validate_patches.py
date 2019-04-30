@@ -557,14 +557,23 @@ def _test_patches(series_iter, patch_cache, files_under_test):
 
 
 def _load_all_patches(series_iter, patches_dir):
-    """Returns a dict of relative UNIX path strings to unidiff.PatchSet"""
+    """
+    Returns a tuple of the following:
+    - boolean indicating success or failure of reading files
+    - dict of relative UNIX path strings to unidiff.PatchSet
+    """
+    had_failure = False
     unidiff_dict = dict()
     for relative_path in series_iter:
         if relative_path in unidiff_dict:
             continue
         unidiff_dict[relative_path] = unidiff.PatchSet.from_filename(
             str(patches_dir / relative_path), encoding=ENCODING)
-    return unidiff_dict
+        if not (patches_dir / relative_path).read_text(encoding=ENCODING).endswith('\n'):
+            had_failure = True
+            get_logger().warning('Patch file does not end with newline: %s',
+                                 str(patches_dir / relative_path))
+    return had_failure, unidiff_dict
 
 
 def _get_required_files(patch_cache):
@@ -658,10 +667,10 @@ def main():
         get_logger(initial_level=logging.INFO)
 
     series_iterable = tuple(parse_series(args.series))
-    patch_cache = _load_all_patches(series_iterable, args.patches)
+    had_failure, patch_cache = _load_all_patches(series_iterable, args.patches)
     required_files = _get_required_files(patch_cache)
     files_under_test = _get_files_under_test(args, required_files, parser)
-    had_failure = _test_patches(series_iterable, patch_cache, files_under_test)
+    had_failure |= _test_patches(series_iterable, patch_cache, files_under_test)
     if had_failure:
         get_logger().error('***FAILED VALIDATION; SEE ABOVE***')
         if not args.verbose:
