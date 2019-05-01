@@ -61,16 +61,16 @@ The resulting source tree in `build/src` *will not* have binaries pruned or doma
     * This will setup quilt to modify patches directly in `patches/`
 2. Go into the source tree: `cd build/src`
 3. Use `quilt` to refresh all patches: `while quilt push; do quilt refresh; done`
-	* If an error occurs, go to the next step. Otherwise, skip to Step 4.
+	* If an error occurs, go to the next step. Otherwise, skip to Step 5.
 4. Use `quilt` to fix the broken patch:
     1. Run `quilt push -f`
     2. Edit the broken files as necessary by adding (`quilt edit ...` or `quilt add ...`) or removing (`quilt remove ...`) files as necessary
         * When removing large chunks of code, remove each line instead of using language features to hide or remove the code. This makes the patches less susceptible to breakages when using quilt's refresh command (e.g. quilt refresh updates the line numbers based on the patch context, so it's possible for new but desirable code in the middle of the block comment to be excluded.). It also helps with readability when someone wants to see the changes made based on the patch alone.
     3. Refresh the patch: `quilt refresh`
-    4. Go back to Step 2.
+    4. Go back to Step 3.
 5. Run `devutils/validate_config.py`
 6. Run `quilt pop -a`
-7. Run `devutils/validate_patches.py -l build/src`. If errors occur, go back to Step 2.
+7. Run `devutils/validate_patches.py -l build/src`. If errors occur, go back to Step 3.
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 
