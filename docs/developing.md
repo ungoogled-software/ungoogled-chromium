@@ -70,7 +70,8 @@ The resulting source tree in `build/src` *will not* have binaries pruned or doma
     4. Go back to Step 3.
 5. Run `devutils/validate_config.py`
 6. Run `quilt pop -a`
-7. Run `devutils/validate_patches.py -l build/src`. If errors occur, go back to Step 3.
+7. Go back to ungoogled-chromium repo: `cd ../..`
+8. Run `devutils/validate_patches.py -l build/src`. If errors occur, go back to Step 3.
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
 

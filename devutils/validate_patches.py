@@ -617,14 +617,14 @@ def main():
         '--series',
         type=Path,
         metavar='FILE',
-        default=str(_ROOT_DIR / 'patches' / 'series'),
+        default=str(Path('patches', 'series')),
         help='The series file listing patches to apply. Default: %(default)s')
     parser.add_argument(
         '-p',
         '--patches',
         type=Path,
         metavar='DIRECTORY',
-        default=str(_ROOT_DIR / 'patches'),
+        default='patches',
         help='The patches directory to read from. Default: %(default)s')
     parser.add_argument(
         '-v', '--verbose', action='store_true', help='Log more information to stdout/stderr')
