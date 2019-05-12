@@ -62,7 +62,6 @@ Contents of this section:
 
 * Use HTTPS by default when a URL scheme is not provided (e.g. Omnibox, bookmarks, command-line)
 * Add *Suggestions URL* text field in the search engine editor (`chrome://settings/searchEngines`) for customizing search engine suggestions.
-* Add menu item under "More tools" to clear the HTTP authentication cache on-demand
 * Add more URL schemes allowed to save page schemes.
 * Add Omnibox search provider "No Search" to allow disabling of searching
 * Add a custom cross-platform build configuration and packaging wrapper for Chromium. It currently supports many Linux distributions, macOS, and Windows. (See [docs/design.md](docs/design.md) for details on the system.)
