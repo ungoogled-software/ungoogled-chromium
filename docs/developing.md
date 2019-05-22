@@ -48,7 +48,7 @@ mkdir -p build/download_cache
 The utility `devutils/update_lists.py` automates this process. By default, it will update the files in the local repo. Pass in `-h` or `--help` for available options.
 
 ```sh
-./devutils/update_lists.py -c build/download_cache -t build/src
+./devutils/update_lists.py -t build/src
 ```
 
 The resulting source tree in `build/src` *will not* have binaries pruned or domains substituted.
