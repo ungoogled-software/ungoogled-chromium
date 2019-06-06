@@ -45,7 +45,7 @@ PRUNING_EXCLUDE_PATTERNS = [
     'components/dom_distiller/core/data/long_page_model.bin',
     # Exclusions for GeoLanguage data
     # Details: https://docs.google.com/document/d/18WqVHz5F9vaUiE32E8Ge6QHmku2QSJKvlqB9JjnIM-g/edit
-    # Introduced with: https://chromium.googlesource.com/chromium/src/+/6647da61ef03f4faec45a31e8ef6d6e4968d87bd
+    # Introduced with: https://chromium.googlesource.com/chromium/src/+/6647da61
     'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank0.bin',
     'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank1.bin',
     'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank2.bin',
