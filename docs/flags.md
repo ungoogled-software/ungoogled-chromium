@@ -1,6 +1,8 @@
 # List of flags and switches
 
-This is an exhaustive list of command-line switches and `chrome://flags` introduced by ungoogled-chromium:
+This is an exhaustive list of command-line switches and `chrome://flags` introduced by ungoogled-chromium
+
+**NOTE**: If you add a command-line argument that is also in `chrome://flags`, the flag's state will not be indicated in `chrome://flags`. There is no universal way to ensure command-line flags are taking effect, but you can find if they're being seen by checking `chrome://version`.
 
 * `--disable-beforeunload` (Not in `chrome://flags`) - Disables JavaScript dialog boxes triggered by `beforeunload`
 * `--disable-encryption` (Windows only, not in `chrome://flags`) - Disable encryption of cookies, passwords, and settings which uses a generated machine-specific encryption key. This is used to enable portable user data directories.
