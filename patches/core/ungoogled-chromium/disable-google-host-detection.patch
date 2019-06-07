@@ -44,7 +44,7 @@
  // The result of checking if a URL should have variations headers appended.
  // This enum is used to record UMA histogram values, and should not be
  // reordered.
-@@ -96,33 +92,7 @@ class VariationsHeaderHelper {
+@@ -96,34 +92,7 @@ class VariationsHeaderHelper {
        : VariationsHeaderHelper(request, null_url_request, variations_header) {}
  
    bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
@@ -64,9 +64,10 @@
 -      return false;
 -
 -    if (resource_request_) {
--      // Set the variations header to client_data_header rather than headers to
--      // be exempted from CORS checks.
--      resource_request_->client_data_header = variations_header_;
+-      // Set the variations header to cors_exempt_headers rather than headers
+-      // to be exempted from CORS checks.
+-      resource_request_->cors_exempt_headers.SetHeaderIfMissing(
+-          kClientDataHeader, variations_header_);
 -    } else if (url_request_) {
 -      url_request_->SetExtraRequestHeaderByName(kClientDataHeader,
 -                                                variations_header_, false);
@@ -79,7 +80,7 @@
    }
  
   private:
-@@ -188,14 +158,10 @@ void RemoveVariationsHeaderIfNeeded(
+@@ -189,14 +158,10 @@ void RemoveVariationsHeaderIfNeeded(
      const net::RedirectInfo& redirect_info,
      const network::ResourceResponseHead& response_head,
      std::vector<std::string>* to_be_removed_headers) {
@@ -94,7 +95,7 @@
  }
  
  std::unique_ptr<network::SimpleURLLoader>
-@@ -225,7 +191,7 @@ CreateSimpleURLLoaderWithVariationsHeade
+@@ -226,11 +191,11 @@ CreateSimpleURLLoaderWithVariationsHeade
  }
  
  bool IsVariationsHeader(const std::string& header_name) {
@@ -103,6 +104,19 @@
  }
  
  bool HasVariationsHeader(const network::ResourceRequest& request) {
+-  return request.cors_exempt_headers.HasHeader(kClientDataHeader);
++  return false;
+ }
+ 
+ bool ShouldAppendVariationsHeaderForTesting(const GURL& url) {
+@@ -239,7 +204,6 @@ bool ShouldAppendVariationsHeaderForTest
+ 
+ void UpdateCorsExemptHeaderForVariations(
+     network::mojom::NetworkContextParams* params) {
+-  params->cors_exempt_header_list.push_back(kClientDataHeader);
+ }
+ 
+ }  // namespace variations
 --- a/chrome/browser/page_load_metrics/page_load_metrics_util.cc
 +++ b/chrome/browser/page_load_metrics/page_load_metrics_util.cc
 @@ -169,9 +169,7 @@ bool DidObserveLoadingBehaviorInAnyFrame

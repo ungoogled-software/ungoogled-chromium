@@ -43,6 +43,12 @@ PRUNING_EXCLUDE_PATTERNS = [
     # Exclusions for DOM distiller (contains model data only)
     'components/dom_distiller/core/data/distillable_page_model_new.bin',
     'components/dom_distiller/core/data/long_page_model.bin',
+    # Exclusions for GeoLanguage data
+    # Details: https://docs.google.com/document/d/18WqVHz5F9vaUiE32E8Ge6QHmku2QSJKvlqB9JjnIM-g/edit
+    # Introduced with: https://chromium.googlesource.com/chromium/src/+/6647da61
+    'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank0.bin',
+    'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank1.bin',
+    'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank2.bin',
     'third_party/icu/common/icudtl.dat', # Exclusion for ICU data
     # Exclusions for safe file extensions
     '*.ttf',
