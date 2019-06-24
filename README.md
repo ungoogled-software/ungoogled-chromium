@@ -107,12 +107,16 @@ Also, ungoogled-chromium is available in several **software repositories**:
 
 ## Source Code
 
-This repository contains the common code for all platforms. To build ungoogled-chromium for a specific platform, [consult the repository for that plaform](docs/platforms.md).
+This repository only contains the common code for all platforms; it does not contain all the configuration and scripts necessary to build ungoogled-chromium. Most users will want to use platform-specific repos, where all the remaining configuration and scripts are provided for specific platforms:
 
-[Tags (listed here)](//github.com/Eloston/ungoogled-chromium/tags) denote versions ready to be used. Tags follow the format `{chromium_version}-{revision}` where
+[**Find the repo for a specific platform here**](docs/platforms.md).
+
+If you wish to include ungoogled-chromium code in your own build process, consider using [the tags in this repo](//github.com/Eloston/ungoogled-chromium/tags). These tags follow the format `{chromium_version}-{revision}` where
 
 * `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
 * `revision` is a number indicating the version of ungoogled-chromium for the corresponding Chromium version.
+
+Additionally, most platform-specific repos extend their tag scheme upon this one.
 
 **Building the source code**: [See docs/building.md](docs/building.md)
 
