@@ -1,7 +1,5 @@
 # Building ungoogled-chromium
 
-**NOTICE (2019-03-22): Not all platforms are updated yet. If your platform is not updated yet, please use the instructions and code in tag 72.0.3626.122-2**
-
 The recommended way to build ungoogled-chromium is by consulting [the repository for your supported platform (links here)](platforms.md).
 
 * *Linux users*: If your distribution is not listed, you will need to use Portable Linux.
@@ -57,3 +55,13 @@ cd build/src
 ./out/Default/gn gen out/Default --fail-on-unused-args
 ninja -C out/Default chrome chromedriver chrome_sandbox
 ```
+
+## Building FAQ
+
+### My build keeps crashing because I run out of RAM! How can I fix it?
+
+Here are several ways to address this, in decreasing order of preference:
+
+1. Set the GN flag `jumbo_file_merge_limit` to a lower value. At the time of writing, Debian uses `8` (the default varies, but it can be a higher value like `50`)
+2. Decrease the number of parallel threads to Ninja (the `-j` flag)
+3. Add swap space
