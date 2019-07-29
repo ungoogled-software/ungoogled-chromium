@@ -120,6 +120,12 @@ Additionally, most platform-specific repos extend their tag scheme upon this one
 
 **Building the source code**: [See docs/building.md](docs/building.md)
 
+### Mirrors
+
+List of mirrors:
+
+* [Codeberg](https://codeberg.org): [main repo](https://codeberg.org/Eloston/ungoogled-chromium) and [ungoogled-software](https://codeberg.org/ungoogled-software)
+
 ## FAQ
 
 [See the frequently-asked questions (FAQ) on the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
