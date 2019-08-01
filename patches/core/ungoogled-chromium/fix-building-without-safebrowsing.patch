@@ -72,3 +72,54 @@
    message_body_label->SetMultiLine(true);
    message_body_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
    message_body_label->SetHandlesTooltips(false);
+--- a/chrome/browser/password_manager/chrome_password_manager_client.cc
++++ b/chrome/browser/password_manager/chrome_password_manager_client.cc
+@@ -88,9 +88,9 @@
+ #if defined(FULL_SAFE_BROWSING)
+ #include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
+ #include "chrome/browser/safe_browsing/chrome_password_protection_service.h"
++#endif
+ #include "ui/base/clipboard/clipboard.h"
+ #include "ui/events/keycodes/keyboard_codes.h"
+-#endif
+ 
+ #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+ #include "services/service_manager/public/cpp/connector.h"
+@@ -466,7 +466,7 @@ bool ChromePasswordManagerClient::IsIsol
+   return SiteIsolationPolicy::IsIsolationForPasswordSitesEnabled();
+ }
+ 
+-#if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
++#if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED) && defined(FULL_SAFE_BROWSING)
+ void ChromePasswordManagerClient::CheckSafeBrowsingReputation(
+     const GURL& form_action,
+     const GURL& frame_url) {
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -2271,7 +2271,6 @@ void BrowserView::OnWindowBeginUserBound
+ void BrowserView::OnWindowEndUserBoundsChange() {
+   if (!interactive_resize_)
+     return;
+-  safe_browsing::LogContentsSize(GetContentsSize());
+   auto now = base::TimeTicks::Now();
+   DCHECK(!interactive_resize_->begin_timestamp.is_null());
+   UMA_HISTOGRAM_TIMES("BrowserWindow.Resize.Duration",
+--- a/chrome/browser/ui/views/frame/browser_window_factory.cc
++++ b/chrome/browser/ui/views/frame/browser_window_factory.cc
+@@ -33,6 +33,5 @@ BrowserWindow* BrowserWindow::CreateBrow
+   view->GetWidget()->GetNativeWindow()->SetProperty(
+       aura::client::kCreatedByUserGesture, user_gesture);
+ #endif
+-  safe_browsing::LogContentsSize(view->GetContentsSize());
+   return view;
+ }
+--- a/components/safe_browsing/common/safe_browsing.mojom
++++ b/components/safe_browsing/common/safe_browsing.mojom
+@@ -104,7 +104,6 @@ interface ThreatReporter {
+   GetThreatDOMDetails() => (array<ThreatDOMDetailsNode> nodes);
+ };
+ 
+-[EnableIf=full_safe_browsing]
+ interface PhishingDetector {
+   // Tells the renderer to begin phishing detection for the given toplevel URL
+   // which it has started loading. Returns the serialized request proto. If
