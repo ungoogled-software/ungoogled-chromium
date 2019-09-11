@@ -2,7 +2,7 @@
 
 --- a/components/gcm_driver/gcm_client_impl.cc
 +++ b/components/gcm_driver/gcm_client_impl.cc
-@@ -495,6 +495,7 @@ void GCMClientImpl::StartGCM() {
+@@ -466,6 +466,7 @@ void GCMClientImpl::StartGCM() {
  
  void GCMClientImpl::InitializeMCSClient() {
    DCHECK(network_connection_tracker_);
@@ -10,19 +10,56 @@
    std::vector<GURL> endpoints;
    endpoints.push_back(gservices_settings_.GetMCSMainEndpoint());
    GURL fallback_endpoint = gservices_settings_.GetMCSFallbackEndpoint();
-@@ -684,6 +685,7 @@ void GCMClientImpl::RemoveHeartbeatInter
- }
+@@ -666,27 +667,6 @@ void GCMClientImpl::RemoveHeartbeatInter
  
  void GCMClientImpl::StartCheckin() {
-+  return;
-   // Make sure no checkin is in progress.
-   if (checkin_request_)
-     return;
-@@ -759,6 +761,7 @@ void GCMClientImpl::SetGServicesSettings
+   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+-
+-  // Make sure no checkin is in progress.
+-  if (checkin_request_)
+-    return;
+-
+-  checkin_proto::ChromeBuildProto chrome_build_proto;
+-  ToCheckinProtoVersion(chrome_build_info_, &chrome_build_proto);
+-  CheckinRequest::RequestInfo request_info(device_checkin_info_.android_id,
+-                                           device_checkin_info_.secret,
+-                                           device_checkin_info_.account_tokens,
+-                                           gservices_settings_.digest(),
+-                                           chrome_build_proto);
+-  checkin_request_.reset(new CheckinRequest(
+-      gservices_settings_.GetCheckinURL(), request_info, GetGCMBackoffPolicy(),
+-      base::Bind(&GCMClientImpl::OnCheckinCompleted,
+-                 weak_ptr_factory_.GetWeakPtr()),
+-      url_loader_factory_, io_task_runner_, &recorder_));
+-  // Taking a snapshot of the accounts count here, as there might be an asynch
+-  // update of the account tokens while checkin is in progress.
+-  device_checkin_info_.SnapshotCheckinAccounts();
+-  checkin_request_->Start();
  }
  
+ void GCMClientImpl::OnCheckinCompleted(
+@@ -745,24 +725,6 @@ void GCMClientImpl::SetGServicesSettings
+ 
  void GCMClientImpl::SchedulePeriodicCheckin() {
-+  return;
-   // Make sure no checkin is in progress.
-   if (checkin_request_.get() || !device_checkin_info_.accounts_set)
-     return;
+   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+-
+-  // Make sure no checkin is in progress.
+-  if (checkin_request_.get() || !device_checkin_info_.accounts_set)
+-    return;
+-
+-  // There should be only one periodic checkin pending at a time. Removing
+-  // pending periodic checkin to schedule a new one.
+-  periodic_checkin_ptr_factory_.InvalidateWeakPtrs();
+-
+-  base::TimeDelta time_to_next_checkin = GetTimeToNextCheckin();
+-  if (time_to_next_checkin < base::TimeDelta())
+-    time_to_next_checkin = base::TimeDelta();
+-
+-  io_task_runner_->PostDelayedTask(
+-      FROM_HERE,
+-      base::BindOnce(&GCMClientImpl::StartCheckin,
+-                     periodic_checkin_ptr_factory_.GetWeakPtr()),
+-      time_to_next_checkin);
+ }
+ 
+ base::TimeDelta GCMClientImpl::GetTimeToNextCheckin() const {

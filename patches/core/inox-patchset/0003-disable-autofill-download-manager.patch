@@ -1,6 +1,6 @@
 --- a/components/autofill/core/browser/autofill_download_manager.cc
 +++ b/components/autofill/core/browser/autofill_download_manager.cc
-@@ -702,70 +702,6 @@ AutofillDownloadManager::GetRequestURLAn
+@@ -736,87 +736,6 @@ AutofillDownloadManager::GetRequestURLAn
  }
  
  bool AutofillDownloadManager::StartRequest(FormRequestData request_data) {
@@ -14,6 +14,14 @@
 -  std::tie(request_url, method) =
 -      UseApi() ? GetRequestURLAndMethodForApi(request_data)
 -               : GetRequestURLAndMethod(request_data);
+-
+-  // Track the URL length for GET queries because the URL length can be in the
+-  // thousands when rich metadata is enabled.
+-  if (request_data.request_type == AutofillDownloadManager::REQUEST_QUERY &&
+-      method == "GET") {
+-    UMA_HISTOGRAM_COUNTS_100000("Autofill.Query.GetUrlLength",
+-                                request_url.spec().length());
+-  }
 -
 -  auto resource_request = std::make_unique<network::ResourceRequest>();
 -  resource_request->url = request_url;
@@ -53,8 +61,17 @@
 -  if (method == "POST") {
 -    const std::string content_type =
 -        UseApi() ? "application/x-protobuf" : "text/proto";
+-    std::string payload;
+-    if (UseApi()) {
+-      if (!GetAPIBodyPayload(request_data.payload, request_data.request_type,
+-                             &payload)) {
+-        return false;
+-      }
+-    } else {
+-      payload = request_data.payload;
+-    }
 -    // Attach payload data and add data format header.
--    simple_loader->AttachStringForUpload(request_data.payload, content_type);
+-    simple_loader->AttachStringForUpload(payload, content_type);
 -  }
 -
 -  // Transfer ownership of the loader into url_loaders_. Temporarily hang
