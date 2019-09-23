@@ -105,7 +105,7 @@ Also, ungoogled-chromium is available in several **software repositories**:
   * [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay maintains an *unofficial*  [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
   * [`::chaoslab`](https://gitlab.com/chaoslab/chaoslab-overlay) overlay maintains an *unofficial*  [`ungoogled-chromium`](https://gitlab.com/chaoslab/chaoslab-overlay/tree/master/www-client/ungoogled-chromium) ebuild (stalled)
 * GNU Guix: Available as `ungoogled-chromium`.
-* macOS cask: Available as `eloston-chromium`
+* macOS cask: Available as `eloston-chromium`. Install (via [Homebrew](https://brew.sh/)) by running: `brew cask fetch eloston-chromium` and then `brew cask install eloston-chromium`
 
 ## Source Code
 
