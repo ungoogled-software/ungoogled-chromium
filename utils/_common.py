@@ -34,7 +34,7 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
 # Public methods
 
 
-def get_logger(initial_level=logging.DEBUG):
+def get_logger(initial_level=logging.INFO):
     """Gets the named logger"""
 
     logger = logging.getLogger('ungoogled')
