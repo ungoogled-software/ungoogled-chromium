@@ -16,7 +16,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
-from _common import ENCODING, SEVENZIP_USE_REGISTRY, ExtractorEnum, get_logger, get_chromium_version
+from _common import ENCODING, SEVENZIP_USE_REGISTRY, ExtractorEnum, get_logger, \
+    set_logging_level, get_chromium_version, add_common_params
 from _extraction import extract_tar_file, extract_with_7z
 
 sys.path.insert(0, str(Path(__file__).parent / 'third_party'))
@@ -326,6 +327,7 @@ def _add_common_args(parser):
 
 
 def _retrieve_callback(args):
+    set_logging_level(verbose=args.verbose, quiet=args.quiet)
     retrieve_downloads(
         DownloadInfo(args.ini), args.cache, args.show_progress, args.disable_ssl_verification)
     try:
@@ -336,6 +338,7 @@ def _retrieve_callback(args):
 
 
 def _unpack_callback(args):
+    set_logging_level(verbose=args.verbose, quiet=args.quiet)
     extractors = {
         ExtractorEnum.SEVENZIP: args.sevenz_path,
         ExtractorEnum.TAR: args.tar_path,
@@ -346,6 +349,7 @@ def _unpack_callback(args):
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser()
+    add_common_params(parser)
     subparsers = parser.add_subparsers(title='Download actions', dest='action')
 
     # retrieve

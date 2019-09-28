@@ -13,7 +13,7 @@ import platform
 import sys
 from pathlib import Path
 
-from _common import get_logger
+from _common import get_logger, set_logging_level, add_common_params
 
 
 def filescfg_generator(cfg_path, build_outputs, cpu_arch):
@@ -114,6 +114,7 @@ def _files_generator_by_args(args):
 
 def _list_callback(args):
     """List files needed to run Chromium."""
+    set_logging_level(verbose=args.verbose, quiet=args.quiet)
     sys.stdout.writelines('%s\n' % x for x in _files_generator_by_args(args))
 
 
@@ -152,6 +153,7 @@ def main():
         help=('Filter build outputs by a target CPU. '
               'This is the same as the "arch" key in FILES.cfg. '
               'Default (from platform.architecture()): %(default)s'))
+    add_common_params(parser)
 
     subparsers = parser.add_subparsers(title='filescfg actions')
 

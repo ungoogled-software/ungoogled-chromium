@@ -34,23 +34,37 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
 # Public methods
 
 
-def get_logger(initial_level=logging.INFO):
+def get_logger():
     """Gets the named logger"""
 
     logger = logging.getLogger('ungoogled')
 
     if logger.level == logging.NOTSET:
-        logger.setLevel(initial_level)
 
         if not logger.hasHandlers():
             console_handler = logging.StreamHandler()
-            console_handler.setLevel(initial_level)
 
             format_string = '%(levelname)s: %(message)s'
             formatter = logging.Formatter(format_string)
             console_handler.setFormatter(formatter)
 
             logger.addHandler(console_handler)
+    return logger
+
+
+def set_logging_level(verbose=False, quiet=False):
+    """Sets logging level of logger and all its handlers"""
+
+    default_level = logging.INFO
+    logging_level = default_level + 10 * (quiet - verbose)
+
+    logger = get_logger()
+    logger.setLevel(logging_level)
+
+    if logger.hasHandlers():
+        for hdlr in logger.handlers:
+            hdlr.setLevel(logging_level)
+
     return logger
 
 
@@ -88,3 +102,16 @@ def parse_series(series_path):
     # Strip in-line comments
     series_lines = map((lambda x: x.strip().split(' #')[0]), series_lines)
     return series_lines
+
+
+def add_common_params(parser):
+    parser.add_argument(
+        '--quiet',
+        '-q',
+        action='store_true',
+        help='Display less outputs to console.')
+    parser.add_argument(
+        '--verbose',
+        '-v',
+        action='store_true',
+        help='Increase logging verbosity to include DEBUG messages.')
