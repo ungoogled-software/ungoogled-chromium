@@ -106,10 +106,7 @@ def parse_series(series_path):
 
 def add_common_params(parser):
     parser.add_argument(
-        '--quiet',
-        '-q',
-        action='store_true',
-        help='Display less outputs to console.')
+        '--quiet', '-q', action='store_true', help='Display less outputs to console.')
     parser.add_argument(
         '--verbose',
         '-v',
