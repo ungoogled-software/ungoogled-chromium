@@ -7,7 +7,6 @@
 """Prune binaries from the source tree"""
 
 import argparse
-import logging
 from pathlib import Path
 
 from _common import ENCODING, get_logger, set_logging_level, add_common_params

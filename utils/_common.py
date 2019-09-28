@@ -105,6 +105,9 @@ def parse_series(series_path):
 
 
 def add_common_params(parser):
+    """
+    Adds common command line arguments to a parser.
+    """
     parser.add_argument(
         '--quiet', '-q', action='store_true', help='Display less outputs to console.')
     parser.add_argument(

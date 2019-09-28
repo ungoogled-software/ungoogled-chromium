@@ -7,7 +7,6 @@
 """Applies unified diff patches"""
 
 import argparse
-import logging
 import shutil
 import subprocess
 from pathlib import Path
