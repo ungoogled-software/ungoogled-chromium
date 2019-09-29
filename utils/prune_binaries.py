@@ -9,7 +9,7 @@
 import argparse
 from pathlib import Path
 
-from _common import ENCODING, get_logger, set_logging_level, add_common_params
+from _common import ENCODING, get_logger, add_common_params
 
 
 def prune_dir(unpack_root, prune_files):
@@ -30,7 +30,6 @@ def prune_dir(unpack_root, prune_files):
 
 
 def _callback(args):
-    set_logging_level(verbose=args.verbose, quiet=args.quiet)
     if not args.directory.exists():
         get_logger().error('Specified directory does not exist: %s', args.directory)
         exit(1)

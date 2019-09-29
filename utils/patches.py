@@ -11,7 +11,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from _common import get_logger, set_logging_level, parse_series, add_common_params
+from _common import get_logger, parse_series, add_common_params
 
 
 def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None):
@@ -105,7 +105,6 @@ def merge_patches(source_iter, destination, prepend=False):
 
 def _apply_callback(args):
     logger = get_logger()
-    set_logging_level(verbose=args.verbose, quiet=args.quiet)
     for patch_dir in args.patches:
         logger.info('Applying patches from %s', patch_dir)
         apply_patches(

@@ -4,7 +4,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Common code and constants"""
-
+import argparse
 import enum
 import logging
 import platform
@@ -31,18 +31,34 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
     TAR = 'tar'
 
 
+class SetLogLevel(argparse.Action): #pylint: disable=too-few-public-methods
+    """Sets logging level based on command line arguments it receives"""
+
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        super(SetLogLevel, self).__init__(option_strings, dest, nargs=nargs, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_string=None):
+        if option_string in ('--verbose', '-v'):
+            value = 'DEBUG'
+        elif option_string in ('--quiet', '-q'):
+            value = 'ERROR'
+        set_logging_level(value)
+
+
 # Public methods
 
 
-def get_logger():
+def get_logger(initial_level=logging.INFO):
     """Gets the named logger"""
 
     logger = logging.getLogger('ungoogled')
 
     if logger.level == logging.NOTSET:
+        logger.setLevel(initial_level)
 
         if not logger.hasHandlers():
             console_handler = logging.StreamHandler()
+            console_handler.setLevel(initial_level)
 
             format_string = '%(levelname)s: %(message)s'
             formatter = logging.Formatter(format_string)
@@ -52,11 +68,17 @@ def get_logger():
     return logger
 
 
-def set_logging_level(verbose=False, quiet=False):
+def set_logging_level(logging_level):
     """Sets logging level of logger and all its handlers"""
 
-    default_level = logging.INFO
-    logging_level = default_level + 10 * (quiet - verbose)
+    levels = {
+        'FATAL': logging.FATAL,
+        'ERROR': logging.ERROR,
+        'WARNING': logging.WARNING,
+        'INFO': logging.INFO,
+        'DEBUG': logging.DEBUG
+    }
+    logging_level = levels.get(logging_level, 'INFO')
 
     logger = get_logger()
     logger.setLevel(logging_level)
@@ -108,10 +130,26 @@ def add_common_params(parser):
     """
     Adds common command line arguments to a parser.
     """
-    parser.add_argument(
-        '--quiet', '-q', action='store_true', help='Display less outputs to console.')
-    parser.add_argument(
+
+    # Logging levels
+    logging_group = parser.add_mutually_exclusive_group()
+    logging_group.add_argument(
+        '--log-level',
+        action=SetLogLevel,
+        choices=['FATAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'],
+        help="Set logging level of current script. Only one of 'log-level', 'verbose',"
+        " 'quiet' can be set at a time.")
+    logging_group.add_argument(
+        '--quiet',
+        '-q',
+        action=SetLogLevel,
+        nargs=0,
+        help="Display less outputs to console. Only one of 'log-level', 'verbose',"
+        " 'quiet' can be set at a time.")
+    logging_group.add_argument(
         '--verbose',
         '-v',
-        action='store_true',
-        help='Increase logging verbosity to include DEBUG messages.')
+        action=SetLogLevel,
+        nargs=0,
+        help="Increase logging verbosity to include DEBUG messages. Only one of "
+        "'log-level', 'verbose', 'quiet' can be set at a time.")

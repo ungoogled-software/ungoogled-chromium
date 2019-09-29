@@ -18,7 +18,7 @@ import zlib
 from pathlib import Path
 
 from _extraction import extract_tar_file
-from _common import ENCODING, get_logger, set_logging_level, add_common_params
+from _common import ENCODING, get_logger, add_common_params
 
 # Encodings to try on source tree files
 TREE_ENCODINGS = ('UTF-8', 'ISO-8859-1')
@@ -278,7 +278,6 @@ def revert_substitution(domainsub_cache, source_tree):
 
 def _callback(args):
     """CLI Callback"""
-    set_logging_level(verbose=args.verbose, quiet=args.quiet)
     if args.reverting:
         revert_substitution(args.cache, args.directory)
     else:

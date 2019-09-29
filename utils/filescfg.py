@@ -13,7 +13,7 @@ import platform
 import sys
 from pathlib import Path
 
-from _common import get_logger, set_logging_level, add_common_params
+from _common import get_logger, add_common_params
 
 
 def filescfg_generator(cfg_path, build_outputs, cpu_arch):
@@ -114,7 +114,6 @@ def _files_generator_by_args(args):
 
 def _list_callback(args):
     """List files needed to run Chromium."""
-    set_logging_level(verbose=args.verbose, quiet=args.quiet)
     sys.stdout.writelines('%s\n' % x for x in _files_generator_by_args(args))
 
 
