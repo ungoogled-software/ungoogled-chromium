@@ -16,7 +16,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
-from _common import ENCODING, SEVENZIP_USE_REGISTRY, ExtractorEnum, get_logger, get_chromium_version
+from _common import ENCODING, SEVENZIP_USE_REGISTRY, ExtractorEnum, get_logger, \
+    get_chromium_version, add_common_params
 from _extraction import extract_tar_file, extract_with_7z
 
 sys.path.insert(0, str(Path(__file__).parent / 'third_party'))
@@ -346,6 +347,7 @@ def _unpack_callback(args):
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser()
+    add_common_params(parser)
     subparsers = parser.add_subparsers(title='Download actions', dest='action')
 
     # retrieve

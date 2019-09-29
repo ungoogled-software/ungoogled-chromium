@@ -15,7 +15,6 @@ import ast
 import base64
 import email.utils
 import json
-import logging
 import sys
 from pathlib import Path
 
@@ -26,7 +25,7 @@ sys.path.pop(0)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from domain_substitution import TREE_ENCODINGS
-from _common import ENCODING, get_logger, get_chromium_version, parse_series
+from _common import ENCODING, get_logger, get_chromium_version, parse_series, add_common_params
 sys.path.pop(0)
 
 try:
@@ -626,8 +625,8 @@ def main():
         metavar='DIRECTORY',
         default='patches',
         help='The patches directory to read from. Default: %(default)s')
-    parser.add_argument(
-        '-v', '--verbose', action='store_true', help='Log more information to stdout/stderr')
+    add_common_params(parser)
+
     file_source_group = parser.add_mutually_exclusive_group(required=True)
     file_source_group.add_argument(
         '-l',
@@ -660,11 +659,6 @@ def main():
         parser.error('--series path is not a file or not found: {}'.format(args.series))
     if not args.patches.is_dir():
         parser.error('--patches path is not a directory or not found: {}'.format(args.patches))
-
-    if args.verbose:
-        get_logger(initial_level=logging.DEBUG)
-    else:
-        get_logger(initial_level=logging.INFO)
 
     series_iterable = tuple(parse_series(args.series))
     had_failure, patch_cache = _load_all_patches(series_iterable, args.patches)

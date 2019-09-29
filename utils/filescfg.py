@@ -13,7 +13,7 @@ import platform
 import sys
 from pathlib import Path
 
-from _common import get_logger
+from _common import get_logger, add_common_params
 
 
 def filescfg_generator(cfg_path, build_outputs, cpu_arch):
@@ -152,6 +152,7 @@ def main():
         help=('Filter build outputs by a target CPU. '
               'This is the same as the "arch" key in FILES.cfg. '
               'Default (from platform.architecture()): %(default)s'))
+    add_common_params(parser)
 
     subparsers = parser.add_subparsers(title='filescfg actions')
 

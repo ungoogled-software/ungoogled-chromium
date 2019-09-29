@@ -18,7 +18,7 @@ import zlib
 from pathlib import Path
 
 from _extraction import extract_tar_file
-from _common import ENCODING, get_logger
+from _common import ENCODING, get_logger, add_common_params
 
 # Encodings to try on source tree files
 TREE_ENCODINGS = ('UTF-8', 'ISO-8859-1')
@@ -287,6 +287,7 @@ def _callback(args):
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser()
+    add_common_params(parser)
     parser.set_defaults(callback=_callback)
     subparsers = parser.add_subparsers(title='', dest='packaging')
 
