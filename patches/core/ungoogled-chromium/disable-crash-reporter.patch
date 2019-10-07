@@ -12,41 +12,29 @@
    if (!CheckForRequiredFlagsOrDie()) {
 --- a/chrome/browser/tracing/crash_service_uploader.cc
 +++ b/chrome/browser/tracing/crash_service_uploader.cc
-@@ -131,11 +131,16 @@ void TraceCrashServiceUploader::DoUpload
+@@ -130,11 +130,16 @@ void TraceCrashServiceUploader::DoUpload
    progress_callback_ = progress_callback;
    done_callback_ = std::move(done_callback);
  
--  base::PostTaskWithTraits(
--      FROM_HERE, {base::TaskPriority::BEST_EFFORT},
+-  base::PostTask(
+-      FROM_HERE, {base::ThreadPool(), base::TaskPriority::BEST_EFFORT},
 -      base::BindOnce(&TraceCrashServiceUploader::DoCompressOnBackgroundThread,
 -                     base::Unretained(this), file_contents, upload_mode,
 -                     upload_url_, std::move(metadata)));
 +  if (!progress_callback_.is_null()) {
-+    base::PostTaskWithTraits(
++    base::PostTask(
 +      FROM_HERE, {content::BrowserThread::UI},
 +      base::Bind(progress_callback_, 1, 1));
 +  }
 +  if (!done_callback_.is_null()) {
-+    base::PostTaskWithTraits(
++    base::PostTask(
 +      FROM_HERE, {content::BrowserThread::UI},
 +      base::BindOnce(std::move(done_callback_), true, "Upload skipped."));
 +  }
  }
  
  void TraceCrashServiceUploader::DoCompressOnBackgroundThread(
-@@ -206,11 +211,6 @@ void TraceCrashServiceUploader::DoCompre
-   std::string post_data;
-   SetupMultipart(product, version, std::move(metadata), "trace.json.gz",
-                  compressed_contents, &post_data);
--
--  base::PostTaskWithTraits(
--      FROM_HERE, {content::BrowserThread::UI},
--      base::BindOnce(&TraceCrashServiceUploader::CreateAndStartURLLoader,
--                     base::Unretained(this), upload_url, post_data));
- }
- 
- void TraceCrashServiceUploader::OnUploadError(
-@@ -308,6 +308,7 @@ bool TraceCrashServiceUploader::Compress
+@@ -307,6 +312,7 @@ bool TraceCrashServiceUploader::Compress
  void TraceCrashServiceUploader::CreateAndStartURLLoader(
      const std::string& upload_url,
      const std::string& post_data) {

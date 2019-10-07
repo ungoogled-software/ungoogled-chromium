@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -5394,19 +5394,7 @@ ChromeContentBrowserClient::GetSafeBrows
+@@ -5219,19 +5219,7 @@ ChromeContentBrowserClient::GetSafeBrows
      content::ResourceContext* resource_context) {
    DCHECK_CURRENTLY_ON(BrowserThread::IO);
  
@@ -35,7 +35,7 @@
  #include "chrome/grit/chromium_strings.h"
  #include "chrome/grit/generated_resources.h"
  #include "components/download/public/common/download_danger_type.h"
-@@ -42,7 +39,6 @@
+@@ -43,7 +40,6 @@
  
  using base::TimeDelta;
  using download::DownloadItem;
@@ -43,11 +43,11 @@
  
  namespace {
  
-@@ -273,14 +269,7 @@ bool DownloadItemModel::IsMalicious() co
+@@ -274,14 +270,7 @@ bool DownloadItemModel::IsMalicious() co
  }
  
  bool DownloadItemModel::ShouldAllowDownloadFeedback() const {
--#if defined(FULL_SAFE_BROWSING)
+-#if BUILDFLAG(FULL_SAFE_BROWSING)
 -  if (!IsDangerous())
 -    return false;
 -  return safe_browsing::DownloadFeedbackService::IsEnabledForDownload(
@@ -73,10 +73,10 @@
    message_body_label->SetHandlesTooltips(false);
 --- a/chrome/browser/password_manager/chrome_password_manager_client.cc
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.cc
-@@ -87,9 +87,9 @@
- #if defined(FULL_SAFE_BROWSING)
+@@ -90,9 +90,9 @@
+ #if BUILDFLAG(FULL_SAFE_BROWSING)
  #include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
- #include "chrome/browser/safe_browsing/chrome_password_protection_service.h"
+ #include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
 +#endif
  #include "ui/base/clipboard/clipboard.h"
  #include "ui/events/keycodes/keyboard_codes.h"
@@ -84,34 +84,15 @@
  
  #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  #include "services/service_manager/public/cpp/connector.h"
-@@ -479,7 +479,7 @@ bool ChromePasswordManagerClient::IsIsol
-   return SiteIsolationPolicy::IsIsolationForPasswordSitesEnabled();
+@@ -547,7 +547,7 @@ ChromePasswordManagerClient::GetPassword
  }
+ #endif
  
--#if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
-+#if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED) && defined(FULL_SAFE_BROWSING)
+-#if defined(ON_FOCUS_PING_ENABLED)
++#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
  void ChromePasswordManagerClient::CheckSafeBrowsingReputation(
      const GURL& form_action,
      const GURL& frame_url) {
---- a/chrome/browser/ui/views/frame/browser_view.cc
-+++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -2291,7 +2291,6 @@ void BrowserView::OnWindowBeginUserBound
- void BrowserView::OnWindowEndUserBoundsChange() {
-   if (!interactive_resize_)
-     return;
--  safe_browsing::LogContentsSize(GetContentsSize());
-   auto now = base::TimeTicks::Now();
-   DCHECK(!interactive_resize_->begin_timestamp.is_null());
-   UMA_HISTOGRAM_TIMES("BrowserWindow.Resize.Duration",
---- a/chrome/browser/ui/views/frame/browser_window_factory.cc
-+++ b/chrome/browser/ui/views/frame/browser_window_factory.cc
-@@ -33,6 +33,5 @@ BrowserWindow* BrowserWindow::CreateBrow
-   view->GetWidget()->GetNativeWindow()->SetProperty(
-       aura::client::kCreatedByUserGesture, user_gesture);
- #endif
--  safe_browsing::LogContentsSize(view->GetContentsSize());
-   return view;
- }
 --- a/components/safe_browsing/common/safe_browsing.mojom
 +++ b/components/safe_browsing/common/safe_browsing.mojom
 @@ -106,7 +106,6 @@ interface ThreatReporter {

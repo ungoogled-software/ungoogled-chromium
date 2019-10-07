@@ -2,7 +2,7 @@
 
 --- a/content/browser/renderer_host/pepper/pepper_file_io_host.cc
 +++ b/content/browser/renderer_host/pepper/pepper_file_io_host.cc
-@@ -432,7 +432,7 @@ void PepperFileIOHost::OnLocalFileOpened
+@@ -433,7 +433,7 @@ void PepperFileIOHost::OnLocalFileOpened
      ppapi::host::ReplyMessageContext reply_context,
      const base::FilePath& path,
      base::File::Error error_code) {
@@ -11,7 +11,7 @@
    // Quarantining a file before its contents are available is only supported on
    // Windows and Linux.
    if (!FileOpenForWrite(open_flags_) || error_code != base::File::FILE_OK) {
-@@ -452,7 +452,7 @@ void PepperFileIOHost::OnLocalFileOpened
+@@ -453,7 +453,7 @@ void PepperFileIOHost::OnLocalFileOpened
  #endif
  }
  
@@ -43,7 +43,7 @@
  
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -52,7 +52,6 @@ jumbo_source_set("browser") {
+@@ -54,7 +54,6 @@ jumbo_source_set("browser") {
      "//components/discardable_memory/service",
      "//components/download/database",
      "//components/download/public/common:public",
@@ -59,9 +59,9 @@
  #include "components/download/public/common/download_stats.h"
 -#include "components/download/quarantine/quarantine.h"
  #include "crypto/secure_hash.h"
- #include "services/service_manager/public/cpp/connector.h"
  
-@@ -523,129 +522,12 @@ DownloadInterruptReason BaseFile::Publis
+ #if defined(OS_WIN)
+@@ -522,129 +521,12 @@ DownloadInterruptReason BaseFile::Publis
  }
  #endif  // defined(OS_ANDROID)
  
@@ -191,12 +191,12 @@
  
  void BaseFile::AnnotateWithSourceInformation(
      const std::string& client_guid,
-@@ -653,31 +535,8 @@ void BaseFile::AnnotateWithSourceInforma
+@@ -652,30 +534,8 @@ void BaseFile::AnnotateWithSourceInforma
      const GURL& referrer_url,
-     std::unique_ptr<service_manager::Connector> connector,
+     mojo::PendingRemote<quarantine::mojom::Quarantine> remote_quarantine,
      OnAnnotationDoneCallback on_annotation_done_callback) {
 -  GURL authority_url = GetEffectiveAuthorityURL(source_url, referrer_url);
--  if (!connector) {
+-  if (!remote_quarantine) {
 -#if defined(OS_WIN)
 -    QuarantineFileResult result = quarantine::SetInternetZoneIdentifierDirectly(
 -        full_path_, authority_url, referrer_url);
@@ -206,12 +206,11 @@
 -    std::move(on_annotation_done_callback)
 -        .Run(QuarantineFileResultToReason(result));
 -  } else {
--    connector->BindInterface(quarantine::mojom::kServiceName,
--                             mojo::MakeRequest(&quarantine_service_));
+-    quarantine_service_.Bind(std::move(remote_quarantine));
 -
 -    on_annotation_done_callback_ = std::move(on_annotation_done_callback);
 -
--    quarantine_service_.set_connection_error_handler(base::BindOnce(
+-    quarantine_service_.set_disconnect_handler(base::BindOnce(
 -        &BaseFile::OnQuarantineServiceError, weak_factory_.GetWeakPtr(),
 -        authority_url, referrer_url));
 -
