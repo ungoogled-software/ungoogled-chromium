@@ -101,6 +101,7 @@ Also, ungoogled-chromium is available in several **software repositories**:
 
 * Arch Linux: [Available in AUR as `ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
     * NOTE: `ungoogled-chromium-bin` is *not* officially part of ungoogled-chromium. Please submit all issues to the maintainer of the PKGBUILD.
+* Fedora: Available in [RPM Fusion](https://rpmfusion.org) as `chromium-browser-privacy`.
 * Gentoo Linux: 
   * [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay maintains an *unofficial*  [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
   * [`::chaoslab`](https://gitlab.com/chaoslab/chaoslab-overlay) overlay maintains an *unofficial*  [`ungoogled-chromium`](https://gitlab.com/chaoslab/chaoslab-overlay/tree/master/www-client/ungoogled-chromium) ebuild (stalled)
