@@ -103,3 +103,249 @@
  interface PhishingDetector {
    // Tells the renderer to begin phishing detection for the given toplevel URL
    // which it has started loading. Returns the serialized request proto. If
+--- a/chrome/browser/native_file_system/chrome_native_file_system_permission_context.cc
++++ b/chrome/browser/native_file_system/chrome_native_file_system_permission_context.cc
+@@ -18,7 +18,6 @@
+ #include "chrome/browser/native_file_system/native_file_system_permission_context_factory.h"
+ #include "chrome/browser/native_file_system/native_file_system_permission_request_manager.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/safe_browsing/download_protection/download_protection_service.h"
+ #include "chrome/browser/sessions/session_tab_helper.h"
+ #include "chrome/browser/ui/browser_dialogs.h"
+ #include "chrome/common/chrome_paths.h"
+@@ -322,74 +321,6 @@ class ReadPermissionGrantImpl
+   PermissionStatus status_ = PermissionStatus::GRANTED;
+ };
+ 
+-void DoSafeBrowsingCheckOnUIThread(
+-    int process_id,
+-    int frame_id,
+-    std::unique_ptr<content::NativeFileSystemWriteItem> item,
+-    safe_browsing::CheckDownloadCallback callback) {
+-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+-
+-  safe_browsing::SafeBrowsingService* sb_service =
+-      g_browser_process->safe_browsing_service();
+-
+-  if (!sb_service || !sb_service->download_protection_service() ||
+-      !sb_service->download_protection_service()->enabled()) {
+-    std::move(callback).Run(safe_browsing::DownloadCheckResult::UNKNOWN);
+-    return;
+-  }
+-
+-  if (!item->browser_context) {
+-    content::RenderProcessHost* rph =
+-        content::RenderProcessHost::FromID(process_id);
+-    if (!rph) {
+-      std::move(callback).Run(safe_browsing::DownloadCheckResult::UNKNOWN);
+-      return;
+-    }
+-    item->browser_context = rph->GetBrowserContext();
+-  }
+-
+-  if (!item->web_contents) {
+-    content::RenderFrameHost* rfh =
+-        content::RenderFrameHost::FromID(process_id, frame_id);
+-    if (rfh)
+-      item->web_contents = content::WebContents::FromRenderFrameHost(rfh);
+-  }
+-
+-  sb_service->download_protection_service()->CheckNativeFileSystemWrite(
+-      std::move(item), std::move(callback));
+-}
+-
+-ChromeNativeFileSystemPermissionContext::SafeBrowsingResult
+-InterpretSafeBrowsingResult(safe_browsing::DownloadCheckResult result) {
+-  using Result = safe_browsing::DownloadCheckResult;
+-  switch (result) {
+-    // Only allow downloads that are marked as SAFE or UNKNOWN by SafeBrowsing.
+-    // All other types are going to be blocked. UNKNOWN could be the result of a
+-    // failed safe browsing ping.
+-    case Result::UNKNOWN:
+-    case Result::SAFE:
+-    case Result::WHITELISTED_BY_POLICY:
+-      return ChromeNativeFileSystemPermissionContext::SafeBrowsingResult::
+-          kAllow;
+-
+-    case Result::DANGEROUS:
+-    case Result::UNCOMMON:
+-    case Result::DANGEROUS_HOST:
+-    case Result::POTENTIALLY_UNWANTED:
+-    case Result::BLOCKED_PASSWORD_PROTECTED:
+-      return ChromeNativeFileSystemPermissionContext::SafeBrowsingResult::
+-          kBlock;
+-
+-    // This shouldn't be returned for Native File System write checks.
+-    case Result::ASYNC_SCANNING:
+-      NOTREACHED();
+-      return ChromeNativeFileSystemPermissionContext::SafeBrowsingResult::
+-          kAllow;
+-  }
+-  NOTREACHED();
+-  return ChromeNativeFileSystemPermissionContext::SafeBrowsingResult::kBlock;
+-}
+-
+ }  // namespace
+ 
+ ChromeNativeFileSystemPermissionContext::Grants::Grants() = default;
+@@ -666,28 +597,6 @@ void ChromeNativeFileSystemPermissionCon
+                      std::move(callback)));
+ }
+ 
+-void ChromeNativeFileSystemPermissionContext::PerformSafeBrowsingChecks(
+-    std::unique_ptr<content::NativeFileSystemWriteItem> item,
+-    int process_id,
+-    int frame_id,
+-    base::OnceCallback<void(SafeBrowsingResult)> callback) {
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  base::PostTask(
+-      FROM_HERE, {content::BrowserThread::UI},
+-      base::BindOnce(
+-          &DoSafeBrowsingCheckOnUIThread, process_id, frame_id, std::move(item),
+-          base::BindOnce(
+-              [](scoped_refptr<base::TaskRunner> task_runner,
+-                 base::OnceCallback<void(SafeBrowsingResult result)> callback,
+-                 safe_browsing::DownloadCheckResult result) {
+-                task_runner->PostTask(
+-                    FROM_HERE,
+-                    base::BindOnce(std::move(callback),
+-                                   InterpretSafeBrowsingResult(result)));
+-              },
+-              base::SequencedTaskRunnerHandle::Get(), std::move(callback))));
+-}
+-
+ ChromeNativeFileSystemPermissionContext::Grants
+ ChromeNativeFileSystemPermissionContext::GetPermissionGrants(
+     const url::Origin& origin,
+--- a/chrome/browser/native_file_system/chrome_native_file_system_permission_context.h
++++ b/chrome/browser/native_file_system/chrome_native_file_system_permission_context.h
+@@ -155,12 +155,6 @@ class ChromeNativeFileSystemPermissionCo
+       int frame_id,
+       base::OnceCallback<void(PermissionStatus)> callback) override;
+ 
+-  void PerformSafeBrowsingChecks(
+-      std::unique_ptr<content::NativeFileSystemWriteItem> item,
+-      int process_id,
+-      int frame_id,
+-      base::OnceCallback<void(SafeBrowsingResult)> callback) override;
+-
+   struct Grants {
+     Grants();
+     ~Grants();
+--- a/content/browser/native_file_system/native_file_system_file_writer_impl.cc
++++ b/content/browser/native_file_system/native_file_system_file_writer_impl.cc
+@@ -91,8 +91,7 @@ NativeFileSystemFileWriterImpl::NativeFi
+                                  url,
+                                  handle_state,
+                                  /*is_directory=*/false),
+-      swap_url_(swap_url),
+-      has_transient_user_activation_(has_transient_user_activation) {
++      swap_url_(swap_url) {
+   DCHECK_EQ(swap_url.type(), url.type());
+ }
+ 
+@@ -296,48 +295,7 @@ void NativeFileSystemFileWriterImpl::Clo
+   // swap file even if the writer was destroyed at that point.
+   state_ = State::kClosePending;
+ 
+-  if (!require_safe_browsing_check() || !manager()->permission_context()) {
+-    DidPassSafeBrowsingCheck(std::move(callback));
+-    return;
+-  }
+-
+-  ComputeHashForSwapFile(base::BindOnce(
+-      &NativeFileSystemFileWriterImpl::DoSafeBrowsingCheck,
+-      weak_factory_.GetWeakPtr(), swap_url().path(), std::move(callback)));
+-}
+-
+-// static
+-void NativeFileSystemFileWriterImpl::DoSafeBrowsingCheck(
+-    base::WeakPtr<NativeFileSystemFileWriterImpl> file_writer,
+-    const base::FilePath& swap_path,
+-    NativeFileSystemFileWriterImpl::CloseCallback callback,
+-    base::File::Error hash_result,
+-    const std::string& hash,
+-    int64_t size) {
+-  if (!file_writer || hash_result != base::File::FILE_OK) {
+-    // If writer was deleted, or calculating the hash failed try deleting the
+-    // swap file and invoke the callback.
+-    base::PostTask(FROM_HERE, {base::ThreadPool(), base::MayBlock()},
+-                   base::BindOnce(base::IgnoreResult(&base::DeleteFile),
+-                                  swap_path, /*recursive=*/false));
+-    std::move(callback).Run(native_file_system_error::FromStatus(
+-        NativeFileSystemStatus::kOperationAborted,
+-        "Failed to perform Safe Browsing check."));
+-    return;
+-  }
+-
+-  auto item = std::make_unique<NativeFileSystemWriteItem>();
+-  item->target_file_path = file_writer->url().path();
+-  item->full_path = file_writer->swap_url().path();
+-  item->sha256_hash = hash;
+-  item->size = size;
+-  item->frame_url = file_writer->context().url;
+-  item->has_user_gesture = file_writer->has_transient_user_activation_;
+-  file_writer->manager()->permission_context()->PerformSafeBrowsingChecks(
+-      std::move(item), file_writer->context().process_id,
+-      file_writer->context().frame_id,
+-      base::BindOnce(&NativeFileSystemFileWriterImpl::DidSafeBrowsingCheck,
+-                     file_writer, swap_path, std::move(callback)));
++  DidPassSafeBrowsingCheck(std::move(callback));
+ }
+ 
+ // static
+--- a/content/browser/native_file_system/native_file_system_file_writer_impl.h
++++ b/content/browser/native_file_system/native_file_system_file_writer_impl.h
+@@ -88,15 +88,8 @@ class CONTENT_EXPORT NativeFileSystemFil
+                 bool complete);
+   void TruncateImpl(uint64_t length, TruncateCallback callback);
+   void CloseImpl(CloseCallback callback);
+-  // The following two methods are static, because they need to be invoked to
++  // The following method is static because it needs to be invoked to
+   // perform cleanup even if the writer was deleted before they were invoked.
+-  static void DoSafeBrowsingCheck(
+-      base::WeakPtr<NativeFileSystemFileWriterImpl> file_writer,
+-      const base::FilePath& swap_path,
+-      NativeFileSystemFileWriterImpl::CloseCallback callback,
+-      base::File::Error hash_result,
+-      const std::string& hash,
+-      int64_t size);
+   static void DidSafeBrowsingCheck(
+       base::WeakPtr<NativeFileSystemFileWriterImpl> file_writer,
+       const base::FilePath& swap_path,
+@@ -109,7 +102,7 @@ class CONTENT_EXPORT NativeFileSystemFil
+ 
+   // Safe browsing checks only apply to native local paths.
+   bool require_safe_browsing_check() {
+-    return url().type() == storage::kFileSystemTypeNativeLocal;
++    return false;
+   }
+ 
+   // Quarantine checks only apply to native local paths.
+@@ -149,10 +142,6 @@ class CONTENT_EXPORT NativeFileSystemFil
+ 
+   bool skip_quarantine_check_for_testing_ = false;
+ 
+-  // Keeps track of user activation state at creation time for SafeBrowsing
+-  // checks.
+-  bool has_transient_user_activation_ = false;
+-
+   base::WeakPtr<NativeFileSystemHandleBase> AsWeakPtr() override;
+ 
+   base::WeakPtrFactory<NativeFileSystemFileWriterImpl> weak_factory_{this};
+--- a/content/public/browser/native_file_system_permission_context.h
++++ b/content/public/browser/native_file_system_permission_context.h
+@@ -95,13 +95,6 @@ class NativeFileSystemPermissionContext
+       base::OnceCallback<void(SensitiveDirectoryResult)> callback) = 0;
+ 
+   enum class SafeBrowsingResult { kAllow, kBlock };
+-  // Runs a recently finished write operation through Safe Browsing code to
+-  // determine if the write should be allowed or blocked.
+-  virtual void PerformSafeBrowsingChecks(
+-      std::unique_ptr<NativeFileSystemWriteItem> item,
+-      int process_id,
+-      int frame_id,
+-      base::OnceCallback<void(SafeBrowsingResult)> callback) = 0;
+ 
+   // Returns whether the given |origin| is allowed to ask for write access.
+   // This is used to block save file dialogs from being shown
