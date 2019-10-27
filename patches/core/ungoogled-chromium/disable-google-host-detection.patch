@@ -2,7 +2,7 @@
 
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -411,27 +411,6 @@ bool HasGoogleHost(const GURL& url) {
+@@ -394,27 +394,6 @@ bool HasGoogleHost(const GURL& url) {
  }
  
  bool IsGoogleHost(base::StringPiece host) {
@@ -112,7 +112,7 @@
  }  // namespace variations
 --- a/chrome/browser/page_load_metrics/page_load_metrics_util.cc
 +++ b/chrome/browser/page_load_metrics/page_load_metrics_util.cc
-@@ -169,9 +169,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
+@@ -171,9 +171,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
  }
  
  bool IsGoogleSearchHostname(const GURL& url) {
@@ -125,7 +125,7 @@
  bool IsGoogleSearchResultUrl(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -500,11 +500,7 @@ base::string16 TemplateURLRef::SearchTer
+@@ -505,11 +505,7 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -140,10 +140,11 @@
  bool TemplateURLRef::ExtractSearchTermsFromURL(
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
-@@ -45,120 +45,16 @@ bool gUseMockLinkDoctorBaseURLForTesting
+@@ -45,103 +45,6 @@ namespace {
+ bool gUseMockLinkDoctorBaseURLForTesting = false;
  
  bool g_ignore_port_numbers = false;
- 
+-
 -bool IsPathHomePageBase(base::StringPiece path) {
 -  return (path == "/") || (path == "/webhp");
 -}
@@ -243,6 +244,8 @@
  }  // namespace
  
  // Global functions -----------------------------------------------------------
+@@ -149,19 +52,11 @@ bool IsGoogleSearchSubdomainUrl(const GU
+ const char kGoogleHomepageURL[] = "https://www.google.com/";
  
  bool HasGoogleSearchQueryParam(base::StringPiece str) {
 -  url::Component query(0, static_cast<int>(str.length())), key, value;
@@ -262,7 +265,7 @@
  }
  
  void SetMockLinkDoctorBaseURLForTesting() {
-@@ -172,162 +68,53 @@ std::string GetGoogleLocale(const std::s
+@@ -175,162 +70,53 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -435,8 +438,109 @@
    return false;
  }
  
---- a/chrome/common/page_load_metrics/page_load_metrics_util.cc
-+++ b/chrome/common/page_load_metrics/page_load_metrics_util.cc
+--- a/chrome/common/google_url_loader_throttle.cc
++++ b/chrome/common/google_url_loader_throttle.cc
+@@ -8,10 +8,6 @@
+ #include "components/variations/net/variations_http_headers.h"
+ #include "services/network/public/cpp/resource_response.h"
+ 
+-#if BUILDFLAG(ENABLE_EXTENSIONS)
+-#include "extensions/common/extension_urls.h"
+-#endif
+-
+ GoogleURLLoaderThrottle::GoogleURLLoaderThrottle(
+     bool is_off_the_record,
+     chrome::mojom::DynamicParams dynamic_params)
+@@ -25,36 +21,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+ void GoogleURLLoaderThrottle::WillStartRequest(
+     network::ResourceRequest* request,
+     bool* defer) {
+-  variations::AppendVariationsHeaderWithCustomValue(
+-      request->url,
+-      is_off_the_record_ ? variations::InIncognito::kYes
+-                         : variations::InIncognito::kNo,
+-      dynamic_params_.variation_ids_header, request);
+-
+-  if (dynamic_params_.force_safe_search) {
+-    GURL new_url;
+-    safe_search_util::ForceGoogleSafeSearch(request->url, &new_url);
+-    if (!new_url.is_empty())
+-      request->url = new_url;
+-  }
+-
+-  static_assert(safe_search_util::YOUTUBE_RESTRICT_OFF == 0,
+-                "OFF must be first");
+-  if (dynamic_params_.youtube_restrict >
+-          safe_search_util::YOUTUBE_RESTRICT_OFF &&
+-      dynamic_params_.youtube_restrict <
+-          safe_search_util::YOUTUBE_RESTRICT_COUNT) {
+-    safe_search_util::ForceYouTubeRestrict(
+-        request->url, &request->headers,
+-        static_cast<safe_search_util::YouTubeRestrictMode>(
+-            dynamic_params_.youtube_restrict));
+-  }
+-
+-  if (!dynamic_params_.allowed_domains_for_apps.empty() &&
+-      request->url.DomainIs("google.com")) {
+-    request->headers.SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
+-                               dynamic_params_.allowed_domains_for_apps);
+-  }
+ }
+ 
+ void GoogleURLLoaderThrottle::WillRedirectRequest(
+@@ -63,32 +29,6 @@ void GoogleURLLoaderThrottle::WillRedire
+     bool* /* defer */,
+     std::vector<std::string>* to_be_removed_headers,
+     net::HttpRequestHeaders* modified_headers) {
+-  variations::RemoveVariationsHeaderIfNeeded(*redirect_info, response_head,
+-                                             to_be_removed_headers);
+-
+-  // URLLoaderThrottles can only change the redirect URL when the network
+-  // service is enabled. The non-network service path handles this in
+-  // ChromeNetworkDelegate.
+-  if (dynamic_params_.force_safe_search) {
+-    safe_search_util::ForceGoogleSafeSearch(redirect_info->new_url,
+-                                            &redirect_info->new_url);
+-  }
+-
+-  if (dynamic_params_.youtube_restrict >
+-          safe_search_util::YOUTUBE_RESTRICT_OFF &&
+-      dynamic_params_.youtube_restrict <
+-          safe_search_util::YOUTUBE_RESTRICT_COUNT) {
+-    safe_search_util::ForceYouTubeRestrict(
+-        redirect_info->new_url, modified_headers,
+-        static_cast<safe_search_util::YouTubeRestrictMode>(
+-            dynamic_params_.youtube_restrict));
+-  }
+-
+-  if (!dynamic_params_.allowed_domains_for_apps.empty() &&
+-      redirect_info->new_url.DomainIs("google.com")) {
+-    modified_headers->SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
+-                                dynamic_params_.allowed_domains_for_apps);
+-  }
+ }
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+@@ -96,17 +36,5 @@ void GoogleURLLoaderThrottle::WillProces
+     const GURL& response_url,
+     network::ResourceResponseHead* response_head,
+     bool* defer) {
+-  // Built-in additional protection for the chrome web store origin.
+-  GURL webstore_url(extension_urls::GetWebstoreLaunchURL());
+-  if (response_url.SchemeIsHTTPOrHTTPS() &&
+-      response_url.DomainIs(webstore_url.host_piece())) {
+-    if (response_head && response_head->headers &&
+-        !response_head->headers->HasHeaderValue("x-frame-options", "deny") &&
+-        !response_head->headers->HasHeaderValue("x-frame-options",
+-                                                "sameorigin")) {
+-      response_head->headers->RemoveHeader("x-frame-options");
+-      response_head->headers->AddHeader("x-frame-options: sameorigin");
+-    }
+-  }
+ }
+ #endif
+--- a/components/page_load_metrics/common/page_load_metrics_util.cc
++++ b/components/page_load_metrics/common/page_load_metrics_util.cc
 @@ -12,38 +12,7 @@
  namespace page_load_metrics {
  
@@ -477,104 +581,3 @@
  }
  
  bool IsGoogleHostname(const GURL& url) {
---- a/chrome/common/google_url_loader_throttle.cc
-+++ b/chrome/common/google_url_loader_throttle.cc
-@@ -7,10 +7,6 @@
- #include "chrome/common/net/safe_search_util.h"
- #include "components/variations/net/variations_http_headers.h"
- 
--#if BUILDFLAG(ENABLE_EXTENSIONS)
--#include "extensions/common/extension_urls.h"
--#endif
--
- GoogleURLLoaderThrottle::GoogleURLLoaderThrottle(
-     bool is_off_the_record,
-     chrome::mojom::DynamicParams dynamic_params)
-@@ -24,36 +20,6 @@ void GoogleURLLoaderThrottle::DetachFrom
- void GoogleURLLoaderThrottle::WillStartRequest(
-     network::ResourceRequest* request,
-     bool* defer) {
--  variations::AppendVariationsHeaderWithCustomValue(
--      request->url,
--      is_off_the_record_ ? variations::InIncognito::kYes
--                         : variations::InIncognito::kNo,
--      dynamic_params_.variation_ids_header, request);
--
--  if (dynamic_params_.force_safe_search) {
--    GURL new_url;
--    safe_search_util::ForceGoogleSafeSearch(request->url, &new_url);
--    if (!new_url.is_empty())
--      request->url = new_url;
--  }
--
--  static_assert(safe_search_util::YOUTUBE_RESTRICT_OFF == 0,
--                "OFF must be first");
--  if (dynamic_params_.youtube_restrict >
--          safe_search_util::YOUTUBE_RESTRICT_OFF &&
--      dynamic_params_.youtube_restrict <
--          safe_search_util::YOUTUBE_RESTRICT_COUNT) {
--    safe_search_util::ForceYouTubeRestrict(
--        request->url, &request->headers,
--        static_cast<safe_search_util::YouTubeRestrictMode>(
--            dynamic_params_.youtube_restrict));
--  }
--
--  if (!dynamic_params_.allowed_domains_for_apps.empty() &&
--      request->url.DomainIs("google.com")) {
--    request->headers.SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
--                               dynamic_params_.allowed_domains_for_apps);
--  }
- }
- 
- void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -62,32 +28,6 @@ void GoogleURLLoaderThrottle::WillRedire
-     bool* /* defer */,
-     std::vector<std::string>* to_be_removed_headers,
-     net::HttpRequestHeaders* modified_headers) {
--  variations::RemoveVariationsHeaderIfNeeded(*redirect_info, response_head,
--                                             to_be_removed_headers);
--
--  // URLLoaderThrottles can only change the redirect URL when the network
--  // service is enabled. The non-network service path handles this in
--  // ChromeNetworkDelegate.
--  if (dynamic_params_.force_safe_search) {
--    safe_search_util::ForceGoogleSafeSearch(redirect_info->new_url,
--                                            &redirect_info->new_url);
--  }
--
--  if (dynamic_params_.youtube_restrict >
--          safe_search_util::YOUTUBE_RESTRICT_OFF &&
--      dynamic_params_.youtube_restrict <
--          safe_search_util::YOUTUBE_RESTRICT_COUNT) {
--    safe_search_util::ForceYouTubeRestrict(
--        redirect_info->new_url, modified_headers,
--        static_cast<safe_search_util::YouTubeRestrictMode>(
--            dynamic_params_.youtube_restrict));
--  }
--
--  if (!dynamic_params_.allowed_domains_for_apps.empty() &&
--      redirect_info->new_url.DomainIs("google.com")) {
--    modified_headers->SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
--                                dynamic_params_.allowed_domains_for_apps);
--  }
- }
- 
- #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -95,17 +35,5 @@ void GoogleURLLoaderThrottle::WillProces
-     const GURL& response_url,
-     network::ResourceResponseHead* response_head,
-     bool* defer) {
--  // Built-in additional protection for the chrome web store origin.
--  GURL webstore_url(extension_urls::GetWebstoreLaunchURL());
--  if (response_url.SchemeIsHTTPOrHTTPS() &&
--      response_url.DomainIs(webstore_url.host_piece())) {
--    if (response_head && response_head->headers &&
--        !response_head->headers->HasHeaderValue("x-frame-options", "deny") &&
--        !response_head->headers->HasHeaderValue("x-frame-options",
--                                                "sameorigin")) {
--      response_head->headers->RemoveHeader("x-frame-options");
--      response_head->headers->AddHeader("x-frame-options: sameorigin");
--    }
--  }
- }
- #endif

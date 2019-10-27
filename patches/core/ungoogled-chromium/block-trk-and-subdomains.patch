@@ -59,7 +59,7 @@
    return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -494,6 +494,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+@@ -507,6 +507,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
    RegisterWebSafeScheme(url::kHttpsScheme);
    RegisterWebSafeScheme(url::kFtpScheme);
    RegisterWebSafeScheme(url::kDataScheme);
@@ -85,7 +85,7 @@
  
  using base::Time;
  using std::string;
-@@ -619,6 +621,12 @@ URLRequest::URLRequest(const GURL& url,
+@@ -612,6 +614,12 @@ URLRequest::URLRequest(const GURL& url,
    // Sanity check out environment.
    DCHECK(base::ThreadTaskRunnerHandle::IsSet());
  
@@ -133,7 +133,7 @@
      return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
-@@ -1776,6 +1776,8 @@ component("net") {
+@@ -1787,6 +1787,8 @@ component("net") {
        "url_request/report_sender.h",
        "url_request/static_http_user_agent_settings.cc",
        "url_request/static_http_user_agent_settings.h",
@@ -142,46 +142,6 @@
        "url_request/url_fetcher.cc",
        "url_request/url_fetcher.h",
        "url_request/url_fetcher_core.cc",
---- a/android_webview/browser/net/aw_url_request_context_getter.cc
-+++ b/android_webview/browser/net/aw_url_request_context_getter.cc
-@@ -62,6 +62,7 @@
- #include "net/ssl/ssl_config_service.h"
- #include "net/url_request/data_protocol_handler.h"
- #include "net/url_request/file_protocol_handler.h"
-+#include "net/url_request/trk_protocol_handler.h"
- #include "net/url_request/url_request_context.h"
- #include "net/url_request/url_request_context_builder.h"
- #include "net/url_request/url_request_intercepting_job_factory.h"
-@@ -132,6 +133,9 @@ std::unique_ptr<net::URLRequestJobFactor
-       url::kDataScheme, std::make_unique<net::DataProtocolHandler>());
-   DCHECK(set_protocol);
-   set_protocol = aw_job_factory->SetProtocolHandler(
-+      url::kTraceScheme, std::make_unique<net::TrkProtocolHandler>());
-+  DCHECK(set_protocol);
-+  set_protocol = aw_job_factory->SetProtocolHandler(
-       url::kBlobScheme,
-       base::WrapUnique((*protocol_handlers)[url::kBlobScheme].release()));
-   DCHECK(set_protocol);
---- a/chromecast/browser/url_request_context_factory.cc
-+++ b/chromecast/browser/url_request_context_factory.cc
-@@ -40,6 +40,7 @@
- #include "net/ssl/ssl_config_service_defaults.h"
- #include "net/url_request/data_protocol_handler.h"
- #include "net/url_request/file_protocol_handler.h"
-+#include "net/url_request/trk_protocol_handler.h"
- #include "net/url_request/url_request_context.h"
- #include "net/url_request/url_request_context_builder.h"
- #include "net/url_request/url_request_context_getter.h"
-@@ -258,6 +259,9 @@ void URLRequestContextFactory::Initializ
-   set_protocol = job_factory->SetProtocolHandler(
-       url::kDataScheme, std::make_unique<net::DataProtocolHandler>());
-   DCHECK(set_protocol);
-+  set_protocol = job_factory->SetProtocolHandler(
-+      url::kTraceScheme, base::WrapUnique(new net::TrkProtocolHandler));
-+  DCHECK(set_protocol);
- 
-   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-       switches::kEnableLocalFileAccesses)) {
 --- /dev/null
 +++ b/net/url_request/trk_protocol_handler.cc
 @@ -0,0 +1,26 @@
@@ -257,7 +217,7 @@
  #include "net/url_request/url_request_context.h"
  #include "net/url_request/url_request_context_storage.h"
  #include "net/url_request/url_request_intercepting_job_factory.h"
-@@ -650,6 +651,9 @@ std::unique_ptr<URLRequestContext> URLRe
+@@ -641,6 +642,9 @@ std::unique_ptr<URLRequestContext> URLRe
      job_factory->SetProtocolHandler(url::kDataScheme,
                                      std::make_unique<DataProtocolHandler>());
  
@@ -285,3 +245,32 @@
    };
  
    // Schemes that can be sent CORS requests.
+--- a/chromecast/browser/url_request_context_factory.cc
++++ b/chromecast/browser/url_request_context_factory.cc
+@@ -39,6 +39,7 @@
+ #include "net/http/http_stream_factory.h"
+ #include "net/proxy_resolution/proxy_resolution_service.h"
+ #include "net/ssl/ssl_config_service_defaults.h"
++#include "net/url_request/trk_protocol_handler.h"
+ #include "net/url_request/url_request_context.h"
+ #include "net/url_request/url_request_context_builder.h"
+ #include "net/url_request/url_request_context_getter.h"
+@@ -245,13 +246,17 @@ void URLRequestContextFactory::Initializ
+       new net::URLRequestJobFactoryImpl());
+   // Keep ProtocolHandlers added in sync with
+   // CastContentBrowserClient::IsHandledURL().
++  bool set_protocol = false;
+   for (content::ProtocolHandlerMap::iterator it = protocol_handlers->begin();
+        it != protocol_handlers->end();
+        ++it) {
+-    bool set_protocol =
++    set_protocol =
+         job_factory->SetProtocolHandler(it->first, std::move(it->second));
+     DCHECK(set_protocol);
+   }
++  set_protocol = job_factory->SetProtocolHandler(
++      url::kTraceScheme, base::WrapUnique(new net::TrkProtocolHandler));
++  DCHECK(set_protocol);
+ 
+   // Set up interceptors in the reverse order.
+   std::unique_ptr<net::URLRequestJobFactory> top_job_factory =
