@@ -1170,3 +1170,65 @@
    return RespondNow(ArgumentList(
        api::safe_browsing_private::GetReferrerChain::Results::Create(
            referrer_entries)));
+--- a/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
++++ b/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
+@@ -58,7 +58,6 @@
+ #include "chrome/browser/previews/previews_service.h"
+ #include "chrome/browser/previews/previews_service_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/safe_browsing/safe_browsing_service.h"
+ #include "chrome/browser/search_engines/template_url_service_factory.h"
+ #include "chrome/browser/translate/chrome_translate_client.h"
+ #include "chrome/browser/web_data_service_factory.h"
+@@ -662,36 +661,6 @@ void ChromeBrowsingDataRemoverDelegate::
+         CONTENT_SETTINGS_TYPE_CLIENT_HINTS, base::Time(), base::Time::Max(),
+         website_settings_filter);
+ 
+-    // Clear the safebrowsing cookies only if time period is for "all time".  It
+-    // doesn't make sense to apply the time period of deleting in the last X
+-    // hours/days to the safebrowsing cookies since they aren't the result of
+-    // any user action.
+-    if (IsForAllTime()) {
+-      safe_browsing::SafeBrowsingService* sb_service =
+-          g_browser_process->safe_browsing_service();
+-      if (sb_service) {
+-        mojo::Remote<network::mojom::CookieManager> cookie_manager;
+-        sb_service->GetNetworkContext()->GetCookieManager(
+-            cookie_manager.BindNewPipeAndPassReceiver());
+-
+-        network::mojom::CookieManager* manager_ptr = cookie_manager.get();
+-
+-        network::mojom::CookieDeletionFilterPtr deletion_filter =
+-            filter_builder->BuildCookieDeletionFilter();
+-        if (!delete_begin_.is_null())
+-          deletion_filter->created_after_time = delete_begin_;
+-        if (!delete_end_.is_null())
+-          deletion_filter->created_before_time = delete_end_;
+-
+-        manager_ptr->DeleteCookies(
+-            std::move(deletion_filter),
+-            base::BindOnce(
+-                &OnClearedCookies,
+-                CreateTaskCompletionClosure(TracingDataType::kCookies),
+-                std::move(cookie_manager)));
+-      }
+-    }
+-
+     MediaDeviceIDSalt::Reset(profile_->GetPrefs());
+   }
+ 
+--- a/chrome/browser/profiles/profiles_state.cc
++++ b/chrome/browser/profiles/profiles_state.cc
+@@ -212,12 +212,6 @@ bool SetActiveProfileToGuestIfLocked() {
+ #endif  // !defined(OS_CHROMEOS)
+ 
+ void RemoveBrowsingDataForProfile(const base::FilePath& profile_path) {
+-  // The BrowsingDataRemover relies on many objects that aren't created in unit
+-  // tests. Previously this code would depend on content::ResourceDispatcherHost
+-  // but that's gone, so do a similar hack for now.
+-  if (!g_browser_process->safe_browsing_service())
+-    return;
+-
+   Profile* profile = g_browser_process->profile_manager()->GetProfileByPath(
+       profile_path);
+   if (!profile)
