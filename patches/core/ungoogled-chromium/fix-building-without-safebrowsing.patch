@@ -81,57 +81,34 @@
  #include "chrome/browser/signin/identity_manager_factory.h"
  #include "chrome/browser/site_isolation/site_isolation_policy.h"
  #include "chrome/browser/sync/profile_sync_service_factory.h"
-@@ -59,7 +58,6 @@
- #include "components/password_manager/core/common/password_manager_features.h"
- #include "components/password_manager/core/common/password_manager_pref_names.h"
- #include "components/prefs/pref_service.h"
--#include "components/safe_browsing/buildflags.h"
- #include "components/sessions/content/content_record_password_state.h"
- #include "components/signin/public/identity_manager/identity_manager.h"
- #include "components/sync/driver/sync_service.h"
-@@ -87,12 +85,8 @@
- #include "third_party/re2/src/re2/re2.h"
- #include "url/url_constants.h"
- 
--#if BUILDFLAG(FULL_SAFE_BROWSING)
--#include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
--#include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
+@@ -90,9 +89,9 @@
+ #if BUILDFLAG(FULL_SAFE_BROWSING)
+ #include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
+ #include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
++#endif
  #include "ui/base/clipboard/clipboard.h"
  #include "ui/events/keycodes/keyboard_codes.h"
 -#endif
  
  #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  #include "services/service_manager/public/cpp/connector.h"
-@@ -538,51 +532,15 @@ bool ChromePasswordManagerClient::IsIsol
+@@ -538,6 +537,7 @@ bool ChromePasswordManagerClient::IsIsol
    return SiteIsolationPolicy::IsIsolationForPasswordSitesEnabled();
  }
  
--#if defined(ON_FOCUS_PING_ENABLED) || \
--    defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
--safe_browsing::PasswordProtectionService*
--ChromePasswordManagerClient::GetPasswordProtectionService() const {
--  return safe_browsing::ChromePasswordProtectionService::
--      GetPasswordProtectionService(profile_);
--}
--#endif
--
--#if defined(ON_FOCUS_PING_ENABLED)
--void ChromePasswordManagerClient::CheckSafeBrowsingReputation(
--    const GURL& form_action,
--    const GURL& frame_url) {
--  safe_browsing::PasswordProtectionService* pps =
--      GetPasswordProtectionService();
--  if (pps) {
--    pps->MaybeStartPasswordFieldOnFocusRequest(
--        web_contents(), web_contents()->GetLastCommittedURL(), form_action,
--        frame_url, pps->GetAccountInfo().hosted_domain);
--  }
--}
--#endif  // defined(ON_FOCUS_PING_ENABLED)
--
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+ #if defined(ON_FOCUS_PING_ENABLED) || \
+     defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+ safe_browsing::PasswordProtectionService*
+@@ -560,6 +560,7 @@ void ChromePasswordManagerClient::CheckS
+   }
+ }
+ #endif  // defined(ON_FOCUS_PING_ENABLED)
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
  #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  void ChromePasswordManagerClient::CheckProtectedPasswordEntry(
-     PasswordType password_type,
+@@ -567,22 +568,9 @@ void ChromePasswordManagerClient::CheckP
      const std::string& username,
      const std::vector<std::string>& matching_domains,
      bool password_field_exists) {
@@ -154,20 +131,6 @@
  }
  #endif  // defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  
-@@ -1019,13 +977,7 @@ ChromePasswordManagerClient::GetURLLoade
- }
- 
- bool ChromePasswordManagerClient::IsUnderAdvancedProtection() const {
--#if BUILDFLAG(FULL_SAFE_BROWSING)
--  return safe_browsing::AdvancedProtectionStatusManagerFactory::GetForProfile(
--             profile_)
--      ->is_under_advanced_protection();
--#else
-   return false;
--#endif
- }
- 
- void ChromePasswordManagerClient::UpdateFormManagers() {
 --- a/components/safe_browsing/common/safe_browsing.mojom
 +++ b/components/safe_browsing/common/safe_browsing.mojom
 @@ -106,7 +106,6 @@ interface ThreatReporter {
@@ -456,25 +419,34 @@
  // Simply returns the frecency_score in the TabFeatures.
 --- a/chrome/browser/password_manager/chrome_password_manager_client.h
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.h
-@@ -30,7 +30,6 @@
- #include "components/password_manager/core/browser/password_reuse_detection_manager.h"
- #include "components/password_manager/core/browser/sync_credentials_filter.h"
- #include "components/prefs/pref_member.h"
--#include "components/safe_browsing/buildflags.h"
- #include "content/public/browser/render_widget_host.h"
- #include "content/public/browser/web_contents_binding_set.h"
- #include "content/public/browser/web_contents_observer.h"
-@@ -176,13 +175,6 @@ class ChromePasswordManagerClient
+@@ -176,7 +176,7 @@ class ChromePasswordManagerClient
            saving_flow_recorder);
  #endif  // defined(OS_ANDROID)
  
 -#if defined(ON_FOCUS_PING_ENABLED)
--  void CheckSafeBrowsingReputation(const GURL& form_action,
--                                   const GURL& frame_url) override;
--  safe_browsing::PasswordProtectionService* GetPasswordProtectionService()
--      const override;
--#endif
--
- #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
-   void CheckProtectedPasswordEntry(
-       password_manager::metrics_util::PasswordType reused_password_type,
++#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
+   void CheckSafeBrowsingReputation(const GURL& form_action,
+                                    const GURL& frame_url) override;
+   safe_browsing::PasswordProtectionService* GetPasswordProtectionService()
+--- a/components/password_manager/core/browser/password_manager_client.h
++++ b/components/password_manager/core/browser/password_manager_client.h
+@@ -269,7 +269,7 @@ class PasswordManagerClient {
+   // Returns the current best guess as to the page's display language.
+   virtual std::string GetPageLanguage() const;
+ 
+-#if defined(ON_FOCUS_PING_ENABLED)
++#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
+   // Return the PasswordProtectionService associated with this instance.
+   virtual safe_browsing::PasswordProtectionService*
+   GetPasswordProtectionService() const = 0;
+--- a/components/password_manager/content/browser/content_password_manager_driver.cc
++++ b/components/password_manager/content/browser/content_password_manager_driver.cc
+@@ -313,7 +313,7 @@ void ContentPasswordManagerDriver::ShowT
+ void ContentPasswordManagerDriver::CheckSafeBrowsingReputation(
+     const GURL& form_action,
+     const GURL& frame_url) {
+-#if defined(ON_FOCUS_PING_ENABLED)
++#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
+   client_->CheckSafeBrowsingReputation(form_action, frame_url);
+ #endif
+ }
