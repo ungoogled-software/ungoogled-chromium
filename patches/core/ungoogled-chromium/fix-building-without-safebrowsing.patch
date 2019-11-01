@@ -73,7 +73,15 @@
    message_body_label->SetHandlesTooltips(false);
 --- a/chrome/browser/password_manager/chrome_password_manager_client.cc
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.cc
-@@ -90,9 +90,9 @@
+@@ -24,7 +24,6 @@
+ #include "chrome/browser/password_manager/touch_to_fill_controller.h"
+ #include "chrome/browser/prerender/prerender_contents.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/safe_browsing/chrome_password_protection_service.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+ #include "chrome/browser/site_isolation/site_isolation_policy.h"
+ #include "chrome/browser/sync/profile_sync_service_factory.h"
+@@ -90,9 +89,9 @@
  #if BUILDFLAG(FULL_SAFE_BROWSING)
  #include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
  #include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
@@ -84,15 +92,45 @@
  
  #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  #include "services/service_manager/public/cpp/connector.h"
-@@ -547,7 +547,7 @@ ChromePasswordManagerClient::GetPassword
+@@ -538,6 +537,7 @@ bool ChromePasswordManagerClient::IsIsol
+   return SiteIsolationPolicy::IsIsolationForPasswordSitesEnabled();
  }
- #endif
  
--#if defined(ON_FOCUS_PING_ENABLED)
-+#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
- void ChromePasswordManagerClient::CheckSafeBrowsingReputation(
-     const GURL& form_action,
-     const GURL& frame_url) {
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+ #if defined(ON_FOCUS_PING_ENABLED) || \
+     defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+ safe_browsing::PasswordProtectionService*
+@@ -560,6 +560,7 @@ void ChromePasswordManagerClient::CheckS
+   }
+ }
+ #endif  // defined(ON_FOCUS_PING_ENABLED)
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+ #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+ void ChromePasswordManagerClient::CheckProtectedPasswordEntry(
+@@ -567,22 +568,9 @@ void ChromePasswordManagerClient::CheckP
+     const std::string& username,
+     const std::vector<std::string>& matching_domains,
+     bool password_field_exists) {
+-  safe_browsing::PasswordProtectionService* pps =
+-      GetPasswordProtectionService();
+-  if (!pps)
+-    return;
+-
+-  pps->MaybeStartProtectedPasswordEntryRequest(
+-      web_contents(), web_contents()->GetLastCommittedURL(), username,
+-      password_type, matching_domains, password_field_exists);
+ }
+ 
+ void ChromePasswordManagerClient::LogPasswordReuseDetectedEvent() {
+-  safe_browsing::PasswordProtectionService* pps =
+-      GetPasswordProtectionService();
+-  if (pps) {
+-    pps->MaybeLogPasswordReuseDetectedEvent(web_contents());
+-  }
+ }
+ #endif  // defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+ 
 --- a/components/safe_browsing/common/safe_browsing.mojom
 +++ b/components/safe_browsing/common/safe_browsing.mojom
 @@ -106,7 +106,6 @@ interface ThreatReporter {
@@ -349,3 +387,66 @@
  
    // Returns whether the given |origin| is allowed to ask for write access.
    // This is used to block save file dialogs from being shown
+--- a/chrome/browser/browser_resources.grd
++++ b/chrome/browser/browser_resources.grd
+@@ -604,7 +604,6 @@
+       </if>
+       <if expr="not is_android">
+         <include name="IDR_TAB_RANKER_EXAMPLE_PREPROCESSOR_CONFIG_PB" file="resource_coordinator\tab_ranker\example_preprocessor_config.pb" type="BINDATA" />
+-        <include name="IDR_TAB_RANKER_PAIRWISE_EXAMPLE_PREPROCESSOR_CONFIG_PB" file="resource_coordinator\tab_ranker\pairwise_preprocessor_config.pb" type="BINDATA" />
+       </if>
+       <if expr="chromeos">
+         <include name="IDR_SMART_DIM_20181115_EXAMPLE_PREPROCESSOR_CONFIG_PB" file="chromeos\power\ml\smart_dim\20181115_example_preprocessor_config.pb" type="BINDATA" />
+--- a/chrome/browser/resource_coordinator/tab_ranker/tab_score_predictor.cc
++++ b/chrome/browser/resource_coordinator/tab_ranker/tab_score_predictor.cc
+@@ -310,17 +310,6 @@ void TabScorePredictor::LazyInitialize()
+     DCHECK_EQ(preprocessor_config_->feature_indices().size(),
+               static_cast<std::size_t>(tfnative_model::FEATURES_SIZE));
+   }
+-
+-  if (type_ == kPairwiseScorer) {
+-    if (!preprocessor_config_)
+-      preprocessor_config_ = LoadExamplePreprocessorConfig(
+-          IDR_TAB_RANKER_PAIRWISE_EXAMPLE_PREPROCESSOR_CONFIG_PB);
+-    if (!pairwise_alloc_)
+-      pairwise_alloc_ = std::make_unique<pairwise_model::FixedAllocations>();
+-    DCHECK(preprocessor_config_);
+-    DCHECK_EQ(preprocessor_config_->feature_indices().size(),
+-              static_cast<std::size_t>(pairwise_model::FEATURES_SIZE));
+-  }
+ }
+ 
+ // Simply returns the frecency_score in the TabFeatures.
+--- a/chrome/browser/password_manager/chrome_password_manager_client.h
++++ b/chrome/browser/password_manager/chrome_password_manager_client.h
+@@ -176,7 +176,7 @@ class ChromePasswordManagerClient
+           saving_flow_recorder);
+ #endif  // defined(OS_ANDROID)
+ 
+-#if defined(ON_FOCUS_PING_ENABLED)
++#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
+   void CheckSafeBrowsingReputation(const GURL& form_action,
+                                    const GURL& frame_url) override;
+   safe_browsing::PasswordProtectionService* GetPasswordProtectionService()
+--- a/components/password_manager/core/browser/password_manager_client.h
++++ b/components/password_manager/core/browser/password_manager_client.h
+@@ -269,7 +269,7 @@ class PasswordManagerClient {
+   // Returns the current best guess as to the page's display language.
+   virtual std::string GetPageLanguage() const;
+ 
+-#if defined(ON_FOCUS_PING_ENABLED)
++#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
+   // Return the PasswordProtectionService associated with this instance.
+   virtual safe_browsing::PasswordProtectionService*
+   GetPasswordProtectionService() const = 0;
+--- a/components/password_manager/content/browser/content_password_manager_driver.cc
++++ b/components/password_manager/content/browser/content_password_manager_driver.cc
+@@ -313,7 +313,7 @@ void ContentPasswordManagerDriver::ShowT
+ void ContentPasswordManagerDriver::CheckSafeBrowsingReputation(
+     const GURL& form_action,
+     const GURL& frame_url) {
+-#if defined(ON_FOCUS_PING_ENABLED)
++#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
+   client_->CheckSafeBrowsingReputation(form_action, frame_url);
+ #endif
+ }
