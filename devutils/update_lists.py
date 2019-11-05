@@ -90,6 +90,9 @@ DOMAIN_EXCLUDE_PREFIXES = [
     'net/http/transport_security_state_static.json',
     # Exclusions for Visual Studio Project generation with GN (PR #445)
     'tools/gn/tools/gn/visual_studio_writer.cc',
+    # Exclusions for files covered with other patches/unnecessary
+    'components/search_engines/prepopulated_engines.json',
+    'third_party/blink/renderer/core/dom/document.cc',
 ]
 
 # pathlib.Path.match() patterns to include in domain substitution
