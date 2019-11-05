@@ -32,7 +32,7 @@
  
 --- a/components/variations/net/variations_http_headers.cc
 +++ b/components/variations/net/variations_http_headers.cc
-@@ -29,10 +29,6 @@ namespace variations {
+@@ -28,10 +28,6 @@ namespace variations {
  
  namespace {
  
@@ -43,8 +43,8 @@
  // The result of checking if a URL should have variations headers appended.
  // This enum is used to record UMA histogram values, and should not be
  // reordered.
-@@ -96,34 +92,7 @@ class VariationsHeaderHelper {
-       : VariationsHeaderHelper(request, null_url_request, variations_header) {}
+@@ -88,26 +84,7 @@ class VariationsHeaderHelper {
+   }
  
    bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
 -    // Note the criteria for attaching client experiment headers:
@@ -62,33 +62,25 @@
 -    if (variations_header_.empty())
 -      return false;
 -
--    if (resource_request_) {
--      // Set the variations header to cors_exempt_headers rather than headers
--      // to be exempted from CORS checks.
--      resource_request_->cors_exempt_headers.SetHeaderIfMissing(
--          kClientDataHeader, variations_header_);
--    } else if (url_request_) {
--      url_request_->SetExtraRequestHeaderByName(kClientDataHeader,
--                                                variations_header_, false);
--    } else {
--      NOTREACHED();
--      return false;
--    }
+-    // Set the variations header to cors_exempt_headers rather than headers
+-    // to be exempted from CORS checks.
+-    resource_request_->cors_exempt_headers.SetHeaderIfMissing(
+-        kClientDataHeader, variations_header_);
 -    return true;
 +    return false;
    }
  
   private:
-@@ -175,8 +144,6 @@ void RemoveVariationsHeaderIfNeeded(
+@@ -150,8 +127,6 @@ void RemoveVariationsHeaderIfNeeded(
      const net::RedirectInfo& redirect_info,
-     const network::ResourceResponseHead& response_head,
+     const network::mojom::URLResponseHead& response_head,
      std::vector<std::string>* to_be_removed_headers) {
 -  if (!ShouldAppendVariationsHeader(redirect_info.new_url))
 -    to_be_removed_headers->push_back(kClientDataHeader);
  }
  
  std::unique_ptr<network::SimpleURLLoader>
-@@ -206,11 +173,11 @@ CreateSimpleURLLoaderWithVariationsHeade
+@@ -181,11 +156,11 @@ CreateSimpleURLLoaderWithVariationsHeade
  }
  
  bool IsVariationsHeader(const std::string& header_name) {
@@ -102,7 +94,7 @@
  }
  
  bool ShouldAppendVariationsHeaderForTesting(const GURL& url) {
-@@ -219,7 +186,6 @@ bool ShouldAppendVariationsHeaderForTest
+@@ -194,7 +169,6 @@ bool ShouldAppendVariationsHeaderForTest
  
  void UpdateCorsExemptHeaderForVariations(
      network::mojom::NetworkContextParams* params) {
@@ -110,19 +102,6 @@
  }
  
  }  // namespace variations
---- a/chrome/browser/page_load_metrics/page_load_metrics_util.cc
-+++ b/chrome/browser/page_load_metrics/page_load_metrics_util.cc
-@@ -171,9 +171,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
- }
- 
- bool IsGoogleSearchHostname(const GURL& url) {
--  base::Optional<std::string> result =
--      page_load_metrics::GetGoogleHostnamePrefix(url);
--  return result && result.value() == "www";
-+  return false;
- }
- 
- bool IsGoogleSearchResultUrl(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
 @@ -505,11 +505,7 @@ base::string16 TemplateURLRef::SearchTer
@@ -440,9 +419,9 @@
  
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -8,10 +8,6 @@
- #include "components/variations/net/variations_http_headers.h"
+@@ -9,10 +9,6 @@
  #include "services/network/public/cpp/resource_response.h"
+ #include "services/network/public/mojom/url_response_head.mojom.h"
  
 -#if BUILDFLAG(ENABLE_EXTENSIONS)
 -#include "extensions/common/extension_urls.h"
@@ -451,7 +430,7 @@
  GoogleURLLoaderThrottle::GoogleURLLoaderThrottle(
      bool is_off_the_record,
      chrome::mojom::DynamicParams dynamic_params)
-@@ -25,36 +21,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -26,36 +22,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -488,11 +467,12 @@
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -63,32 +29,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -64,33 +30,6 @@ void GoogleURLLoaderThrottle::WillRedire
      bool* /* defer */,
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers) {
--  variations::RemoveVariationsHeaderIfNeeded(*redirect_info, response_head,
+-  network::mojom::URLResponseHeadPtr response_head_ptr = response_head;
+-  variations::RemoveVariationsHeaderIfNeeded(*redirect_info, *response_head_ptr,
 -                                             to_be_removed_headers);
 -
 -  // URLLoaderThrottles can only change the redirect URL when the network
@@ -521,7 +501,7 @@
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -96,17 +36,5 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -98,17 +37,5 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::ResourceResponseHead* response_head,
      bool* defer) {
@@ -581,3 +561,16 @@
  }
  
  bool IsGoogleHostname(const GURL& url) {
+--- a/components/page_load_metrics/browser/page_load_metrics_util.cc
++++ b/components/page_load_metrics/browser/page_load_metrics_util.cc
+@@ -171,9 +171,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
+ }
+ 
+ bool IsGoogleSearchHostname(const GURL& url) {
+-  base::Optional<std::string> result =
+-      page_load_metrics::GetGoogleHostnamePrefix(url);
+-  return result && result.value() == "www";
++  return false;
+ }
+ 
+ bool IsGoogleSearchResultUrl(const GURL& url) {
