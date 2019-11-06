@@ -8,14 +8,16 @@
 Substitute domain names in the source tree with blockable strings.
 """
 
+from pathlib import Path
 import argparse
 import collections
+import contextlib
 import io
+import os
 import re
 import tarfile
 import tempfile
 import zlib
-from pathlib import Path
 
 from _extraction import extract_tar_file
 from _common import ENCODING, get_logger, add_common_params
@@ -27,6 +29,10 @@ TREE_ENCODINGS = ('UTF-8', 'ISO-8859-1')
 _INDEX_LIST = 'cache_index.list'
 _INDEX_HASH_DELIMITER = '|'
 _ORIG_DIR = 'orig'
+
+# Constants for timestamp manipulation
+# Delta between all file timestamps in nanoseconds
+_TIMESTAMP_DELTA = 1*10**9
 
 
 class DomainRegexList:
@@ -145,6 +151,24 @@ def _validate_file_index(index_file, resolved_tree, cache_index_files):
         cache_index_files.add(relative_path)
     return all_hashes_valid
 
+@contextlib.contextmanager
+def _update_timestamp(path: os.PathLike, set_new: bool) -> None:
+    """
+    Context manager to set the timestamp of the path to plus or
+    minus a fixed delta, regardless of modifications within the context.
+
+    if set_new is True, the delta is added. Otherwise, the delta is subtracted.
+    """
+    stats = os.stat(path)
+    if set_new:
+        new_timestamp = (stats.st_atime_ns + _TIMESTAMP_DELTA, stats.st_mtime_ns + _TIMESTAMP_DELTA)
+    else:
+        new_timestamp = (stats.st_atime_ns - _TIMESTAMP_DELTA, stats.st_mtime_ns - _TIMESTAMP_DELTA)
+    try:
+        yield
+    finally:
+        os.utime(path, ns=new_timestamp)
+
 
 # Public Methods
 
@@ -194,7 +218,8 @@ def apply_substitution(regex_path, files_path, source_tree, domainsub_cache):
             if path.is_symlink():
                 get_logger().warning('Skipping path that has become a symlink: %s', path)
                 continue
-            crc32_hash, orig_content = _substitute_path(path, regex_pairs)
+            with _update_timestamp(path, set_new=True):
+                crc32_hash, orig_content = _substitute_path(path, regex_pairs)
             if crc32_hash is None:
                 get_logger().info('Path has no substitutions: %s', relative_path)
                 continue
@@ -261,7 +286,8 @@ def revert_substitution(domainsub_cache, source_tree):
         # Move original files over substituted ones
         get_logger().debug('Moving original files over substituted ones...')
         for relative_path in cache_index_files:
-            (extract_path / _ORIG_DIR / relative_path).replace(resolved_tree / relative_path)
+            with _update_timestamp(resolved_tree / relative_path, set_new=False):
+                (extract_path / _ORIG_DIR / relative_path).replace(resolved_tree / relative_path)
 
         # Quick check for unused files in cache
         orig_has_unused = False
