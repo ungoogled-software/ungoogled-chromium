@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .. import domain_substitution
 
+
 def test_update_timestamp():
     with tempfile.TemporaryDirectory() as tmpdirname:
         path = Path(tmpdirname, 'tmp_update_timestamp')

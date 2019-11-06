@@ -32,7 +32,7 @@ _ORIG_DIR = 'orig'
 
 # Constants for timestamp manipulation
 # Delta between all file timestamps in nanoseconds
-_TIMESTAMP_DELTA = 1*10**9
+_TIMESTAMP_DELTA = 1 * 10**9
 
 
 class DomainRegexList:
@@ -150,6 +150,7 @@ def _validate_file_index(index_file, resolved_tree, cache_index_files):
             continue
         cache_index_files.add(relative_path)
     return all_hashes_valid
+
 
 @contextlib.contextmanager
 def _update_timestamp(path: os.PathLike, set_new: bool) -> None:
