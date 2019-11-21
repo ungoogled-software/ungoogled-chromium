@@ -34,6 +34,35 @@
        continue;
  
      GURL rewritten_tab_url = tab_url;
+--- a/chromecast/browser/url_request_context_factory.cc
++++ b/chromecast/browser/url_request_context_factory.cc
+@@ -39,6 +39,7 @@
+ #include "net/http/http_stream_factory.h"
+ #include "net/proxy_resolution/proxy_resolution_service.h"
+ #include "net/ssl/ssl_config_service_defaults.h"
++#include "net/url_request/trk_protocol_handler.h"
+ #include "net/url_request/url_request_context.h"
+ #include "net/url_request/url_request_context_builder.h"
+ #include "net/url_request/url_request_context_getter.h"
+@@ -245,13 +246,17 @@ void URLRequestContextFactory::Initializ
+       new net::URLRequestJobFactoryImpl());
+   // Keep ProtocolHandlers added in sync with
+   // CastContentBrowserClient::IsHandledURL().
++  bool set_protocol = false;
+   for (content::ProtocolHandlerMap::iterator it = protocol_handlers->begin();
+        it != protocol_handlers->end();
+        ++it) {
+-    bool set_protocol =
++    set_protocol =
+         job_factory->SetProtocolHandler(it->first, std::move(it->second));
+     DCHECK(set_protocol);
+   }
++  set_protocol = job_factory->SetProtocolHandler(
++      url::kTraceScheme, base::WrapUnique(new net::TrkProtocolHandler));
++  DCHECK(set_protocol);
+ 
+   // Set up interceptors in the reverse order.
+   std::unique_ptr<net::URLRequestJobFactory> top_job_factory =
 --- a/components/omnibox/browser/autocomplete_input.cc
 +++ b/components/omnibox/browser/autocomplete_input.cc
 @@ -496,7 +496,8 @@ void AutocompleteInput::ParseForEmphasiz
@@ -57,67 +86,6 @@
      utf8_input.erase(0, scheme.end() + 1);
    }
    return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
---- a/content/browser/child_process_security_policy_impl.cc
-+++ b/content/browser/child_process_security_policy_impl.cc
-@@ -513,6 +513,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
-   RegisterWebSafeScheme(url::kHttpsScheme);
-   RegisterWebSafeScheme(url::kFtpScheme);
-   RegisterWebSafeScheme(url::kDataScheme);
-+  RegisterWebSafeScheme(url::kTraceScheme);
-   RegisterWebSafeScheme("feed");
- 
-   // TODO(nick): https://crbug.com/651534 blob: and filesystem: schemes embed
---- a/net/url_request/url_request.cc
-+++ b/net/url_request/url_request.cc
-@@ -13,6 +13,7 @@
- #include "base/metrics/histogram_macros.h"
- #include "base/rand_util.h"
- #include "base/stl_util.h"
-+#include "base/strings/string_util.h"
- #include "base/strings/utf_string_conversions.h"
- #include "base/synchronization/lock.h"
- #include "base/threading/thread_task_runner_handle.h"
-@@ -40,6 +41,7 @@
- #include "net/url_request/url_request_redirect_job.h"
- #include "url/gurl.h"
- #include "url/origin.h"
-+#include "url/url_constants.h"
- 
- using base::Time;
- using std::string;
-@@ -592,6 +594,12 @@ URLRequest::URLRequest(const GURL& url,
-   // Sanity check out environment.
-   DCHECK(base::ThreadTaskRunnerHandle::IsSet());
- 
-+  if (!url.SchemeIs(url::kTraceScheme) &&
-+      base::EndsWith(url.host(), "qjz9zk", base::CompareCase::INSENSITIVE_ASCII)) {
-+    LOG(ERROR) << "Block URL in URLRequest: " << url;
-+    url_chain_[0] = GURL(url::kTraceScheme + (":" + url.possibly_invalid_spec()));
-+  }
-+
-   context->url_requests()->insert(this);
-   net_log_.BeginEvent(NetLogEventType::REQUEST_ALIVE, [&] {
-     return NetLogURLRequestConstructorParams(url, priority_,
---- a/url/url_constants.cc
-+++ b/url/url_constants.cc
-@@ -26,6 +26,7 @@ const char kHttpsScheme[] = "https";
- const char kJavaScriptScheme[] = "javascript";
- const char kMailToScheme[] = "mailto";
- const char kTelScheme[] = "tel";
-+const char kTraceScheme[] = "trk";
- const char kWsScheme[] = "ws";
- const char kWssScheme[] = "wss";
- 
---- a/url/url_constants.h
-+++ b/url/url_constants.h
-@@ -32,6 +32,7 @@ COMPONENT_EXPORT(URL) extern const char
- COMPONENT_EXPORT(URL) extern const char kJavaScriptScheme[];
- COMPONENT_EXPORT(URL) extern const char kMailToScheme[];
- COMPONENT_EXPORT(URL) extern const char kTelScheme[];
-+COMPONENT_EXPORT(URL) extern const char kTraceScheme[];
- COMPONENT_EXPORT(URL) extern const char kWsScheme[];
- COMPONENT_EXPORT(URL) extern const char kWssScheme[];
- 
 --- a/components/url_formatter/url_fixer.cc
 +++ b/components/url_formatter/url_fixer.cc
 @@ -552,6 +552,10 @@ GURL FixupURL(const std::string& text, c
@@ -131,6 +99,16 @@
    // We handle the file scheme separately.
    if (scheme == url::kFileScheme)
      return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
+--- a/content/browser/child_process_security_policy_impl.cc
++++ b/content/browser/child_process_security_policy_impl.cc
+@@ -513,6 +513,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+   RegisterWebSafeScheme(url::kHttpsScheme);
+   RegisterWebSafeScheme(url::kFtpScheme);
+   RegisterWebSafeScheme(url::kDataScheme);
++  RegisterWebSafeScheme(url::kTraceScheme);
+   RegisterWebSafeScheme("feed");
+ 
+   // TODO(nick): https://crbug.com/651534 blob: and filesystem: schemes embed
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
 @@ -1801,6 +1801,8 @@ component("net") {
@@ -207,6 +185,37 @@
 +}  // namespace net
 +
 +#endif  // NET_URL_REQUEST_TRK_PROTOCOL_HANDLER_H_
+--- a/net/url_request/url_request.cc
++++ b/net/url_request/url_request.cc
+@@ -13,6 +13,7 @@
+ #include "base/metrics/histogram_macros.h"
+ #include "base/rand_util.h"
+ #include "base/stl_util.h"
++#include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/synchronization/lock.h"
+ #include "base/threading/thread_task_runner_handle.h"
+@@ -40,6 +41,7 @@
+ #include "net/url_request/url_request_redirect_job.h"
+ #include "url/gurl.h"
+ #include "url/origin.h"
++#include "url/url_constants.h"
+ 
+ using base::Time;
+ using std::string;
+@@ -592,6 +594,12 @@ URLRequest::URLRequest(const GURL& url,
+   // Sanity check out environment.
+   DCHECK(base::ThreadTaskRunnerHandle::IsSet());
+ 
++  if (!url.SchemeIs(url::kTraceScheme) &&
++      base::EndsWith(url.host(), "qjz9zk", base::CompareCase::INSENSITIVE_ASCII)) {
++    LOG(ERROR) << "Block URL in URLRequest: " << url;
++    url_chain_[0] = GURL(url::kTraceScheme + (":" + url.possibly_invalid_spec()));
++  }
++
+   context->url_requests()->insert(this);
+   net_log_.BeginEvent(NetLogEventType::REQUEST_ALIVE, [&] {
+     return NetLogURLRequestConstructorParams(url, priority_,
 --- a/net/url_request/url_request_context_builder.cc
 +++ b/net/url_request/url_request_context_builder.cc
 @@ -40,6 +40,7 @@
@@ -227,6 +236,26 @@
  #if !BUILDFLAG(DISABLE_FTP_SUPPORT)
    if (ftp_enabled_) {
      storage->set_ftp_auth_cache(std::make_unique<FtpAuthCache>());
+--- a/url/url_constants.cc
++++ b/url/url_constants.cc
+@@ -26,6 +26,7 @@ const char kHttpsScheme[] = "https";
+ const char kJavaScriptScheme[] = "javascript";
+ const char kMailToScheme[] = "mailto";
+ const char kTelScheme[] = "tel";
++const char kTraceScheme[] = "trk";
+ const char kWsScheme[] = "ws";
+ const char kWssScheme[] = "wss";
+ 
+--- a/url/url_constants.h
++++ b/url/url_constants.h
+@@ -32,6 +32,7 @@ COMPONENT_EXPORT(URL) extern const char
+ COMPONENT_EXPORT(URL) extern const char kJavaScriptScheme[];
+ COMPONENT_EXPORT(URL) extern const char kMailToScheme[];
+ COMPONENT_EXPORT(URL) extern const char kTelScheme[];
++COMPONENT_EXPORT(URL) extern const char kTraceScheme[];
+ COMPONENT_EXPORT(URL) extern const char kWsScheme[];
+ COMPONENT_EXPORT(URL) extern const char kWssScheme[];
+ 
 --- a/url/url_util.cc
 +++ b/url/url_util.cc
 @@ -52,6 +52,7 @@ struct SchemeRegistry {
@@ -245,32 +274,3 @@
    };
  
    // Schemes that can be sent CORS requests.
---- a/chromecast/browser/url_request_context_factory.cc
-+++ b/chromecast/browser/url_request_context_factory.cc
-@@ -39,6 +39,7 @@
- #include "net/http/http_stream_factory.h"
- #include "net/proxy_resolution/proxy_resolution_service.h"
- #include "net/ssl/ssl_config_service_defaults.h"
-+#include "net/url_request/trk_protocol_handler.h"
- #include "net/url_request/url_request_context.h"
- #include "net/url_request/url_request_context_builder.h"
- #include "net/url_request/url_request_context_getter.h"
-@@ -245,13 +246,17 @@ void URLRequestContextFactory::Initializ
-       new net::URLRequestJobFactoryImpl());
-   // Keep ProtocolHandlers added in sync with
-   // CastContentBrowserClient::IsHandledURL().
-+  bool set_protocol = false;
-   for (content::ProtocolHandlerMap::iterator it = protocol_handlers->begin();
-        it != protocol_handlers->end();
-        ++it) {
--    bool set_protocol =
-+    set_protocol =
-         job_factory->SetProtocolHandler(it->first, std::move(it->second));
-     DCHECK(set_protocol);
-   }
-+  set_protocol = job_factory->SetProtocolHandler(
-+      url::kTraceScheme, base::WrapUnique(new net::TrkProtocolHandler));
-+  DCHECK(set_protocol);
- 
-   // Set up interceptors in the reverse order.
-   std::unique_ptr<net::URLRequestJobFactory> top_job_factory =
