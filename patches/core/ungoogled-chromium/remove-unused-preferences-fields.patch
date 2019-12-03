@@ -1503,7 +1503,19 @@
  #include "components/signin/public/identity_manager/accounts_mutator.h"
  #include "components/signin/public/identity_manager/primary_account_mutator.h"
  #include "components/strings/grit/components_strings.h"
-@@ -894,12 +893,6 @@ void ProfileMenuView::AddCurrentProfileV
+@@ -531,11 +530,6 @@ void ProfileMenuView::BuildAutofillButto
+ 
+ void ProfileMenuView::BuildSyncInfo() {
+   Profile* profile = browser()->profile();
+-  // Only show the sync info if signin and sync are allowed.
+-  if (!profile->GetPrefs()->GetBoolean(prefs::kSigninAllowed) ||
+-      !profile->IsSyncAllowed()) {
+-    return;
+-  }
+ 
+   signin::IdentityManager* identity_manager =
+       IdentityManagerFactory::GetForProfile(profile);
+@@ -894,12 +888,6 @@ void ProfileMenuView::AddCurrentProfileV
          IDS_PROFILES_EDIT_SIGNED_IN_PROFILE_ACCESSIBLE_NAME, profile_name,
          avatar_item.username));
    } else {
@@ -2203,7 +2215,7 @@
  }
  
  void PrimaryAccountManager::Initialize(PrefService* local_state) {
-@@ -71,15 +56,7 @@ void PrimaryAccountManager::Initialize(P
+@@ -71,25 +56,7 @@ void PrimaryAccountManager::Initialize(P
    DCHECK(!IsInitialized());
    initialized_ = true;
  
@@ -2216,11 +2228,21 @@
 -
 -  std::string pref_account_id =
 -      client_->GetPrefs()->GetString(prefs::kGoogleServicesAccountId);
+-
+-  // Initial value for the kGoogleServicesConsentedToSync preference if it is
+-  // missing.
+-  const PrefService::Preference* consented_pref =
+-      client_->GetPrefs()->FindPreference(
+-          prefs::kGoogleServicesConsentedToSync);
+-  if (consented_pref->IsDefaultValue()) {
+-    client_->GetPrefs()->SetBoolean(prefs::kGoogleServicesConsentedToSync,
+-                                    !pref_account_id.empty());
+-  }
 +  std::string pref_account_id;
  
-   // Initial value for the kGoogleServicesConsentedToSync preference if it is
-   // missing.
-@@ -99,8 +76,6 @@ void PrimaryAccountManager::Initialize(P
+   if (!pref_account_id.empty()) {
+     if (account_tracker_service_->GetMigrationState() ==
+@@ -99,14 +66,11 @@ void PrimaryAccountManager::Initialize(P
        // |account_info.gaia| could be empty if |account_id| is already gaia id.
        if (!account_info.gaia.empty()) {
          pref_account_id = account_info.gaia;
@@ -2229,7 +2251,14 @@
        }
      }
    }
-@@ -174,8 +149,7 @@ void PrimaryAccountManager::SetAuthentic
+ 
+-  bool consented =
+-      client_->GetPrefs()->GetBoolean(prefs::kGoogleServicesConsentedToSync);
++  bool consented = false;
+   CoreAccountInfo account_info =
+       account_tracker_service_->GetAccountInfo(CoreAccountId(pref_account_id));
+   if (consented) {
+@@ -174,8 +138,7 @@ void PrimaryAccountManager::SetAuthentic
  
  #if DCHECK_IS_ON()
    {
@@ -2239,7 +2268,7 @@
      bool consented_to_sync =
          client_->GetPrefs()->GetBoolean(prefs::kGoogleServicesConsentedToSync);
  
-@@ -191,10 +165,6 @@ void PrimaryAccountManager::SetAuthentic
+@@ -191,10 +154,6 @@ void PrimaryAccountManager::SetAuthentic
    // Go ahead and update the last signed in account info here as well. Once a
    // user is signed in the corresponding preferences should match. Doing it here
    // as opposed to on signin allows us to catch the upgrade scenario.
@@ -2250,6 +2279,35 @@
  
    // Commit authenticated account info immediately so that it does not get lost
    // if Chrome crashes before the next commit interval.
+@@ -208,19 +167,10 @@ void PrimaryAccountManager::SetPrimaryAc
+ 
+   PrefService* prefs = client_->GetPrefs();
+   const std::string& account_id = primary_account_info_.account_id.id;
+-  if (account_id.empty()) {
+-    DCHECK(!consented_to_sync);
+-    prefs->ClearPref(prefs::kGoogleServicesAccountId);
+-    prefs->ClearPref(prefs::kGoogleServicesConsentedToSync);
+-  } else {
+-    prefs->SetString(prefs::kGoogleServicesAccountId, account_id);
+-    prefs->SetBoolean(prefs::kGoogleServicesConsentedToSync, consented_to_sync);
+-  }
+ }
+ 
+ bool PrimaryAccountManager::IsAuthenticated() const {
+-  bool consented_pref =
+-      client_->GetPrefs()->GetBoolean(prefs::kGoogleServicesConsentedToSync);
++  bool consented_pref = false;
+   DCHECK(!consented_pref || !primary_account_info().account_id.empty());
+   return consented_pref;
+ }
+@@ -325,7 +275,6 @@ void PrimaryAccountManager::OnSignoutDec
+   }
+ 
+   const CoreAccountInfo account_info = GetAuthenticatedAccountInfo();
+-  client_->GetPrefs()->ClearPref(prefs::kGoogleServicesHostedDomain);
+   SetPrimaryAccountInternal(CoreAccountInfo(), /*consented_to_sync=*/false);
+ 
+   // Revoke all tokens before sending signed_out notification, because there
 --- a/components/signin/internal/identity_manager/primary_account_manager_unittest.cc
 +++ b/components/signin/internal/identity_manager/primary_account_manager_unittest.cc
 @@ -22,7 +22,6 @@
@@ -3351,6 +3409,15 @@
  #include "components/safe_browsing/features.h"
  #include "components/unified_consent/pref_names.h"
  #include "components/user_prefs/user_prefs.h"
+@@ -37,7 +36,7 @@ bool RealTimePolicyEngine::IsUserOptedIn
+ bool RealTimePolicyEngine::IsEnabledByPolicy(
+     content::BrowserContext* browser_context) {
+   PrefService* pref_service = user_prefs::UserPrefs::Get(browser_context);
+-  return pref_service->GetBoolean(prefs::kSafeBrowsingRealTimeLookupEnabled);
++  return false;
+ }
+ 
+ // static
 --- a/components/safe_browsing/triggers/suspicious_site_trigger_unittest.cc
 +++ b/components/safe_browsing/triggers/suspicious_site_trigger_unittest.cc
 @@ -10,7 +10,6 @@

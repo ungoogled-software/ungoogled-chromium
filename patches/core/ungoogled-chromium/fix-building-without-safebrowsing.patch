@@ -263,6 +263,29 @@
  }
  #endif  // defined(SYNC_PASSWORD_REUSE_WARNING_ENABLED)
  
+@@ -692,7 +680,9 @@ void ChromePasswordManagerClient::OnInpu
+   if (key_event.windows_key_code == (ui::VKEY_V & 0x1f)) {
+     OnPaste();
+   } else {
++#if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+     password_reuse_detection_manager_.OnKeyPressed(key_event.text);
++#endif  // defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+   }
+ #endif  // defined(OS_ANDROID)
+ }
+@@ -806,9 +796,11 @@ void ChromePasswordManagerClient::OnPast
+   base::string16 text;
+   clipboard->ReadText(ui::ClipboardBuffer::kCopyPaste, &text);
+   was_on_paste_called_ = true;
++#if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+   password_reuse_detection_manager_.OnPaste(std::move(text));
++#endif  // defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+ }
+-#endif
++#endif  // !defined(OS_ANDROID)
+ 
+ gfx::RectF ChromePasswordManagerClient::GetBoundsInScreenSpace(
+     const gfx::RectF& bounds) {
 --- a/chrome/browser/password_manager/chrome_password_manager_client.h
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.h
 @@ -181,7 +181,7 @@ class ChromePasswordManagerClient
@@ -460,7 +483,25 @@
    // This is used to block save file dialogs from being shown
 --- a/chrome/browser/ui/views/download/download_item_view.cc
 +++ b/chrome/browser/ui/views/download/download_item_view.cc
-@@ -1357,6 +1357,8 @@ base::string16 DownloadItemView::ElidedF
+@@ -1059,6 +1059,7 @@ void DownloadItemView::ShowDeepScanningD
+   deep_scanning_label_ = AddChildView(std::move(deep_scanning_label));
+   deep_scanning_label_->SetSize(AdjustTextAndGetSize(deep_scanning_label_));
+ 
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   int delay_delivery = g_browser_process->local_state()->GetInteger(
+       prefs::kDelayDeliveryUntilVerdict);
+   if (delay_delivery != safe_browsing::DELAY_DOWNLOADS &&
+@@ -1070,6 +1071,9 @@ void DownloadItemView::ShowDeepScanningD
+   } else {
+     open_button_->SetEnabled(false);
+   }
++#else
++  open_button_->SetEnabled(false);
++#endif  // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+   file_name_label_->SetVisible(false);
+   status_label_->SetVisible(false);
+@@ -1357,6 +1361,8 @@ base::string16 DownloadItemView::ElidedF
  }
  
  void DownloadItemView::OpenDownloadDuringAsyncScanning() {
