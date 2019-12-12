@@ -1,5 +1,18 @@
 # Disables Chrome Webstore-related URLs and other internal functionality. Mainly for disabling auto updates via the Chrome Webstore.
 
+--- a/chrome/browser/extensions/chrome_content_browser_client_extensions_part.cc
++++ b/chrome/browser/extensions/chrome_content_browser_client_extensions_part.cc
+@@ -599,10 +599,6 @@ std::vector<url::Origin> ChromeContentBr
+     GetOriginsRequiringDedicatedProcess() {
+   std::vector<url::Origin> list;
+ 
+-  // Require a dedicated process for the webstore origin.  See
+-  // https://crbug.com/939108.
+-  list.push_back(url::Origin::Create(extension_urls::GetWebstoreLaunchURL()));
+-
+   return list;
+ }
+ 
 --- a/chrome/browser/extensions/chrome_content_verifier_delegate.cc
 +++ b/chrome/browser/extensions/chrome_content_verifier_delegate.cc
 @@ -256,13 +256,7 @@ ChromeContentVerifierDelegate::GetVerify
@@ -17,17 +30,46 @@
    }
  
    return default_mode_;
---- a/extensions/common/extension_urls.cc
-+++ b/extensions/common/extension_urls.cc
-@@ -30,7 +30,7 @@ bool IsSourceFromAnExtension(const base:
+--- a/chrome/browser/extensions/extension_migrator.cc
++++ b/chrome/browser/extensions/extension_migrator.cc
+@@ -18,7 +18,9 @@ namespace extensions {
+ ExtensionMigrator::ExtensionMigrator(Profile* profile,
+                                      const std::string& old_id,
+                                      const std::string& new_id)
+-    : profile_(profile), old_id_(old_id), new_id_(new_id) {}
++    : profile_(profile), old_id_(old_id), new_id_(new_id) {
++    chrome_blank_ = GURL("chrome://blank/");
++}
  
- namespace extension_urls {
+ ExtensionMigrator::~ExtensionMigrator() {
+ }
+@@ -31,7 +33,7 @@ void ExtensionMigrator::StartLoading() {
+   if (should_have_extension) {
+     std::unique_ptr<base::DictionaryValue> entry(new base::DictionaryValue);
+     entry->SetKey(ExternalProviderImpl::kExternalUpdateUrl,
+-                  base::Value(extension_urls::GetWebstoreUpdateUrl().spec()));
++                  base::Value(chrome_blank_.spec()));
  
--const char kChromeWebstoreBaseURL[] = "https://chrome.google.com/webstore";
-+const char kChromeWebstoreBaseURL[] = "trk:09:https://chrome.google.com/webstore";
- const char kChromeWebstoreUpdateURL[] =
-     "trk:05:https://clients2.google.com/service/update2/crx";
+     prefs->SetWithoutPathExpansion(new_id_, std::move(entry));
+   }
+--- a/chrome/browser/extensions/extension_migrator.h
++++ b/chrome/browser/extensions/extension_migrator.h
+@@ -9,6 +9,7 @@
  
+ #include "base/macros.h"
+ #include "chrome/browser/extensions/external_loader.h"
++#include "url/gurl.h"
+ 
+ class Profile;
+ 
+@@ -37,6 +38,7 @@ class ExtensionMigrator : public Externa
+   Profile* profile_;
+   const std::string old_id_;
+   const std::string new_id_;
++  GURL chrome_blank_;
+ 
+   DISALLOW_COPY_AND_ASSIGN(ExtensionMigrator);
+ };
 --- a/extensions/browser/updater/extension_downloader.cc
 +++ b/extensions/browser/updater/extension_downloader.cc
 @@ -94,27 +94,18 @@ const char kNotFromWebstoreInstallSource
@@ -151,56 +193,14 @@
        return true;
      case ExtensionFetch::CREDENTIALS_OAUTH2_TOKEN:
        fetch->oauth2_attempt_count++;
---- a/chrome/browser/extensions/extension_migrator.cc
-+++ b/chrome/browser/extensions/extension_migrator.cc
-@@ -18,7 +18,9 @@ namespace extensions {
- ExtensionMigrator::ExtensionMigrator(Profile* profile,
-                                      const std::string& old_id,
-                                      const std::string& new_id)
--    : profile_(profile), old_id_(old_id), new_id_(new_id) {}
-+    : profile_(profile), old_id_(old_id), new_id_(new_id) {
-+    chrome_blank_ = GURL("chrome://blank/");
-+}
+--- a/extensions/common/extension_urls.cc
++++ b/extensions/common/extension_urls.cc
+@@ -30,7 +30,7 @@ bool IsSourceFromAnExtension(const base:
  
- ExtensionMigrator::~ExtensionMigrator() {
- }
-@@ -31,7 +33,7 @@ void ExtensionMigrator::StartLoading() {
-   if (should_have_extension) {
-     std::unique_ptr<base::DictionaryValue> entry(new base::DictionaryValue);
-     entry->SetKey(ExternalProviderImpl::kExternalUpdateUrl,
--                  base::Value(extension_urls::GetWebstoreUpdateUrl().spec()));
-+                  base::Value(chrome_blank_.spec()));
+ namespace extension_urls {
  
-     prefs->SetWithoutPathExpansion(new_id_, std::move(entry));
-   }
---- a/chrome/browser/extensions/extension_migrator.h
-+++ b/chrome/browser/extensions/extension_migrator.h
-@@ -9,6 +9,7 @@
- 
- #include "base/macros.h"
- #include "chrome/browser/extensions/external_loader.h"
-+#include "url/gurl.h"
- 
- class Profile;
- 
-@@ -37,6 +38,7 @@ class ExtensionMigrator : public Externa
-   Profile* profile_;
-   const std::string old_id_;
-   const std::string new_id_;
-+  GURL chrome_blank_;
- 
-   DISALLOW_COPY_AND_ASSIGN(ExtensionMigrator);
- };
---- a/chrome/browser/extensions/chrome_content_browser_client_extensions_part.cc
-+++ b/chrome/browser/extensions/chrome_content_browser_client_extensions_part.cc
-@@ -622,10 +622,6 @@ std::vector<url::Origin> ChromeContentBr
-     GetOriginsRequiringDedicatedProcess() {
-   std::vector<url::Origin> list;
- 
--  // Require a dedicated process for the webstore origin.  See
--  // https://crbug.com/939108.
--  list.push_back(url::Origin::Create(extension_urls::GetWebstoreLaunchURL()));
--
-   return list;
- }
+-const char kChromeWebstoreBaseURL[] = "https://chrome.google.com/webstore";
++const char kChromeWebstoreBaseURL[] = "trk:09:https://chrome.google.com/webstore";
+ const char kChromeWebstoreUpdateURL[] =
+     "trk:05:https://clients2.google.com/service/update2/crx";
  
