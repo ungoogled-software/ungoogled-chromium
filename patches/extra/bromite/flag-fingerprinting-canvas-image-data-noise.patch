@@ -21,6 +21,74 @@ approach to change color components.
  .../platform/graphics/static_bitmap_image.h        |   2 +
  4 files changed, 163 insertions(+), 2 deletions(-)
 
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -1475,6 +1475,10 @@ const FeatureEntry kFeatureEntries[] = {
+      "Enable Canvas::measureText() fingerprint deception",
+      "Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.",
+      kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasMeasureTextNoise)},
++    {"fingerprinting-canvas-image-data-noise",
++     "Enable Canvas image data fingerprint deception",
++     "Slightly modifies at most 10 pixels in Canvas image data extracted via JS APIs",
++     kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasImageDataNoise)},
+     {"ignore-gpu-blacklist", flag_descriptions::kIgnoreGpuBlacklistName,
+      flag_descriptions::kIgnoreGpuBlacklistDescription, kOsAll,
+      SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
+--- a/content/browser/renderer_host/render_process_host_impl.cc
++++ b/content/browser/renderer_host/render_process_host_impl.cc
+@@ -3040,6 +3040,7 @@ void RenderProcessHostImpl::PropagateBro
+     switches::kFileUrlPathAlias,
+     switches::kFingerprintingClientRectsNoise,
+     switches::kFingerprintingCanvasMeasureTextNoise,
++    switches::kFingerprintingCanvasImageDataNoise,
+     switches::kForceDeviceScaleFactor,
+     switches::kForceDisableWebRtcApmInAudioService,
+     switches::kForceDisplayColorProfile,
+--- a/content/child/runtime_features.cc
++++ b/content/child/runtime_features.cc
+@@ -444,6 +444,8 @@ void SetRuntimeFeaturesFromCommandLine(c
+        switches::kFingerprintingClientRectsNoise, true},
+       {wrf::EnableFingerprintingCanvasMeasureTextNoise,
+        switches::kFingerprintingCanvasMeasureTextNoise, true},
++      {wrf::EnableFingerprintingCanvasImageDataNoise,
++       switches::kFingerprintingCanvasImageDataNoise, true},
+   };
+   for (const auto& mapping : switchToFeatureMapping) {
+     if (command_line.HasSwitch(mapping.switch_name))
+--- a/third_party/blink/public/platform/web_runtime_features.h
++++ b/third_party/blink/public/platform/web_runtime_features.h
+@@ -231,6 +231,7 @@ class WebRuntimeFeatures {
+   BLINK_PLATFORM_EXPORT static void EnableAllowSyncXHRInPageDismissal(bool);
+   BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
+   BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasMeasureTextNoise(bool);
++  BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasImageDataNoise(bool);
+   BLINK_PLATFORM_EXPORT static void EnableShadowDOMV0(bool);
+   BLINK_PLATFORM_EXPORT static void EnableCustomElementsV0(bool);
+   BLINK_PLATFORM_EXPORT static void EnableHTMLImports(bool);
+--- a/third_party/blink/renderer/platform/BUILD.gn
++++ b/third_party/blink/renderer/platform/BUILD.gn
+@@ -1454,7 +1454,9 @@ jumbo_component("platform") {
+     "//third_party/blink/renderer:non_test_config",
+   ]
+ 
+-  include_dirs = []
++  include_dirs = [
++    "//third_party/skia/include/private", # For shuffler in graphics/static_bitmap_image.cc
++  ]
+ 
+   public_deps = [
+     ":blink_platform_public_deps",
+--- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
++++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
+@@ -712,4 +712,8 @@ void WebRuntimeFeatures::EnableFingerpri
+   RuntimeEnabledFeatures::SetFingerprintingCanvasMeasureTextNoiseEnabled(enable);
+ }
+ 
++void WebRuntimeFeatures::EnableFingerprintingCanvasImageDataNoise(bool enable) {
++  RuntimeEnabledFeatures::SetFingerprintingCanvasImageDataNoiseEnabled(enable);
++}
++
+ }  // namespace blink
 --- a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 +++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 @@ -35,6 +35,8 @@
@@ -70,7 +138,7 @@ approach to change color components.
  #include "v8/include/v8.h"
  
  namespace blink {
-@@ -154,10 +158,165 @@ bool StaticBitmapImage::ConvertToArrayBu
+@@ -141,10 +145,165 @@ bool StaticBitmapImage::ConvertToArrayBu
    DCHECK(read_pixels_successful ||
           !sk_image->bounds().intersect(SkIRect::MakeXYWH(
               rect.X(), rect.Y(), info.width(), info.height())));
@@ -238,8 +306,8 @@ approach to change color components.
    return sync_token;
 --- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.h
 +++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.h
-@@ -46,6 +46,8 @@ class PLATFORM_EXPORT StaticBitmapImage
-   static scoped_refptr<StaticBitmapImage> Create(WTF::ArrayBufferContents&,
+@@ -44,6 +44,8 @@ class PLATFORM_EXPORT StaticBitmapImage 
+   static scoped_refptr<StaticBitmapImage> Create(sk_sp<SkData> data,
                                                   const SkImageInfo&);
  
 +  static void ShuffleSubchannelColorData(const void *addr, const SkImageInfo& info, int srcX, int srcY);
@@ -247,83 +315,15 @@ approach to change color components.
    bool IsStaticBitmapImage() const override { return true; }
  
    // Methods overridden by all sub-classes
---- a/chrome/browser/about_flags.cc
-+++ b/chrome/browser/about_flags.cc
-@@ -1414,6 +1414,10 @@ const FeatureEntry kFeatureEntries[] = {
-      "Enable Canvas::measureText() fingerprint deception",
-      "Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.",
-      kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasMeasureTextNoise)},
-+    {"fingerprinting-canvas-image-data-noise",
-+     "Enable Canvas image data fingerprint deception",
-+     "Slightly modifies at most 10 pixels in Canvas image data extracted via JS APIs",
-+     kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasImageDataNoise)},
-     {"ignore-gpu-blacklist", flag_descriptions::kIgnoreGpuBlacklistName,
-      flag_descriptions::kIgnoreGpuBlacklistDescription, kOsAll,
-      SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
---- a/content/child/runtime_features.cc
-+++ b/content/child/runtime_features.cc
-@@ -466,6 +466,8 @@ void SetIndividualRuntimeFeatures(
-       command_line.HasSwitch(switches::kFingerprintingClientRectsNoise));
-   WebRuntimeFeatures::EnableFingerprintingCanvasMeasureTextNoise(
-       command_line.HasSwitch(switches::kFingerprintingCanvasMeasureTextNoise));
-+  WebRuntimeFeatures::EnableFingerprintingCanvasImageDataNoise(
-+      command_line.HasSwitch(switches::kFingerprintingCanvasImageDataNoise));
- 
-   WebRuntimeFeatures::EnableAutoplayIgnoresWebAudio(
-       base::FeatureList::IsEnabled(media::kAutoplayIgnoreWebAudio));
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -683,6 +683,9 @@
+@@ -699,6 +699,9 @@
      {
        name: "FingerprintingCanvasMeasureTextNoise",
      },
 +    {
 +      name: "FingerprintingCanvasImageDataNoise",
 +    },
-     // FirstContentfulPaintPlusPlus enables the Largest Text Paint metric, Last
-     // Text Paint metric, Largest Image Paint metric and Last Image Paint
-     // metric. See also: http://bit.ly/fcp_plus_plus
---- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-+++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-@@ -730,4 +730,8 @@ void WebRuntimeFeatures::EnableFingerpri
-   RuntimeEnabledFeatures::SetFingerprintingCanvasMeasureTextNoiseEnabled(enable);
- }
- 
-+void WebRuntimeFeatures::EnableFingerprintingCanvasImageDataNoise(bool enable) {
-+  RuntimeEnabledFeatures::SetFingerprintingCanvasImageDataNoiseEnabled(enable);
-+}
-+
- }  // namespace blink
---- a/third_party/blink/public/platform/web_runtime_features.h
-+++ b/third_party/blink/public/platform/web_runtime_features.h
-@@ -230,6 +230,7 @@ class WebRuntimeFeatures {
-   BLINK_PLATFORM_EXPORT static void EnableAllowSyncXHRInPageDismissal(bool);
-   BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
-   BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasMeasureTextNoise(bool);
-+  BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasImageDataNoise(bool);
-   BLINK_PLATFORM_EXPORT static void EnableShadowDOMV0(bool);
-   BLINK_PLATFORM_EXPORT static void EnableCustomElementsV0(bool);
-   BLINK_PLATFORM_EXPORT static void EnableHTMLImports(bool);
---- a/content/browser/renderer_host/render_process_host_impl.cc
-+++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -2973,6 +2973,7 @@ void RenderProcessHostImpl::PropagateBro
-     switches::kFileUrlPathAlias,
-     switches::kFingerprintingClientRectsNoise,
-     switches::kFingerprintingCanvasMeasureTextNoise,
-+    switches::kFingerprintingCanvasImageDataNoise,
-     switches::kForceDisplayColorProfile,
-     switches::kForceDeviceScaleFactor,
-     switches::kForceGpuMemAvailableMb,
---- a/third_party/blink/renderer/platform/BUILD.gn
-+++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1417,7 +1417,9 @@ jumbo_component("platform") {
-     "//third_party/blink/renderer:non_test_config",
-   ]
- 
--  include_dirs = []
-+  include_dirs = [
-+    "//third_party/skia/include/private", # For shuffler in graphics/static_bitmap_image.cc
-+  ]
- 
-   public_deps = [
-     ":blink_platform_public_deps",
+     // Perform style recalc traversal in the flat tree order, including marking
+     // flat-tree instead of shadow-including ancestors for child dirtiness.
+     {

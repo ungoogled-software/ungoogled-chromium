@@ -76,99 +76,41 @@
      });
      this.$.actionButton.disabled = !allValid;
    },
---- a/chrome/browser/ui/webui/settings/search_engines_handler.cc
-+++ b/chrome/browser/ui/webui/settings/search_engines_handler.cc
-@@ -37,6 +37,7 @@ namespace {
- const char kSearchEngineField[] = "searchEngine";
- const char kKeywordField[] = "keyword";
- const char kQueryUrlField[] = "queryUrl";
-+const char kSuggestionsUrlField[] = "suggestionsUrl";
+--- a/chrome/browser/resources/settings/search_engines_page/search_engines_browser_proxy.js
++++ b/chrome/browser/resources/settings/search_engines_page/search_engines_browser_proxy.js
+@@ -24,6 +24,7 @@
+  *            modelIndex: number,
+  *            name: string,
+  *            url: string,
++ *            suggestionsUrl: string,
+  *            urlLocked: boolean}}
+  * @see chrome/browser/ui/webui/settings/search_engine_manager_handler.cc
+  */
+@@ -56,8 +57,10 @@ cr.define('settings', function() {
+      * @param {string} searchEngine
+      * @param {string} keyword
+      * @param {string} queryUrl
++     * @param {string} suggestionsUrl
+      */
+-    searchEngineEditCompleted(searchEngine, keyword, queryUrl) {}
++    searchEngineEditCompleted(
++        searchEngine, keyword, queryUrl, suggestionsUrl) {}
  
- // Dummy number used for indicating that a new search engine is added.
- const int kNewSearchEngineIndex = -1;
-@@ -197,6 +198,9 @@ SearchEnginesHandler::CreateDictionaryFo
-   Profile* profile = Profile::FromWebUI(web_ui());
-   dict->SetString(
-       "url", template_url->url_ref().DisplayURL(UIThreadSearchTermsData()));
-+  dict->SetString("suggestionsUrl",
-+                  template_url->suggestions_url_ref().DisplayURL(
-+                      UIThreadSearchTermsData()));
-   dict->SetBoolean("urlLocked", template_url->prepopulate_id() > 0);
-   GURL icon_url = template_url->favicon_url();
-   if (icon_url.is_valid())
-@@ -293,12 +297,14 @@ void SearchEnginesHandler::HandleSearchE
- void SearchEnginesHandler::OnEditedKeyword(TemplateURL* template_url,
-                                            const base::string16& title,
-                                            const base::string16& keyword,
--                                           const std::string& url) {
-+                                           const std::string& url,
-+                                           const std::string& suggestions_url) {
-   DCHECK(!url.empty());
-   if (template_url)
--    list_controller_.ModifyTemplateURL(template_url, title, keyword, url);
-+    list_controller_.ModifyTemplateURL(template_url, title, keyword, url,
-+                                       suggestions_url);
-   else
--    list_controller_.AddTemplateURL(title, keyword, url);
-+    list_controller_.AddTemplateURL(title, keyword, url, suggestions_url);
+     /** @return {!Promise<!SearchEnginesInfo>} */
+     getSearchEnginesList() {}
+@@ -95,11 +98,12 @@ cr.define('settings', function() {
+     }
  
-   edit_controller_.reset();
- }
-@@ -329,6 +335,8 @@ bool SearchEnginesHandler::CheckFieldVal
-     is_valid = edit_controller_->IsKeywordValid(base::UTF8ToUTF16(field_value));
-   else if (field_name.compare(kQueryUrlField) == 0)
-     is_valid = edit_controller_->IsURLValid(field_value);
-+  else if (field_name.compare(kSuggestionsUrlField) == 0)
-+    is_valid = edit_controller_->IsSuggestionsURLValid(field_value);
-   else
-     NOTREACHED();
- 
-@@ -350,17 +358,21 @@ void SearchEnginesHandler::HandleSearchE
-   std::string search_engine;
-   std::string keyword;
-   std::string query_url;
-+  std::string suggestions_url;
-   CHECK(args->GetString(0, &search_engine));
-   CHECK(args->GetString(1, &keyword));
-   CHECK(args->GetString(2, &query_url));
-+  CHECK(args->GetString(3, &suggestions_url));
- 
-   // Recheck validity. It's possible to get here with invalid input if e.g. the
-   // user calls the right JS functions directly from the web inspector.
-   if (CheckFieldValidity(kSearchEngineField, search_engine) &&
-       CheckFieldValidity(kKeywordField, keyword) &&
--      CheckFieldValidity(kQueryUrlField, query_url)) {
-+      CheckFieldValidity(kQueryUrlField, query_url) &&
-+      CheckFieldValidity(kSuggestionsUrlField, suggestions_url)) {
-     edit_controller_->AcceptAddOrEdit(base::UTF8ToUTF16(search_engine),
--                                      base::UTF8ToUTF16(keyword), query_url);
-+                                      base::UTF8ToUTF16(keyword),
-+                                      query_url, suggestions_url);
-   }
- }
- 
---- a/chrome/browser/ui/webui/settings/search_engines_handler.h
-+++ b/chrome/browser/ui/webui/settings/search_engines_handler.h
-@@ -46,7 +46,8 @@ class SearchEnginesHandler : public Sett
-   void OnEditedKeyword(TemplateURL* template_url,
-                        const base::string16& title,
-                        const base::string16& keyword,
--                       const std::string& url) override;
-+                       const std::string& url,
-+                       const std::string& suggestions_url) override;
- 
-   // SettingsPageUIHandler implementation.
-   void RegisterMessages() override;
-@@ -74,8 +75,8 @@ class SearchEnginesHandler : public Sett
-   // to WebUI. Called from WebUI.
-   void HandleValidateSearchEngineInput(const base::ListValue* args);
- 
--  // Checks whether the given user input field (searchEngine, keyword, queryUrl)
--  // is populated with a valid value.
-+  // Checks whether the given user input field (searchEngine, keyword, queryUrl,
-+  // suggestionsUrl) is populated with a valid value.
-   bool CheckFieldValidity(const std::string& field_name,
-                           const std::string& field_value);
+     /** @override */
+-    searchEngineEditCompleted(searchEngine, keyword, queryUrl) {
++    searchEngineEditCompleted(searchEngine, keyword, queryUrl, suggestionsUrl) {
+       chrome.send('searchEngineEditCompleted', [
+         searchEngine,
+         keyword,
+         queryUrl,
++        suggestionsUrl
+       ]);
+     }
  
 --- a/chrome/browser/ui/search_engines/edit_search_engine_controller.cc
 +++ b/chrome/browser/ui/search_engines/edit_search_engine_controller.cc
@@ -243,42 +185,6 @@
  
    // Deletes an unused TemplateURL, if its add was cancelled and it's not
    // already owned by the TemplateURLService.
---- a/chrome/browser/resources/settings/search_engines_page/search_engines_browser_proxy.js
-+++ b/chrome/browser/resources/settings/search_engines_page/search_engines_browser_proxy.js
-@@ -24,6 +24,7 @@
-  *            modelIndex: number,
-  *            name: string,
-  *            url: string,
-+ *            suggestionsUrl: string,
-  *            urlLocked: boolean}}
-  * @see chrome/browser/ui/webui/settings/search_engine_manager_handler.cc
-  */
-@@ -56,8 +57,10 @@ cr.define('settings', function() {
-      * @param {string} searchEngine
-      * @param {string} keyword
-      * @param {string} queryUrl
-+     * @param {string} suggestionsUrl
-      */
--    searchEngineEditCompleted(searchEngine, keyword, queryUrl) {}
-+    searchEngineEditCompleted(
-+        searchEngine, keyword, queryUrl, suggestionsUrl) {}
- 
-     /** @return {!Promise<!SearchEnginesInfo>} */
-     getSearchEnginesList() {}
-@@ -95,11 +98,12 @@ cr.define('settings', function() {
-     }
- 
-     /** @override */
--    searchEngineEditCompleted(searchEngine, keyword, queryUrl) {
-+    searchEngineEditCompleted(searchEngine, keyword, queryUrl, suggestionsUrl) {
-       chrome.send('searchEngineEditCompleted', [
-         searchEngine,
-         keyword,
-         queryUrl,
-+        suggestionsUrl
-       ]);
-     }
- 
 --- a/chrome/browser/ui/search_engines/keyword_editor_controller.cc
 +++ b/chrome/browser/ui/search_engines/keyword_editor_controller.cc
 @@ -21,23 +21,27 @@ KeywordEditorController::KeywordEditorCo
@@ -415,6 +321,100 @@
  
    // Reloads the icon at the specified index.
    void ReloadIcon(int index);
+--- a/chrome/browser/ui/webui/settings/search_engines_handler.cc
++++ b/chrome/browser/ui/webui/settings/search_engines_handler.cc
+@@ -37,6 +37,7 @@ namespace {
+ const char kSearchEngineField[] = "searchEngine";
+ const char kKeywordField[] = "keyword";
+ const char kQueryUrlField[] = "queryUrl";
++const char kSuggestionsUrlField[] = "suggestionsUrl";
+ 
+ // Dummy number used for indicating that a new search engine is added.
+ const int kNewSearchEngineIndex = -1;
+@@ -194,6 +195,9 @@ SearchEnginesHandler::CreateDictionaryFo
+   Profile* profile = Profile::FromWebUI(web_ui());
+   dict->SetString(
+       "url", template_url->url_ref().DisplayURL(UIThreadSearchTermsData()));
++  dict->SetString("suggestionsUrl",
++                  template_url->suggestions_url_ref().DisplayURL(
++                      UIThreadSearchTermsData()));
+   dict->SetBoolean("urlLocked", template_url->prepopulate_id() > 0);
+   GURL icon_url = template_url->favicon_url();
+   if (icon_url.is_valid())
+@@ -290,12 +294,14 @@ void SearchEnginesHandler::HandleSearchE
+ void SearchEnginesHandler::OnEditedKeyword(TemplateURL* template_url,
+                                            const base::string16& title,
+                                            const base::string16& keyword,
+-                                           const std::string& url) {
++                                           const std::string& url,
++                                           const std::string& suggestions_url) {
+   DCHECK(!url.empty());
+   if (template_url)
+-    list_controller_.ModifyTemplateURL(template_url, title, keyword, url);
++    list_controller_.ModifyTemplateURL(template_url, title, keyword, url,
++                                       suggestions_url);
+   else
+-    list_controller_.AddTemplateURL(title, keyword, url);
++    list_controller_.AddTemplateURL(title, keyword, url, suggestions_url);
+ 
+   edit_controller_.reset();
+ }
+@@ -326,6 +332,8 @@ bool SearchEnginesHandler::CheckFieldVal
+     is_valid = edit_controller_->IsKeywordValid(base::UTF8ToUTF16(field_value));
+   else if (field_name.compare(kQueryUrlField) == 0)
+     is_valid = edit_controller_->IsURLValid(field_value);
++  else if (field_name.compare(kSuggestionsUrlField) == 0)
++    is_valid = edit_controller_->IsSuggestionsURLValid(field_value);
+   else
+     NOTREACHED();
+ 
+@@ -347,17 +355,21 @@ void SearchEnginesHandler::HandleSearchE
+   std::string search_engine;
+   std::string keyword;
+   std::string query_url;
++  std::string suggestions_url;
+   CHECK(args->GetString(0, &search_engine));
+   CHECK(args->GetString(1, &keyword));
+   CHECK(args->GetString(2, &query_url));
++  CHECK(args->GetString(3, &suggestions_url));
+ 
+   // Recheck validity. It's possible to get here with invalid input if e.g. the
+   // user calls the right JS functions directly from the web inspector.
+   if (CheckFieldValidity(kSearchEngineField, search_engine) &&
+       CheckFieldValidity(kKeywordField, keyword) &&
+-      CheckFieldValidity(kQueryUrlField, query_url)) {
++      CheckFieldValidity(kQueryUrlField, query_url) &&
++      CheckFieldValidity(kSuggestionsUrlField, suggestions_url)) {
+     edit_controller_->AcceptAddOrEdit(base::UTF8ToUTF16(search_engine),
+-                                      base::UTF8ToUTF16(keyword), query_url);
++                                      base::UTF8ToUTF16(keyword),
++                                      query_url, suggestions_url);
+   }
+ }
+ 
+--- a/chrome/browser/ui/webui/settings/search_engines_handler.h
++++ b/chrome/browser/ui/webui/settings/search_engines_handler.h
+@@ -46,7 +46,8 @@ class SearchEnginesHandler : public Sett
+   void OnEditedKeyword(TemplateURL* template_url,
+                        const base::string16& title,
+                        const base::string16& keyword,
+-                       const std::string& url) override;
++                       const std::string& url,
++                       const std::string& suggestions_url) override;
+ 
+   // SettingsPageUIHandler implementation.
+   void RegisterMessages() override;
+@@ -74,8 +75,8 @@ class SearchEnginesHandler : public Sett
+   // to WebUI. Called from WebUI.
+   void HandleValidateSearchEngineInput(const base::ListValue* args);
+ 
+-  // Checks whether the given user input field (searchEngine, keyword, queryUrl)
+-  // is populated with a valid value.
++  // Checks whether the given user input field (searchEngine, keyword, queryUrl,
++  // suggestionsUrl) is populated with a valid value.
+   bool CheckFieldValidity(const std::string& field_name,
+                           const std::string& field_value);
+ 
 --- a/components/search_engines/template_url_service.cc
 +++ b/components/search_engines/template_url_service.cc
 @@ -608,7 +608,8 @@ void TemplateURLService::IncrementUsageC
