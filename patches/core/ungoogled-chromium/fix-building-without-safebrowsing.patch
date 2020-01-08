@@ -287,6 +287,72 @@
    void CheckSafeBrowsingReputation(const GURL& form_action,
                                     const GURL& frame_url) override;
    safe_browsing::PasswordProtectionService* GetPasswordProtectionService()
+--- a/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
++++ b/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
+@@ -36,34 +36,4 @@ void HandleOnPerformDrop(
+     content::WebContents* web_contents,
+     const content::DropData& drop_data,
+     content::WebContentsViewDelegate::DropCompletionCallback callback) {
+-  safe_browsing::DeepScanningDialogDelegate::Data data;
+-  Profile* profile =
+-      Profile::FromBrowserContext(web_contents->GetBrowserContext());
+-  if (!safe_browsing::DeepScanningDialogDelegate::IsEnabled(
+-          profile, web_contents->GetLastCommittedURL(), &data)) {
+-    std::move(callback).Run(
+-        content::WebContentsViewDelegate::DropCompletionResult::kContinue);
+-    return;
+-  }
+-
+-  // Collect the data that needs to be scanned.
+-  if (!drop_data.url_title.empty())
+-    data.text.push_back(drop_data.url_title);
+-  if (!drop_data.text.is_null())
+-    data.text.push_back(drop_data.text.string());
+-  if (!drop_data.html.is_null())
+-    data.text.push_back(drop_data.html.string());
+-  if (!drop_data.file_contents.empty())
+-    data.text.push_back(base::UTF8ToUTF16(drop_data.file_contents));
+-
+-  for (const auto& file : drop_data.filenames)
+-    data.paths.push_back(file.path);
+-
+-  // TODO(crbug.com/1008040): how to handle drop_data.file_system_files?
+-  // These are URLs that use the filesystem: schema.  Support for this API
+-  // is unclear.
+-
+-  safe_browsing::DeepScanningDialogDelegate::ShowForWebContents(
+-      web_contents, std::move(data),
+-      base::BindOnce(&DeepScanCompletionCallback, std::move(callback)));
+ }
+--- a/chrome/browser/ui/views/download/download_item_view.cc
++++ b/chrome/browser/ui/views/download/download_item_view.cc
+@@ -1059,6 +1059,7 @@ void DownloadItemView::ShowDeepScanningD
+   deep_scanning_label_ = AddChildView(std::move(deep_scanning_label));
+   deep_scanning_label_->SetSize(AdjustTextAndGetSize(deep_scanning_label_));
+ 
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   int delay_delivery = g_browser_process->local_state()->GetInteger(
+       prefs::kDelayDeliveryUntilVerdict);
+   if (delay_delivery != safe_browsing::DELAY_DOWNLOADS &&
+@@ -1070,6 +1071,9 @@ void DownloadItemView::ShowDeepScanningD
+   } else {
+     open_button_->SetEnabled(false);
+   }
++#else
++  open_button_->SetEnabled(false);
++#endif  // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+   file_name_label_->SetVisible(false);
+   status_label_->SetVisible(false);
+@@ -1357,6 +1361,8 @@ base::string16 DownloadItemView::ElidedF
+ }
+ 
+ void DownloadItemView::OpenDownloadDuringAsyncScanning() {
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   model_->CompleteSafeBrowsingScan();
++#endif
+   should_open_while_scanning_ = true;
+ }
 --- a/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
 +++ b/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
 @@ -147,9 +147,7 @@ PasswordReuseModalWarningDialog::Passwor
@@ -300,6 +366,26 @@
  
    if (password_type.account_type() ==
        ReusedPasswordAccountType::SAVED_PASSWORD) {
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -78,8 +78,6 @@
+ #include "components/nacl/common/buildflags.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/safe_browsing/buildflags.h"
+-#include "components/safe_browsing/web_ui/constants.h"
+-#include "components/safe_browsing/web_ui/safe_browsing_ui.h"
+ #include "components/security_interstitials/content/connection_help_ui.h"
+ #include "components/security_interstitials/content/urls.h"
+ #include "content/public/browser/web_contents.h"
+@@ -390,8 +388,6 @@ WebUIFactoryFunction GetWebUIFactoryFunc
+     return &NewWebUI<PredictorsUI>;
+   if (url.host_piece() == chrome::kChromeUIQuotaInternalsHost)
+     return &NewWebUI<QuotaInternalsUI>;
+-  if (url.host_piece() == safe_browsing::kChromeUISafeBrowsingHost)
+-    return &NewWebUI<safe_browsing::SafeBrowsingUI>;
+   if (url.host_piece() == chrome::kChromeUISignInInternalsHost)
+     return &NewWebUI<SignInInternalsUI>;
+   if (url.host_piece() == chrome::kChromeUISuggestionsHost)
 --- a/components/password_manager/content/browser/content_password_manager_driver.cc
 +++ b/components/password_manager/content/browser/content_password_manager_driver.cc
 @@ -296,7 +296,7 @@ void ContentPasswordManagerDriver::ShowT
@@ -437,7 +523,7 @@
    base::WeakPtrFactory<NativeFileSystemFileWriterImpl> weak_factory_{this};
 --- a/content/public/browser/native_file_system_permission_context.h
 +++ b/content/public/browser/native_file_system_permission_context.h
-@@ -95,13 +95,6 @@ class NativeFileSystemPermissionContext 
+@@ -95,13 +95,6 @@ class NativeFileSystemPermissionContext
        base::OnceCallback<void(SensitiveDirectoryResult)> callback) = 0;
  
    enum class AfterWriteCheckResult { kAllow, kBlock };
@@ -451,89 +537,3 @@
  
    // Returns whether the given |origin| is allowed to ask for write access.
    // This is used to block save file dialogs from being shown
---- a/chrome/browser/ui/views/download/download_item_view.cc
-+++ b/chrome/browser/ui/views/download/download_item_view.cc
-@@ -1059,6 +1059,7 @@ void DownloadItemView::ShowDeepScanningD
-   deep_scanning_label_ = AddChildView(std::move(deep_scanning_label));
-   deep_scanning_label_->SetSize(AdjustTextAndGetSize(deep_scanning_label_));
- 
-+#if BUILDFLAG(FULL_SAFE_BROWSING)
-   int delay_delivery = g_browser_process->local_state()->GetInteger(
-       prefs::kDelayDeliveryUntilVerdict);
-   if (delay_delivery != safe_browsing::DELAY_DOWNLOADS &&
-@@ -1070,6 +1071,9 @@ void DownloadItemView::ShowDeepScanningD
-   } else {
-     open_button_->SetEnabled(false);
-   }
-+#else
-+  open_button_->SetEnabled(false);
-+#endif  // BUILDFLAG(FULL_SAFE_BROWSING)
- 
-   file_name_label_->SetVisible(false);
-   status_label_->SetVisible(false);
-@@ -1357,6 +1361,8 @@ base::string16 DownloadItemView::ElidedF
- }
- 
- void DownloadItemView::OpenDownloadDuringAsyncScanning() {
-+#if BUILDFLAG(FULL_SAFE_BROWSING)
-   model_->CompleteSafeBrowsingScan();
-+#endif
-   should_open_while_scanning_ = true;
- }
---- a/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
-+++ b/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
-@@ -36,34 +36,4 @@ void HandleOnPerformDrop(
-     content::WebContents* web_contents,
-     const content::DropData& drop_data,
-     content::WebContentsViewDelegate::DropCompletionCallback callback) {
--  safe_browsing::DeepScanningDialogDelegate::Data data;
--  Profile* profile =
--      Profile::FromBrowserContext(web_contents->GetBrowserContext());
--  if (!safe_browsing::DeepScanningDialogDelegate::IsEnabled(
--          profile, web_contents->GetLastCommittedURL(), &data)) {
--    std::move(callback).Run(
--        content::WebContentsViewDelegate::DropCompletionResult::kContinue);
--    return;
--  }
--
--  // Collect the data that needs to be scanned.
--  if (!drop_data.url_title.empty())
--    data.text.push_back(drop_data.url_title);
--  if (!drop_data.text.is_null())
--    data.text.push_back(drop_data.text.string());
--  if (!drop_data.html.is_null())
--    data.text.push_back(drop_data.html.string());
--  if (!drop_data.file_contents.empty())
--    data.text.push_back(base::UTF8ToUTF16(drop_data.file_contents));
--
--  for (const auto& file : drop_data.filenames)
--    data.paths.push_back(file.path);
--
--  // TODO(crbug.com/1008040): how to handle drop_data.file_system_files?
--  // These are URLs that use the filesystem: schema.  Support for this API
--  // is unclear.
--
--  safe_browsing::DeepScanningDialogDelegate::ShowForWebContents(
--      web_contents, std::move(data),
--      base::BindOnce(&DeepScanCompletionCallback, std::move(callback)));
- }
---- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
-+++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
-@@ -78,8 +78,6 @@
- #include "components/nacl/common/buildflags.h"
- #include "components/prefs/pref_service.h"
- #include "components/safe_browsing/buildflags.h"
--#include "components/safe_browsing/web_ui/constants.h"
--#include "components/safe_browsing/web_ui/safe_browsing_ui.h"
- #include "components/security_interstitials/content/connection_help_ui.h"
- #include "components/security_interstitials/content/urls.h"
- #include "content/public/browser/web_contents.h"
-@@ -390,8 +388,6 @@ WebUIFactoryFunction GetWebUIFactoryFunc
-     return &NewWebUI<PredictorsUI>;
-   if (url.host_piece() == chrome::kChromeUIQuotaInternalsHost)
-     return &NewWebUI<QuotaInternalsUI>;
--  if (url.host_piece() == safe_browsing::kChromeUISafeBrowsingHost)
--    return &NewWebUI<safe_browsing::SafeBrowsingUI>;
-   if (url.host_piece() == chrome::kChromeUISignInInternalsHost)
-     return &NewWebUI<SignInInternalsUI>;
-   if (url.host_piece() == chrome::kChromeUISuggestionsHost)
