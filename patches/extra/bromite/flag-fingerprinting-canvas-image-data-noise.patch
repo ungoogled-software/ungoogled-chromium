@@ -23,7 +23,7 @@ approach to change color components.
 
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -1475,6 +1475,10 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1465,6 +1465,10 @@ const FeatureEntry kFeatureEntries[] = {
       "Enable Canvas::measureText() fingerprint deception",
       "Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.",
       kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasMeasureTextNoise)},
@@ -36,28 +36,28 @@ approach to change color components.
       SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -3040,6 +3040,7 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3150,6 +3150,7 @@ void RenderProcessHostImpl::PropagateBro
      switches::kFileUrlPathAlias,
      switches::kFingerprintingClientRectsNoise,
      switches::kFingerprintingCanvasMeasureTextNoise,
 +    switches::kFingerprintingCanvasImageDataNoise,
+     switches::kForceDarkMode,
      switches::kForceDeviceScaleFactor,
      switches::kForceDisableWebRtcApmInAudioService,
-     switches::kForceDisplayColorProfile,
 --- a/content/child/runtime_features.cc
 +++ b/content/child/runtime_features.cc
-@@ -444,6 +444,8 @@ void SetRuntimeFeaturesFromCommandLine(c
+@@ -452,6 +452,8 @@ void SetRuntimeFeaturesFromCommandLine(c
         switches::kFingerprintingClientRectsNoise, true},
        {wrf::EnableFingerprintingCanvasMeasureTextNoise,
         switches::kFingerprintingCanvasMeasureTextNoise, true},
 +      {wrf::EnableFingerprintingCanvasImageDataNoise,
 +       switches::kFingerprintingCanvasImageDataNoise, true},
-   };
-   for (const auto& mapping : switchToFeatureMapping) {
-     if (command_line.HasSwitch(mapping.switch_name))
+       {wrf::EnableShadowDOMV0, switches::kWebComponentsV0Enabled, true},
+       {wrf::EnableCustomElementsV0, switches::kWebComponentsV0Enabled, true},
+       {wrf::EnableHTMLImports, switches::kWebComponentsV0Enabled, true},
 --- a/third_party/blink/public/platform/web_runtime_features.h
 +++ b/third_party/blink/public/platform/web_runtime_features.h
-@@ -231,6 +231,7 @@ class WebRuntimeFeatures {
+@@ -228,6 +228,7 @@ class WebRuntimeFeatures {
    BLINK_PLATFORM_EXPORT static void EnableAllowSyncXHRInPageDismissal(bool);
    BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
    BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasMeasureTextNoise(bool);
@@ -67,7 +67,7 @@ approach to change color components.
    BLINK_PLATFORM_EXPORT static void EnableHTMLImports(bool);
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1454,7 +1454,9 @@ jumbo_component("platform") {
+@@ -1478,7 +1478,9 @@ jumbo_component("platform") {
      "//third_party/blink/renderer:non_test_config",
    ]
  
@@ -80,7 +80,7 @@ approach to change color components.
      ":blink_platform_public_deps",
 --- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
 +++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-@@ -712,4 +712,8 @@ void WebRuntimeFeatures::EnableFingerpri
+@@ -704,4 +704,8 @@ void WebRuntimeFeatures::EnableFingerpri
    RuntimeEnabledFeatures::SetFingerprintingCanvasMeasureTextNoiseEnabled(enable);
  }
  
@@ -91,16 +91,16 @@ approach to change color components.
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 +++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
-@@ -35,6 +35,8 @@
- #include <memory>
+@@ -36,6 +36,8 @@
  
+ #include "base/compiler_specific.h"
  #include "base/memory/ptr_util.h"
 +#include "base/rand_util.h"
 +#include "base/logging.h"
  #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
  #include "third_party/blink/renderer/platform/image-encoders/image_encoder.h"
  #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-@@ -127,6 +129,11 @@ bool ImageDataBuffer::EncodeImageInterna
+@@ -130,6 +132,11 @@ bool ImageDataBuffer::EncodeImageInterna
                                            const SkPixmap& pixmap) const {
    DCHECK(is_valid_);
  
@@ -123,12 +123,11 @@ approach to change color components.
  #include "base/numerics/checked_math.h"
  #include "gpu/command_buffer/client/gles2_interface.h"
  #include "third_party/blink/renderer/platform/graphics/accelerated_static_bitmap_image.h"
-@@ -11,12 +13,14 @@
+@@ -11,11 +13,13 @@
  #include "third_party/blink/renderer/platform/graphics/image_observer.h"
  #include "third_party/blink/renderer/platform/graphics/paint/paint_image.h"
  #include "third_party/blink/renderer/platform/graphics/unaccelerated_static_bitmap_image.h"
 +#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
- #include "third_party/blink/renderer/platform/wtf/typed_arrays/array_buffer_contents.h"
  #include "third_party/skia/include/core/SkCanvas.h"
  #include "third_party/skia/include/core/SkImage.h"
  #include "third_party/skia/include/core/SkPaint.h"
@@ -138,7 +137,7 @@ approach to change color components.
  #include "v8/include/v8.h"
  
  namespace blink {
-@@ -141,10 +145,165 @@ bool StaticBitmapImage::ConvertToArrayBu
+@@ -117,9 +121,164 @@ bool StaticBitmapImage::CopyToByteArray(
    DCHECK(read_pixels_successful ||
           !sk_image->bounds().intersect(SkIRect::MakeXYWH(
               rect.X(), rect.Y(), info.width(), info.height())));
@@ -147,7 +146,6 @@ approach to change color components.
 +    ShuffleSubchannelColorData(result.Data(), info, rect.X(), rect.Y());
 +  }
 +
-   result.Transfer(dest_contents);
    return true;
  }
  
@@ -306,7 +304,7 @@ approach to change color components.
    return sync_token;
 --- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.h
 +++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.h
-@@ -44,6 +44,8 @@ class PLATFORM_EXPORT StaticBitmapImage 
+@@ -30,6 +30,8 @@ class PLATFORM_EXPORT StaticBitmapImage
    static scoped_refptr<StaticBitmapImage> Create(sk_sp<SkData> data,
                                                   const SkImageInfo&);
  
@@ -317,7 +315,7 @@ approach to change color components.
    // Methods overridden by all sub-classes
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -699,6 +699,9 @@
+@@ -730,6 +730,9 @@
      {
        name: "FingerprintingCanvasMeasureTextNoise",
      },

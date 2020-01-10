@@ -3,14 +3,14 @@
 
 --- a/chrome/browser/browser_resources.grd
 +++ b/chrome/browser/browser_resources.grd
-@@ -270,7 +270,6 @@
-       <include name="IDR_INLINE_LOGIN_HTML" file="resources\inline_login\inline_login.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" preprocess="true" />
-       <include name="IDR_INLINE_LOGIN_CSS" file="resources\inline_login\inline_login.css" flattenhtml="true" type="BINDATA" preprocess="true" />
-       <include name="IDR_INLINE_LOGIN_JS" file="resources\inline_login\inline_login.js" flattenhtml="true" type="BINDATA" />
--      <include name="IDR_GAIA_AUTH_AUTHENTICATOR_JS" file="resources\gaia_auth_host\authenticator.js" flattenhtml="true" type="BINDATA" />
-       <include name="IDR_INSPECT_CSS" file="resources\inspect\inspect.css" flattenhtml="true" type="BINDATA" />
-       <include name="IDR_INSPECT_HTML" file="resources\inspect\inspect.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
-       <include name="IDR_INSPECT_JS" file="resources\inspect\inspect.js" flattenhtml="true" type="BINDATA" />
+@@ -173,7 +173,6 @@
+       <include name="IDR_INLINE_LOGIN_HTML" file="resources\inline_login\inline_login.html" compress="gzip" flattenhtml="true" allowexternalscript="true" type="BINDATA" preprocess="true" />
+       <include name="IDR_INLINE_LOGIN_CSS" file="resources\inline_login\inline_login.css" compress="gzip" flattenhtml="true" type="BINDATA" preprocess="true" />
+       <include name="IDR_INLINE_LOGIN_JS" file="resources\inline_login\inline_login.js" compress="gzip" flattenhtml="true" type="BINDATA" />
+-      <include name="IDR_GAIA_AUTH_AUTHENTICATOR_JS" file="resources\gaia_auth_host\authenticator.js" compress="gzip" flattenhtml="true" type="BINDATA" />
+ 
+       <include name="IDR_INSPECT_CSS" file="resources\inspect\inspect.css" compress="gzip" flattenhtml="true" type="BINDATA" />
+       <include name="IDR_INSPECT_HTML" file="resources\inspect\inspect.html" compress="gzip" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
 --- a/chrome/browser/ui/webui/signin/inline_login_ui.cc
 +++ b/chrome/browser/ui/webui/signin/inline_login_ui.cc
 @@ -52,7 +52,6 @@ content::WebUIDataSource* CreateWebUIDat
@@ -23,8 +23,8 @@
    source->AddLocalizedString(
 --- a/google_apis/gaia/gaia_auth_fetcher.cc
 +++ b/google_apis/gaia/gaia_auth_fetcher.cc
-@@ -259,63 +259,6 @@ void GaiaAuthFetcher::CreateAndStartGaia
-     int load_flags,
+@@ -296,64 +296,6 @@ void GaiaAuthFetcher::CreateAndStartGaia
+     network::mojom::CredentialsMode credentials_mode,
      const net::NetworkTrafficAnnotationTag& traffic_annotation) {
    DCHECK(!fetch_pending_) << "Tried to fetch two things at once!";
 -
@@ -32,7 +32,7 @@
 -  resource_request->url = gaia_gurl;
 -  original_url_ = gaia_gurl;
 -
--  if (!(load_flags & net::LOAD_DO_NOT_SEND_COOKIES)) {
+-  if (credentials_mode != network::mojom::CredentialsMode::kOmit) {
 -    DCHECK_EQ(GaiaUrls::GetInstance()->gaia_url(), gaia_gurl.GetOrigin())
 -        << gaia_gurl;
 -    resource_request->site_for_cookies = GaiaUrls::GetInstance()->gaia_url();
@@ -55,13 +55,14 @@
 -  // maintain a separation between the user's browsing and Chrome's internal
 -  // services.  Where such mixing is desired (MergeSession or OAuthLogin), it
 -  // will be done explicitly.
--  resource_request->load_flags = load_flags;
+-  resource_request->credentials_mode = credentials_mode;
 -
 -  url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
 -                                                 traffic_annotation);
--  if (!body.empty())
--    url_loader_->AttachStringForUpload(body,
--                                       "application/x-www-form-urlencoded");
+-  if (!body.empty()) {
+-    DCHECK(!body_content_type.empty());
+-    url_loader_->AttachStringForUpload(body, body_content_type);
+-  }
 -
 -  url_loader_->SetAllowHttpErrorResults(true);
 -
