@@ -301,7 +301,7 @@
  #include "components/spellcheck/browser/pref_names.h"
  #include "components/translate/core/browser/translate_pref_names.h"
  #include "extensions/browser/extension_pref_value_map.h"
-@@ -111,11 +110,6 @@ const PrefMappingEntry kPrefMapping[] = 
+@@ -111,11 +110,6 @@ const PrefMappingEntry kPrefMapping[] =
       APIPermission::kPrivacy},
      {"doNotTrackEnabled", prefs::kEnableDoNotTrack, APIPermission::kPrivacy,
       APIPermission::kPrivacy},
@@ -370,7 +370,17 @@
    }
  }
  
-@@ -707,9 +700,7 @@ void SafeBrowsingPrivateEventRouter::OnC
+@@ -610,9 +603,6 @@ void SafeBrowsingPrivateEventRouter::Ini
+   }
+ 
+   if (g_browser_process) {
+-    binary_upload_service_ =
+-        g_browser_process->safe_browsing_service()->GetBinaryUploadService(
+-            Profile::FromBrowserContext(context_));
+     IfAuthorized(base::BindOnce(
+         &SafeBrowsingPrivateEventRouter::InitRealtimeReportingClientCallback,
+         weak_ptr_factory_.GetWeakPtr(), device_management_service));
+@@ -707,9 +697,7 @@ void SafeBrowsingPrivateEventRouter::OnC
  bool SafeBrowsingPrivateEventRouter::IsRealtimeReportingEnabled() {
    // g_browser_process and/or g_browser_process->local_state() may be null
    // in tests.
@@ -381,6 +391,16 @@
  }
  
  void SafeBrowsingPrivateEventRouter::RealtimeReportingPrefChanged(
+@@ -721,9 +709,6 @@ void SafeBrowsingPrivateEventRouter::Rea
+ 
+ void SafeBrowsingPrivateEventRouter::IfAuthorized(
+     base::OnceCallback<void(bool)> cont) {
+-  if (binary_upload_service_) {
+-    binary_upload_service_->IsAuthorized(std::move(cont));
+-  }
+ }
+ 
+ void SafeBrowsingPrivateEventRouter::ReportRealtimeEvent(
 --- a/chrome/browser/extensions/api/safe_browsing_private/safe_browsing_private_event_router.h
 +++ b/chrome/browser/extensions/api/safe_browsing_private/safe_browsing_private_event_router.h
 @@ -14,7 +14,6 @@
@@ -541,7 +561,7 @@
  
  namespace policy {
  BrowserSigninPolicyHandler::BrowserSigninPolicyHandler(Schema chrome_schema)
-@@ -41,32 +40,9 @@ void BrowserSigninPolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
+@@ -41,32 +40,9 @@ void BrowserSigninPolicyHandler::ApplyPo
        case BrowserSigninMode::kForced:
  #if !defined(OS_LINUX)
          prefs->SetValue(prefs::kForceBrowserSignin, base::Value(true));
@@ -706,10 +726,16 @@
    // Handlers for policies with embedded JSON strings. These handlers are very
    // lenient - as long as the root value is of the right type, they only display
    // warnings and never reject the policy value.
-@@ -1508,7 +1439,6 @@ std::unique_ptr<ConfigurationPolicyHandl
-       // The new kSigninAllowedOnNextStartup pref is only used on Desktop.
-       // Keep the old kSigninAllowed pref for Android until the policy is
-       // fully deprecated in M71 and can be removed.
+@@ -1502,17 +1433,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+   signin_legacy_policies.push_back(std::make_unique<SimplePolicyHandler>(
+       key::kForceBrowserSignin, prefs::kForceBrowserSignin,
+       base::Value::Type::BOOLEAN));
+-  signin_legacy_policies.push_back(std::make_unique<SimplePolicyHandler>(
+-      key::kSigninAllowed,
+-#if defined(OS_ANDROID)
+-      // The new kSigninAllowedOnNextStartup pref is only used on Desktop.
+-      // Keep the old kSigninAllowed pref for Android until the policy is
+-      // fully deprecated in M71 and can be removed.
 -      prefs::kSigninAllowed,
 -#else
 -      prefs::kSigninAllowedOnNextStartup,
@@ -833,6 +859,15 @@
  
    if (info.picture_url == kNoPictureURLFound) {
      entry->SetGAIAPicture(gfx::Image());
+@@ -124,8 +121,6 @@ void GAIAInfoUpdateService::ClearProfile
+   entry->SetGAIAName(base::string16());
+   entry->SetGAIAGivenName(base::string16());
+   entry->SetGAIAPicture(gfx::Image());
+-  // Unset the cached URL.
+-  profile_prefs_->ClearPref(prefs::kGoogleServicesHostedDomain);
+ }
+ 
+ void GAIAInfoUpdateService::Shutdown() {
 --- a/chrome/browser/profiles/gaia_info_update_service_unittest.cc
 +++ b/chrome/browser/profiles/gaia_info_update_service_unittest.cc
 @@ -26,7 +26,6 @@
@@ -1889,6 +1924,26 @@
      prefs_->SetBoolean(ntp_snippets::prefs::kEnableSnippets, false);
  
      // Copy supervised user settings to prefs.
+--- a/chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.cc
++++ b/chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.cc
+@@ -39,7 +39,6 @@
+ #include "components/autofill/core/common/autofill_prefs.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/signin/public/base/signin_buildflags.h"
+-#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "components/sync/driver/sync_service.h"
+@@ -362,9 +361,6 @@ bool SaveCardBubbleControllerImpl::Shoul
+   if (is_upload_save_)
+     return false;
+ 
+-  if (!GetProfile()->GetPrefs()->GetBoolean(::prefs::kSigninAllowed))
+-    return false;
+-
+   const syncer::SyncService* sync_service =
+       ProfileSyncServiceFactory::GetForProfile(GetProfile());
+ 
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
 @@ -52,7 +52,6 @@
@@ -1921,7 +1976,7 @@
  // static
 --- a/chrome/browser/ui/browser_command_controller.h
 +++ b/chrome/browser/ui/browser_command_controller.h
-@@ -212,7 +212,6 @@ class BrowserCommandController : public 
+@@ -212,7 +212,6 @@ class BrowserCommandController : public
  
    PrefChangeRegistrar profile_pref_registrar_;
    PrefChangeRegistrar local_pref_registrar_;
@@ -2039,7 +2094,7 @@
        url_(web_contents->GetLastCommittedURL()),
        password_type_(password_type) {
    DialogDelegate::set_button_label(ui::DIALOG_BUTTON_OK,
-@@ -143,10 +142,6 @@ PasswordReuseModalWarningDialog::Passwor
+@@ -143,30 +142,14 @@ PasswordReuseModalWarningDialog::Passwor
        ui::DIALOG_BUTTON_CANCEL,
        l10n_util::GetStringUTF16(IDS_PAGE_INFO_IGNORE_PASSWORD_WARNING_BUTTON));
  
@@ -2049,8 +2104,22 @@
 -
    std::vector<size_t> placeholder_offsets;
  
-   if (password_type.account_type() ==
-@@ -165,8 +160,6 @@ PasswordReuseModalWarningDialog::Passwor
+-  if (password_type.account_type() ==
+-      ReusedPasswordAccountType::SAVED_PASSWORD) {
+-    const base::string16 message_body =
+-        service_->GetWarningDetailText(password_type, &placeholder_offsets);
+-
+-    CreateSavedPasswordReuseModalWarningDialog(
+-        message_body, service_->GetPlaceholdersForSavedPasswordWarningText(),
+-        placeholder_offsets);
+-  } else {
+-    views::Label* message_body_label = CreateMessageBodyLabel(
+-        l10n_util::GetStringUTF16(IDS_PAGE_INFO_CHANGE_PASSWORD_DETAILS));
+-    CreateGaiaPasswordReuseModalWarningDialog(message_body_label);
+-  }
++  views::Label* message_body_label = CreateMessageBodyLabel(
++      l10n_util::GetStringUTF16(IDS_PAGE_INFO_CHANGE_PASSWORD_DETAILS));
++  CreateGaiaPasswordReuseModalWarningDialog(message_body_label);
  }
  
  PasswordReuseModalWarningDialog::~PasswordReuseModalWarningDialog() {
@@ -2321,6 +2390,18 @@
        {"syncAndGoogleServicesPrivacyDescription",
         IDS_SETTINGS_SYNC_AND_GOOGLE_SERVICES_PRIVACY_DESC_UNIFIED_CONSENT},
        {"urlKeyedAnonymizedDataCollection",
+@@ -3143,11 +3134,6 @@ void AddSiteSettingsStrings(content::Web
+   AddLocalizedStringsBulk(html_source, kSensorsLocalizedStrings);
+ 
+   html_source->AddBoolean(
+-      "enableSafeBrowsingSubresourceFilter",
+-      base::FeatureList::IsEnabled(
+-          subresource_filter::kSafeBrowsingSubresourceFilter));
+-
+-  html_source->AddBoolean(
+       "enableBlockAutoplayContentSetting",
+       base::FeatureList::IsEnabled(media::kAutoplayDisableSettings));
+ 
 --- a/chrome/browser/ui/webui/signin/dice_turn_sync_on_helper.cc
 +++ b/chrome/browser/ui/webui/signin/dice_turn_sync_on_helper.cc
 @@ -37,7 +37,6 @@
@@ -2402,7 +2483,7 @@
  #include "components/strings/grit/components_strings.h"
  #include "content/public/browser/web_ui.h"
  #include "content/public/browser/web_ui_data_source.h"
-@@ -106,9 +105,7 @@ void SigninErrorUI::Initialize(Browser* 
+@@ -106,9 +105,7 @@ void SigninErrorUI::Initialize(Browser*
    if (is_profile_blocked) {
      source->AddLocalizedString("profileBlockedMessage",
                                 IDS_OLD_PROFILES_DISABLED_MESSAGE);
@@ -2532,6 +2613,25 @@
    if (form.username_value.empty())
      return;
  
+--- a/components/password_manager/core/browser/password_bubble_experiment.cc
++++ b/components/password_manager/core/browser/password_bubble_experiment.cc
+@@ -14,7 +14,6 @@
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_registry_simple.h"
+ #include "components/prefs/pref_service.h"
+-#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/sync/driver/sync_service.h"
+ #include "components/sync/driver/sync_user_settings.h"
+ 
+@@ -61,8 +60,6 @@ bool ShouldShowChromeSignInPasswordPromo
+ #if defined(OS_CHROMEOS)
+   return false;
+ #else
+-  if (!prefs->GetBoolean(prefs::kSigninAllowed))
+-    return false;
+ 
+   if (!sync_service ||
+       sync_service->HasDisableReason(
 --- a/components/password_manager/core/browser/password_reuse_detector.cc
 +++ b/components/password_manager/core/browser/password_reuse_detector.cc
 @@ -13,7 +13,6 @@
@@ -3881,7 +3981,7 @@
        primary_account_manager->GetAuthenticatedAccountInfo();
 --- a/components/signin/internal/identity_manager/primary_account_policy_manager_impl.h
 +++ b/components/signin/internal/identity_manager/primary_account_policy_manager_impl.h
-@@ -50,9 +50,6 @@ class PrimaryAccountPolicyManagerImpl : 
+@@ -50,9 +50,6 @@ class PrimaryAccountPolicyManagerImpl :
    // profile-specific local prefs (like kGoogleServicesUsernamePattern).
    PrefChangeRegistrar local_state_pref_registrar_;
  

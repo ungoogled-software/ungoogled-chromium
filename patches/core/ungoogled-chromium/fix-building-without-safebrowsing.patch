@@ -290,6 +290,68 @@
    void CheckSafeBrowsingReputation(const GURL& form_action,
                                     const GURL& frame_url) override;
    safe_browsing::PasswordProtectionService* GetPasswordProtectionService()
+--- a/chrome/browser/permissions/contextual_notification_permission_ui_selector.cc
++++ b/chrome/browser/permissions/contextual_notification_permission_ui_selector.cc
+@@ -17,9 +17,7 @@
+ #include "chrome/browser/permissions/permission_request.h"
+ #include "chrome/browser/permissions/quiet_notification_permission_ui_config.h"
+ #include "chrome/browser/permissions/quiet_notification_permission_ui_state.h"
+-#include "chrome/browser/safe_browsing/safe_browsing_service.h"
+ #include "chrome/common/chrome_features.h"
+-#include "components/safe_browsing/db/database_manager.h"
+ 
+ namespace {
+ 
+@@ -96,49 +94,14 @@ void ContextualNotificationPermissionUiS
+     Notify(UiToUse::kNormalUi, base::nullopt);
+     return;
+   }
+-
+-  // Even if the quiet UI is enabled on all sites, the crowd deny trigger
+-  // condition must be evaluated, so that the less prominent UI and the correct
+-  // strings are shown on origins with crowd deny activated.
+-  EvaluateCrowdDenyTrigger(url::Origin::Create(request->GetOrigin()));
+ }
+ 
+ void ContextualNotificationPermissionUiSelector::Cancel() {
+-  // The computation either finishes synchronously above, or is waiting on the
+-  // Safe Browsing check.
+-  safe_browsing_request_.reset();
+ }
+ 
+ ContextualNotificationPermissionUiSelector::
+     ~ContextualNotificationPermissionUiSelector() = default;
+ 
+-void ContextualNotificationPermissionUiSelector::EvaluateCrowdDenyTrigger(
+-    url::Origin origin) {
+-  if (!QuietNotificationPermissionUiConfig::IsCrowdDenyTriggeringEnabled()) {
+-    OnCrowdDenyTriggerEvaluated(UiToUse::kNormalUi);
+-    return;
+-  }
+-
+-  base::Optional<UiToUse> ui_to_use = GetUiToUseBasedOnSiteReputation(
+-      CrowdDenyPreloadData::GetInstance()->GetReputationDataForSite(origin));
+-  if (ui_to_use) {
+-    OnCrowdDenyTriggerEvaluated(*ui_to_use);
+-    return;
+-  }
+-
+-  DCHECK(!safe_browsing_request_);
+-  DCHECK(g_browser_process->safe_browsing_service());
+-
+-  // It is fine to use base::Unretained() here, as |safe_browsing_request_|
+-  // guarantees not to fire the callback after its destruction.
+-  safe_browsing_request_.emplace(
+-      g_browser_process->safe_browsing_service()->database_manager(),
+-      base::DefaultClock::GetInstance(), origin,
+-      base::BindOnce(&ContextualNotificationPermissionUiSelector::
+-                         OnSafeBrowsingVerdictReceived,
+-                     base::Unretained(this)));
+-}
+-
+ void ContextualNotificationPermissionUiSelector::OnSafeBrowsingVerdictReceived(
+     CrowdDenySafeBrowsingRequest::Verdict verdict) {
+   DCHECK(safe_browsing_request_);
 --- a/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
 +++ b/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
 @@ -37,35 +37,4 @@ void HandleOnPerformDrop(
@@ -529,7 +591,7 @@
    base::WeakPtrFactory<NativeFileSystemFileWriterImpl> weak_factory_{this};
 --- a/content/public/browser/native_file_system_permission_context.h
 +++ b/content/public/browser/native_file_system_permission_context.h
-@@ -95,13 +95,6 @@ class NativeFileSystemPermissionContext 
+@@ -95,13 +95,6 @@ class NativeFileSystemPermissionContext
        base::OnceCallback<void(SensitiveDirectoryResult)> callback) = 0;
  
    enum class AfterWriteCheckResult { kAllow, kBlock };
