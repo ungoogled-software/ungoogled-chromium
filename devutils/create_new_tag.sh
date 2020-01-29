@@ -6,7 +6,9 @@ tags=$(git describe --tags `git rev-list --tags --max-count=1`)
 commit=$(git rev-parse HEAD)
 
 # Create next tag.
-UPDATED_TAG='%s-%s' $(cat chromium_version.txt) $(cat revision.txt)
+CHROMIUM_VERSION=$(cat chromium_version.txt)
+REVISION=$(cat revision.txt)
+UPDATED_TAG='${CHROMIUM_VERSION}-${REVISION}'
 
 # Do not push new tag if "UPDATED_TAG" already exists.
 if [ $UPDATED_TAG == $tags ]
