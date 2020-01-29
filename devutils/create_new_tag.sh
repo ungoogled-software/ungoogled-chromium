@@ -11,6 +11,7 @@ UPDATED_TAG='%s-%s' $(cat chromium_version.txt) $(cat revision.txt)
 # Do not push new tag if "UPDATED_TAG" already exists.
 if [ $UPDATED_TAG == $tags ]
 then
+    echo "Tag already exists, stopping"
     return
 fi
 
