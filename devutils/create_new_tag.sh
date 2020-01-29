@@ -6,15 +6,13 @@ tags=$(git describe --tags `git rev-list --tags --max-count=1`)
 commit=$(git rev-parse HEAD)
 
 # Create next tag.
-CHROMIUM_VERSION=$(cat chromium_version.txt)
-REVISION=$(cat revision.txt)
-UPDATED_TAG='${CHROMIUM_VERSION}-${REVISION}'
+UPDATED_TAG=$(printf '%s-%s' $(cat chromium_version.txt) $(cat revision.txt))
 
 # Do not push new tag if "UPDATED_TAG" already exists.
 if [ $UPDATED_TAG == $tags ]
 then
     echo "Tag already exists, stopping"
-    return
+    exit
 fi
 
 # Post a new tag to repo through GitHub API
