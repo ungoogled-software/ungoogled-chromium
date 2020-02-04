@@ -68,9 +68,9 @@ The resulting source tree in `build/src` *will not* have binaries pruned or doma
         * When removing large chunks of code, remove each line instead of using language features to hide or remove the code. This makes the patches less susceptible to breakages when using quilt's refresh command (e.g. quilt refresh updates the line numbers based on the patch context, so it's possible for new but desirable code in the middle of the block comment to be excluded.). It also helps with readability when someone wants to see the changes made based on the patch alone.
     3. Refresh the patch: `quilt refresh`
     4. Go back to Step 3.
-5. Run `devutils/validate_config.py`
-6. Run `quilt pop -a`
-7. Go back to ungoogled-chromium repo: `cd ../..`
+5. Run `quilt pop -a`
+6. Go back to ungoogled-chromium repo: `cd ../..`
+7. Run `devutils/validate_config.py`. If any warnings are printed, address them; otherwise, continue to Step 8.
 8. Run `devutils/validate_patches.py -l build/src`. If errors occur, go back to Step 3.
 
 This should leave unstaged changes in the git repository to be reviewed, added, and committed.
