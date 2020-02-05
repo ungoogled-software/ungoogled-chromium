@@ -9,17 +9,17 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2146,6 +2146,7 @@ jumbo_static_library("browser") {
+@@ -2226,6 +2226,7 @@ jumbo_static_library("browser") {
      "//third_party/metrics_proto",
      "//third_party/re2",
      "//third_party/smhasher:cityhash",
 +    "//third_party/ungoogled:switches",
-     "//third_party/webrtc_overrides",
-     "//third_party/webrtc_overrides:init_webrtc",
+     "//third_party/webrtc_overrides:webrtc_component",
      "//third_party/widevine/cdm:buildflags",
+     "//third_party/zlib",
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -148,6 +148,7 @@
+@@ -150,6 +150,7 @@
  #include "third_party/blink/public/common/features.h"
  #include "third_party/blink/public/common/forcedark/forcedark_switches.h"
  #include "third_party/leveldatabase/leveldb_features.h"
@@ -27,7 +27,7 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/accessibility/accessibility_switches.h"
  #include "ui/base/ui_base_features.h"
-@@ -1461,6 +1462,14 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -1512,6 +1513,14 @@ const FeatureEntry kFeatureEntries[] = {
       "Force punycode hostnames",
       "Force punycode in hostnames instead of Unicode when displaying Internationalized Domain Names (IDNs).",
       kOsAll, SINGLE_VALUE_TYPE("force-punycode-hostnames")},
@@ -44,17 +44,17 @@
       SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -205,6 +205,7 @@ jumbo_source_set("browser") {
+@@ -208,6 +208,7 @@ jumbo_source_set("browser") {
      "//third_party/libyuv",
      "//third_party/re2",
      "//third_party/sqlite",
 +    "//third_party/ungoogled:switches",
-     "//third_party/webrtc/modules/desktop_capture:primitives",
-     "//third_party/webrtc/rtc_base:rtc_base",
+     "//third_party/webrtc_overrides:webrtc_component",
      "//third_party/zlib",
+     "//third_party/zlib/google:zip",
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -220,6 +220,7 @@
+@@ -225,6 +225,7 @@
  #include "third_party/blink/public/common/page/launching_process_state.h"
  #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
  #include "third_party/blink/public/public_buildflags.h"
@@ -62,18 +62,18 @@
  #include "third_party/skia/include/core/SkBitmap.h"
  #include "ui/accessibility/accessibility_switches.h"
  #include "ui/base/ui_base_switches.h"
-@@ -3037,6 +3038,8 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3150,6 +3151,8 @@ void RenderProcessHostImpl::PropagateBro
+     switches::kEnableWebGLDraftExtensions,
      switches::kEnableWebGLImageChromium,
-     switches::kEnableWebVR,
      switches::kFileUrlPathAlias,
 +    switches::kFingerprintingClientRectsNoise,
 +    switches::kFingerprintingCanvasMeasureTextNoise,
+     switches::kForceDarkMode,
      switches::kForceDeviceScaleFactor,
      switches::kForceDisableWebRtcApmInAudioService,
-     switches::kForceDisplayColorProfile,
 --- a/content/child/BUILD.gn
 +++ b/content/child/BUILD.gn
-@@ -123,6 +123,7 @@ target(link_target_type, "child") {
+@@ -125,6 +125,7 @@ target(link_target_type, "child") {
      "//third_party/blink/public/common",
      "//third_party/blink/public/strings",
      "//third_party/ced",
@@ -83,7 +83,7 @@
      "//ui/events/blink",
 --- a/content/child/runtime_features.cc
 +++ b/content/child/runtime_features.cc
-@@ -24,6 +24,7 @@
+@@ -26,6 +26,7 @@
  #include "services/network/public/cpp/network_switches.h"
  #include "third_party/blink/public/common/features.h"
  #include "third_party/blink/public/platform/web_runtime_features.h"
@@ -91,7 +91,7 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/events/blink/blink_features.h"
-@@ -439,6 +440,10 @@ void SetRuntimeFeaturesFromCommandLine(c
+@@ -447,6 +448,10 @@ void SetRuntimeFeaturesFromCommandLine(c
         switches::kEnableAccessibilityObjectModel, true},
        {wrf::EnableAllowSyncXHRInPageDismissal,
         switches::kAllowSyncXHRInPageDismissal, true},
@@ -99,13 +99,13 @@
 +       switches::kFingerprintingClientRectsNoise, true},
 +      {wrf::EnableFingerprintingCanvasMeasureTextNoise,
 +       switches::kFingerprintingCanvasMeasureTextNoise, true},
-   };
-   for (const auto& mapping : switchToFeatureMapping) {
-     if (command_line.HasSwitch(mapping.switch_name))
+       {wrf::EnableShadowDOMV0, switches::kWebComponentsV0Enabled, true},
+       {wrf::EnableCustomElementsV0, switches::kWebComponentsV0Enabled, true},
+       {wrf::EnableHTMLImports, switches::kWebComponentsV0Enabled, true},
 --- a/third_party/blink/public/platform/web_runtime_features.h
 +++ b/third_party/blink/public/platform/web_runtime_features.h
-@@ -229,6 +229,8 @@ class WebRuntimeFeatures {
-   BLINK_PLATFORM_EXPORT static void EnableMergeBlockingNonBlockingPools(bool);
+@@ -226,6 +226,8 @@ class WebRuntimeFeatures {
+   BLINK_PLATFORM_EXPORT static void EnableTranslateService(bool);
    BLINK_PLATFORM_EXPORT static void EnableGetDisplayMedia(bool);
    BLINK_PLATFORM_EXPORT static void EnableAllowSyncXHRInPageDismissal(bool);
 +  BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
@@ -123,7 +123,7 @@
  #include "base/time/time.h"
  #include "cc/input/overscroll_behavior.h"
  #include "cc/input/scroll_snap_data.h"
-@@ -1236,6 +1237,14 @@ Range* Document::CreateRangeAdjustedToTr
+@@ -1307,6 +1308,14 @@ Range* Document::CreateRangeAdjustedToTr
                                       Position::BeforeNode(*shadow_host));
  }
  
@@ -138,7 +138,7 @@
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
-@@ -2791,6 +2800,15 @@ void Document::UpdateStyleAndLayoutTree(
+@@ -2872,6 +2881,15 @@ void Document::UpdateStyleAndLayoutTree(
  #if DCHECK_IS_ON()
    AssertLayoutTreeUpdated(*this);
  #endif
@@ -156,7 +156,7 @@
  void Document::UpdateActiveStyle() {
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -414,6 +414,10 @@ class CORE_EXPORT Document : public Cont
+@@ -416,6 +416,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -167,7 +167,7 @@
    String visibilityState() const;
    bool IsPageVisible() const;
    bool hidden() const;
-@@ -1934,6 +1938,9 @@ class CORE_EXPORT Document : public Cont
+@@ -1968,6 +1972,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -179,7 +179,7 @@
    HeapVector<Member<ScriptElementBase>> current_script_stack_;
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -1877,6 +1877,11 @@ DOMRectList* Element::getClientRects() {
+@@ -1902,6 +1902,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustFloatQuadsForScrollAndAbsoluteZoom(
        quads, *element_layout_object);
@@ -191,7 +191,7 @@
    return DOMRectList::Create(quads);
  }
  
-@@ -1894,6 +1899,9 @@ DOMRect* Element::getBoundingClientRect(
+@@ -1919,6 +1924,9 @@ DOMRect* Element::getBoundingClientRect(
    DCHECK(element_layout_object);
    GetDocument().AdjustFloatRectForScrollAndAbsoluteZoom(result,
                                                          *element_layout_object);
@@ -266,7 +266,7 @@
                const TextDirection&,
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
-@@ -818,9 +818,15 @@ TextMetrics* CanvasRenderingContext2D::m
+@@ -821,9 +821,15 @@ TextMetrics* CanvasRenderingContext2D::m
    else
      direction = ToTextDirection(GetState().GetDirection(), canvas());
  
@@ -285,17 +285,17 @@
  void CanvasRenderingContext2D::DrawTextInternal(
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1490,6 +1490,7 @@ jumbo_component("platform") {
+@@ -1519,6 +1519,7 @@ jumbo_component("platform") {
      "//third_party/emoji-segmenter",
      "//third_party/icu",
      "//third_party/libyuv",
 +    "//third_party/ungoogled:switches",
-     "//third_party/webrtc/api:libjingle_logging_api",
-     "//third_party/webrtc/api:packet_socket_factory",
-     "//third_party/webrtc/api/audio_codecs/L16:audio_decoder_L16",
+     "//third_party/webrtc_overrides:webrtc_component",
+     "//third_party/zlib/google:compression_utils",
+     "//ui/base:base",
 --- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
 +++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-@@ -704,4 +704,12 @@ void WebRuntimeFeatures::EnableAccelerat
+@@ -696,4 +696,12 @@ void WebRuntimeFeatures::EnableAccelerat
    RuntimeEnabledFeatures::SetAcceleratedSmallCanvasesEnabled(enable);
  }
  
@@ -310,7 +310,7 @@
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -693,6 +693,12 @@
+@@ -724,6 +724,12 @@
        name: "FileSystem",
        status: "stable",
      },

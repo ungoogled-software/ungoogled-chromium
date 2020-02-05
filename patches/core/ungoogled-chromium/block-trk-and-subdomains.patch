@@ -35,15 +35,15 @@
      GURL rewritten_tab_url = tab_url;
 --- a/chromecast/browser/url_request_context_factory.cc
 +++ b/chromecast/browser/url_request_context_factory.cc
-@@ -39,6 +39,7 @@
- #include "net/http/http_stream_factory.h"
+@@ -40,6 +40,7 @@
  #include "net/proxy_resolution/proxy_resolution_service.h"
+ #include "net/quic/quic_context.h"
  #include "net/ssl/ssl_config_service_defaults.h"
 +#include "net/url_request/trk_protocol_handler.h"
  #include "net/url_request/url_request_context.h"
  #include "net/url_request/url_request_context_builder.h"
  #include "net/url_request/url_request_context_getter.h"
-@@ -245,13 +246,17 @@ void URLRequestContextFactory::Initializ
+@@ -248,13 +249,17 @@ void URLRequestContextFactory::Initializ
        new net::URLRequestJobFactoryImpl());
    // Keep ProtocolHandlers added in sync with
    // CastContentBrowserClient::IsHandledURL().
@@ -100,8 +100,8 @@
      return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -513,6 +513,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
-   RegisterWebSafeScheme(url::kHttpsScheme);
+@@ -617,6 +617,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+ #endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
    RegisterWebSafeScheme(url::kFtpScheme);
    RegisterWebSafeScheme(url::kDataScheme);
 +  RegisterWebSafeScheme(url::kTraceScheme);
@@ -110,7 +110,7 @@
    // TODO(nick): https://crbug.com/651534 blob: and filesystem: schemes embed
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
-@@ -1801,6 +1801,8 @@ component("net") {
+@@ -1662,6 +1662,8 @@ component("net") {
        "url_request/report_sender.h",
        "url_request/static_http_user_agent_settings.cc",
        "url_request/static_http_user_agent_settings.h",
@@ -202,7 +202,7 @@
  
  using base::Time;
  using std::string;
-@@ -592,6 +594,12 @@ URLRequest::URLRequest(const GURL& url,
+@@ -579,6 +581,12 @@ URLRequest::URLRequest(const GURL& url,
    // Sanity check out environment.
    DCHECK(base::ThreadTaskRunnerHandle::IsSet());
  
@@ -218,16 +218,16 @@
 --- a/net/url_request/url_request_context_builder.cc
 +++ b/net/url_request/url_request_context_builder.cc
 @@ -40,6 +40,7 @@
+ #include "net/quic/quic_stream_factory.h"
  #include "net/ssl/ssl_config_service_defaults.h"
- #include "net/url_request/data_protocol_handler.h"
  #include "net/url_request/static_http_user_agent_settings.h"
 +#include "net/url_request/trk_protocol_handler.h"
  #include "net/url_request/url_request_context.h"
  #include "net/url_request/url_request_context_storage.h"
  #include "net/url_request/url_request_intercepting_job_factory.h"
-@@ -621,6 +622,9 @@ std::unique_ptr<URLRequestContext> URLRe
-     job_factory->SetProtocolHandler(url::kDataScheme,
-                                     std::make_unique<DataProtocolHandler>());
+@@ -629,6 +630,9 @@ std::unique_ptr<URLRequestContext> URLRe
+   }
+   protocol_handlers_.clear();
  
 +  job_factory->SetProtocolHandler(url::kTraceScheme,
 +                                  std::make_unique<TrkProtocolHandler>());
@@ -237,9 +237,9 @@
      storage->set_ftp_auth_cache(std::make_unique<FtpAuthCache>());
 --- a/url/url_constants.cc
 +++ b/url/url_constants.cc
-@@ -26,6 +26,7 @@ const char kHttpsScheme[] = "https";
- const char kJavaScriptScheme[] = "javascript";
- const char kMailToScheme[] = "mailto";
+@@ -28,6 +28,7 @@ const char kMailToScheme[] = "mailto";
+ // See also: https://www.iana.org/assignments/uri-schemes/prov/quic-transport
+ const char kQuicTransportScheme[] = "quic-transport";
  const char kTelScheme[] = "tel";
 +const char kTraceScheme[] = "trk";
  const char kWsScheme[] = "ws";
@@ -247,9 +247,9 @@
  
 --- a/url/url_constants.h
 +++ b/url/url_constants.h
-@@ -32,6 +32,7 @@ COMPONENT_EXPORT(URL) extern const char 
- COMPONENT_EXPORT(URL) extern const char kJavaScriptScheme[];
+@@ -32,6 +32,7 @@ COMPONENT_EXPORT(URL) extern const char
  COMPONENT_EXPORT(URL) extern const char kMailToScheme[];
+ COMPONENT_EXPORT(URL) extern const char kQuicTransportScheme[];
  COMPONENT_EXPORT(URL) extern const char kTelScheme[];
 +COMPONENT_EXPORT(URL) extern const char kTraceScheme[];
  COMPONENT_EXPORT(URL) extern const char kWsScheme[];
@@ -257,15 +257,16 @@
  
 --- a/url/url_util.cc
 +++ b/url/url_util.cc
-@@ -52,6 +52,7 @@ struct SchemeRegistry {
-       kHttpsScheme,
-       kAboutScheme,
-       kDataScheme,
-+      kTraceScheme,
-       kWssScheme,
+@@ -49,7 +49,7 @@ struct SchemeRegistry {
+ 
+   // Schemes that do not trigger mixed content warning.
+   std::vector<std::string> secure_schemes = {
+-      kHttpsScheme, kAboutScheme, kDataScheme, kQuicTransportScheme, kWssScheme,
++      kHttpsScheme, kAboutScheme, kDataScheme, kTraceScheme, kQuicTransportScheme, kWssScheme,
    };
  
-@@ -67,6 +68,7 @@ struct SchemeRegistry {
+   // Schemes that normal pages cannot link to or access (i.e., with the same
+@@ -64,6 +64,7 @@ struct SchemeRegistry {
        kAboutScheme,
        kJavaScriptScheme,
        kDataScheme,
