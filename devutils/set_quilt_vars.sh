@@ -8,7 +8,7 @@
 alias quilt='quilt --quiltrc -'
 
 # Assume this script lives within the repository
-REPO_ROOT=$(dirname $(dirname $(readlink -f ${BASH_SOURCE[0]})))
+REPO_ROOT=$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-${(%):-%x}}")")")
 
 export QUILT_PATCHES="$REPO_ROOT/patches"
 #export QUILT_SERIES=$(readlink -f "$REPO_ROOT/patches/series")
