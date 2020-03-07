@@ -27,7 +27,8 @@ from pathlib import Path
 
 from check_downloads_ini import check_downloads_ini
 from check_gn_flags import check_gn_flags
-from check_patch_files import check_patch_readability, check_unused_patches
+from check_patch_files import (check_patch_readability, check_series_duplicates,
+                               check_unused_patches)
 
 
 def main():
@@ -39,6 +40,7 @@ def main():
 
     # Check patches
     warnings |= check_patch_readability(patches_dir)
+    warnings |= check_series_duplicates(patches_dir)
     warnings |= check_unused_patches(patches_dir)
 
     # Check GN flags

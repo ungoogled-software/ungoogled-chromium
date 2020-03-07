@@ -75,7 +75,7 @@ def check_unused_patches(patches_dir, series_path=Path('series')):
         Unused patches are logged to stdout.
 
     patches_dir is a pathlib.Path to the directory of patches
-    series_path is a pathlib.Path to the series file relative to the patch_dir
+    series_path is a pathlib.Path to the series file relative to the patches_dir
 
     Returns True if there are unused patches; False otherwise.
     """
@@ -92,6 +92,23 @@ def check_unused_patches(patches_dir, series_path=Path('series')):
     for entry in sorted(unused_patches):
         logger.warning('Unused patch: %s', entry)
     return bool(unused_patches)
+
+
+def check_series_duplicates(patches_dir, series_path=Path('series')):
+    """
+    Checks if there are duplicate entries in the series file
+
+    series_path is a pathlib.Path to the series file relative to the patches_dir
+
+    returns True if there are duplicate entries; False otherwise.
+    """
+    entries_seen = set()
+    for entry in _read_series_file(patches_dir, series_path):
+        if entry in entries_seen:
+            get_logger().warning('Patch appears more than once in series: %s', entry)
+            return True
+        entries_seen.add(entry)
+    return False
 
 
 def main():
@@ -111,6 +128,7 @@ def main():
 
     warnings = False
     warnings |= check_patch_readability(args.patches)
+    warnings |= check_series_duplicates(args.patches)
     warnings |= check_unused_patches(args.patches)
 
     if warnings:
