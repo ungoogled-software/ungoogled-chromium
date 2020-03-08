@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 
-# Copyright (c) 2019 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2020 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Common code and constants"""
@@ -15,6 +15,8 @@ from pathlib import Path
 ENCODING = 'UTF-8' # For config files and patches
 
 SEVENZIP_USE_REGISTRY = '_use_registry'
+
+LOGGER_NAME = 'ungoogled'
 
 # Public classes
 
@@ -39,9 +41,18 @@ class SetLogLevel(argparse.Action): #pylint: disable=too-few-public-methods
 
     def __call__(self, parser, namespace, value, option_string=None):
         if option_string in ('--verbose', '-v'):
-            value = 'DEBUG'
+            value = logging.DEBUG
         elif option_string in ('--quiet', '-q'):
-            value = 'ERROR'
+            value = logging.ERROR
+        else:
+            levels = {
+                'FATAL': logging.FATAL,
+                'ERROR': logging.ERROR,
+                'WARNING': logging.WARNING,
+                'INFO': logging.INFO,
+                'DEBUG': logging.DEBUG
+            }
+            value = levels[value]
         set_logging_level(value)
 
 
@@ -51,7 +62,7 @@ class SetLogLevel(argparse.Action): #pylint: disable=too-few-public-methods
 def get_logger(initial_level=logging.INFO):
     """Gets the named logger"""
 
-    logger = logging.getLogger('ungoogled')
+    logger = logging.getLogger(LOGGER_NAME)
 
     if logger.level == logging.NOTSET:
         logger.setLevel(initial_level)
@@ -71,14 +82,8 @@ def get_logger(initial_level=logging.INFO):
 def set_logging_level(logging_level):
     """Sets logging level of logger and all its handlers"""
 
-    levels = {
-        'FATAL': logging.FATAL,
-        'ERROR': logging.ERROR,
-        'WARNING': logging.WARNING,
-        'INFO': logging.INFO,
-        'DEBUG': logging.DEBUG
-    }
-    logging_level = levels.get(logging_level, 'INFO')
+    if not logging_level:
+        logging_level = logging.INFO
 
     logger = get_logger()
     logger.setLevel(logging_level)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2019 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2020 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -15,7 +15,9 @@ import ast
 import base64
 import email.utils
 import json
+import logging
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'third_party'))
@@ -26,6 +28,7 @@ sys.path.pop(0)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from domain_substitution import TREE_ENCODINGS
 from _common import ENCODING, get_logger, get_chromium_version, parse_series, add_common_params
+from patches import dry_run_check
 sys.path.pop(0)
 
 try:
@@ -524,10 +527,28 @@ def _apply_file_unidiff(patched_file, files_under_test):
         assert patched_file[0].target_start == 1
         files_under_test[patched_file_path] = [x.value for x in patched_file[0]]
     elif patched_file.is_removed_file:
+        # Remove lines to see if file to be removed matches patch
+        _modify_file_lines(patched_file, files_under_test[patched_file_path])
         files_under_test[patched_file_path] = None
     else: # Patching an existing file
         assert patched_file.is_modified_file
         _modify_file_lines(patched_file, files_under_test[patched_file_path])
+
+
+def _dry_check_patched_file(patched_file, orig_file_content):
+    """Run "patch --dry-check" on a unidiff.PatchedFile for diagnostics"""
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        tmp_dir = Path(tmpdirname)
+        # Write file to patch
+        patched_file_path = tmp_dir / patched_file.path
+        patched_file_path.parent.mkdir(parents=True, exist_ok=True)
+        patched_file_path.write_text(orig_file_content)
+        # Write patch
+        patch_path = tmp_dir / 'broken_file.patch'
+        patch_path.write_text(str(patched_file))
+        # Dry run
+        _, dry_stdout, _ = dry_run_check(patch_path, tmp_dir)
+        return dry_stdout
 
 
 def _test_patches(series_iter, patch_cache, files_under_test):
@@ -538,12 +559,24 @@ def _test_patches(series_iter, patch_cache, files_under_test):
     """
     for patch_path_str in series_iter:
         for patched_file in patch_cache[patch_path_str]:
+            orig_file_content = None
+            if get_logger().isEnabledFor(logging.DEBUG):
+                orig_file_content = files_under_test.get(Path(patched_file.path))
+                if orig_file_content:
+                    orig_file_content = ' '.join(orig_file_content)
             try:
                 _apply_file_unidiff(patched_file, files_under_test)
             except _PatchValidationError as exc:
                 get_logger().warning('Patch failed validation: %s', patch_path_str)
                 get_logger().debug('Specifically, file "%s" failed validation: %s',
                                    patched_file.path, exc)
+                if get_logger().isEnabledFor(logging.DEBUG):
+                    # _PatchValidationError cannot be thrown when a file is added
+                    assert patched_file.is_modified_file or patched_file.is_removed_file
+                    assert orig_file_content is not None
+                    get_logger().debug(
+                        'Output of "patch --dry-run" for this patch on this file:\n%s',
+                        _dry_check_patched_file(patched_file, orig_file_content))
                 return True
             except: #pylint: disable=bare-except
                 get_logger().warning('Patch failed validation: %s', patch_path_str)

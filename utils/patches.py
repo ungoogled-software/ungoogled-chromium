@@ -1,17 +1,98 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-# Copyright (c) 2019 The ungoogled-chromium Authors. All rights reserved.
+# Copyright (c) 2020 The ungoogled-chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Applies unified diff patches"""
 
 import argparse
+import os
 import shutil
 import subprocess
 from pathlib import Path
 
 from _common import get_logger, parse_series, add_common_params
+
+
+def _find_patch_from_env():
+    patch_bin_path = None
+    patch_bin_env = os.environ.get('PATCH_BIN')
+    if patch_bin_env:
+        patch_bin_path = Path(patch_bin_env)
+        if patch_bin_path.exists():
+            get_logger().debug('Found PATCH_BIN with path "%s"', patch_bin_path)
+        else:
+            patch_which = shutil.which(patch_bin_env)
+            if patch_which:
+                get_logger().debug('Found PATCH_BIN for command with path "%s"', patch_which)
+                patch_bin_path = Path(patch_which)
+    else:
+        get_logger().debug('PATCH_BIN env variable is not set')
+    return patch_bin_path
+
+
+def _find_patch_from_which():
+    patch_which = shutil.which('patch')
+    if not patch_which:
+        get_logger().debug('Did not find "patch" in PATH environment variable')
+        return None
+    return Path(patch_which)
+
+
+def find_and_check_patch(patch_bin_path=None):
+    """
+    Find and/or check the patch binary is working. It finds a path to patch in this order:
+
+    1. Use patch_bin_path if it is not None
+    2. See if "PATCH_BIN" environment variable is set
+    3. Do "which patch" to find GNU patch
+
+    Then it does some sanity checks to see if the patch command is valid.
+
+    Returns the path to the patch binary found.
+    """
+    if patch_bin_path is None:
+        patch_bin_path = _find_patch_from_env()
+    if patch_bin_path is None:
+        patch_bin_path = _find_patch_from_which()
+    if not patch_bin_path:
+        raise ValueError('Could not find patch from PATCH_BIN env var or "which patch"')
+
+    if not patch_bin_path.exists():
+        raise ValueError('Could not find the patch binary: {}'.format(patch_bin_path))
+
+    # Ensure patch actually runs
+    cmd = [str(patch_bin_path), '--version']
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode:
+        get_logger().error('"%s" returned non-zero exit code', ' '.join(cmd))
+        get_logger().error('stdout:\n%s', result.stdout)
+        get_logger().error('stderr:\n%s', result.stderr)
+        raise RuntimeError('Got non-zero exit code running "%s"'.format(' '.join(cmd)))
+
+    return patch_bin_path
+
+
+def dry_run_check(patch_path, tree_path, patch_bin_path=None):
+    """
+    Run patch --dry-run on a patch
+
+    tree_path is the pathlib.Path of the source tree to patch
+    patch_path is a pathlib.Path to check
+    reverse is whether the patches should be reversed
+    patch_bin_path is the pathlib.Path of the patch binary, or None to find it automatically
+        See find_and_check_patch() for logic to find "patch"
+
+    Returns the status code, stdout, and stderr of patch --dry-run
+    """
+    cmd = [
+        str(find_and_check_patch(patch_bin_path)), '-p1', '--ignore-whitespace', '-i',
+        str(patch_path), '-d',
+        str(tree_path), '--no-backup-if-mismatch', '--dry-run'
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.returncode, result.stdout, result.stderr
 
 
 def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None):
@@ -22,17 +103,12 @@ def apply_patches(patch_path_iter, tree_path, reverse=False, patch_bin_path=None
     patch_path_iter is a list or tuple of pathlib.Path to patch files to apply
     reverse is whether the patches should be reversed
     patch_bin_path is the pathlib.Path of the patch binary, or None to find it automatically
-        On Windows, this will look for the binary in third_party/git/usr/bin/patch.exe
-        On other platforms, this will search the PATH environment variable for "patch"
+        See find_and_check_patch() for logic to find "patch"
 
     Raises ValueError if the patch binary could not be found.
     """
     patch_paths = list(patch_path_iter)
-    if patch_bin_path is None:
-        windows_patch_bin_path = (tree_path / 'third_party' / 'git' / 'usr' / 'bin' / 'patch.exe')
-        patch_bin_path = Path(shutil.which('patch') or windows_patch_bin_path)
-        if not patch_bin_path.exists():
-            raise ValueError('Could not find the patch binary')
+    patch_bin_path = find_and_check_patch(patch_bin_path=patch_bin_path)
     if reverse:
         patch_paths.reverse()
 
