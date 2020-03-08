@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eux
+set -eu
 
 _current_dir=$(dirname $(readlink -f $0))
 _root_dir=$(dirname $_current_dir)
