@@ -69,7 +69,7 @@ def find_and_check_patch(patch_bin_path=None):
         get_logger().error('"%s" returned non-zero exit code', ' '.join(cmd))
         get_logger().error('stdout:\n%s', result.stdout)
         get_logger().error('stderr:\n%s', result.stderr)
-        raise RuntimeError('Got non-zero exit code running "%s"'.format(' '.join(cmd)))
+        raise RuntimeError('Got non-zero exit code running "{}"'.format(' '.join(cmd)))
 
     return patch_bin_path
 
