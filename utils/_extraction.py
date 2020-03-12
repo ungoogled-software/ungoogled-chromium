@@ -13,12 +13,13 @@ import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 
-from _common import (SEVENZIP_USE_REGISTRY, PlatformEnum, ExtractorEnum, get_logger,
+from _common import (USE_REGISTRY, PlatformEnum, ExtractorEnum, get_logger,
                      get_running_platform)
 
 DEFAULT_EXTRACTORS = {
-    ExtractorEnum.SEVENZIP: SEVENZIP_USE_REGISTRY,
+    ExtractorEnum.SEVENZIP: USE_REGISTRY,
     ExtractorEnum.TAR: 'tar',
+    ExtractorEnum.WINRAR: USE_REGISTRY,
 }
 
 
@@ -44,6 +45,26 @@ def _find_7z_by_registry():
     if not sevenzip_path.is_file():
         get_logger().error('7z.exe not found at path from registry: %s', sevenzip_path)
     return sevenzip_path
+
+
+def _find_winrar_by_registry():
+    """
+    Return a string to WinRAR's WinRAR.exe from the Windows Registry.
+
+    Raises ExtractionError if it fails.
+    """
+    import winreg #pylint: disable=import-error
+    sub_key_winrar = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\WinRAR.exe'
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, sub_key_winrar) as key_handle:
+            winrar_dir = winreg.QueryValueEx(key_handle, 'Path')[0]
+    except OSError:
+        get_logger().exception('Unable to locale WinRAR from the Windows Registry')
+        raise ExtractionError()
+    winrar_path = Path(winrar_dir, 'WinRAR.exe')
+    if not winrar_path.is_file():
+        get_logger().error('WinRAR.exe not found at path from registry: %s', winrar_path)
+    return winrar_path
 
 
 def _find_extractor_by_cmd(extractor_cmd):
@@ -113,6 +134,19 @@ def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
     _process_relative_to(output_dir, relative_to)
 
 
+def _extract_tar_with_winrar(binary, archive_path, output_dir, relative_to):
+    get_logger().debug('Using WinRAR extractor')
+    output_dir.mkdir(exist_ok=True)
+    cmd = (binary, 'x', '-o+', str(archive_path), str(output_dir))
+    get_logger().debug('WinRAR command line: %s', ' '.join(cmd))
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        get_logger().error('WinRAR command returned %s', result.returncode)
+        raise ExtractionError()
+
+    _process_relative_to(output_dir, relative_to)
+
+
 def _extract_tar_with_python(archive_path, output_dir, relative_to):
     get_logger().debug('Using pure Python tar extractor')
 
@@ -174,7 +208,7 @@ def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
     relative_to is a pathlib.Path for directories that should be stripped relative to the
         root of the archive, or None if no path components should be stripped.
     extractors is a dictionary of PlatformEnum to a command or path to the
-        extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
+        extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip and WinRAR.
 
     Raises ExtractionError if unexpected issues arise during unpacking.
     """
@@ -184,12 +218,20 @@ def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
     current_platform = get_running_platform()
     if current_platform == PlatformEnum.WINDOWS:
         sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
-        if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
+        winrar_cmd = extractors.get(ExtractorEnum.WINRAR)
+        if sevenzip_cmd == USE_REGISTRY:
             sevenzip_cmd = str(_find_7z_by_registry())
         sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
         if not sevenzip_bin is None:
             _extract_tar_with_7z(sevenzip_bin, archive_path, output_dir, relative_to)
             return
+        else: # Use WinRAR if 7-zip is not found
+            if winrar_cmd == USE_REGISTRY:
+                winrar_cmd = str(_find_winrar_by_registry())
+            winrar_bin = _find_extractor_by_cmd(winrar_cmd)
+            if not winrar_bin is None:
+                _extract_tar_with_winrar(winrar_bin, archive_path, output_dir, relative_to)
+                return
     elif current_platform == PlatformEnum.UNIX:
         # NOTE: 7-zip isn't an option because it doesn't preserve file permissions
         tar_bin = _find_extractor_by_cmd(extractors.get(ExtractorEnum.TAR))
@@ -227,7 +269,7 @@ def extract_with_7z(
     if extractors is None:
         extractors = DEFAULT_EXTRACTORS
     sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
-    if sevenzip_cmd == SEVENZIP_USE_REGISTRY:
+    if sevenzip_cmd == USE_REGISTRY:
         if not get_running_platform() == PlatformEnum.WINDOWS:
             get_logger().error('"%s" for 7-zip is only available on Windows', sevenzip_cmd)
             raise ExtractionError()
@@ -244,6 +286,50 @@ def extract_with_7z(
     result = subprocess.run(cmd)
     if result.returncode != 0:
         get_logger().error('7z command returned %s', result.returncode)
+        raise ExtractionError()
+
+    _process_relative_to(output_dir, relative_to)
+
+
+def extract_with_winrar(
+        archive_path,
+        output_dir,
+        relative_to, #pylint: disable=too-many-arguments
+        extractors=None):
+    """
+    Extract archives with WinRAR into the output directory.
+    Only supports archives with one layer of unpacking, so compressed tar archives don't work.
+
+    archive_path is the pathlib.Path to the archive to unpack
+    output_dir is a pathlib.Path to the directory to unpack. It must already exist.
+
+    relative_to is a pathlib.Path for directories that should be stripped relative to the
+    root of the archive.
+    extractors is a dictionary of PlatformEnum to a command or path to the
+    extractor binary. Defaults to 'tar' for tar, and '_use_registry' for WinRAR.
+
+    Raises ExtractionError if unexpected issues arise during unpacking.
+    """
+    if extractors is None:
+        extractors = DEFAULT_EXTRACTORS
+    winrar_cmd = extractors.get(ExtractorEnum.WINRAR)
+    if winrar_cmd == USE_REGISTRY:
+        if not get_running_platform() == PlatformEnum.WINDOWS:
+            get_logger().error('"%s" for WinRAR is only available on Windows', sevenzip_cmd)
+            raise ExtractionError()
+        winrar_cmd = str(_find_winrar_by_registry())
+    winrar_bin = _find_extractor_by_cmd(winrar_cmd)
+
+    if not relative_to is None and (output_dir / relative_to).exists():
+        get_logger().error('Temporary unpacking directory already exists: %s',
+                           output_dir / relative_to)
+        raise ExtractionError()
+    cmd = (winrar_bin, 'x', '-o+', str(archive_path), str(output_dir))
+    get_logger().debug('WinRAR command line: %s', ' '.join(cmd))
+
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        get_logger().error('WinRAR command returned %s', result.returncode)
         raise ExtractionError()
 
     _process_relative_to(output_dir, relative_to)

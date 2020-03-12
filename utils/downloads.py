@@ -16,9 +16,9 @@ import sys
 import urllib.request
 from pathlib import Path
 
-from _common import ENCODING, SEVENZIP_USE_REGISTRY, ExtractorEnum, get_logger, \
+from _common import ENCODING, USE_REGISTRY, ExtractorEnum, get_logger, \
     get_chromium_version, add_common_params
-from _extraction import extract_tar_file, extract_with_7z
+from _extraction import extract_tar_file, extract_with_7z, extract_with_winrar
 
 sys.path.insert(0, str(Path(__file__).parent / 'third_party'))
 import schema #pylint: disable=wrong-import-position
@@ -63,7 +63,7 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
             'output_path': (lambda x: str(Path(x).relative_to(''))),
             **{schema.Optional(x): schema.And(str, len)
                for x in _optional_keys},
-            schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP),
+            schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP, ExtractorEnum.WINRAR),
             schema.Optional(schema.Or(*_hashes)): schema.And(str, len),
             schema.Optional('hash_url'): lambda x: DownloadInfo._is_hash_url(x), #pylint: disable=unnecessary-lambda
         }
@@ -287,7 +287,7 @@ def unpack_downloads(download_info, cache_dir, output_dir, extractors=None):
     cache_dir is the pathlib.Path directory containing the download cache
     output_dir is the pathlib.Path directory to unpack the downloads to.
     extractors is a dictionary of PlatformEnum to a command or path to the
-        extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip.
+        extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip and WinRAR.
 
     May raise undetermined exceptions during archive unpacking.
     """
@@ -298,6 +298,8 @@ def unpack_downloads(download_info, cache_dir, output_dir, extractors=None):
         extractor_name = download_properties.extractor or ExtractorEnum.TAR
         if extractor_name == ExtractorEnum.SEVENZIP:
             extractor_func = extract_with_7z
+        elif extractor_name == ExtractorEnum.WINRAR:
+            extractor_func = extract_with_winrar
         elif extractor_name == ExtractorEnum.TAR:
             extractor_func = extract_tar_file
         else:
@@ -339,6 +341,7 @@ def _retrieve_callback(args):
 def _unpack_callback(args):
     extractors = {
         ExtractorEnum.SEVENZIP: args.sevenz_path,
+        ExtractorEnum.WINRAR: args.winrar_path,
         ExtractorEnum.TAR: args.tar_path,
     }
     unpack_downloads(DownloadInfo(args.ini), args.cache, args.output, extractors)
@@ -381,8 +384,14 @@ def main():
     unpack_parser.add_argument(
         '--7z-path',
         dest='sevenz_path',
-        default=SEVENZIP_USE_REGISTRY,
+        default=USE_REGISTRY,
         help=('Command or path to 7-Zip\'s "7z" binary. If "_use_registry" is '
+              'specified, determine the path from the registry. Default: %(default)s'))
+    unpack_parser.add_argument(
+        '--winrar-path',
+        dest='winrar_path',
+        default=USE_REGISTRY,
+        help=('Command or path to WinRAR\'s "winrar" binary. If "_use_registry" is '
               'specified, determine the path from the registry. Default: %(default)s'))
     unpack_parser.add_argument('output', type=Path, help='The directory to unpack to.')
     unpack_parser.set_defaults(callback=_unpack_callback)
