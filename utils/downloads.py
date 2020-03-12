@@ -63,7 +63,8 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
             'output_path': (lambda x: str(Path(x).relative_to(''))),
             **{schema.Optional(x): schema.And(str, len)
                for x in _optional_keys},
-            schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP, ExtractorEnum.WINRAR),
+            schema.Optional('extractor'): schema.Or(ExtractorEnum.TAR, ExtractorEnum.SEVENZIP,
+                                                    ExtractorEnum.WINRAR),
             schema.Optional(schema.Or(*_hashes)): schema.And(str, len),
             schema.Optional('hash_url'): lambda x: DownloadInfo._is_hash_url(x), #pylint: disable=unnecessary-lambda
         }
