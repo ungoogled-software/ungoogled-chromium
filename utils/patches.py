@@ -64,7 +64,8 @@ def find_and_check_patch(patch_bin_path=None):
 
     # Ensure patch actually runs
     cmd = [str(patch_bin_path), '--version']
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if result.returncode:
         get_logger().error('"%s" returned non-zero exit code', ' '.join(cmd))
         get_logger().error('stdout:\n%s', result.stdout)
@@ -91,7 +92,8 @@ def dry_run_check(patch_path, tree_path, patch_bin_path=None):
         str(patch_path), '-d',
         str(tree_path), '--no-backup-if-mismatch', '--dry-run'
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     return result.returncode, result.stdout, result.stderr
 
 

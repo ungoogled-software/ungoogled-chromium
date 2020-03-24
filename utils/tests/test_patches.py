@@ -14,7 +14,7 @@ from .. import patches
 
 
 def test_find_and_check_patch():
-    patches.find_and_check_patch()
+    assert isinstance(patches.find_and_check_patch(), Path)
 
     with pytest.raises(ValueError):
         patches.find_and_check_patch(patch_bin_path=Path('/this/should/not/exist'))
