@@ -179,8 +179,18 @@ def merge_patches(source_iter, destination, prepend=False):
         series_file.write('\n'.join(map(str, series)))
 
 
-def _apply_callback(args):
+def _apply_callback(args, parser_error):
     logger = get_logger()
+    patch_bin_path = None
+    if args.patch_bin is not None:
+        patch_bin_path = Path(args.patch_bin)
+        if not patch_bin_path.exists():
+            patch_bin_path = shutil.which(args.patch_bin)
+            if patch_bin_path:
+                patch_bin_path = Path(patch_bin_path)
+            else:
+                parser_error(
+                    f'--patch-bin "{args.patch_bin}" is not a command or path to executable.')
     for patch_dir in args.patches:
         logger.info('Applying patches from %s', patch_dir)
         apply_patches(
@@ -189,7 +199,7 @@ def _apply_callback(args):
             patch_bin_path=args.patch_bin)
 
 
-def _merge_callback(args):
+def _merge_callback(args, _):
     merge_patches(args.source, args.destination, args.prepend)
 
 
@@ -229,7 +239,9 @@ def main():
     merge_parser.set_defaults(callback=_merge_callback)
 
     args = parser.parse_args()
-    args.callback(args)
+    if 'callback' not in args:
+        parser.error('Must specify subcommand apply or merge')
+    args.callback(args, parser.error)
 
 
 if __name__ == '__main__':
