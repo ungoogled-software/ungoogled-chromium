@@ -198,7 +198,7 @@ def _apply_callback(args, parser_error):
         apply_patches(
             generate_patches_from_series(patch_dir, resolve=True),
             args.target,
-            patch_bin_path=args.patch_bin)
+            patch_bin_path=patch_bin_path)
 
 
 def _merge_callback(args, _):
