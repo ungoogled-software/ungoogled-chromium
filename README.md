@@ -2,14 +2,21 @@
 
 *A lightweight approach to removing Google web service dependency*
 
-**ungoogled-chromium is Google Chromium**, sans dependency on Google web services. It also features some tweaks to enhance privacy, control, and transparency *(almost all of which require manual activation or enabling)*.
+**Help is welcome!** See the [docs/contributing.md](docs/contributing.md) document for more information.
 
-**ungoogled-chromium retains the default Chromium experience as closely as possible**. Unlike other Chromium forks that have their own visions of a web browser, ungoogled-chromium is essentially a drop-in replacement for Chromium.
+## Objectives
 
-**Help is always welcome!** See the [docs/contributing.md](docs/contributing.md) document for more information.
+In descending order of significance (i.e. most important objective first):
+
+1. **ungoogled-chromium is Google Chromium, sans dependency on Google web services**.
+2. **ungoogled-chromium retains the default Chromium experience as closely as possible**. Unlike other Chromium forks that have their own visions of a web browser, ungoogled-chromium is essentially a drop-in replacement for Chromium.
+3. **ungoogled-chromium features tweaks to enhance privacy, control, and transparency**. However, almost almost all of these features must be manually activated or enabled.
+
+In scenarios where the objectives conflict, the objective of higher significance should take precedence.
 
 ## Content Overview
 
+* [Objectives](#objectives)
 * [Motivation and Philosophy](#motivation-and-philosophy)
 * [Feature Overview](#feature-overview)
 * [**Downloads**](#downloads)
@@ -24,7 +31,7 @@
 
 ## Motivation and Philosophy
 
-Without signing in to a Google Account, Chromium does pretty well in terms of security and privacy. However, Chromium still has some dependency on Google web services and binaries. In addition, Google designed Chromium to be easy and intuitive for users, which means they compromise on transparency and control of inner operations.
+Without signing in to a Google Account, Chromium does pretty well in terms of security and privacy. However, Chromium still has some dependency on Google web services and binaries. In addition, Google designed Chromium to be easy and intuitive for users, which means they compromise on transparency and control of internal operations.
 
 ungoogled-chromium addresses these issues in the following ways:
 
