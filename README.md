@@ -10,7 +10,7 @@ In descending order of significance (i.e. most important objective first):
 
 1. **ungoogled-chromium is Google Chromium, sans dependency on Google web services**.
 2. **ungoogled-chromium retains the default Chromium experience as closely as possible**. Unlike other Chromium forks that have their own visions of a web browser, ungoogled-chromium is essentially a drop-in replacement for Chromium.
-3. **ungoogled-chromium features tweaks to enhance privacy, control, and transparency**. However, almost all of these features must be manually activated or enabled.
+3. **ungoogled-chromium features tweaks to enhance privacy, control, and transparency**. However, almost all of these features must be manually activated or enabled. For more details, see [Feature Overview](#feature-overview).
 
 In scenarios where the objectives conflict, the objective of higher significance should take precedence.
 
