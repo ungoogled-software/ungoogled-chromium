@@ -14,7 +14,7 @@ from pathlib import Path
 
 ENCODING = 'UTF-8' # For config files and patches
 
-SEVENZIP_USE_REGISTRY = '_use_registry'
+USE_REGISTRY = '_use_registry'
 
 LOGGER_NAME = 'ungoogled'
 
@@ -31,6 +31,7 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
     """Enum for extraction binaries"""
     SEVENZIP = '7z'
     TAR = 'tar'
+    WINRAR = 'winrar'
 
 
 class SetLogLevel(argparse.Action): #pylint: disable=too-few-public-methods
