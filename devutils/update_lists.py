@@ -30,8 +30,8 @@ _ENCODING = 'UTF-8'
 PRUNING_INCLUDE_PATTERNS = [
     'components/domain_reliability/baked_in_configs/*',
     # Removals for patches/core/ungoogled-chromium/remove-unused-preferences-fields.patch
-    'components/safe_browsing/common/safe_browsing_prefs.cc',
-    'components/safe_browsing/common/safe_browsing_prefs.h',
+    'components/safe_browsing/core/common/safe_browsing_prefs.cc',
+    'components/safe_browsing/core/common/safe_browsing_prefs.h',
     'components/signin/public/base/signin_pref_names.cc',
     'components/signin/public/base/signin_pref_names.h',
 ]
@@ -95,7 +95,7 @@ DOMAIN_EXCLUDE_PREFIXES = [
     'components/test/',
     'net/http/transport_security_state_static.json',
     # Exclusions for Visual Studio Project generation with GN (PR #445)
-    'tools/gn/tools/gn/visual_studio_writer.cc',
+    'tools/gn/src/gn/visual_studio_writer.cc',
     # Exclusions for files covered with other patches/unnecessary
     'components/search_engines/prepopulated_engines.json',
     'third_party/blink/renderer/core/dom/document.cc',

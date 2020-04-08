@@ -13,20 +13,7 @@ This prevents trk:148 (phishing) and trk:149 (malware).
 
 --- a/chrome/browser/safe_browsing/client_side_detection_service.cc
 +++ b/chrome/browser/safe_browsing/client_side_detection_service.cc
-@@ -61,12 +61,6 @@ enum MalwareReportTypes {
-   REPORT_RESULT_MAX
- };
- 
--void UpdateEnumUMAHistogram(MalwareReportTypes report_type) {
--  DCHECK(report_type >= 0 && report_type < REPORT_RESULT_MAX);
--  UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports", report_type,
--                            REPORT_RESULT_MAX);
--}
--
- }  // namespace
- 
- const int ClientSideDetectionService::kInitialClientModelFetchDelayMs = 10000;
-@@ -271,94 +265,8 @@ void ClientSideDetectionService::StartCl
+@@ -218,94 +218,8 @@ void ClientSideDetectionService::StartCl
    DCHECK_CURRENTLY_ON(BrowserThread::UI);
    std::unique_ptr<ClientPhishingRequest> request(verdict);
  
@@ -120,90 +107,6 @@ This prevents trk:148 (phishing) and trk:149 (malware).
 -  phishing_report_times_.push(base::Time::Now());
 +  if (!callback.is_null())
 +    callback.Run(GURL(request->url()), false);
- }
- 
- void ClientSideDetectionService::StartClientReportMalwareRequest(
-@@ -367,81 +275,8 @@ void ClientSideDetectionService::StartCl
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-   std::unique_ptr<ClientMalwareRequest> request(verdict);
- 
--  if (!enabled_) {
--    if (!callback.is_null())
--      callback.Run(GURL(request->url()), GURL(request->url()), false);
--    return;
--  }
--
--  std::string request_data;
--  if (!request->SerializeToString(&request_data)) {
--    UpdateEnumUMAHistogram(REPORT_FAILED_SERIALIZATION);
--    DVLOG(1) << "Unable to serialize the CSD request. Proto file changed?";
--    if (!callback.is_null())
--      callback.Run(GURL(request->url()), GURL(request->url()), false);
--    return;
--  }
--
--  net::NetworkTrafficAnnotationTag traffic_annotation =
--      net::DefineNetworkTrafficAnnotation(
--          "safe_browsing_client_side_malware_detector", R"(
--          semantics {
--            sender: "Safe Browsing Client-Side Malware Detector"
--            description:
--              "If the client-side malware detector determines that a requested "
--              "page's IP is in the blacklisted malware IPs, it will send a "
--              "request to Safe Browsing to ask for a final verdict. If Safe "
--              "Browsing agrees the page is dangerous, Chrome will show a "
--              "full-page interstitial warning."
--            trigger:
--              "Whenever the IP of the page is in malware blacklist."
--            data:
--              "Top-level page URL without CGI parameters, its non-https "
--              "referrer, URLs of resources that match IP blacklist."
--            destination: GOOGLE_OWNED_SERVICE
--          }
--          policy {
--            cookies_allowed: YES
--            cookies_store: "Safe browsing cookie store"
--            setting:
--              "Users can enable or disable this feature by toggling 'Protect "
--              "you and your device from dangerous sites' in Chrome settings "
--              "under Privacy. This feature is enabled by default."
--            chrome_policy {
--              SafeBrowsingEnabled {
--                policy_options {mode: MANDATORY}
--                SafeBrowsingEnabled: false
--              }
--            }
--          })");
--  auto resource_request = std::make_unique<network::ResourceRequest>();
--  resource_request->url = GetClientReportUrl(kClientReportMalwareUrl);
--  resource_request->method = "POST";
--  resource_request->load_flags = net::LOAD_DISABLE_CACHE;
--  auto loader = network::SimpleURLLoader::Create(std::move(resource_request),
--                                                 traffic_annotation);
--  loader->AttachStringForUpload(request_data, "application/octet-stream");
--  loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
--      url_loader_factory_.get(),
--      base::BindOnce(&ClientSideDetectionService::OnURLLoaderComplete,
--                     base::Unretained(this), loader.get()));
--
--  // Remember which callback and URL correspond to the current fetcher object.
--  std::unique_ptr<ClientMalwareReportInfo> info(new ClientMalwareReportInfo);
--  auto* loader_ptr = loader.get();
--  info->loader = std::move(loader);
--  info->callback = callback;
--  info->original_url = GURL(request->url());
--  client_malware_reports_[loader_ptr] = std::move(info);
--
--  UMA_HISTOGRAM_ENUMERATION("SBClientMalware.SentReports", REPORT_SENT,
--                            REPORT_RESULT_MAX);
--
--  UMA_HISTOGRAM_COUNTS_1M("SBClientMalware.IPBlacklistRequestPayloadSize",
--                          request_data.size());
--
--  // Record that we made a malware request
--  malware_report_times_.push(base::Time::Now());
-+  if (!callback.is_null())
-+    callback.Run(GURL(request->url()), GURL(request->url()), false);
  }
  
  void ClientSideDetectionService::HandlePhishingVerdict(
