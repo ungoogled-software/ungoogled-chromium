@@ -189,7 +189,7 @@ def _download_if_needed(file_path, url, show_progress):
     if file_path.exists():
         get_logger().info('%s already exists. Skipping download.', file_path)
     else:
-        get_logger().info('Downloading %s ...', file_path)
+        get_logger().debug('Download URL %s ...', url)
         reporthook = None
         if show_progress:
             reporthook = _UrlRetrieveReportHook()
