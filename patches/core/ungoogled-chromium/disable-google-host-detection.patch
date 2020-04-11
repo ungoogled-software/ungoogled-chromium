@@ -2,18 +2,18 @@
 
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -9,10 +9,6 @@
- #include "services/network/public/cpp/resource_response.h"
+@@ -10,10 +10,6 @@
+ #include "components/variations/net/variations_http_headers.h"
  #include "services/network/public/mojom/url_response_head.mojom.h"
  
 -#if BUILDFLAG(ENABLE_EXTENSIONS)
 -#include "extensions/common/extension_urls.h"
 -#endif
 -
- GoogleURLLoaderThrottle::GoogleURLLoaderThrottle(
-     bool is_off_the_record,
-     chrome::mojom::DynamicParams dynamic_params)
-@@ -26,36 +22,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+ namespace {
+ 
+ #if defined(OS_ANDROID)
+@@ -42,43 +38,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -47,10 +47,17 @@
 -    request->headers.SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
 -                               dynamic_params_.allowed_domains_for_apps);
 -  }
+-
+-#if defined(OS_ANDROID)
+-  if (!client_data_header_.empty() &&
+-      google_util::IsGoogleAssociatedDomainUrl(request->url)) {
+-    request->headers.SetHeader(kClientDataHeader, client_data_header_);
+-  }
+-#endif
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -64,32 +30,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -87,39 +46,6 @@ void GoogleURLLoaderThrottle::WillRedire
      bool* /* defer */,
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers) {
@@ -80,10 +87,17 @@
 -    modified_headers->SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
 -                                dynamic_params_.allowed_domains_for_apps);
 -  }
+-
+-#if defined(OS_ANDROID)
+-  if (!client_data_header_.empty() &&
+-      !google_util::IsGoogleAssociatedDomainUrl(redirect_info->new_url)) {
+-    to_be_removed_headers->push_back(kClientDataHeader);
+-  }
+-#endif
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -97,17 +37,5 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -127,17 +53,5 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
@@ -458,7 +472,7 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -505,11 +505,7 @@ base::string16 TemplateURLRef::SearchTer
+@@ -507,11 +507,7 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -473,7 +487,7 @@
  bool TemplateURLRef::ExtractSearchTermsFromURL(
 --- a/components/variations/net/variations_http_headers.cc
 +++ b/components/variations/net/variations_http_headers.cc
-@@ -28,10 +28,6 @@ namespace variations {
+@@ -27,10 +27,6 @@ namespace variations {
  
  namespace {
  
@@ -484,7 +498,7 @@
  // The result of checking if a URL should have variations headers appended.
  // This enum is used to record UMA histogram values, and should not be
  // reordered.
-@@ -88,26 +84,7 @@ class VariationsHeaderHelper {
+@@ -87,26 +83,7 @@ class VariationsHeaderHelper {
    }
  
    bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
@@ -512,7 +526,7 @@
    }
  
   private:
-@@ -150,8 +127,6 @@ void RemoveVariationsHeaderIfNeeded(
+@@ -149,8 +126,6 @@ void RemoveVariationsHeaderIfNeeded(
      const net::RedirectInfo& redirect_info,
      const network::mojom::URLResponseHead& response_head,
      std::vector<std::string>* to_be_removed_headers) {
@@ -521,7 +535,7 @@
  }
  
  std::unique_ptr<network::SimpleURLLoader>
-@@ -181,11 +156,11 @@ CreateSimpleURLLoaderWithVariationsHeade
+@@ -180,11 +155,11 @@ CreateSimpleURLLoaderWithVariationsHeade
  }
  
  bool IsVariationsHeader(const std::string& header_name) {
@@ -535,7 +549,7 @@
  }
  
  bool ShouldAppendVariationsHeaderForTesting(const GURL& url) {
-@@ -194,7 +169,6 @@ bool ShouldAppendVariationsHeaderForTest
+@@ -193,7 +168,6 @@ bool ShouldAppendVariationsHeaderForTest
  
  void UpdateCorsExemptHeaderForVariations(
      network::mojom::NetworkContextParams* params) {

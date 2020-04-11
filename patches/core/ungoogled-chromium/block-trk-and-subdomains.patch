@@ -23,7 +23,7 @@
        url.SchemeIs(dom_distiller::kDomDistillerScheme) ||
 --- a/chrome/browser/ui/singleton_tabs.cc
 +++ b/chrome/browser/ui/singleton_tabs.cc
-@@ -100,7 +100,8 @@ int GetIndexOfExistingTab(Browser* brows
+@@ -99,7 +99,8 @@ int GetIndexOfExistingTab(Browser* brows
  
      // Skip view-source tabs. This is needed because RewriteURLIfNecessary
      // removes the "view-source:" scheme which leads to incorrect matching.
@@ -33,35 +33,6 @@
        continue;
  
      GURL rewritten_tab_url = tab_url;
---- a/chromecast/browser/url_request_context_factory.cc
-+++ b/chromecast/browser/url_request_context_factory.cc
-@@ -40,6 +40,7 @@
- #include "net/proxy_resolution/proxy_resolution_service.h"
- #include "net/quic/quic_context.h"
- #include "net/ssl/ssl_config_service_defaults.h"
-+#include "net/url_request/trk_protocol_handler.h"
- #include "net/url_request/url_request_context.h"
- #include "net/url_request/url_request_context_builder.h"
- #include "net/url_request/url_request_context_getter.h"
-@@ -248,13 +249,17 @@ void URLRequestContextFactory::Initializ
-       new net::URLRequestJobFactoryImpl());
-   // Keep ProtocolHandlers added in sync with
-   // CastContentBrowserClient::IsHandledURL().
-+  bool set_protocol = false;
-   for (content::ProtocolHandlerMap::iterator it = protocol_handlers->begin();
-        it != protocol_handlers->end();
-        ++it) {
--    bool set_protocol =
-+    set_protocol =
-         job_factory->SetProtocolHandler(it->first, std::move(it->second));
-     DCHECK(set_protocol);
-   }
-+  set_protocol = job_factory->SetProtocolHandler(
-+      url::kTraceScheme, base::WrapUnique(new net::TrkProtocolHandler));
-+  DCHECK(set_protocol);
- 
-   // Set up interceptors in the reverse order.
-   std::unique_ptr<net::URLRequestJobFactory> top_job_factory =
 --- a/components/omnibox/browser/autocomplete_input.cc
 +++ b/components/omnibox/browser/autocomplete_input.cc
 @@ -496,7 +496,8 @@ void AutocompleteInput::ParseForEmphasiz
@@ -87,7 +58,7 @@
    return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
 --- a/components/url_formatter/url_fixer.cc
 +++ b/components/url_formatter/url_fixer.cc
-@@ -552,6 +552,10 @@ GURL FixupURL(const std::string& text, c
+@@ -566,6 +566,10 @@ GURL FixupURL(const std::string& text, c
      }
    }
  
@@ -100,7 +71,7 @@
      return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -617,6 +617,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+@@ -620,6 +620,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
  #endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
    RegisterWebSafeScheme(url::kFtpScheme);
    RegisterWebSafeScheme(url::kDataScheme);
@@ -110,7 +81,7 @@
    // TODO(nick): https://crbug.com/651534 blob: and filesystem: schemes embed
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
-@@ -1662,6 +1662,8 @@ component("net") {
+@@ -1075,6 +1075,8 @@ component("net") {
        "url_request/report_sender.h",
        "url_request/static_http_user_agent_settings.cc",
        "url_request/static_http_user_agent_settings.h",
@@ -225,7 +196,7 @@
  #include "net/url_request/url_request_context.h"
  #include "net/url_request/url_request_context_storage.h"
  #include "net/url_request/url_request_intercepting_job_factory.h"
-@@ -629,6 +630,9 @@ std::unique_ptr<URLRequestContext> URLRe
+@@ -628,6 +629,9 @@ std::unique_ptr<URLRequestContext> URLRe
    }
    protocol_handlers_.clear();
  
@@ -257,7 +228,7 @@
  
 --- a/url/url_util.cc
 +++ b/url/url_util.cc
-@@ -49,7 +49,7 @@ struct SchemeRegistry {
+@@ -54,7 +54,7 @@ struct SchemeRegistry {
  
    // Schemes that do not trigger mixed content warning.
    std::vector<std::string> secure_schemes = {
@@ -266,7 +237,7 @@
    };
  
    // Schemes that normal pages cannot link to or access (i.e., with the same
-@@ -64,6 +64,7 @@ struct SchemeRegistry {
+@@ -69,6 +69,7 @@ struct SchemeRegistry {
        kAboutScheme,
        kJavaScriptScheme,
        kDataScheme,
