@@ -104,7 +104,7 @@ Within each category, patches are grouped by the following:
 
 Packaging is the process of downloading, building, and producing a distributable package of ungoogled-chromium.
 
-Packaging files use the code from this repository to build ungoogled-chromium. Each platform and configuration has an associated packaging repository under the [ungoogled-software](//github.com/ungoogled-software) organization. For more information about each packaging repository, see the [building documentation](docs/building.md).
+Packaging files use the code from this repository to build ungoogled-chromium. Each platform and configuration has an associated packaging repository under the [ungoogled-software](//github.com/ungoogled-software) organization. For more information about each packaging repository, see the [building documentation](building.md).
 
 Packaging generally consists of the major steps:
 
