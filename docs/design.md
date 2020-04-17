@@ -79,7 +79,7 @@ All patch files in ungoogled-chromium must satisfy these formatting requirements
 Patches are categorized into two directories directly under `patches/`:
 
 1. **core**: Changes regarding background requests, code specific to Google web services, or code using pre-made binaries. They must be kept up-to-date with all of the changes in Chromium.
-2. **extra**: Changes to features regarding control and transparency. They are not guarenteed to persist across updates to Chromium.
+2. **extra**: Changes to features regarding control and transparency. They are not guaranteed to persist across updates to Chromium.
 
 Within each category, patches are grouped by the following:
 
