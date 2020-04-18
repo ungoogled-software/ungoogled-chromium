@@ -79,7 +79,7 @@ All patch files in ungoogled-chromium must satisfy these formatting requirements
 Patches are categorized into two directories directly under `patches/`:
 
 1. **core**: Changes regarding background requests, code specific to Google web services, or code using pre-made binaries. They must be kept up-to-date with all of the changes in Chromium.
-2. **extra**: Changes to features regarding control and transparency. They are not guarenteed to persist across updates to Chromium.
+2. **extra**: Changes to features regarding control and transparency. They are not guaranteed to persist across updates to Chromium.
 
 Within each category, patches are grouped by the following:
 
@@ -104,7 +104,7 @@ Within each category, patches are grouped by the following:
 
 Packaging is the process of downloading, building, and producing a distributable package of ungoogled-chromium.
 
-Packaging files use the code from this repository to build ungoogled-chromium. Each platform and configuration has an associated packaging repository under the [ungoogled-software](//github.com/ungoogled-software) organization. For more information about each packaging repository, see the [building documentation](docs/building.md).
+Packaging files use the code from this repository to build ungoogled-chromium. Each platform and configuration has an associated packaging repository under the [ungoogled-software](//github.com/ungoogled-software) organization. For more information about each packaging repository, see the [building documentation](building.md).
 
 Packaging generally consists of the major steps:
 
