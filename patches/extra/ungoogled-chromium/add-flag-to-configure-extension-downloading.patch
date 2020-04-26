@@ -31,6 +31,16 @@
      {"enable-stacked-tab-strip",
       "Enable stacking in tab strip",
       "Forces tabs to be stacked in the tab strip. Otherwise, they follow default behavior.",
+--- a/chrome/browser/download/chrome_download_manager_delegate.cc
++++ b/chrome/browser/download/chrome_download_manager_delegate.cc
+@@ -558,6 +558,7 @@ bool ChromeDownloadManagerDelegate::Shou
+     content::DownloadOpenDelayedCallback callback) {
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+   if (download_crx_util::IsExtensionDownload(*item) &&
++	  !download_crx_util::ShouldDownloadAsRegularFile() &&
+       !extensions::WebstoreInstaller::GetAssociatedApproval(*item)) {
+     scoped_refptr<extensions::CrxInstaller> crx_installer =
+         download_crx_util::OpenChromeExtension(profile_, *item);
 --- a/chrome/browser/download/download_crx_util.cc
 +++ b/chrome/browser/download/download_crx_util.cc
 @@ -6,6 +6,7 @@
@@ -46,25 +56,16 @@
  }
  
 +bool ShouldDownloadAsRegularFile() {
-+    const base::CommandLine& command_line =
-+        *base::CommandLine::ForCurrentProcess();
-+    return command_line.HasSwitch("extension-mime-request-handling") &&
-+        command_line.GetSwitchValueASCII("extension-mime-request-handling") ==
-+        "download-as-regular-file";
++  const base::CommandLine& command_line =
++    *base::CommandLine::ForCurrentProcess();
++  return command_line.HasSwitch("extension-mime-request-handling") &&
++    command_line.GetSwitchValueASCII("extension-mime-request-handling") ==
++    "download-as-regular-file";
 +}
 +
  bool IsExtensionDownload(const DownloadItem& download_item) {
    if (download_item.GetTargetDisposition() ==
        DownloadItem::TARGET_DISPOSITION_PROMPT)
-@@ -134,7 +143,7 @@ bool IsExtensionDownload(const DownloadI
-   if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
-       extensions::UserScript::IsURLUserScript(download_item.GetURL(),
-                                               download_item.GetMimeType())) {
--    return true;
-+    return !ShouldDownloadAsRegularFile();
-   } else {
-     return false;
-   }
 --- a/chrome/browser/download/download_crx_util.h
 +++ b/chrome/browser/download/download_crx_util.h
 @@ -43,6 +43,10 @@ scoped_refptr<extensions::CrxInstaller>
@@ -78,6 +79,52 @@
  // Returns true if this is an extension download. This also considers user
  // scripts to be extension downloads, since we convert those automatically.
  bool IsExtensionDownload(const download::DownloadItem& download_item);
+--- a/chrome/browser/download/download_item_model.cc
++++ b/chrome/browser/download/download_item_model.cc
+@@ -540,16 +540,16 @@ bool DownloadItemModel::IsCommandEnabled
+       return download_->CanShowInFolder();
+     case DownloadCommands::OPEN_WHEN_COMPLETE:
+       return download_->CanOpenDownload() &&
+-             !download_crx_util::IsExtensionDownload(*download_);
++             !IsExtensionDownload();
+     case DownloadCommands::PLATFORM_OPEN:
+       return download_->CanOpenDownload() &&
+-             !download_crx_util::IsExtensionDownload(*download_);
++             !IsExtensionDownload();
+     case DownloadCommands::ALWAYS_OPEN_TYPE:
+       // For temporary downloads, the target filename might be a temporary
+       // filename. Don't base an "Always open" decision based on it. Also
+       // exclude extensions.
+       return download_->CanOpenDownload() &&
+-             !download_crx_util::IsExtensionDownload(*download_);
++             !IsExtensionDownload();
+     case DownloadCommands::PAUSE:
+       return !download_->IsSavePackageDownload() &&
+              DownloadUIModel::IsCommandEnabled(download_commands, command);
+@@ -576,7 +576,7 @@ bool DownloadItemModel::IsCommandChecked
+   switch (command) {
+     case DownloadCommands::OPEN_WHEN_COMPLETE:
+       return download_->GetOpenWhenComplete() ||
+-             download_crx_util::IsExtensionDownload(*download_);
++             IsExtensionDownload();
+     case DownloadCommands::ALWAYS_OPEN_TYPE:
+ #if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_MACOSX)
+       if (download_commands->CanOpenPdfInSystemViewer()) {
+@@ -746,7 +746,13 @@ std::string DownloadItemModel::GetMimeTy
+ }
+ 
+ bool DownloadItemModel::IsExtensionDownload() const {
+-  return download_crx_util::IsExtensionDownload(*download_);
++  // Derivation of boolean statement:
++  // In original code, "IsExtensionDownload" always meant the extension
++  // was installed.
++  // In ungoogled code, "IsExtensionDownload && !ShouldDownloadAsRegularFile"
++  // is true iff this extension is to be installed.
++  return download_crx_util::IsExtensionDownload(*download_) &&
++      !download_crx_util::ShouldDownloadAsRegularFile();
+ }
+ 
+ #if BUILDFLAG(FULL_SAFE_BROWSING)
 --- a/chrome/browser/download/download_target_determiner.cc
 +++ b/chrome/browser/download/download_target_determiner.cc
 @@ -1018,10 +1018,12 @@ DownloadConfirmationReason DownloadTarge
@@ -97,6 +144,17 @@
  #endif
  
    // Don't prompt for file types that are marked for opening automatically.
+--- a/chrome/browser/download/notification/download_item_notification.cc
++++ b/chrome/browser/download/notification/download_item_notification.cc
+@@ -193,7 +193,7 @@ void RecordButtonClickAction(DownloadCom
+ 
+ bool IsExtensionDownload(DownloadUIModel* item) {
+   return item->download() &&
+-         download_crx_util::IsExtensionDownload(*item->download());
++         item->IsExtensionDownload();
+ }
+ 
+ }  // namespace
 --- a/chrome/browser/extensions/extension_management.cc
 +++ b/chrome/browser/extensions/extension_management.cc
 @@ -8,6 +8,7 @@
@@ -121,3 +179,15 @@
    // No allowed install sites specified, disallow by default.
    if (!global_settings_->has_restricted_install_sources)
      return false;
+--- a/chrome/browser/extensions/webstore_installer.cc
++++ b/chrome/browser/extensions/webstore_installer.cc
+@@ -510,7 +510,8 @@ void WebstoreInstaller::OnDownloadUpdate
+ 
+       // Only wait for other notifications if the download is really
+       // an extension.
+-      if (!download_crx_util::IsExtensionDownload(*download)) {
++      if (!download_crx_util::IsExtensionDownload(*download) ||
++          download_crx_util::ShouldDownloadAsRegularFile()) {
+         ReportFailure(kInvalidDownloadError, FAILURE_REASON_OTHER);
+         return;
+       }
