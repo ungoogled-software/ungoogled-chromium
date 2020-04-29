@@ -110,6 +110,7 @@ Also, ungoogled-chromium is available in several **software repositories**:
 * Fedora: Available in [RPM Fusion](https://rpmfusion.org) as `chromium-browser-privacy`.
 * GNU Guix: Available as `ungoogled-chromium`.
 * Gentoo Linux: [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay maintains an *unofficial*  [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
+* NixOS/nixpkgs: Available as `ungoogled-chromium`
 * Ubuntu: [PPA](https://launchpad.net/~braewoods/+archive/ubuntu/ungoogled-chromium) (maintained by [@braewoods](https://github.com/braewoods))
 * macOS cask: Available as `eloston-chromium`. Install (via [Homebrew](https://brew.sh/)) by running: `brew cask fetch eloston-chromium` and then `brew cask install eloston-chromium`
 
