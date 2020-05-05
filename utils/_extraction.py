@@ -223,12 +223,14 @@ def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
         sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
         if not sevenzip_bin is None:
             _extract_tar_with_7z(sevenzip_bin, archive_path, output_dir, relative_to)
+            return
         else: # Use WinRAR if 7-zip is not found
             if winrar_cmd == USE_REGISTRY:
                 winrar_cmd = str(_find_winrar_by_registry())
             winrar_bin = _find_extractor_by_cmd(winrar_cmd)
             if not winrar_bin is None:
                 _extract_tar_with_winrar(winrar_bin, archive_path, output_dir, relative_to)
+                return
             else:
                 print('Neither 7-zip nor WinRAR were found. Falling back to Python extractor.')
     elif current_platform == PlatformEnum.UNIX:
