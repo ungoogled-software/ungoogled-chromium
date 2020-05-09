@@ -216,21 +216,25 @@ def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
 
     current_platform = get_running_platform()
     if current_platform == PlatformEnum.WINDOWS:
+        # Try to use 7-zip first
         sevenzip_cmd = extractors.get(ExtractorEnum.SEVENZIP)
-        winrar_cmd = extractors.get(ExtractorEnum.WINRAR)
         if sevenzip_cmd == USE_REGISTRY:
             sevenzip_cmd = str(_find_7z_by_registry())
         sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
-        if not sevenzip_bin is None:
+        if sevenzip_bin is not None:
             _extract_tar_with_7z(sevenzip_bin, archive_path, output_dir, relative_to)
-        else: # Use WinRAR if 7-zip is not found
-            if winrar_cmd == USE_REGISTRY:
-                winrar_cmd = str(_find_winrar_by_registry())
-            winrar_bin = _find_extractor_by_cmd(winrar_cmd)
-            if not winrar_bin is None:
-                _extract_tar_with_winrar(winrar_bin, archive_path, output_dir, relative_to)
-            else:
-                print('Neither 7-zip nor WinRAR were found. Falling back to Python extractor.')
+            return
+
+        # Use WinRAR if 7-zip is not found
+        winrar_cmd = extractors.get(ExtractorEnum.WINRAR)
+        if winrar_cmd == USE_REGISTRY:
+            winrar_cmd = str(_find_winrar_by_registry())
+        winrar_bin = _find_extractor_by_cmd(winrar_cmd)
+        if winrar_bin is not None:
+            _extract_tar_with_winrar(winrar_bin, archive_path, output_dir, relative_to)
+            return
+        get_logger().warning(
+            'Neither 7-zip nor WinRAR were found. Falling back to Python extractor...')
     elif current_platform == PlatformEnum.UNIX:
         # NOTE: 7-zip isn't an option because it doesn't preserve file permissions
         tar_bin = _find_extractor_by_cmd(extractors.get(ExtractorEnum.TAR))
