@@ -2,8 +2,8 @@
 
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -10,10 +10,6 @@
- #include "components/variations/net/variations_http_headers.h"
+@@ -9,10 +9,6 @@
+ #include "components/google/core/common/google_util.h"
  #include "services/network/public/mojom/url_response_head.mojom.h"
  
 -#if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -13,16 +13,10 @@
  namespace {
  
  #if defined(OS_ANDROID)
-@@ -42,43 +38,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -40,37 +36,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
--  variations::AppendVariationsHeaderWithCustomValue(
--      request->url,
--      is_off_the_record_ ? variations::InIncognito::kYes
--                         : variations::InIncognito::kNo,
--      dynamic_params_.variation_ids_header, request);
--
 -  if (dynamic_params_.force_safe_search) {
 -    GURL new_url;
 -    safe_search_util::ForceGoogleSafeSearch(request->url, &new_url);
@@ -57,13 +51,10 @@
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -87,39 +46,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -79,36 +44,6 @@ void GoogleURLLoaderThrottle::WillRedire
      bool* /* defer */,
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers) {
--  variations::RemoveVariationsHeaderIfNeeded(*redirect_info, response_head,
--                                             to_be_removed_headers);
--
 -  // URLLoaderThrottles can only change the redirect URL when the network
 -  // service is enabled. The non-network service path handles this in
 -  // ChromeNetworkDelegate.
@@ -97,7 +88,7 @@
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -127,17 +53,5 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -116,17 +51,5 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
@@ -117,7 +108,7 @@
  #endif
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
-@@ -45,103 +45,6 @@ namespace {
+@@ -46,107 +46,6 @@ namespace {
  bool gUseMockLinkDoctorBaseURLForTesting = false;
  
  bool g_ignore_port_numbers = false;
@@ -133,13 +124,13 @@
 -}
 -
 -// True if the given canonical |host| is "[www.]<domain_in_lower_case>.<TLD>"
--// with a valid TLD. If |subdomain_permission| is ALLOW_SUBDOMAIN, we check
--// against host "*.<domain_in_lower_case>.<TLD>" instead. Will return the TLD
--// string in |tld|, if specified and the |host| can be parsed.
+-// with a valid TLD that appears in |allowed_tlds|. If |subdomain_permission| is
+-// ALLOW_SUBDOMAIN, we check against host "*.<domain_in_lower_case>.<TLD>"
+-// instead.
 -bool IsValidHostName(base::StringPiece host,
 -                     base::StringPiece domain_in_lower_case,
 -                     SubdomainPermission subdomain_permission,
--                     base::StringPiece* tld) {
+-                     const base::flat_set<base::StringPiece>& allowed_tlds) {
 -  // Fast path to avoid searching the registry set.
 -  if (host.find(domain_in_lower_case) == base::StringPiece::npos)
 -    return false;
@@ -155,21 +146,23 @@
 -  base::StringPiece host_minus_tld =
 -      host.substr(0, host.length() - tld_length - 1);
 -
--  if (tld)
--    *tld = host.substr(host.length() - tld_length);
+-  base::StringPiece tld = host.substr(host.length() - tld_length);
+-  // Remove the trailing dot from tld if present, as for Google domains it's the
+-  // same page.
+-  StripTrailingDot(&tld);
+-  if (!allowed_tlds.contains(tld))
+-    return false;
 -
 -  if (base::LowerCaseEqualsASCII(host_minus_tld, domain_in_lower_case))
 -    return true;
 -
 -  if (subdomain_permission == ALLOW_SUBDOMAIN) {
--    std::string dot_domain(".");
--    domain_in_lower_case.AppendToString(&dot_domain);
+-    std::string dot_domain = base::StrCat({".", domain_in_lower_case});
 -    return base::EndsWith(host_minus_tld, dot_domain,
 -                          base::CompareCase::INSENSITIVE_ASCII);
 -  }
 -
--  std::string www_domain("www.");
--  domain_in_lower_case.AppendToString(&www_domain);
+-  std::string www_domain = base::StrCat({"www.", domain_in_lower_case});
 -  return base::LowerCaseEqualsASCII(host_minus_tld, www_domain);
 -}
 -
@@ -188,17 +181,19 @@
 -  if (base_url.is_valid() && (canonical_host == base_url.host_piece()))
 -    return true;
 -
--  base::StringPiece tld;
--  if (!IsValidHostName(canonical_host, "google", subdomain_permission, &tld))
--    return false;
--
--  // Remove the trailing dot from tld if present, as for google domain it's the
--  // same page.
--  StripTrailingDot(&tld);
--
 -  static const base::NoDestructor<base::flat_set<base::StringPiece>>
 -      google_tlds(std::initializer_list<base::StringPiece>({GOOGLE_TLD_LIST}));
--  return google_tlds->contains(tld);
+-  return IsValidHostName(canonical_host, "google", subdomain_permission,
+-                         *google_tlds);
+-}
+-
+-bool IsCanonicalHostYoutubeHostname(base::StringPiece canonical_host,
+-                                    SubdomainPermission subdomain_permission) {
+-  static const base::NoDestructor<base::flat_set<base::StringPiece>>
+-      youtube_tlds(
+-          std::initializer_list<base::StringPiece>({YOUTUBE_TLD_LIST}));
+-  return IsValidHostName(canonical_host, "youtube", subdomain_permission,
+-                         *youtube_tlds);
 -}
 -
 -// True if |url| is a valid URL with a host that is in the static list of
@@ -221,7 +216,7 @@
  }  // namespace
  
  // Global functions -----------------------------------------------------------
-@@ -149,19 +52,11 @@ bool IsGoogleSearchSubdomainUrl(const GU
+@@ -154,19 +53,11 @@ bool IsGoogleSearchSubdomainUrl(const GU
  const char kGoogleHomepageURL[] = "https://www.google.com/";
  
  bool HasGoogleSearchQueryParam(base::StringPiece str) {
@@ -242,7 +237,7 @@
  }
  
  void SetMockLinkDoctorBaseURLForTesting() {
-@@ -175,162 +70,53 @@ std::string GetGoogleLocale(const std::s
+@@ -180,161 +71,53 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -367,8 +362,7 @@
                          SubdomainPermission subdomain_permission,
                          PortPermission port_permission) {
 -  return IsValidURL(url, port_permission) &&
--         IsValidHostName(url.host_piece(), "youtube", subdomain_permission,
--                         nullptr);
+-         IsCanonicalHostYoutubeHostname(url.host_piece(), subdomain_permission);
 +  return false;
  }
  
@@ -487,7 +481,7 @@
  bool TemplateURLRef::ExtractSearchTermsFromURL(
 --- a/components/variations/net/variations_http_headers.cc
 +++ b/components/variations/net/variations_http_headers.cc
-@@ -27,10 +27,6 @@ namespace variations {
+@@ -29,10 +29,6 @@ namespace variations {
  
  namespace {
  
@@ -498,10 +492,12 @@
  // The result of checking if a URL should have variations headers appended.
  // This enum is used to record UMA histogram values, and should not be
  // reordered.
-@@ -87,26 +83,7 @@ class VariationsHeaderHelper {
+@@ -89,28 +85,7 @@ class VariationsHeaderHelper {
    }
  
    bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
+-    AppendOmniboxOnDeviceSuggestionsHeaderIfNeeded(url, resource_request_);
+-
 -    // Note the criteria for attaching client experiment headers:
 -    // 1. We only transmit to Google owned domains which can evaluate
 -    // experiments.
@@ -526,7 +522,7 @@
    }
  
   private:
-@@ -149,8 +126,6 @@ void RemoveVariationsHeaderIfNeeded(
+@@ -153,8 +128,6 @@ void RemoveVariationsHeaderIfNeeded(
      const net::RedirectInfo& redirect_info,
      const network::mojom::URLResponseHead& response_head,
      std::vector<std::string>* to_be_removed_headers) {
@@ -535,31 +531,39 @@
  }
  
  std::unique_ptr<network::SimpleURLLoader>
-@@ -180,11 +155,11 @@ CreateSimpleURLLoaderWithVariationsHeade
+@@ -184,14 +157,11 @@ CreateSimpleURLLoaderWithVariationsHeade
  }
  
  bool IsVariationsHeader(const std::string& header_name) {
--  return header_name == kClientDataHeader;
+-  return header_name == kClientDataHeader ||
+-         header_name == kOmniboxOnDeviceSuggestionsHeader;
 +  return false;
  }
  
  bool HasVariationsHeader(const network::ResourceRequest& request) {
+-  // Note: kOmniboxOnDeviceSuggestionsHeader is not listed because this function
+-  // is only used for testing.
 -  return request.cors_exempt_headers.HasHeader(kClientDataHeader);
 +  return false;
  }
  
  bool ShouldAppendVariationsHeaderForTesting(const GURL& url) {
-@@ -193,7 +168,6 @@ bool ShouldAppendVariationsHeaderForTest
+@@ -200,12 +170,6 @@ bool ShouldAppendVariationsHeaderForTest
  
  void UpdateCorsExemptHeaderForVariations(
      network::mojom::NetworkContextParams* params) {
 -  params->cors_exempt_header_list.push_back(kClientDataHeader);
+-
+-  if (base::FeatureList::IsEnabled(kReportOmniboxOnDeviceSuggestionsHeader)) {
+-    params->cors_exempt_header_list.push_back(
+-        kOmniboxOnDeviceSuggestionsHeader);
+-  }
  }
  
  }  // namespace variations
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -394,27 +394,6 @@ bool HasGoogleHost(const GURL& url) {
+@@ -401,27 +401,6 @@ bool HasGoogleHost(const GURL& url) {
  }
  
  bool IsGoogleHost(base::StringPiece host) {

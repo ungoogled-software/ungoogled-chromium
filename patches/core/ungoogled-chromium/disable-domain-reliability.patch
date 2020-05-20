@@ -2,7 +2,7 @@
 
 --- a/components/domain_reliability/BUILD.gn
 +++ b/components/domain_reliability/BUILD.gn
-@@ -10,26 +10,6 @@ action("bake_in_configs") {
+@@ -9,26 +9,6 @@ action("bake_in_configs") {
    script = "bake_in_configs.py"
  
    inputs = [
@@ -29,7 +29,7 @@
    ]
  
    output_file = "$target_gen_dir/baked_in_configs.cc"
-@@ -37,13 +17,21 @@ action("bake_in_configs") {
+@@ -36,13 +16,21 @@ action("bake_in_configs") {
  
    # The JSON file list is too long for the command line on Windows, so put
    # them in a response file.
@@ -71,7 +71,7 @@
  def quote_and_wrap_text(text, width=79, prefix='  "', suffix='"'):
 --- a/components/domain_reliability/google_configs.cc
 +++ b/components/domain_reliability/google_configs.cc
-@@ -13,575 +13,10 @@
+@@ -10,564 +10,6 @@
  
  namespace domain_reliability {
  
@@ -318,7 +318,7 @@
 -    {"l.google.com", true, true, true},
 -
 -    // google.com is a special case. We have a custom config for www.google.com,
--    // so set generate_config_for_www_subdomain = false.
+-    // so set duplicate_for_www = false.
 -    {"google.com", true, true, false},
 -
 -    // Origins with subdomains and without same-origin collectors.
@@ -603,7 +603,7 @@
 -const char* const kGoogleOriginSpecificCollectorPathString =
 -    "/domainreliability/upload";
 -
--static std::unique_ptr<DomainReliabilityConfig> CreateGoogleConfig(
+-std::unique_ptr<const DomainReliabilityConfig> CreateGoogleConfig(
 -    const GoogleConfigParams& params,
 -    bool is_www) {
 -  if (is_www)
@@ -612,8 +612,7 @@
 -  std::string hostname = (is_www ? "www." : "") + std::string(params.hostname);
 -  bool include_subdomains = params.include_subdomains && !is_www;
 -
--  std::unique_ptr<DomainReliabilityConfig> config(
--      new DomainReliabilityConfig());
+-  auto config = std::make_unique<DomainReliabilityConfig>();
 -  config->origin = GURL("https://" + hostname + "/");
 -  config->include_subdomains = include_subdomains;
 -  config->collectors.clear();
@@ -623,9 +622,9 @@
 -    config->collectors.push_back(
 -        std::make_unique<GURL>(config->origin.ReplaceComponents(replacements)));
 -  }
--  for (size_t i = 0; i < base::size(kGoogleStandardCollectors); i++)
--    config->collectors.push_back(
--        std::make_unique<GURL>(kGoogleStandardCollectors[i]));
+-  for (const char* collector : kGoogleStandardCollectors) {
+-    config->collectors.push_back(std::make_unique<GURL>(collector));
+-  }
 -  config->success_sample_rate = 0.05;
 -  config->failure_sample_rate = 1.00;
 -  config->path_prefixes.clear();
@@ -634,19 +633,47 @@
 -
 -}  // namespace
 -
- // static
- void GetAllGoogleConfigs(
-     std::vector<std::unique_ptr<DomainReliabilityConfig>>* configs_out) {
-   configs_out->clear();
--
--  for (auto& params : kGoogleConfigs) {
--    configs_out->push_back(CreateGoogleConfig(params, false));
--    if (params.duplicate_for_www)
--      configs_out->push_back(CreateGoogleConfig(params, true));
+ std::unique_ptr<const DomainReliabilityConfig> MaybeGetGoogleConfig(
+     const std::string& hostname) {
+   bool is_www_subdomain =
+@@ -577,23 +19,6 @@ std::unique_ptr<const DomainReliabilityC
+   std::unique_ptr<const DomainReliabilityConfig> config = nullptr;
+   std::unique_ptr<const DomainReliabilityConfig> superdomain_config = nullptr;
+ 
+-  for (const auto& params : kGoogleConfigs) {
+-    if (params.hostname == hostname) {
+-      config = CreateGoogleConfig(params, false);
+-      break;
+-    }
+-    if (params.duplicate_for_www && is_www_subdomain &&
+-        params.hostname == hostname_parent) {
+-      config = CreateGoogleConfig(params, true);
+-      break;
+-    }
+-    // Don't break out of the loop upon finding a superdomain config, because
+-    // there might be an exact match later on.
+-    if (params.include_subdomains && params.hostname == hostname_parent) {
+-      superdomain_config = CreateGoogleConfig(params, false);
+-    }
 -  }
+-
+   if (config) {
+     DCHECK(config->origin.host() == hostname);
+     return config;
+@@ -611,12 +36,7 @@ std::unique_ptr<const DomainReliabilityC
+ std::vector<std::unique_ptr<const DomainReliabilityConfig>>
+ GetAllGoogleConfigsForTesting() {
+   std::vector<std::unique_ptr<const DomainReliabilityConfig>> configs_out;
+-
+-  for (const auto& params : kGoogleConfigs) {
+-    configs_out.push_back(CreateGoogleConfig(params, false));
+-    if (params.duplicate_for_www)
+-      configs_out.push_back(CreateGoogleConfig(params, true));
+-  }
++
+   return configs_out;
  }
  
- }  // namespace domain_reliability
 --- a/components/domain_reliability/uploader.cc
 +++ b/components/domain_reliability/uploader.cc
 @@ -82,7 +82,7 @@ class DomainReliabilityUploaderImpl

@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -4966,18 +4966,7 @@ ChromeContentBrowserClient::GetSafeBrows
+@@ -4916,18 +4916,7 @@ ChromeContentBrowserClient::GetSafeBrows
      bool safe_browsing_enabled_for_profile) {
    DCHECK_CURRENTLY_ON(BrowserThread::IO);
  
@@ -24,17 +24,24 @@
  base::Optional<std::string>
 --- a/chrome/browser/download/download_item_model.cc
 +++ b/chrome/browser/download/download_item_model.cc
-@@ -25,9 +25,6 @@
+@@ -25,16 +25,12 @@
  #include "chrome/browser/download/download_stats.h"
  #include "chrome/browser/download/offline_item_utils.h"
  #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/safe_browsing/download_protection/deep_scanning_request.h"
 -#include "chrome/browser/safe_browsing/download_protection/download_feedback_service.h"
--#include "chrome/common/safe_browsing/download_file_types.pb.h"
--#include "chrome/common/safe_browsing/file_type_policies.h"
  #include "chrome/grit/chromium_strings.h"
  #include "chrome/grit/generated_resources.h"
  #include "components/download/public/common/download_danger_type.h"
-@@ -46,7 +43,6 @@
+ #include "components/download/public/common/download_interrupt_reasons.h"
+ #include "components/download/public/common/download_item.h"
+ #include "components/safe_browsing/buildflags.h"
+-#include "components/safe_browsing/core/file_type_policies.h"
+-#include "components/safe_browsing/core/proto/download_file_types.pb.h"
+ #include "content/public/browser/download_item_utils.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/l10n/time_format.h"
+@@ -47,7 +43,6 @@
  using base::TimeDelta;
  using download::DownloadItem;
  using MixedContentStatus = download::DownloadItem::MixedContentStatus;
@@ -42,7 +49,7 @@
  
  namespace {
  
-@@ -293,14 +289,7 @@ bool DownloadItemModel::IsMixedContent()
+@@ -296,14 +291,7 @@ bool DownloadItemModel::IsMixedContent()
  }
  
  bool DownloadItemModel::ShouldAllowDownloadFeedback() const {
@@ -59,15 +66,15 @@
  bool DownloadItemModel::ShouldRemoveFromShelfWhenComplete() const {
 --- a/chrome/browser/native_file_system/chrome_native_file_system_permission_context.cc
 +++ b/chrome/browser/native_file_system/chrome_native_file_system_permission_context.cc
-@@ -18,7 +18,6 @@
+@@ -19,7 +19,6 @@
  #include "chrome/browser/native_file_system/native_file_system_permission_context_factory.h"
  #include "chrome/browser/native_file_system/native_file_system_permission_request_manager.h"
  #include "chrome/browser/profiles/profile.h"
 -#include "chrome/browser/safe_browsing/download_protection/download_protection_service.h"
- #include "chrome/browser/ui/browser_dialogs.h"
+ #include "chrome/browser/ui/native_file_system_dialogs.h"
  #include "chrome/common/chrome_paths.h"
  #include "components/content_settings/core/browser/host_content_settings_map.h"
-@@ -208,79 +207,6 @@ BindResultCallbackToCurrentSequence(
+@@ -214,81 +213,6 @@ BindResultCallbackToCurrentSequence(
        base::SequencedTaskRunnerHandle::Get(), std::move(callback));
  }
  
@@ -77,10 +84,10 @@
 -    std::unique_ptr<content::NativeFileSystemWriteItem> item,
 -    safe_browsing::CheckDownloadCallback callback) {
 -  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
--
+-  // Download Protection Service is not supported on Android.
+-#if BUILDFLAG(FULL_SAFE_BROWSING)
 -  safe_browsing::SafeBrowsingService* sb_service =
 -      g_browser_process->safe_browsing_service();
--
 -  if (!sb_service || !sb_service->download_protection_service() ||
 -      !sb_service->download_protection_service()->enabled()) {
 -    std::move(callback).Run(safe_browsing::DownloadCheckResult::UNKNOWN);
@@ -106,6 +113,7 @@
 -
 -  sb_service->download_protection_service()->CheckNativeFileSystemWrite(
 -      std::move(item), std::move(callback));
+-#endif
 -}
 -
 -ChromeNativeFileSystemPermissionContext::AfterWriteCheckResult
@@ -127,6 +135,7 @@
 -    case Result::POTENTIALLY_UNWANTED:
 -    case Result::BLOCKED_PASSWORD_PROTECTED:
 -    case Result::BLOCKED_TOO_LARGE:
+-    case Result::BLOCKED_UNSUPPORTED_FILE_TYPE:
 -      return ChromeNativeFileSystemPermissionContext::AfterWriteCheckResult::
 -          kBlock;
 -
@@ -147,7 +156,7 @@
  }  // namespace
  
  ChromeNativeFileSystemPermissionContext::Grants::Grants() = default;
-@@ -363,29 +289,6 @@ void ChromeNativeFileSystemPermissionCon
+@@ -383,29 +307,6 @@ void ChromeNativeFileSystemPermissionCon
                       frame_id, std::move(callback)));
  }
  
@@ -179,7 +188,7 @@
          const url::Origin& origin,
 --- a/chrome/browser/native_file_system/chrome_native_file_system_permission_context.h
 +++ b/chrome/browser/native_file_system/chrome_native_file_system_permission_context.h
-@@ -58,11 +58,6 @@ class ChromeNativeFileSystemPermissionCo
+@@ -59,11 +59,6 @@ class ChromeNativeFileSystemPermissionCo
        int process_id,
        int frame_id,
        base::OnceCallback<void(PermissionStatus)> callback) override;
@@ -188,9 +197,9 @@
 -      int process_id,
 -      int frame_id,
 -      base::OnceCallback<void(AfterWriteCheckResult)> callback) override;
-   bool CanRequestWritePermission(const url::Origin& origin) override;
+   bool CanObtainWritePermission(const url::Origin& origin) override;
  
-   // Returns a snapshot of the currently granted permissions.
+   ContentSetting GetReadGuardContentSetting(const url::Origin& origin);
 --- a/chrome/browser/password_manager/chrome_password_manager_client.cc
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.cc
 @@ -26,7 +26,6 @@
@@ -214,7 +223,7 @@
  
  #if defined(OS_ANDROID)
  #include "chrome/browser/android/tab_android.h"
-@@ -558,6 +557,7 @@ bool ChromePasswordManagerClient::IsIsol
+@@ -606,6 +605,7 @@ bool ChromePasswordManagerClient::IsIsol
    return SiteIsolationPolicy::IsIsolationForPasswordSitesEnabled();
  }
  
@@ -222,7 +231,7 @@
  #if defined(ON_FOCUS_PING_ENABLED) || \
      defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  safe_browsing::PasswordProtectionService*
-@@ -580,6 +580,7 @@ void ChromePasswordManagerClient::CheckS
+@@ -628,6 +628,7 @@ void ChromePasswordManagerClient::CheckS
    }
  }
  #endif  // defined(ON_FOCUS_PING_ENABLED)
@@ -230,9 +239,9 @@
  
  #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  void ChromePasswordManagerClient::CheckProtectedPasswordEntry(
-@@ -587,24 +588,11 @@ void ChromePasswordManagerClient::CheckP
-     const std::string& username,
-     const std::vector<std::string>& matching_domains,
+@@ -636,24 +637,11 @@ void ChromePasswordManagerClient::CheckP
+     const std::vector<password_manager::MatchingReusedCredential>&
+         matching_reused_credentials,
      bool password_field_exists) {
 -  safe_browsing::PasswordProtectionService* pps =
 -      GetPasswordProtectionService();
@@ -241,7 +250,7 @@
 -
 -  pps->MaybeStartProtectedPasswordEntryRequest(
 -      web_contents(), web_contents()->GetLastCommittedURL(), username,
--      password_type, matching_domains, password_field_exists);
+-      password_type, matching_reused_credentials, password_field_exists);
  }
  #endif  // defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  
@@ -255,7 +264,7 @@
  }
  #endif  // defined(SYNC_PASSWORD_REUSE_WARNING_ENABLED)
  
-@@ -728,7 +716,9 @@ void ChromePasswordManagerClient::OnInpu
+@@ -781,7 +769,9 @@ void ChromePasswordManagerClient::OnInpu
    if (key_event.windows_key_code == (ui::VKEY_V & 0x1f)) {
      OnPaste();
    } else {
@@ -265,7 +274,7 @@
    }
  #endif  // defined(OS_ANDROID)
  }
-@@ -854,9 +844,11 @@ void ChromePasswordManagerClient::OnPast
+@@ -907,9 +897,11 @@ void ChromePasswordManagerClient::OnPast
    base::string16 text;
    clipboard->ReadText(ui::ClipboardBuffer::kCopyPaste, &text);
    was_on_paste_called_ = true;
@@ -280,7 +289,7 @@
      const gfx::RectF& bounds) {
 --- a/chrome/browser/password_manager/chrome_password_manager_client.h
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.h
-@@ -192,7 +192,7 @@ class ChromePasswordManagerClient
+@@ -200,7 +200,7 @@ class ChromePasswordManagerClient
    void OnImeFinishComposingTextEvent() override;
  #endif  // defined(OS_ANDROID)
  
@@ -291,18 +300,20 @@
    safe_browsing::PasswordProtectionService* GetPasswordProtectionService()
 --- a/chrome/browser/permissions/contextual_notification_permission_ui_selector.cc
 +++ b/chrome/browser/permissions/contextual_notification_permission_ui_selector.cc
-@@ -17,10 +17,8 @@
- #include "chrome/browser/permissions/crowd_deny_preload_data.h"
+@@ -18,12 +18,10 @@
  #include "chrome/browser/permissions/quiet_notification_permission_ui_config.h"
  #include "chrome/browser/permissions/quiet_notification_permission_ui_state.h"
+ #include "chrome/browser/profiles/profile.h"
 -#include "chrome/browser/safe_browsing/safe_browsing_service.h"
  #include "chrome/common/chrome_features.h"
+ #include "chrome/common/pref_names.h"
  #include "components/permissions/permission_request.h"
+ #include "components/prefs/pref_service.h"
 -#include "components/safe_browsing/core/db/database_manager.h"
  
  namespace {
  
-@@ -111,50 +109,14 @@ void ContextualNotificationPermissionUiS
+@@ -114,50 +112,14 @@ void ContextualNotificationPermissionUiS
      Notify(UiToUse::kNormalUi, base::nullopt);
      return;
    }
@@ -355,7 +366,7 @@
    DCHECK(safe_browsing_request_);
 --- a/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
 +++ b/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
-@@ -37,35 +37,8 @@ void HandleOnPerformDrop(
+@@ -78,33 +78,8 @@ void HandleOnPerformDrop(
      content::WebContents* web_contents,
      const content::DropData& drop_data,
      content::WebContentsViewDelegate::DropCompletionCallback callback) {
@@ -379,25 +390,23 @@
 -  if (!drop_data.file_contents.empty())
 -    data.text.push_back(base::UTF8ToUTF16(drop_data.file_contents));
 -
--  for (const auto& file : drop_data.filenames)
--    data.paths.push_back(file.path);
--
--  // TODO(crbug.com/1008040): how to handle drop_data.file_system_files?
--  // These are URLs that use the filesystem: schema.  Support for this API
--  // is unclear.
--
--  safe_browsing::DeepScanningDialogDelegate::ShowForWebContents(
--      web_contents, std::move(data),
--      base::BindOnce(&DeepScanCompletionCallback, std::move(callback)),
--      safe_browsing::DeepScanAccessPoint::DRAG_AND_DROP);
-+  // In original code, this ran safe_browsing::DeepScanningDialogDelegate
+-  if (drop_data.filenames.empty()) {
+-    ScanData(web_contents, std::move(callback), std::move(data));
+-  } else {
+-    base::ThreadPool::PostTaskAndReplyWithResult(
+-        FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
+-        base::BindOnce(&GetPathsToScan, web_contents, std::move(drop_data),
+-                       std::move(data)),
+-        base::BindOnce(&ScanData, web_contents, std::move(callback)));
+-  }
++  // In the original code, this ran safe_browsing::DeepScanningDialogDelegate
 +  // Instead, run the code under "if (!safe_browsing::DeepScanningDialogDelegate::IsEnabled(...)) ..."
 +  std::move(callback).Run(
-+    content::WebContentsViewDelegate::DropCompletionResult::kContinue);
++      content::WebContentsViewDelegate::DropCompletionResult::kContinue);
  }
 --- a/chrome/browser/ui/views/download/download_item_view.cc
 +++ b/chrome/browser/ui/views/download/download_item_view.cc
-@@ -1304,6 +1304,7 @@ void DownloadItemView::ShowDeepScanningD
+@@ -1306,6 +1306,7 @@ void DownloadItemView::ShowDeepScanningD
            },
            base::Unretained(this))));
  
@@ -405,7 +414,7 @@
    int delay_delivery = g_browser_process->local_state()->GetInteger(
        prefs::kDelayDeliveryUntilVerdict);
    if (delay_delivery != safe_browsing::DELAY_DOWNLOADS &&
-@@ -1315,6 +1316,9 @@ void DownloadItemView::ShowDeepScanningD
+@@ -1317,6 +1318,9 @@ void DownloadItemView::ShowDeepScanningD
    } else {
      open_button_->SetEnabled(false);
    }
@@ -415,19 +424,19 @@
  
    file_name_label_->SetVisible(false);
    status_label_->SetVisible(false);
-@@ -1625,7 +1629,9 @@ base::string16 DownloadItemView::ElidedF
+@@ -1627,7 +1631,9 @@ base::string16 DownloadItemView::ElidedF
  }
  
  void DownloadItemView::OpenDownloadDuringAsyncScanning() {
 +#if BUILDFLAG(FULL_SAFE_BROWSING)
    model_->CompleteSafeBrowsingScan();
 +#endif
-   should_open_while_scanning_ = true;
+   model_->SetOpenWhenComplete(true);
  }
  
 --- a/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
 +++ b/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
-@@ -183,10 +183,7 @@ PasswordReuseModalWarningDialog::Passwor
+@@ -184,10 +184,7 @@ PasswordReuseModalWarningDialog::Passwor
          placeholder_offsets);
    } else {
      views::Label* message_body_label = CreateMessageBodyLabel(
@@ -441,7 +450,7 @@
    modal_construction_start_time_ = base::TimeTicks::Now();
 --- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
-@@ -81,8 +81,6 @@
+@@ -83,8 +83,6 @@
  #include "components/nacl/common/buildflags.h"
  #include "components/prefs/pref_service.h"
  #include "components/safe_browsing/buildflags.h"
@@ -450,7 +459,7 @@
  #include "components/security_interstitials/content/connection_help_ui.h"
  #include "components/security_interstitials/content/known_interception_disclosure_ui.h"
  #include "components/security_interstitials/content/urls.h"
-@@ -423,8 +421,6 @@ WebUIFactoryFunction GetWebUIFactoryFunc
+@@ -444,8 +442,6 @@ WebUIFactoryFunction GetWebUIFactoryFunc
      return &NewWebUI<PredictorsUI>;
    if (url.host_piece() == chrome::kChromeUIQuotaInternalsHost)
      return &NewWebUI<QuotaInternalsUI>;
@@ -472,7 +481,7 @@
  }
 --- a/components/password_manager/core/browser/password_manager_client.h
 +++ b/components/password_manager/core/browser/password_manager_client.h
-@@ -290,7 +290,7 @@ class PasswordManagerClient {
+@@ -310,7 +310,7 @@ class PasswordManagerClient {
    // Returns the current best guess as to the page's display language.
    virtual std::string GetPageLanguage() const;
  
@@ -493,7 +502,7 @@
    // which it has started loading. Returns the serialized request proto and a
 --- a/content/browser/native_file_system/native_file_system_file_writer_impl.cc
 +++ b/content/browser/native_file_system/native_file_system_file_writer_impl.cc
-@@ -93,8 +93,7 @@ NativeFileSystemFileWriterImpl::NativeFi
+@@ -94,8 +94,7 @@ NativeFileSystemFileWriterImpl::NativeFi
                                   url,
                                   handle_state,
                                   /*is_directory=*/false),
@@ -503,7 +512,7 @@
    DCHECK_EQ(swap_url.type(), url.type());
  }
  
-@@ -302,50 +301,7 @@ void NativeFileSystemFileWriterImpl::Clo
+@@ -303,51 +302,7 @@ void NativeFileSystemFileWriterImpl::Clo
    // swap file even if the writer was destroyed at that point.
    state_ = State::kClosePending;
  
@@ -528,9 +537,10 @@
 -  if (!file_writer || hash_result != base::File::FILE_OK) {
 -    // If writer was deleted, or calculating the hash failed try deleting the
 -    // swap file and invoke the callback.
--    base::PostTask(FROM_HERE, {base::ThreadPool(), base::MayBlock()},
--                   base::BindOnce(base::IgnoreResult(&base::DeleteFile),
--                                  swap_path, /*recursive=*/false));
+-    base::ThreadPool::PostTask(
+-        FROM_HERE, {base::MayBlock()},
+-        base::BindOnce(base::IgnoreResult(&base::DeleteFile), swap_path,
+-                       /*recursive=*/false));
 -    std::move(callback).Run(native_file_system_error::FromStatus(
 -        NativeFileSystemStatus::kOperationAborted,
 -        "Failed to perform Safe Browsing check."));
@@ -608,5 +618,5 @@
 -      int frame_id,
 -      base::OnceCallback<void(AfterWriteCheckResult)> callback) = 0;
  
-   // Returns whether the given |origin| is allowed to ask for write access.
-   // This is used to block save file dialogs from being shown
+   // Returns whether the give |origin| already allows write permission, or it is
+   // possible to request one. This is used to block save file dialogs from being
