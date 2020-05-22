@@ -1,6 +1,9 @@
 ---
 name: Bug report
 about: Report a bug building or running ungoogled-chromium
+title: ''
+labels: ''
+assignees: ''
 
 ---
 

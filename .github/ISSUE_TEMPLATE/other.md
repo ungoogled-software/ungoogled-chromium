@@ -1,6 +1,9 @@
 ---
 name: Other
 about: Anything else not listed
+title: ''
+labels: ''
+assignees: ''
 
 ---
 
