@@ -112,7 +112,7 @@ Also, ungoogled-chromium is available in several **software repositories**:
 * Gentoo Linux: [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay maintains an *unofficial*  [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
 * NixOS/nixpkgs: Available as `ungoogled-chromium`
 * Debian & Ubuntu: [OBS Instructions](https://software.opensuse.org/download/package?package=ungoogled-chromium&project=home:ungoogled_chromium)
-* macOS cask: Available as `eloston-chromium`. Install (via [Homebrew](https://brew.sh/)) by running: `brew cask fetch eloston-chromium` and then `brew cask install eloston-chromium`
+* macOS: Install (via [Homebrew](https://brew.sh/)) by running: `brew cask fetch eloston-chromium` and then `brew cask install eloston-chromium`. Chromium will appear in your `/Applications` directory.
 
 ## Source Code
 
