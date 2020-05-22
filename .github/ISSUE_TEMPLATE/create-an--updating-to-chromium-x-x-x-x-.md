@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-Please respond if you would like to update ungoogled-chromium to the new stable Chromium version.
+### Please respond if you would like to update ungoogled-chromium to the new stable Chromium version.
 
 ## Notes for the developer
 
