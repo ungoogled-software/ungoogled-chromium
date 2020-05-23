@@ -2,29 +2,29 @@
 
 --- a/chrome/browser/tracing/crash_service_uploader.cc
 +++ b/chrome/browser/tracing/crash_service_uploader.cc
-@@ -129,11 +129,16 @@ void TraceCrashServiceUploader::DoUpload
+@@ -130,11 +130,16 @@ void TraceCrashServiceUploader::DoUpload
    progress_callback_ = progress_callback;
    done_callback_ = std::move(done_callback);
  
--  base::PostTask(
--      FROM_HERE, {base::ThreadPool(), base::TaskPriority::BEST_EFFORT},
+-  base::ThreadPool::PostTask(
+-      FROM_HERE, {base::TaskPriority::BEST_EFFORT},
 -      base::BindOnce(&TraceCrashServiceUploader::DoCompressOnBackgroundThread,
 -                     base::Unretained(this), file_contents, upload_mode,
 -                     upload_url_, std::move(metadata)));
 +  if (!progress_callback_.is_null()) {
-+    base::PostTask(
++    base::ThreadPool::PostTask(
 +      FROM_HERE, {content::BrowserThread::UI},
 +      base::Bind(progress_callback_, 1, 1));
 +  }
 +  if (!done_callback_.is_null()) {
-+    base::PostTask(
++    base::ThreadPool::PostTask(
 +      FROM_HERE, {content::BrowserThread::UI},
 +      base::BindOnce(std::move(done_callback_), true, "Upload skipped."));
 +  }
  }
  
  void TraceCrashServiceUploader::DoCompressOnBackgroundThread(
-@@ -306,6 +311,7 @@ bool TraceCrashServiceUploader::Compress
+@@ -307,6 +312,7 @@ bool TraceCrashServiceUploader::Compress
  void TraceCrashServiceUploader::CreateAndStartURLLoader(
      const std::string& upload_url,
      const std::string& post_data) {
