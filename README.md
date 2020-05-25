@@ -106,13 +106,13 @@ These binaries are known as **contributor binaries**.
 
 Also, ungoogled-chromium is available in several **software repositories**:
 
-* Arch Linux: [Available in AUR as `ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
-* Fedora: Available in [RPM Fusion](https://rpmfusion.org) as `chromium-browser-privacy`.
-* GNU Guix: Available as `ungoogled-chromium`.
-* Gentoo Linux: [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay maintains an *unofficial*  [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
+* Arch: Available in [AUR](https://aur.archlinux.org/) as [`ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
+* Debian & Ubuntu: Available in OBS as [`ungoogled-chromium`](https://software.opensuse.org/download/package?package=ungoogled-chromium&project=home:ungoogled_chromium)
+* Fedora: Available in [RPM Fusion](https://rpmfusion.org) as `chromium-browser-privacy`
+* Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
+* GNU Guix: Available as `ungoogled-chromium`
+* macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew cask fetch eloston-chromium` and `brew cask install eloston-chromium`. Chromium will appear in your `/Applications` directory.
 * NixOS/nixpkgs: Available as `ungoogled-chromium`
-* Debian & Ubuntu: [OBS Instructions](https://software.opensuse.org/download/package?package=ungoogled-chromium&project=home:ungoogled_chromium)
-* macOS: Install (via [Homebrew](https://brew.sh/)) by running: `brew cask fetch eloston-chromium` and then `brew cask install eloston-chromium`. Chromium will appear in your `/Applications` directory.
 
 ## Source Code
 
