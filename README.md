@@ -108,6 +108,7 @@ Also, ungoogled-chromium is available in several **software repositories**:
 
 * Arch: Available in [AUR](https://aur.archlinux.org/) as [`ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
 * Debian & Ubuntu: Available in OBS as [`ungoogled-chromium`](https://software.opensuse.org/download/package?package=ungoogled-chromium&project=home:ungoogled_chromium)
+* F-Droid: [See instructions in ungoogled-chromium-android](https://github.com/wchen342/ungoogled-chromium-android#f-droid-repository)
 * Fedora: Available in [RPM Fusion](https://rpmfusion.org) as `chromium-browser-privacy`
 * Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
 * GNU Guix: Available as `ungoogled-chromium`
