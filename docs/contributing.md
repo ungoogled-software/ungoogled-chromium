@@ -6,6 +6,8 @@ Subsections of this section:
 * [Submitting changes](#submitting-changes)
 * [Criteria for new features](#criteria-for-new-features)
 
+If you are a developer of an officially-supported platform, be sure to check out the [Platform Repository Standards and Guidelines](repo_management.md).
+
 ### How to help
 
 Generally, ungoogled-chromium needs contributors to help:
