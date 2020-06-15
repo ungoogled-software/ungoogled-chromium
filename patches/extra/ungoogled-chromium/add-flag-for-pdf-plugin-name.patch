@@ -1,0 +1,411 @@
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -282,6 +282,12 @@ const FeatureEntry::Choice kScrollEventC
+      "never"}
+ };
+ 
++const FeatureEntry::Choice kPDFPluginNameChoices[] = {
++    {"Chromium", "", ""},
++    {"Google Chrome", switches::kPDFPluginName, "chrome"},
++    {"Microsoft Edge", switches::kPDFPluginName, "edge"},
++};
++
+ const FeatureEntry::Choice kTouchEventFeatureDetectionChoices[] = {
+     {flags_ui::kGenericExperimentChoiceDisabled, "", ""},
+     {flags_ui::kGenericExperimentChoiceEnabled,
+@@ -1801,6 +1807,10 @@ const FeatureEntry kFeatureEntries[] = {
+      "Force punycode hostnames",
+      "Force punycode in hostnames instead of Unicode when displaying Internationalized Domain Names (IDNs).",
+      kOsAll, SINGLE_VALUE_TYPE("force-punycode-hostnames")},
++    {"pdf-plugin-name",
++     "Set internal PDF plugin name",
++     "Sets the internal PDF viewer plugin name. Useful for sites that probe JS API navigator.plugins",
++     kOsDesktop, MULTI_VALUE_TYPE(kPDFPluginNameChoices)},
+     {"ignore-gpu-blacklist", flag_descriptions::kIgnoreGpuBlacklistName,
+      flag_descriptions::kIgnoreGpuBlacklistDescription, kOsAll,
+      SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -5490,7 +5490,7 @@ bool ChromeContentBrowserClient::ShouldA
+     const url::Origin& embedder_origin,
+     const content::PepperPluginInfo& plugin_info) {
+ #if BUILDFLAG(ENABLE_PDF)
+-  if (plugin_info.name == ChromeContentClient::kPDFInternalPluginName) {
++  if (plugin_info.name == ChromeContentClient::GetPDFInternalPluginName()) {
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+     // Allow embedding the internal PDF plugin in the built-in PDF extension.
+     if (embedder_origin.scheme() == extensions::kExtensionScheme &&
+--- a/chrome/browser/pdf/pdf_extension_util.cc
++++ b/chrome/browser/pdf/pdf_extension_util.cc
+@@ -25,7 +25,7 @@ std::string GetManifest() {
+   DCHECK(manifest_contents.find(kNameTag) != std::string::npos);
+   base::ReplaceFirstSubstringAfterOffset(
+       &manifest_contents, 0, kNameTag,
+-      ChromeContentClient::kPDFExtensionPluginName);
++      ChromeContentClient::GetPDFExtensionPluginName());
+ 
+   return manifest_contents;
+ }
+--- a/chrome/browser/plugins/pdf_iframe_navigation_throttle_unittest.cc
++++ b/chrome/browser/plugins/pdf_iframe_navigation_throttle_unittest.cc
+@@ -66,7 +66,7 @@ class PDFIFrameNavigationThrottleTest :
+     // Register a fake PDF Viewer plugin into our plugin service.
+     content::WebPluginInfo info;
+     info.name =
+-        base::ASCIIToUTF16(ChromeContentClient::kPDFExtensionPluginName);
++        base::ASCIIToUTF16(ChromeContentClient::GetPDFExtensionPluginName());
+     info.mime_types.push_back(content::WebPluginMimeType(
+         kPDFMimeType, "pdf", "Fake PDF description"));
+     plugin_service->RegisterInternalPlugin(info, true);
+--- a/chrome/browser/plugins/plugin_policy_handler.cc
++++ b/chrome/browser/plugins/plugin_policy_handler.cc
+@@ -53,9 +53,9 @@ void PluginPolicyHandler::ProcessPolicy(
+     std::string plugin;
+     if (!plugins->GetString(i, &plugin))
+       continue;
+-    if ((base::MatchPattern(ChromeContentClient::kPDFExtensionPluginName,
++    if ((base::MatchPattern(ChromeContentClient::GetPDFExtensionPluginName(),
+                             plugin) ||
+-         base::MatchPattern(ChromeContentClient::kPDFInternalPluginName,
++         base::MatchPattern(ChromeContentClient::GetPDFInternalPluginName(),
+                             plugin)) &&
+         !policies.GetValue(policy::key::kAlwaysOpenPdfExternally)) {
+       prefs->SetValue(prefs::kPluginsAlwaysOpenPdfExternally,
+@@ -107,9 +107,9 @@ void PluginPolicyHandler::ApplyPolicySet
+     std::string plugin;
+     if (!plugins->GetString(i, &plugin))
+       continue;
+-    if ((base::MatchPattern(ChromeContentClient::kPDFExtensionPluginName,
++    if ((base::MatchPattern(ChromeContentClient::GetPDFExtensionPluginName(),
+                             plugin) ||
+-         base::MatchPattern(ChromeContentClient::kPDFInternalPluginName,
++         base::MatchPattern(ChromeContentClient::GetPDFInternalPluginName(),
+                             plugin)) &&
+         !policies.GetValue(policy::key::kAlwaysOpenPdfExternally)) {
+       prefs->RemoveValue(prefs::kPluginsAlwaysOpenPdfExternally);
+--- a/chrome/browser/plugins/plugin_prefs.cc
++++ b/chrome/browser/plugins/plugin_prefs.cc
+@@ -37,9 +37,9 @@ namespace {
+ 
+ bool IsPDFViewerPlugin(const base::string16& plugin_name) {
+   return (plugin_name ==
+-          base::ASCIIToUTF16(ChromeContentClient::kPDFExtensionPluginName)) ||
++          base::ASCIIToUTF16(ChromeContentClient::GetPDFExtensionPluginName())) ||
+          (plugin_name ==
+-          base::ASCIIToUTF16(ChromeContentClient::kPDFInternalPluginName));
++          base::ASCIIToUTF16(ChromeContentClient::GetPDFInternalPluginName()));
+ }
+ 
+ }  // namespace
+--- a/chrome/browser/plugins/plugin_prefs_unittest.cc
++++ b/chrome/browser/plugins/plugin_prefs_unittest.cc
+@@ -24,11 +24,11 @@ class PluginPrefsTest : public ::testing
+ TEST_F(PluginPrefsTest, AlwaysOpenPdfExternally) {
+   EXPECT_EQ(PluginPrefs::NO_POLICY,
+             plugin_prefs_->PolicyStatusForPlugin(base::ASCIIToUTF16(
+-                ChromeContentClient::kPDFExtensionPluginName)));
++                ChromeContentClient::GetPDFExtensionPluginName())));
+ 
+   SetAlwaysOpenPdfExternally(true);
+ 
+   EXPECT_EQ(PluginPrefs::POLICY_DISABLED,
+             plugin_prefs_->PolicyStatusForPlugin(base::ASCIIToUTF16(
+-                ChromeContentClient::kPDFExtensionPluginName)));
++                ChromeContentClient::GetPDFExtensionPluginName())));
+ }
+--- a/chrome/browser/resources/plugin_metadata/plugins_chromeos.json
++++ b/chrome/browser/resources/plugin_metadata/plugins_chromeos.json
+@@ -43,6 +43,19 @@
+     "name": "Chrome PDF Viewer",
+     "group_name_matcher": "*Chrome PDF Viewer*"
+   },
++  "microsoft-edge-pdf": {
++    "mime_types": [
++    ],
++    "versions": [
++      {
++        "version": "0",
++        "status": "fully_trusted",
++        "comment": "Microsoft Edge PDF has no version information."
++      }
++    ],
++    "name": "Microsoft Edge PDF Viewer",
++    "group_name_matcher": "*Microsoft Edge PDF Viewer*"
++  },
+   "chromium-pdf": {
+     "mime_types": [
+     ],
+@@ -69,6 +82,19 @@
+     "name": "Chrome PDF Plugin",
+     "group_name_matcher": "*Chrome PDF Plugin*"
+   },
++  "microsoft-edge-pdf-plugin": {
++    "mime_types": [
++    ],
++    "versions": [
++      {
++        "version": "0",
++        "status": "fully_trusted",
++        "comment": "Microsoft Edge PDF Plugin has no version information."
++      }
++    ],
++    "name": "Microsoft Edge PDF Plugin",
++    "group_name_matcher": "*Microsoft Edge PDF Plugin*"
++  },
+   "chromium-pdf-plugin": {
+     "mime_types": [
+     ],
+--- a/chrome/browser/resources/plugin_metadata/plugins_linux.json
++++ b/chrome/browser/resources/plugin_metadata/plugins_linux.json
+@@ -35,6 +35,19 @@
+     "name": "Chrome PDF Viewer",
+     "group_name_matcher": "*Chrome PDF Viewer*"
+   },
++  "microsoft-edge-pdf": {
++    "mime_types": [
++    ],
++    "versions": [
++      {
++        "version": "0",
++        "status": "fully_trusted",
++        "comment": "Microsoft Edge PDF has no version information."
++      }
++    ],
++    "name": "Microsoft Edge PDF Viewer",
++    "group_name_matcher": "*Microsoft Edge PDF Viewer*"
++  },
+   "chromium-pdf": {
+     "mime_types": [
+     ],
+@@ -61,6 +74,19 @@
+     "name": "Chrome PDF Plugin",
+     "group_name_matcher": "*Chrome PDF Plugin*"
+   },
++  "microsoft-edge-pdf-plugin": {
++    "mime_types": [
++    ],
++    "versions": [
++      {
++        "version": "0",
++        "status": "fully_trusted",
++        "comment": "Google Chrome PDF Plugin has no version information."
++      }
++    ],
++    "name": "Microsoft Edge PDF Plugin",
++    "group_name_matcher": "*Microsoft Edge PDF Plugin*"
++  },
+   "chromium-pdf-plugin": {
+     "mime_types": [
+     ],
+--- a/chrome/browser/resources/plugin_metadata/plugins_mac.json
++++ b/chrome/browser/resources/plugin_metadata/plugins_mac.json
+@@ -32,6 +32,19 @@
+     "name": "Chrome PDF Viewer",
+     "group_name_matcher": "*Chrome PDF Viewer*"
+   },
++  "microsoft-edge-pdf": {
++    "mime_types": [
++    ],
++    "versions": [
++      {
++        "version": "0",
++        "status": "fully_trusted",
++        "comment": "Microsoft Edge PDF Viewer has no version information."
++      }
++    ],
++    "name": "Microsoft Edge PDF Viewer",
++    "group_name_matcher": "*Microsoft Edge PDF Viewer*"
++  },
+   "chromium-pdf": {
+     "mime_types": [
+     ],
+@@ -58,6 +71,19 @@
+     "name": "Chrome PDF Plugin",
+     "group_name_matcher": "*Chrome PDF Plugin*"
+   },
++  "microsoft-edge-pdf-plugin": {
++    "mime_types": [
++    ],
++    "versions": [
++      {
++        "version": "0",
++        "status": "fully_trusted",
++        "comment": "Microsoft Edge PDF Plugin has no version information."
++      }
++    ],
++    "name": "Microsoft Edge PDF Plugin",
++    "group_name_matcher": "*Microsoft Edge PDF Plugin*"
++  },
+   "chromium-pdf-plugin": {
+     "mime_types": [
+     ],
+--- a/chrome/browser/resources/plugin_metadata/plugins_win.json
++++ b/chrome/browser/resources/plugin_metadata/plugins_win.json
+@@ -32,6 +32,19 @@
+     "name": "Chrome PDF Viewer",
+     "group_name_matcher": "*Chrome PDF Viewer*"
+   },
++  "microsoft-edge-pdf": {
++    "mime_types": [
++    ],
++    "versions": [
++      {
++        "version": "0",
++        "status": "fully_trusted",
++        "comment": "Microsoft Edge PDF Viewer has no version information."
++      }
++    ],
++    "name": "Microsoft Edge PDF Viewer",
++    "group_name_matcher": "*Microsoft Edge PDF Viewer*"
++  },
+   "chromium-pdf": {
+     "mime_types": [
+     ],
+@@ -58,6 +71,19 @@
+     "name": "Chrome PDF Plugin",
+     "group_name_matcher": "*Chrome PDF Plugin*"
+   },
++  "microsoft-edge-pdf-plugin": {
++    "mime_types": [
++    ],
++    "versions": [
++      {
++        "version": "0",
++        "status": "fully_trusted",
++        "comment": "Microsoft Edge PDF Plugin has no version information."
++      }
++    ],
++    "name": "Microsoft Edge PDF Plugin",
++    "group_name_matcher": "*Microsoft Edge PDF Plugin*"
++  },
+   "chromium-pdf-plugin": {
+     "mime_types": [
+     ],
+--- a/chrome/common/BUILD.gn
++++ b/chrome/common/BUILD.gn
+@@ -271,6 +271,7 @@ static_library("common") {
+     "//components/google/core/common",
+     "//components/metrics:call_stack_profile_builder",
+     "//components/page_load_metrics/common:common",
++    "//components/ungoogled:switches",
+   ]
+ 
+   if (enable_plugins) {
+--- a/chrome/common/chrome_content_client.cc
++++ b/chrome/common/chrome_content_client.cc
+@@ -146,7 +146,7 @@ void ComputeBuiltInPlugins(std::vector<c
+   content::PepperPluginInfo pdf_info;
+   pdf_info.is_internal = true;
+   pdf_info.is_out_of_process = true;
+-  pdf_info.name = ChromeContentClient::kPDFInternalPluginName;
++  pdf_info.name = ChromeContentClient::GetPDFInternalPluginName();
+   pdf_info.description = kPDFPluginDescription;
+   pdf_info.path = base::FilePath(ChromeContentClient::kPDFPluginPath);
+   content::WebPluginMimeType pdf_mime_type(
+--- a/chrome/common/chrome_content_client.h
++++ b/chrome/common/chrome_content_client.h
+@@ -38,8 +38,8 @@ class ChromeContentClient : public conte
+   static const base::FilePath::CharType kNaClPluginFileName[];
+ #endif
+ 
+-  static const char kPDFExtensionPluginName[];
+-  static const char kPDFInternalPluginName[];
++  static const char *GetPDFExtensionPluginName();
++  static const char *GetPDFInternalPluginName();
+   static const base::FilePath::CharType kPDFPluginPath[];
+ 
+   ChromeContentClient();
+--- a/chrome/common/chrome_content_client_constants.cc
++++ b/chrome/common/chrome_content_client_constants.cc
+@@ -2,7 +2,11 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#include <string>
++
++#include "base/command_line.h"
+ #include "chrome/common/chrome_content_client.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ 
+ #if defined(GOOGLE_CHROME_BUILD)
+ const base::FilePath::CharType ChromeContentClient::kNotPresent[] =
+@@ -14,15 +18,52 @@ const base::FilePath::CharType ChromeCon
+     FILE_PATH_LITERAL("internal-nacl-plugin");
+ #endif
+ 
+-#if defined(GOOGLE_CHROME_BUILD)
+-const char ChromeContentClient::kPDFExtensionPluginName[] = "Chrome PDF Viewer";
+-const char ChromeContentClient::kPDFInternalPluginName[] = "Chrome PDF Plugin";
+-#else
+-const char ChromeContentClient::kPDFExtensionPluginName[] =
++namespace {
++
++const char ChromeContentClient::kChromePDFExtensionPluginName[] =
++    "Chrome PDF Viewer";
++const char ChromeContentClient::kChromePDFInternalPluginName[] =
++    "Chrome PDF Plugin";
++const char ChromeContentClient::kEdgePDFExtensionPluginName[] =
++    "Microsoft Edge PDF Viewer";
++const char ChromeContentClient::kEdgePDFInternalPluginName[] =
++    "Microsoft Edge PDF Plugin";
++const char ChromeContentClient::kChromiumPDFExtensionPluginName[] =
+     "Chromium PDF Viewer";
+-const char ChromeContentClient::kPDFInternalPluginName[] =
++const char ChromeContentClient::kChromiumPDFInternalPluginName[] =
+     "Chromium PDF Plugin";
+-#endif
++
++} // namespace
++
++// static
++const char *ChromeContentClient::GetPDFExtensionPluginName() {
++  const base::CommandLine& command_line =
++      *base::CommandLine::ForCurrentProcess();
++  if (command_line.HasSwitch(switches::kPDFPluginName)) {
++    std::string switch_value = command_line.GetSwitchValueASCII(switches::kPDFPluginName);
++    if (switch_value == "edge") {
++      return kEdgePDFExtensionPluginName;
++    } else if (switch_value == "chrome") {
++      return kChromePDFExtensionPluginName;
++    }
++  }
++  return kChromiumPDFExtensionPluginName;
++}
++
++// static
++const char *ChromeContentClient::GetPDFInternalPluginName() {
++  const base::CommandLine& command_line =
++      *base::CommandLine::ForCurrentProcess();
++  if (command_line.HasSwitch(switches::kPDFPluginName)) {
++    std::string switch_value = command_line.GetSwitchValueASCII(switches::kPDFPluginName);
++    if (switch_value == "edge") {
++      return kEdgePDFInternalPluginName;
++    } else if (switch_value == "chrome") {
++      return kChromePDFInternalPluginName;
++    }
++  }
++  return kChromiumPDFInternalPluginName;
++}
+ 
+ const base::FilePath::CharType ChromeContentClient::kPDFPluginPath[] =
+     FILE_PATH_LITERAL("internal-pdf-viewer");
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -909,7 +909,7 @@ WebPlugin* ChromeContentRendererClient::
+             }
+           }
+         } else if (info.name ==
+-                   ASCIIToUTF16(ChromeContentClient::kPDFExtensionPluginName)) {
++                   ASCIIToUTF16(ChromeContentClient::GetPDFExtensionPluginName())) {
+           // Report PDF load metrics. Since the PDF plugin is comprised of an
+           // extension that loads a second plugin, avoid double counting by
+           // ignoring the creation of the second plugin.
+@@ -963,7 +963,7 @@ WebPlugin* ChromeContentRendererClient::
+         PluginUMAReporter::GetInstance()->ReportPluginDisabled(orig_mime_type,
+                                                                url);
+         if (info.name ==
+-            ASCIIToUTF16(ChromeContentClient::kPDFExtensionPluginName)) {
++            ASCIIToUTF16(ChromeContentClient::GetPDFExtensionPluginName())) {
+           ReportPDFLoadStatus(
+               PDFLoadStatus::kShowedDisabledPluginPlaceholderForEmbeddedPdf);
+ 
