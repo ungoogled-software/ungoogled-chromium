@@ -5,13 +5,15 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
-Module for the downloading, checking, and unpacking of necessary files into the source tree
+Module for the downloading, checking, and unpacking of necessary files into the source tree.
 """
 
 import argparse
 import configparser
 import enum
 import hashlib
+import shutil
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -180,7 +182,26 @@ class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
         print('\r' + status_line, end='')
 
 
-def _download_if_needed(file_path, url, show_progress):
+def _download_via_urllib(url, file_path, show_progress, disable_ssl_verification):
+    reporthook = None
+    if show_progress:
+        reporthook = _UrlRetrieveReportHook()
+    if disable_ssl_verification:
+        import ssl
+        # TODO: Remove this or properly implement disabling SSL certificate verification
+        orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
+        ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access
+    try:
+        urllib.request.urlretrieve(url, str(file_path), reporthook=reporthook)
+    finally:
+        # Try to reduce damage of hack by reverting original HTTPS context ASAP
+        if disable_ssl_verification:
+            ssl._create_default_https_context = orig_https_context #pylint: disable=protected-access
+    if show_progress:
+        print()
+
+
+def _download_if_needed(file_path, url, show_progress, disable_ssl_verification):
     """
     Downloads a file from url to the specified path file_path if necessary.
 
@@ -188,14 +209,37 @@ def _download_if_needed(file_path, url, show_progress):
     """
     if file_path.exists():
         get_logger().info('%s already exists. Skipping download.', file_path)
+        return
+
+    # File name for partially download file
+    tmp_file_path = file_path.with_name(file_path.name + '.partial')
+
+    if tmp_file_path.exists():
+        get_logger().debug('Resuming downloading URL %s ...', url)
     else:
-        get_logger().debug('Download URL %s ...', url)
-        reporthook = None
-        if show_progress:
-            reporthook = _UrlRetrieveReportHook()
-        urllib.request.urlretrieve(url, str(file_path), reporthook=reporthook)
-        if show_progress:
-            print()
+        get_logger().debug('Downloading URL %s ...', url)
+
+    # Perform download
+    if shutil.which('axel'):
+        get_logger().debug('Using axel')
+        try:
+            subprocess.run(['axel', '-o', str(tmp_file_path), url], check=True)
+        except subprocess.CalledProcessError as exc:
+            get_logger().error('axel failed. Re-run the download command to resume downloading.')
+            raise exc
+    elif shutil.which('curl'):
+        get_logger().debug('Using curl')
+        try:
+            subprocess.run(['curl', '-L', '-o', str(tmp_file_path), '-C', '-', url], check=True)
+        except subprocess.CalledProcessError as exc:
+            get_logger().error('curl failed. Re-run the download command to resume downloading.')
+            raise exc
+    else:
+        get_logger().debug('Using urllib')
+        _download_via_urllib(url, tmp_file_path, show_progress, disable_ssl_verification)
+
+    # Download complete; rename file
+    tmp_file_path.rename(file_path)
 
 
 def _chromium_hashes_generator(hashes_path):
@@ -238,25 +282,17 @@ def retrieve_downloads(download_info, cache_dir, show_progress, disable_ssl_veri
         raise FileNotFoundError(cache_dir)
     if not cache_dir.is_dir():
         raise NotADirectoryError(cache_dir)
-    if disable_ssl_verification:
-        import ssl
-        # TODO: Remove this or properly implement disabling SSL certificate verification
-        orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
-        ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access
-    try:
-        for download_name, download_properties in download_info.properties_iter():
-            get_logger().info('Downloading "%s" to "%s" ...', download_name,
-                              download_properties.download_filename)
-            download_path = cache_dir / download_properties.download_filename
-            _download_if_needed(download_path, download_properties.url, show_progress)
-            if download_properties.has_hash_url():
-                get_logger().info('Downloading hashes for "%s"', download_name)
-                _, hash_filename, hash_url = download_properties.hashes['hash_url']
-                _download_if_needed(cache_dir / hash_filename, hash_url, show_progress)
-    finally:
-        # Try to reduce damage of hack by reverting original HTTPS context ASAP
-        if disable_ssl_verification:
-            ssl._create_default_https_context = orig_https_context #pylint: disable=protected-access
+    for download_name, download_properties in download_info.properties_iter():
+        get_logger().info('Downloading "%s" to "%s" ...', download_name,
+                          download_properties.download_filename)
+        download_path = cache_dir / download_properties.download_filename
+        _download_if_needed(download_path, download_properties.url, show_progress,
+                            disable_ssl_verification)
+        if download_properties.has_hash_url():
+            get_logger().info('Downloading hashes for "%s"', download_name)
+            _, hash_filename, hash_url = download_properties.hashes['hash_url']
+            _download_if_needed(cache_dir / hash_filename, hash_url, show_progress,
+                                disable_ssl_verification)
 
 
 def check_downloads(download_info, cache_dir):
@@ -350,7 +386,7 @@ def _unpack_callback(args):
 
 def main():
     """CLI Entrypoint"""
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
     add_common_params(parser)
     subparsers = parser.add_subparsers(title='Download actions', dest='action')
 
@@ -358,7 +394,10 @@ def main():
     retrieve_parser = subparsers.add_parser(
         'retrieve',
         help='Retrieve and check download files',
-        description='Retrieves and checks downloads without unpacking.')
+        description=('Retrieves and checks downloads without unpacking. '
+                     'The downloader will attempt to use CLI commands axel or curl. '
+                     'If they are not present, Python\'s urllib will be used. However, only '
+                     'the CLI-based downloaders can be resumed if the download is aborted.'))
     _add_common_args(retrieve_parser)
     retrieve_parser.add_argument(
         '--hide-progress-bar',
