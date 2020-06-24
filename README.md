@@ -152,6 +152,7 @@ List of mirrors:
 
 * For reporting and contacting, see [SUPPORT.md](SUPPORT.md)
 * For contributing (e.g. how to help, submitting changes, criteria for new features), see [docs/contributing.md](docs/contributing.md)
+* If you have some small contributions that don't fit our criteria, consider adding them to [ungoogled-software/contrib](https://github.com/ungoogled-software/contrib) or [our Wiki](https://github.com/ungoogled-software/ungoogled-chromium-wiki) instead.
 
 ## Credits
 

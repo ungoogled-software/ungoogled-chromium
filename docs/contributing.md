@@ -1,12 +1,16 @@
 # Contributing
 
-Subsections of this section:
+This document contains our criteria and guidelines for contributing to ungoogled-chromium.
+
+If you have **small contributions that don't fit our criteria**, consider adding them to [ungoogled-software/contrib](https://github.com/ungoogled-software/contrib) or [our Wiki](https://github.com/ungoogled-software/ungoogled-chromium-wiki) instead.
+
+If you are a developer of an **officially-supported platform**, be sure to check out the [Platform Repository Standards and Guidelines](repo_management.md).
+
+List of contents:
 
 * [How to help](#how-to-help)
 * [Submitting changes](#submitting-changes)
 * [Criteria for new features](#criteria-for-new-features)
-
-If you are a developer of an officially-supported platform, be sure to check out the [Platform Repository Standards and Guidelines](repo_management.md).
 
 ### How to help
 
