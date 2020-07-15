@@ -13,7 +13,7 @@
  namespace {
  
  #if defined(OS_ANDROID)
-@@ -40,37 +36,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -50,39 +46,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -38,23 +38,25 @@
 -
 -  if (!dynamic_params_.allowed_domains_for_apps.empty() &&
 -      request->url.DomainIs("google.com")) {
--    request->headers.SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
--                               dynamic_params_.allowed_domains_for_apps);
+-    request->cors_exempt_headers.SetHeader(
+-        safe_search_util::kGoogleAppsAllowedDomains,
+-        dynamic_params_.allowed_domains_for_apps);
 -  }
 -
 -#if defined(OS_ANDROID)
 -  if (!client_data_header_.empty() &&
 -      google_util::IsGoogleAssociatedDomainUrl(request->url)) {
--    request->headers.SetHeader(kClientDataHeader, client_data_header_);
+-    request->cors_exempt_headers.SetHeader(kCCTClientDataHeader,
+-                                           client_data_header_);
 -  }
 -#endif
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -79,36 +44,6 @@ void GoogleURLLoaderThrottle::WillRedire
-     bool* /* defer */,
+@@ -92,37 +55,6 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
-     net::HttpRequestHeaders* modified_headers) {
+     net::HttpRequestHeaders* modified_headers,
+     net::HttpRequestHeaders* modified_cors_exempt_headers) {
 -  // URLLoaderThrottles can only change the redirect URL when the network
 -  // service is enabled. The non-network service path handles this in
 -  // ChromeNetworkDelegate.
@@ -75,20 +77,21 @@
 -
 -  if (!dynamic_params_.allowed_domains_for_apps.empty() &&
 -      redirect_info->new_url.DomainIs("google.com")) {
--    modified_headers->SetHeader(safe_search_util::kGoogleAppsAllowedDomains,
--                                dynamic_params_.allowed_domains_for_apps);
+-    modified_cors_exempt_headers->SetHeader(
+-        safe_search_util::kGoogleAppsAllowedDomains,
+-        dynamic_params_.allowed_domains_for_apps);
 -  }
 -
 -#if defined(OS_ANDROID)
 -  if (!client_data_header_.empty() &&
 -      !google_util::IsGoogleAssociatedDomainUrl(redirect_info->new_url)) {
--    to_be_removed_headers->push_back(kClientDataHeader);
+-    to_be_removed_headers->push_back(kCCTClientDataHeader);
 -  }
 -#endif
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -116,17 +51,5 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -130,16 +62,5 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
@@ -100,8 +103,7 @@
 -        !response_head->headers->HasHeaderValue("x-frame-options", "deny") &&
 -        !response_head->headers->HasHeaderValue("x-frame-options",
 -                                                "sameorigin")) {
--      response_head->headers->RemoveHeader("x-frame-options");
--      response_head->headers->AddHeader("x-frame-options: sameorigin");
+-      response_head->headers->AddHeader("x-frame-options", "sameorigin");
 -    }
 -  }
  }
@@ -466,7 +468,7 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -507,11 +507,7 @@ base::string16 TemplateURLRef::SearchTer
+@@ -508,11 +508,7 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -481,17 +483,17 @@
  bool TemplateURLRef::ExtractSearchTermsFromURL(
 --- a/components/variations/net/variations_http_headers.cc
 +++ b/components/variations/net/variations_http_headers.cc
-@@ -29,10 +29,6 @@ namespace variations {
+@@ -27,10 +27,6 @@
  
- namespace {
+ namespace variations {
  
 -// The name string for the header for variations information.
 -// Note that prior to M33 this header was named X-Chrome-Variations.
 -const char kClientDataHeader[] = "X-Client-Data";
 -
+ namespace {
+ 
  // The result of checking if a URL should have variations headers appended.
- // This enum is used to record UMA histogram values, and should not be
- // reordered.
 @@ -89,28 +85,7 @@ class VariationsHeaderHelper {
    }
  
@@ -563,7 +565,7 @@
  }  // namespace variations
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -401,27 +401,6 @@ bool HasGoogleHost(const GURL& url) {
+@@ -415,27 +415,6 @@ bool HasGoogleHost(const GURL& url) {
  }
  
  bool IsGoogleHost(base::StringPiece host) {

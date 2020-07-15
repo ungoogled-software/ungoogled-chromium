@@ -2,7 +2,21 @@
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -4916,18 +4916,7 @@ ChromeContentBrowserClient::GetSafeBrows
+@@ -4007,11 +4007,13 @@ ChromeContentBrowserClient::CreateThrott
+       &throttles);
+ #endif
+ 
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   if (base::FeatureList::IsEnabled(safe_browsing::kDelayedWarnings)) {
+     throttles.push_back(
+         std::make_unique<safe_browsing::DelayedWarningNavigationThrottle>(
+             handle));
+   }
++#endif
+ 
+ #if defined(OS_WIN) || defined(OS_MACOSX) || \
+     (defined(OS_LINUX) && !defined(OS_CHROMEOS))
+@@ -5020,18 +5022,7 @@ ChromeContentBrowserClient::GetSafeBrows
      bool safe_browsing_enabled_for_profile) {
    DCHECK_CURRENTLY_ON(BrowserThread::IO);
  
@@ -32,7 +46,7 @@
  using safe_browsing::DownloadProtectionService;
  
  namespace {
-@@ -1236,8 +1235,6 @@ void ChromeDownloadManagerDelegate::OnDo
+@@ -1253,8 +1252,6 @@ void ChromeDownloadManagerDelegate::OnDo
      if (item->GetOriginalMimeType() == "application/x-x509-user-cert")
        DownloadItemModel(item).SetShouldPreferOpeningInBrowser(true);
  #endif
@@ -354,7 +368,7 @@
 -  }
 -
 -  // Anything the user has marked auto-open is OK if it's user-initiated.
--  if (download_prefs_->IsAutoOpenEnabledBasedOnExtension(virtual_path_) &&
+-  if (download_prefs_->IsAutoOpenEnabled(download_->GetURL(), virtual_path_) &&
 -      download_->HasUserGesture())
 -    return DownloadFileType::NOT_DANGEROUS;
 -
@@ -625,7 +639,7 @@
    ContentSetting GetReadGuardContentSetting(const url::Origin& origin);
 --- a/chrome/browser/password_manager/chrome_password_manager_client.cc
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.cc
-@@ -26,7 +26,6 @@
+@@ -28,7 +28,6 @@
  #include "chrome/browser/password_manager/password_store_factory.h"
  #include "chrome/browser/prerender/prerender_contents.h"
  #include "chrome/browser/profiles/profile.h"
@@ -633,12 +647,11 @@
  #include "chrome/browser/signin/identity_manager_factory.h"
  #include "chrome/browser/site_isolation/site_isolation_policy.h"
  #include "chrome/browser/sync/profile_sync_service_factory.h"
-@@ -94,11 +93,11 @@
+@@ -98,10 +97,10 @@
  #if BUILDFLAG(FULL_SAFE_BROWSING)
  #include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
  #include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
 +#endif
- #include "services/service_manager/public/cpp/connector.h"
  #include "third_party/blink/public/mojom/clipboard/clipboard.mojom.h"
  #include "ui/base/clipboard/clipboard.h"
  #include "ui/events/keycodes/keyboard_codes.h"
@@ -646,15 +659,15 @@
  
  #if defined(OS_ANDROID)
  #include "chrome/browser/android/tab_android.h"
-@@ -606,6 +605,7 @@ bool ChromePasswordManagerClient::IsIsol
-   return SiteIsolationPolicy::IsIsolationForPasswordSitesEnabled();
+@@ -755,6 +754,7 @@ std::string ChromePasswordManagerClient:
+   return std::string();
  }
  
 +#if BUILDFLAG(FULL_SAFE_BROWSING)
  #if defined(ON_FOCUS_PING_ENABLED) || \
      defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  safe_browsing::PasswordProtectionService*
-@@ -628,6 +628,7 @@ void ChromePasswordManagerClient::CheckS
+@@ -777,6 +777,7 @@ void ChromePasswordManagerClient::CheckS
    }
  }
  #endif  // defined(ON_FOCUS_PING_ENABLED)
@@ -662,7 +675,7 @@
  
  #if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
  void ChromePasswordManagerClient::CheckProtectedPasswordEntry(
-@@ -636,24 +637,11 @@ void ChromePasswordManagerClient::CheckP
+@@ -785,24 +786,11 @@ void ChromePasswordManagerClient::CheckP
      const std::vector<password_manager::MatchingReusedCredential>&
          matching_reused_credentials,
      bool password_field_exists) {
@@ -687,17 +700,7 @@
  }
  #endif  // defined(SYNC_PASSWORD_REUSE_WARNING_ENABLED)
  
-@@ -781,7 +769,9 @@ void ChromePasswordManagerClient::OnInpu
-   if (key_event.windows_key_code == (ui::VKEY_V & 0x1f)) {
-     OnPaste();
-   } else {
-+#if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
-     password_reuse_detection_manager_.OnKeyPressedCommitted(key_event.text);
-+#endif  // defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
-   }
- #endif  // defined(OS_ANDROID)
- }
-@@ -907,9 +897,11 @@ void ChromePasswordManagerClient::OnPast
+@@ -1197,9 +1185,11 @@ void ChromePasswordManagerClient::OnPast
    base::string16 text;
    clipboard->ReadText(ui::ClipboardBuffer::kCopyPaste, &text);
    was_on_paste_called_ = true;
@@ -708,22 +711,41 @@
 -#endif
 +#endif  // !defined(OS_ANDROID)
  
- gfx::RectF ChromePasswordManagerClient::GetBoundsInScreenSpace(
-     const gfx::RectF& bounds) {
+ void ChromePasswordManagerClient::RenderFrameCreated(
+     content::RenderFrameHost* render_frame_host) {
+@@ -1236,7 +1226,9 @@ void ChromePasswordManagerClient::OnInpu
+   if (key_event.windows_key_code == (ui::VKEY_V & 0x1f)) {
+     OnPaste();
+   } else {
++#if defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+     password_reuse_detection_manager_.OnKeyPressedCommitted(key_event.text);
++#endif  // defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
+   }
+ #endif  // defined(OS_ANDROID)
+ }
 --- a/chrome/browser/password_manager/chrome_password_manager_client.h
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.h
-@@ -200,7 +200,7 @@ class ChromePasswordManagerClient
-   void OnImeFinishComposingTextEvent() override;
- #endif  // defined(OS_ANDROID)
+@@ -174,13 +174,14 @@ class ChromePasswordManagerClient
+   void AnnotateNavigationEntry(bool has_password_field) override;
+   std::string GetPageLanguage() const override;
+ 
+-#if defined(ON_FOCUS_PING_ENABLED) || \
+-    defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
++#if (defined(ON_FOCUS_PING_ENABLED) || \
++    defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)) && \
++    BUILDFLAG(FULL_SAFE_BROWSING)
+   safe_browsing::PasswordProtectionService* GetPasswordProtectionService()
+       const override;
+ #endif
  
 -#if defined(ON_FOCUS_PING_ENABLED)
 +#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
    void CheckSafeBrowsingReputation(const GURL& form_action,
                                     const GURL& frame_url) override;
-   safe_browsing::PasswordProtectionService* GetPasswordProtectionService()
+ #endif
 --- a/chrome/browser/permissions/contextual_notification_permission_ui_selector.cc
 +++ b/chrome/browser/permissions/contextual_notification_permission_ui_selector.cc
-@@ -18,12 +18,10 @@
+@@ -19,12 +19,10 @@
  #include "chrome/browser/permissions/quiet_notification_permission_ui_config.h"
  #include "chrome/browser/permissions/quiet_notification_permission_ui_state.h"
  #include "chrome/browser/profiles/profile.h"
@@ -736,15 +758,7 @@
  
  namespace {
  
-@@ -114,50 +112,14 @@ void ContextualNotificationPermissionUiS
-     Notify(UiToUse::kNormalUi, base::nullopt);
-     return;
-   }
--
--  // Even if the quiet UI is enabled on all sites, the crowd deny trigger
--  // condition must be evaluated, so that the less prominent UI and the correct
--  // strings are shown on origins with crowd deny activated.
--  EvaluateCrowdDenyTrigger(url::Origin::Create(request->GetOrigin()));
+@@ -143,9 +141,6 @@ void ContextualNotificationPermissionUiS
  }
  
  void ContextualNotificationPermissionUiSelector::Cancel() {
@@ -754,23 +768,22 @@
  }
  
  ContextualNotificationPermissionUiSelector::
-     ~ContextualNotificationPermissionUiSelector() = default;
+@@ -156,24 +151,14 @@ void ContextualNotificationPermissionUiS
+   base::Optional<Decision> decision = GetDecisionBasedOnSiteReputation(
+       CrowdDenyPreloadData::GetInstance()->GetReputationDataForSite(origin));
  
--void ContextualNotificationPermissionUiSelector::EvaluateCrowdDenyTrigger(
--    url::Origin origin) {
--  if (!QuietNotificationPermissionUiConfig::IsCrowdDenyTriggeringEnabled()) {
--    OnCrowdDenyTriggerEvaluated(UiToUse::kNormalUi);
+-  // If the PreloadData suggests this is an unacceptable site, ping Safe
+-  // Browsing to verify; but do not ping if it is not warranted.
++  // If the PreloadData suggests this is an unacceptable site, assume it is
++  // correct, since we can't access safe browsing.
+   if (!decision || (!decision->quiet_ui_reason && !decision->warning_reason)) {
+     OnPerSiteTriggersEvaluated(Decision::UseNormalUiAndShowNoWarning());
 -    return;
--  }
++  } else {
++    // decision has a value, unwrap with .value()
++    OnPerSiteTriggersEvaluated(decision.value());
+   }
 -
--  base::Optional<UiToUse> ui_to_use = GetUiToUseBasedOnSiteReputation(
--      CrowdDenyPreloadData::GetInstance()->GetReputationDataForSite(origin));
--  if (!ui_to_use || *ui_to_use == UiToUse::kNormalUi) {
--    OnCrowdDenyTriggerEvaluated(UiToUse::kNormalUi);
--    return;
--  }
--
--  // PreloadData suggests a spammy site, ping safe browsing to verify.
 -  DCHECK(!safe_browsing_request_);
 -  DCHECK(g_browser_process->safe_browsing_service());
 -
@@ -781,23 +794,25 @@
 -      base::DefaultClock::GetInstance(), origin,
 -      base::BindOnce(&ContextualNotificationPermissionUiSelector::
 -                         OnSafeBrowsingVerdictReceived,
--                     base::Unretained(this)));
--}
--
+-                     base::Unretained(this), *decision));
+ }
+ 
  void ContextualNotificationPermissionUiSelector::OnSafeBrowsingVerdictReceived(
-     CrowdDenySafeBrowsingRequest::Verdict verdict) {
-   DCHECK(safe_browsing_request_);
 --- a/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
 +++ b/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
-@@ -78,33 +78,8 @@ void HandleOnPerformDrop(
+@@ -78,37 +78,8 @@ void HandleOnPerformDrop(
      content::WebContents* web_contents,
      const content::DropData& drop_data,
      content::WebContentsViewDelegate::DropCompletionCallback callback) {
 -  safe_browsing::DeepScanningDialogDelegate::Data data;
 -  Profile* profile =
 -      Profile::FromBrowserContext(web_contents->GetBrowserContext());
+-  auto connector =
+-      drop_data.filenames.empty()
+-          ? enterprise_connectors::AnalysisConnector::BULK_DATA_ENTRY
+-          : enterprise_connectors::AnalysisConnector::FILE_ATTACHED;
 -  if (!safe_browsing::DeepScanningDialogDelegate::IsEnabled(
--          profile, web_contents->GetLastCommittedURL(), &data)) {
+-          profile, web_contents->GetLastCommittedURL(), &data, connector)) {
 -    std::move(callback).Run(
 -        content::WebContentsViewDelegate::DropCompletionResult::kContinue);
 -    return;
@@ -829,25 +844,28 @@
  }
 --- a/chrome/browser/ui/views/download/download_item_view.cc
 +++ b/chrome/browser/ui/views/download/download_item_view.cc
-@@ -1306,6 +1306,7 @@ void DownloadItemView::ShowDeepScanningD
+@@ -1308,16 +1308,20 @@ void DownloadItemView::ShowDeepScanningD
            },
            base::Unretained(this))));
  
 +#if BUILDFLAG(FULL_SAFE_BROWSING)
-   int delay_delivery = g_browser_process->local_state()->GetInteger(
-       prefs::kDelayDeliveryUntilVerdict);
-   if (delay_delivery != safe_browsing::DELAY_DOWNLOADS &&
-@@ -1317,6 +1318,9 @@ void DownloadItemView::ShowDeepScanningD
-   } else {
+   if (enterprise_connectors::ConnectorsManager::GetInstance()
+           ->DelayUntilVerdict(
+               enterprise_connectors::AnalysisConnector::FILE_DOWNLOADED)) {
      open_button_->SetEnabled(false);
+   } else {
++#endif  // BUILDFLAG(FULL_SAFE_BROWSING)
+     auto open_now_button = views::MdTextButton::Create(
+         this, l10n_util::GetStringUTF16(IDS_OPEN_DOWNLOAD_NOW));
+     open_now_button_ = AddChildView(std::move(open_now_button));
+     open_button_->SetEnabled(true);
++#if BUILDFLAG(FULL_SAFE_BROWSING)
    }
-+#else
-+  open_button_->SetEnabled(false);
 +#endif  // BUILDFLAG(FULL_SAFE_BROWSING)
  
    file_name_label_->SetVisible(false);
    status_label_->SetVisible(false);
-@@ -1627,7 +1631,9 @@ base::string16 DownloadItemView::ElidedF
+@@ -1628,7 +1632,9 @@ base::string16 DownloadItemView::ElidedF
  }
  
  void DownloadItemView::OpenDownloadDuringAsyncScanning() {
@@ -859,7 +877,7 @@
  
 --- a/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
 +++ b/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
-@@ -184,10 +184,7 @@ PasswordReuseModalWarningDialog::Passwor
+@@ -178,10 +178,7 @@ PasswordReuseModalWarningDialog::Passwor
          placeholder_offsets);
    } else {
      views::Label* message_body_label = CreateMessageBodyLabel(
@@ -882,7 +900,7 @@
  #include "components/security_interstitials/content/connection_help_ui.h"
  #include "components/security_interstitials/content/known_interception_disclosure_ui.h"
  #include "components/security_interstitials/content/urls.h"
-@@ -444,8 +442,6 @@ WebUIFactoryFunction GetWebUIFactoryFunc
+@@ -466,8 +464,6 @@ WebUIFactoryFunction GetWebUIFactoryFunc
      return &NewWebUI<PredictorsUI>;
    if (url.host_piece() == chrome::kChromeUIQuotaInternalsHost)
      return &NewWebUI<QuotaInternalsUI>;
@@ -903,10 +921,10 @@
  
 --- a/components/password_manager/content/browser/content_password_manager_driver.cc
 +++ b/components/password_manager/content/browser/content_password_manager_driver.cc
-@@ -310,7 +310,7 @@ void ContentPasswordManagerDriver::ShowT
- void ContentPasswordManagerDriver::CheckSafeBrowsingReputation(
-     const GURL& form_action,
-     const GURL& frame_url) {
+@@ -316,7 +316,7 @@ void ContentPasswordManagerDriver::Check
+   if (client_->GetMetricsRecorder()) {
+     client_->GetMetricsRecorder()->RecordUserFocusedPasswordField();
+   }
 -#if defined(ON_FOCUS_PING_ENABLED)
 +#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
    client_->CheckSafeBrowsingReputation(form_action, frame_url);
@@ -914,15 +932,25 @@
  }
 --- a/components/password_manager/core/browser/password_manager_client.h
 +++ b/components/password_manager/core/browser/password_manager_client.h
-@@ -310,7 +310,7 @@ class PasswordManagerClient {
+@@ -318,14 +318,15 @@ class PasswordManagerClient {
    // Returns the current best guess as to the page's display language.
    virtual std::string GetPageLanguage() const;
  
--#if defined(ON_FOCUS_PING_ENABLED)
-+#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
+-#if defined(ON_FOCUS_PING_ENABLED) || \
+-    defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)
++#if (defined(ON_FOCUS_PING_ENABLED) || \
++    defined(SYNC_PASSWORD_REUSE_DETECTION_ENABLED)) && \
++    BUILDFLAG(FULL_SAFE_BROWSING)
    // Return the PasswordProtectionService associated with this instance.
    virtual safe_browsing::PasswordProtectionService*
    GetPasswordProtectionService() const = 0;
+ #endif
+ 
+-#if defined(ON_FOCUS_PING_ENABLED)
++#if defined(ON_FOCUS_PING_ENABLED) && BUILDFLAG(FULL_SAFE_BROWSING)
+   // Checks the safe browsing reputation of the webpage when the
+   // user focuses on a username/password field. This is used for reporting
+   // only, and won't trigger a warning.
 --- a/components/safe_browsing/content/common/safe_browsing.mojom
 +++ b/components/safe_browsing/content/common/safe_browsing.mojom
 @@ -117,7 +117,6 @@ enum PhishingDetectorResult {
