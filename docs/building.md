@@ -10,6 +10,8 @@ If you want to add ungoogled-chromium to your existing Chromium build process, s
 
 Typically, ungoogled-chromium is built from [code in platform-specific repositories](platforms.md). However, ungoogled-chromium can also be included in part or in whole into any custom Chromium build. In this section, **we will assume you already have a process to make your own Chromium builds**.
 
+**NOTE**: You may need additional patches and/or build configuration for [your supported platform](platforms.md) because this repository does not contain all the code necessary for all platforms.
+
 Before continuing, you may find it helpful to have a look through [the design documentation](design.md).
 
 The following procedure outline the essential steps to build Chromium will all of ungoogled-chromium's features. **They are not sufficient to build ungoogled-chromium on their own**.
