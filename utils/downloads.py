@@ -220,14 +220,7 @@ def _download_if_needed(file_path, url, show_progress, disable_ssl_verification)
         get_logger().debug('Downloading URL %s ...', url)
 
     # Perform download
-    if shutil.which('axel'):
-        get_logger().debug('Using axel')
-        try:
-            subprocess.run(['axel', '-o', str(tmp_file_path), url], check=True)
-        except subprocess.CalledProcessError as exc:
-            get_logger().error('axel failed. Re-run the download command to resume downloading.')
-            raise exc
-    elif shutil.which('curl'):
+    if shutil.which('curl'):
         get_logger().debug('Using curl')
         try:
             subprocess.run(['curl', '-L', '-o', str(tmp_file_path), '-C', '-', url], check=True)
@@ -395,8 +388,8 @@ def main():
         'retrieve',
         help='Retrieve and check download files',
         description=('Retrieves and checks downloads without unpacking. '
-                     'The downloader will attempt to use CLI commands axel or curl. '
-                     'If they are not present, Python\'s urllib will be used. However, only '
+                     'The downloader will attempt to use CLI command "curl". '
+                     'If it is not present, Python\'s urllib will be used. However, only '
                      'the CLI-based downloaders can be resumed if the download is aborted.'))
     _add_common_args(retrieve_parser)
     retrieve_parser.add_argument(
