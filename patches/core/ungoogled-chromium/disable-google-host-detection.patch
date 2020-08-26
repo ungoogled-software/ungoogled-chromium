@@ -2,8 +2,8 @@
 
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -9,10 +9,6 @@
- #include "components/google/core/common/google_util.h"
+@@ -13,10 +13,6 @@
+ #include "net/base/url_util.h"
  #include "services/network/public/mojom/url_response_head.mojom.h"
  
 -#if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -13,7 +13,7 @@
  namespace {
  
  #if defined(OS_ANDROID)
-@@ -50,39 +46,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -58,53 +54,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -31,7 +31,7 @@
 -      dynamic_params_.youtube_restrict <
 -          safe_search_util::YOUTUBE_RESTRICT_COUNT) {
 -    safe_search_util::ForceYouTubeRestrict(
--        request->url, &request->headers,
+-        request->url, &request->cors_exempt_headers,
 -        static_cast<safe_search_util::YouTubeRestrictMode>(
 -            dynamic_params_.youtube_restrict));
 -  }
@@ -49,11 +49,25 @@
 -    request->cors_exempt_headers.SetHeader(kCCTClientDataHeader,
 -                                           client_data_header_);
 -  }
+-
+-  bool is_google_homepage_or_search =
+-      google_util::IsGoogleHomePageUrl(request->url) ||
+-      google_util::IsGoogleSearchUrl(request->url);
+-  if (is_google_homepage_or_search) {
+-    // TODO (crbug.com/1081510): Remove this experimental code once a final
+-    // solution is agreed upon.
+-    if (base::FeatureList::IsEnabled(features::kAndroidDarkSearch)) {
+-      request->url = net::AppendOrReplaceQueryParameter(
+-          request->url, "cs", night_mode_enabled_ ? "1" : "0");
+-    }
+-    base::UmaHistogramBoolean("Android.DarkTheme.DarkSearchRequested",
+-                              night_mode_enabled_);
+-  }
 -#endif
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -92,37 +55,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -114,37 +63,6 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
@@ -70,7 +84,7 @@
 -      dynamic_params_.youtube_restrict <
 -          safe_search_util::YOUTUBE_RESTRICT_COUNT) {
 -    safe_search_util::ForceYouTubeRestrict(
--        redirect_info->new_url, modified_headers,
+-        redirect_info->new_url, modified_cors_exempt_headers,
 -        static_cast<safe_search_util::YouTubeRestrictMode>(
 -            dynamic_params_.youtube_restrict));
 -  }
@@ -91,7 +105,7 @@
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -130,16 +62,5 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -152,16 +70,5 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
@@ -110,11 +124,10 @@
  #endif
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
-@@ -46,107 +46,6 @@ namespace {
+@@ -45,109 +45,6 @@ namespace {
+ 
  bool gUseMockLinkDoctorBaseURLForTesting = false;
  
- bool g_ignore_port_numbers = false;
--
 -bool IsPathHomePageBase(base::StringPiece path) {
 -  return (path == "/") || (path == "/webhp");
 -}
@@ -172,6 +185,9 @@
 -// is DISALLOW_NON_STANDARD_PORTS, this also requires |url| to use the standard
 -// port for its scheme (80 for HTTP, 443 for HTTPS).
 -bool IsValidURL(const GURL& url, PortPermission port_permission) {
+-  static bool g_ignore_port_numbers =
+-      base::CommandLine::ForCurrentProcess()->HasSwitch(
+-          switches::kIgnoreGooglePortNumbers);
 -  return url.is_valid() && url.SchemeIsHTTPOrHTTPS() &&
 -         (url.port().empty() || g_ignore_port_numbers ||
 -          (port_permission == ALLOW_NON_STANDARD_PORTS));
@@ -218,7 +234,7 @@
  }  // namespace
  
  // Global functions -----------------------------------------------------------
-@@ -154,19 +53,11 @@ bool IsGoogleSearchSubdomainUrl(const GU
+@@ -155,19 +52,11 @@ bool IsGoogleSearchSubdomainUrl(const GU
  const char kGoogleHomepageURL[] = "https://www.google.com/";
  
  bool HasGoogleSearchQueryParam(base::StringPiece str) {
@@ -239,7 +255,7 @@
  }
  
  void SetMockLinkDoctorBaseURLForTesting() {
-@@ -180,161 +71,53 @@ std::string GetGoogleLocale(const std::s
+@@ -181,161 +70,53 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -413,7 +429,7 @@
  
 --- a/components/page_load_metrics/browser/page_load_metrics_util.cc
 +++ b/components/page_load_metrics/browser/page_load_metrics_util.cc
-@@ -171,9 +171,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
+@@ -184,9 +184,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
  }
  
  bool IsGoogleSearchHostname(const GURL& url) {
@@ -468,7 +484,7 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -508,11 +508,7 @@ base::string16 TemplateURLRef::SearchTer
+@@ -510,11 +510,7 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -493,8 +509,8 @@
 -
  namespace {
  
- // The result of checking if a URL should have variations headers appended.
-@@ -89,28 +85,7 @@ class VariationsHeaderHelper {
+ // The result of checking whether a request to a URL should have variations
+@@ -192,32 +188,7 @@ class VariationsHeaderHelper {
    }
  
    bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
@@ -509,8 +525,12 @@
 -    //         international TLD domains *.google.<TLD> or *.youtube.<TLD>.
 -    // 2. Only transmit for non-Incognito profiles.
 -    // 3. For the X-Client-Data header, only include non-empty variation IDs.
--    if ((incognito == InIncognito::kYes) || !ShouldAppendVariationsHeader(url))
+-    if ((incognito == InIncognito::kYes) ||
+-        !ShouldAppendVariationsHeader(url, "Append"))
 -      return false;
+-
+-    // TODO(crbug/1094303): Use the result to determine which IDs to include.
+-    IsFirstPartyContext(*resource_request_);
 -
 -    if (variations_header_.empty())
 -      return false;
@@ -524,16 +544,16 @@
    }
  
   private:
-@@ -153,8 +128,6 @@ void RemoveVariationsHeaderIfNeeded(
+@@ -260,8 +231,6 @@ void RemoveVariationsHeaderIfNeeded(
      const net::RedirectInfo& redirect_info,
      const network::mojom::URLResponseHead& response_head,
      std::vector<std::string>* to_be_removed_headers) {
--  if (!ShouldAppendVariationsHeader(redirect_info.new_url))
+-  if (!ShouldAppendVariationsHeader(redirect_info.new_url, "Remove"))
 -    to_be_removed_headers->push_back(kClientDataHeader);
  }
  
  std::unique_ptr<network::SimpleURLLoader>
-@@ -184,14 +157,11 @@ CreateSimpleURLLoaderWithVariationsHeade
+@@ -291,14 +260,11 @@ CreateSimpleURLLoaderWithVariationsHeade
  }
  
  bool IsVariationsHeader(const std::string& header_name) {
@@ -549,8 +569,8 @@
 +  return false;
  }
  
- bool ShouldAppendVariationsHeaderForTesting(const GURL& url) {
-@@ -200,12 +170,6 @@ bool ShouldAppendVariationsHeaderForTest
+ bool ShouldAppendVariationsHeaderForTesting(
+@@ -309,12 +275,6 @@ bool ShouldAppendVariationsHeaderForTest
  
  void UpdateCorsExemptHeaderForVariations(
      network::mojom::NetworkContextParams* params) {

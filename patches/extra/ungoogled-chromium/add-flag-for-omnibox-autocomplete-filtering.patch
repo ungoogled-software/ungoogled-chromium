@@ -1,6 +1,6 @@
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -300,6 +300,16 @@
+@@ -305,6 +305,16 @@ const FeatureEntry::Choice kBookmarkBarN
       "never"},
  };
  
@@ -17,7 +17,7 @@
  const FeatureEntry::Choice kTouchEventFeatureDetectionChoices[] = {
      {flags_ui::kGenericExperimentChoiceDisabled, "", ""},
      {flags_ui::kGenericExperimentChoiceEnabled,
-@@ -2021,6 +2031,10 @@
+@@ -2024,6 +2034,10 @@ const FeatureEntry kFeatureEntries[] = {
       "Force punycode hostnames",
       "Force punycode in hostnames instead of Unicode when displaying Internationalized Domain Names (IDNs).",
       kOsAll, SINGLE_VALUE_TYPE("force-punycode-hostnames")},
@@ -38,11 +38,11 @@
  #include "base/feature_list.h"
  #include "base/format_macros.h"
  #include "base/metrics/histogram.h"
-@@ -225,11 +226,27 @@
+@@ -226,11 +227,27 @@ AutocompleteController::AutocompleteCont
        first_query_(true),
        search_service_worker_signal_sent_(false),
        template_url_service_(provider_client_->GetTemplateURLService()) {
-+  const std::string flag_value = 
++  const std::string flag_value =
 +    base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
    provider_types &= ~OmniboxFieldTrial::GetDisabledProviderTypes();
 -  if (provider_types & AutocompleteProvider::TYPE_BOOKMARK)
@@ -67,6 +67,20 @@
    if (provider_types & AutocompleteProvider::TYPE_HISTORY_QUICK)
      providers_.push_back(new HistoryQuickProvider(provider_client_.get()));
    if (provider_types & AutocompleteProvider::TYPE_KEYWORD) {
+--- a/components/omnibox/browser/history_url_provider.cc
++++ b/components/omnibox/browser/history_url_provider.cc
+@@ -548,6 +548,11 @@ void HistoryURLProvider::Start(const Aut
+   if (fixed_up_input.type() != metrics::OmniboxInputType::QUERY)
+     matches_.push_back(what_you_typed_match);
+ 
++  const std::string flag_value =
++    base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
++  if (flag_value == "search-suggestions-only" || flag_value == "search-suggestions-and-bookmarks")
++    return;
++
+   // We'll need the history service to run both passes, so try to obtain it.
+   history::HistoryService* const history_service =
+       client()->GetHistoryService();
 --- a/components/omnibox/browser/search_provider.cc
 +++ b/components/omnibox/browser/search_provider.cc
 @@ -12,6 +12,7 @@
@@ -77,11 +91,11 @@
  #include "base/feature_list.h"
  #include "base/i18n/break_iterator.h"
  #include "base/i18n/case_conversion.h"
-@@ -645,6 +646,11 @@
+@@ -645,6 +646,11 @@ void SearchProvider::Run(bool query_is_p
  }
  
  void SearchProvider::DoHistoryQuery(bool minimal_changes) {
-+  const std::string flag_value = 
++  const std::string flag_value =
 +    base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
 +  if (flag_value == "search-suggestions-only" || flag_value == "search-suggestions-and-bookmarks")
 +    return;
@@ -89,17 +103,3 @@
    // The history query results are synchronous, so if minimal_changes is true,
    // we still have the last results and don't need to do anything.
    if (minimal_changes)
---- a/components/omnibox/browser/history_url_provider.cc
-+++ b/components/omnibox/browser/history_url_provider.cc
-@@ -548,6 +548,11 @@
-   if (fixed_up_input.type() != metrics::OmniboxInputType::QUERY)
-     matches_.push_back(what_you_typed_match);
- 
-+  const std::string flag_value = 
-+    base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
-+  if (flag_value == "search-suggestions-only" || flag_value == "search-suggestions-and-bookmarks")
-+    return;
-+
-   // We'll need the history service to run both passes, so try to obtain it.
-   history::HistoryService* const history_service =
-       client()->GetHistoryService();
