@@ -503,6 +503,24 @@
    // Return the mixed content status determined during download target
    // determination.
    virtual download::DownloadItem::MixedContentStatus GetMixedContentStatus()
+--- a/chrome/browser/media/webrtc/display_media_access_handler.cc
++++ b/chrome/browser/media/webrtc/display_media_access_handler.cc
+@@ -101,6 +101,7 @@ void DisplayMediaAccessHandler::HandleRe
+     return;
+   }
+ 
++  #if BUILDFLAG(FULL_SAFE_BROWSING)
+   // SafeBrowsing Delayed Warnings experiment can delay some SafeBrowsing
+   // warnings until user interaction. If the current page has a delayed warning,
+   // it'll have a user interaction observer attached. Show the warning
+@@ -115,6 +116,7 @@ void DisplayMediaAccessHandler::HandleRe
+     observer->OnDesktopCaptureRequest();
+     return;
+   }
++  #endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+ #if defined(OS_MACOSX)
+   // Do not allow picker UI to be shown on a page that isn't in the foreground
 --- a/chrome/browser/native_file_system/chrome_native_file_system_permission_context.cc
 +++ b/chrome/browser/native_file_system/chrome_native_file_system_permission_context.cc
 @@ -18,7 +18,6 @@
@@ -722,6 +740,22 @@
    }
  #endif  // defined(OS_ANDROID)
  }
+@@ -1284,6 +1276,7 @@ bool ChromePasswordManagerClient::IsPass
+     is_enabled = false;
+   }
+ 
++  #if BUILDFLAG(FULL_SAFE_BROWSING)
+   // SafeBrowsing Delayed Warnings experiment can delay some SafeBrowsing
+   // warnings until user interaction. If the current page has a delayed warning,
+   // it'll have a user interaction observer attached. Disable password
+@@ -1294,6 +1287,7 @@ bool ChromePasswordManagerClient::IsPass
+     observer->OnPasswordSaveOrAutofillDenied();
+     is_enabled = false;
+   }
++  #endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+   if (log_manager_->IsLoggingActive()) {
+     password_manager::BrowserSavePasswordProgressLogger logger(
 --- a/chrome/browser/password_manager/chrome_password_manager_client.h
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.h
 @@ -175,13 +175,14 @@ class ChromePasswordManagerClient
@@ -797,6 +831,34 @@
  }
  
  void ContextualNotificationPermissionUiSelector::OnSafeBrowsingVerdictReceived(
+--- a/chrome/browser/reputation/safety_tips_config.cc
++++ b/chrome/browser/reputation/safety_tips_config.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/reputation/safety_tips_config.h"
+ 
+ #include "base/no_destructor.h"
++#include "base/notreached.h"
+ #include "components/safe_browsing/core/db/v4_protocol_manager_util.h"
+ #include "third_party/re2/src/re2/re2.h"
+ #include "url/gurl.h"
+--- a/chrome/browser/ui/javascript_dialogs/javascript_tab_modal_dialog_manager_delegate_desktop.cc
++++ b/chrome/browser/ui/javascript_dialogs/javascript_tab_modal_dialog_manager_delegate_desktop.cc
+@@ -36,6 +36,7 @@ JavaScriptTabModalDialogManagerDelegateD
+ 
+ void JavaScriptTabModalDialogManagerDelegateDesktop::WillRunDialog() {
+   BrowserList::AddObserver(this);
++  #if BUILDFLAG(FULL_SAFE_BROWSING)
+   // SafeBrowsing Delayed Warnings experiment can delay some SafeBrowsing
+   // warnings until user interaction. If the current page has a delayed warning,
+   // it'll have a user interaction observer attached. Show the warning
+@@ -46,6 +47,7 @@ void JavaScriptTabModalDialogManagerDele
+   if (observer) {
+     observer->OnJavaScriptDialog();
+   }
++  #endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ }
+ 
+ void JavaScriptTabModalDialogManagerDelegateDesktop::DidCloseDialog() {
 --- a/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
 +++ b/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
 @@ -79,37 +79,8 @@ void HandleOnPerformDrop(
@@ -843,7 +905,18 @@
  }
 --- a/chrome/browser/ui/views/download/download_item_view.cc
 +++ b/chrome/browser/ui/views/download/download_item_view.cc
-@@ -1221,16 +1221,20 @@ void DownloadItemView::ShowDeepScanningD
+@@ -1203,9 +1203,7 @@ void DownloadItemView::ShowDeepScanningD
+   DCHECK_EQ(mode_, Mode::kNormal);
+   SetMode(Mode::kDeepScanning);
+ 
+-  const int id = (model_->download() &&
+-                  safe_browsing::DeepScanningRequest::ShouldUploadBinary(
+-                      model_->download()))
++  const int id = model_->download()
+                      ? IDS_PROMPT_DEEP_SCANNING_DOWNLOAD
+                      : IDS_PROMPT_DEEP_SCANNING_APP_DOWNLOAD;
+   const base::string16 filename = ElidedFilename();
+@@ -1221,16 +1219,20 @@ void DownloadItemView::ShowDeepScanningD
    StyleFilename(*deep_scanning_label_, filename_offset, filename.length());
    deep_scanning_label_->SizeToFit(GetLabelWidth(*deep_scanning_label_));
  
@@ -864,7 +937,7 @@
  
    file_name_label_->SetVisible(false);
    status_label_->SetVisible(false);
-@@ -1553,7 +1557,9 @@ base::string16 DownloadItemView::ElidedF
+@@ -1553,7 +1555,9 @@ base::string16 DownloadItemView::ElidedF
  }
  
  void DownloadItemView::OpenDownloadDuringAsyncScanning() {
