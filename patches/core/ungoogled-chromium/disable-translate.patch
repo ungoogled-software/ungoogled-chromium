@@ -1,111 +1,38 @@
-# Removes the "Translate to" context menu only when --translate-script-url flag is not set
---- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-+++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -116,6 +116,7 @@
- #include "components/spellcheck/common/spellcheck_common.h"
- #include "components/spellcheck/spellcheck_buildflags.h"
- #include "components/strings/grit/components_strings.h"
-+#include "components/translate/core/common/translate_switches.h"
- #include "components/translate/core/browser/translate_download_manager.h"
- #include "components/translate/core/browser/translate_manager.h"
- #include "components/translate/core/browser/translate_prefs.h"
-@@ -1570,7 +1571,8 @@
-     std::unique_ptr<translate::TranslatePrefs> prefs(
-         ChromeTranslateClient::CreateTranslatePrefs(
-             GetPrefs(browser_context_)));
--    if (prefs->IsTranslateAllowedByPolicy()) {
-+    const base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
-+    if (prefs->IsTranslateAllowedByPolicy() && command_line.HasSwitch(translate::switches::kTranslateScriptURL)) {
-       language::LanguageModel* language_model =
-           LanguageModelManagerFactory::GetForBrowserContext(browser_context_)
-               ->GetPrimaryModel();
---- a/components/translate/core/browser/translate_language_list.cc
-+++ b/components/translate/core/browser/translate_language_list.cc
-@@ -10,6 +10,7 @@
- 
- #include "base/bind.h"
- #include "base/check.h"
-+#include "base/command_line.h"
- #include "base/json/json_reader.h"
- #include "base/lazy_instance.h"
- #include "base/notreached.h"
-@@ -22,6 +23,7 @@
- #include "components/translate/core/browser/translate_event_details.h"
- #include "components/translate/core/browser/translate_url_fetcher.h"
- #include "components/translate/core/browser/translate_url_util.h"
-+#include "components/translate/core/common/translate_switches.h"
- #include "components/translate/core/common/translate_util.h"
- #include "net/base/url_util.h"
- #include "ui/base/l10n/l10n_util.h"
-@@ -208,6 +210,9 @@
+# Disables browser translation
+
+--- a/components/translate/content/renderer/translate_agent.cc
++++ b/components/translate/content/renderer/translate_agent.cc
+@@ -74,8 +74,7 @@ TranslateAgent::TranslateAgent(content::
+     : content::RenderFrameObserver(render_frame),
+       world_id_(world_id),
+       extension_scheme_(extension_scheme) {
+-  translate_task_runner_ = this->render_frame()->GetTaskRunner(
+-      blink::TaskType::kInternalTranslation);
++  CancelPendingTranslation();
  }
  
- void TranslateLanguageList::RequestLanguageList() {
-+  const base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
-+  if (!command_line.HasSwitch(translate::switches::kTranslateScriptURL))
-+    return;
-   // If resource requests are not allowed, we'll get a callback when they are.
-   if (!resource_requests_allowed_) {
-     request_pending_ = true;
+ TranslateAgent::~TranslateAgent() {}
 --- a/components/translate/core/browser/translate_manager.cc
 +++ b/components/translate/core/browser/translate_manager.cc
-@@ -709,8 +709,9 @@
+@@ -709,8 +709,7 @@ void TranslateManager::FilterIsTranslate
          TranslateBrowserMetrics::INITIATION_STATUS_NO_NETWORK);
    }
  
 -  if (!ignore_missing_key_for_testing_ &&
 -      !::google_apis::HasAPIKeyConfigured()) {
-+  const base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
-+  if (!command_line.HasSwitch(translate::switches::kTranslateScriptURL) ||
-+      (!ignore_missing_key_for_testing_ && !::google_apis::HasAPIKeyConfigured())) {
++  if (true) {
      // Without an API key, translate won't work, so don't offer to translate in
      // the first place. Leave prefs::kOfferTranslateEnabled on, though, because
      // that settings syncs and we don't want to turn off translate everywhere
---- a/components/translate/core/browser/translate_ranker_impl.cc
-+++ b/components/translate/core/browser/translate_ranker_impl.cc
-@@ -157,14 +157,10 @@
-                                          ukm::UkmRecorder* ukm_recorder)
-     : ukm_recorder_(ukm_recorder),
-       is_logging_enabled_(false),
--      is_query_enabled_(base::FeatureList::IsEnabled(kTranslateRankerQuery)),
--      is_enforcement_enabled_(
--          base::FeatureList::IsEnabled(kTranslateRankerEnforcement)),
--      is_auto_blacklist_override_enabled_(base::FeatureList::IsEnabled(
--          translate::kTranslateRankerAutoBlacklistOverride)),
--      is_previous_language_matches_override_enabled_(
--          base::FeatureList::IsEnabled(
--              translate::kTranslateRankerPreviousLanguageMatchesOverride)) {
-+      is_query_enabled_(false),
-+      is_enforcement_enabled_(false),
-+      is_auto_blacklist_override_enabled_(false),
-+      is_previous_language_matches_override_enabled_(false) {
-   if (is_query_enabled_ || is_enforcement_enabled_) {
-     model_loader_ = std::make_unique<assist_ranker::RankerModelLoaderImpl>(
-         base::BindRepeating(&ValidateModel),
-@@ -237,6 +233,8 @@
-   // (or become False).
-   const bool kDefaultResponse = true;
- 
-+  return kDefaultResponse;
-+
-   translate_event->set_ranker_request_timestamp_sec(
-       (base::TimeTicks::Now() - base::TimeTicks()).InSeconds());
-   translate_event->set_ranker_version(GetModelVersion());
 --- a/components/translate/core/browser/translate_script.cc
 +++ b/components/translate/core/browser/translate_script.cc
-@@ -142,8 +142,13 @@
+@@ -142,8 +142,7 @@ void TranslateScript::OnScriptFetchCompl
                          server_params.c_str());
  
      GURL security_origin = translate::GetTranslateSecurityOrigin();
 -    base::StringAppendF(&data_, "var securityOrigin = '%s';",
 -                        security_origin.spec().c_str());
-+    const base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
-+    if (command_line.HasSwitch(translate::switches::kTranslateScriptURL)) {
-+      base::StringAppendF(&data_, "var securityOrigin = '%s';",
-+                          security_origin.spec().c_str());
-+    } else {
-+      base::StringAppendF(&data_, "var securityOrigin = '';");
-+    }
++    base::StringAppendF(&data_, "var securityOrigin = '';");
  
      // Load embedded translate.js.
      data_.append(ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
