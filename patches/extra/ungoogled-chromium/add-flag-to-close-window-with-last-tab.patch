@@ -1,0 +1,48 @@
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -315,6 +315,13 @@
+      "search-suggestions-and-bookmarks"},
+ };
+ 
++const FeatureEntry::Choice kCloseWindowWithLastTab[] = {
++    {flags_ui::kGenericExperimentChoiceDefault, "", ""},
++    {"Never",
++     "close-window-with-last-tab",
++     "never"},
++};
++
+ const FeatureEntry::Choice kTouchEventFeatureDetectionChoices[] = {
+     {flags_ui::kGenericExperimentChoiceDisabled, "", ""},
+     {flags_ui::kGenericExperimentChoiceEnabled,
+@@ -2038,6 +2045,10 @@
+      "Omnibox Autocomplete Filtering",
+      "Restrict omnibox autocomplete results to search suggestions (if enabled) or search suggestions and bookmarks.",
+      kOsAll, MULTI_VALUE_TYPE(kOmniboxAutocompleteFiltering)},
++    {"close-window-with-last-tab",
++     "Close window with last tab",
++     "Determines whether a window should close once the last tab is closed.",
++     kOsDesktop, MULTI_VALUE_TYPE(kCloseWindowWithLastTab)},
+     {"pdf-plugin-name",
+      "Set internal PDF plugin name",
+      "Sets the internal PDF viewer plugin name. Useful for sites that probe JS API navigator.plugins",
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -10,6 +10,7 @@
+ #include <utility>
+ 
+ #include "base/auto_reset.h"
++#include "base/command_line.h"
+ #include "base/containers/flat_map.h"
+ #include "base/macros.h"
+ #include "base/metrics/histogram_macros.h"
+@@ -1680,6 +1681,10 @@
+   if (items.empty())
+     return true;
+ 
++  const std::string flag_value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("close-window-with-last-tab");
++  if (flag_value == "never" && !closing_all_ && items.size() == count())
++    delegate()->AddTabAt(GURL(), -1, true);
++
+   const bool closing_all = static_cast<int>(items.size()) == count();
+   base::WeakPtr<TabStripModel> ref = weak_factory_.GetWeakPtr();
+   if (closing_all) {

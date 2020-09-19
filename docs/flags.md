@@ -7,6 +7,7 @@ This is an exhaustive list of command-line switches and `chrome://flags` introdu
 If a flag requires a value, you must specify it with an `=` sign; e.g. flag `--foo` with value `bar` should be written as `--foo=bar`.
 
 * `--bookmark-bar-ntp` - Sets the visibility of the bookmark bar on the New Tab Page. Only takes the value `never`.
+* `--close-window-with-last-tab` - Determines whether a window should close once the last tab is closed.  Only takes the value `never`.  Also configurable under `chrome://flags`
 * `--disable-beforeunload` (Not in `chrome://flags`) - Disables JavaScript dialog boxes triggered by `beforeunload`
 * `--disable-encryption` (Windows only, not in `chrome://flags`) - Disable encryption of cookies, passwords, and settings which uses a generated machine-specific encryption key. This is used to enable portable user data directories.
 * `--disable-machine-id` (Windows only, not in `chrome://flags`) - Disables use of a generated machine-specific ID to lock the user data directory to that machine. This is used to enable portable user data directories.
