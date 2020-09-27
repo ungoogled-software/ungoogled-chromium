@@ -1,13 +1,16 @@
 ---
 name: Create an "Updating to Chromium x.x.x.x"
 about: For letting the community track progress to a new stable Chromium
-title: Updating to Chromium [VERSION_HERE]
+title: Updating to Chromium {{ env.VERSION }}
 labels: enhancement, help wanted
 assignees: ''
 
 ---
 
-### Please respond if you would like to update ungoogled-chromium to the new stable Chromium version.
+Chromium stable channel has been updated to a newer version. See [the original posting]({{ env.LINK }}) for more information.
+Feel free to ask questions and discuss issues here along the way. Thanks!
+
+### Please respond if you would like to update ungoogled-chromium to the new stable Chromium version
 
 ## Notes for the developer
 
@@ -15,9 +18,7 @@ Once you claim it, it is advisable that you create a [Draft Pull Request](https:
 
 ![GitHub Interface for creating Draft Pull Requests](https://help.github.com/assets/images/help/pull_requests/pullrequest-send.png)
 
-Finally, make sure to reference this issue in your PR.
-
-Feel free to ask questions and discuss issues here along the way. Thanks!
+Finally, make sure to reference this issue in your PR
 
 ## Notes for others
 

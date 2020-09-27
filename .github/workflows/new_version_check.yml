@@ -1,0 +1,40 @@
+name: New version check
+
+on:
+  # running every 6 hours
+  schedule:
+    - cron: '48 */6 * * *'
+jobs:
+  check:
+    # do not run in forks
+    if: github.repository == 'Eloston/ungoogled-chromium'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read news items
+        id: rss-out
+        # a little bit of Shell-Fu
+        # obtaining latest version and a link to a corresponding news item
+        run: echo "::set-output name=version::$( rdom () { local IFS=\> ; read -d \< E C ; }; while rdom; do if [[ $C = 'Stable Channel Update for Desktop' ]]; then while rdom; do if [[ $C =~ [[:space:]]([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)[[:space:]] ]]; then echo ${BASH_REMATCH[1]}; while rdom; do if [[ $E = 'feedburner:origLink' ]]; then echo "::set-output name=link::$C"; exit; fi done fi done fi done < <(wget -q -O- 'https://chromereleases.googleblog.com/feeds/posts/default') )"
+      - uses: PF4Public/check-if-issue-exists-action@master
+        name: Check if Issue Exists
+        id: check_if_issue_exists
+        with:
+          repo: Eloston/ungoogled-chromium
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: Updating to Chromium ${{ steps.rss-out.outputs.version }}
+          labels: enhancement, help wanted
+      - uses: actions/checkout@v2
+        # we need this to use create-an--updating-to-chromium-x-x-x-x-.md
+        # skip it if there's nothing new
+        if: steps.check_if_issue_exists.outputs.exists == 'false'
+      - name: Create Issue
+        # skip it if there's nothing new
+        if: steps.check_if_issue_exists.outputs.exists == 'false'
+        uses: JasonEtco/create-an-issue@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # variables from Shell-Fu step
+          VERSION: ${{ steps.rss-out.outputs.version }}
+          LINK: ${{ steps.rss-out.outputs.link }}
+        with:
+          filename:  .github/ISSUE_TEMPLATE/create-an--updating-to-chromium-x-x-x-x-.md
