@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2137,6 +2137,7 @@ static_library("browser") {
+@@ -2170,6 +2170,7 @@ static_library("browser") {
      "//third_party/libyuv",
      "//third_party/metrics_proto",
      "//third_party/re2",
@@ -27,7 +27,7 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/accessibility/accessibility_switches.h"
  #include "ui/base/ui_base_features.h"
-@@ -2053,6 +2054,14 @@ const FeatureEntry kFeatureEntries[] = {
+@@ -2318,6 +2319,14 @@ const FeatureEntry kFeatureEntries[] = {
       "Set internal PDF plugin name",
       "Sets the internal PDF viewer plugin name. Useful for sites that probe JS API navigator.plugins",
       kOsDesktop, MULTI_VALUE_TYPE(kPDFPluginNameChoices)},
@@ -39,12 +39,12 @@
 +     "Enable Canvas::measureText() fingerprint deception",
 +     "Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.",
 +     kOsAll, SINGLE_VALUE_TYPE(switches::kFingerprintingCanvasMeasureTextNoise)},
-     {"ignore-gpu-blacklist", flag_descriptions::kIgnoreGpuBlacklistName,
-      flag_descriptions::kIgnoreGpuBlacklistDescription, kOsAll,
-      SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlacklist)},
+     {"ignore-gpu-blocklist", flag_descriptions::kIgnoreGpuBlocklistName,
+      flag_descriptions::kIgnoreGpuBlocklistDescription, kOsAll,
+      SINGLE_VALUE_TYPE(switches::kIgnoreGpuBlocklist)},
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -215,6 +215,7 @@ jumbo_source_set("browser") {
+@@ -220,6 +220,7 @@ source_set("browser") {
      "//third_party/libyuv",
      "//third_party/re2",
      "//third_party/sqlite",
@@ -54,7 +54,7 @@
      "//third_party/zlib/google:zip",
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -224,6 +224,7 @@
+@@ -223,6 +223,7 @@
  #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
  #include "third_party/blink/public/mojom/disk_allocator.mojom.h"
  #include "third_party/blink/public/public_buildflags.h"
@@ -62,7 +62,7 @@
  #include "third_party/skia/include/core/SkBitmap.h"
  #include "ui/accessibility/accessibility_switches.h"
  #include "ui/base/ui_base_switches.h"
-@@ -3347,6 +3348,8 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3386,6 +3387,8 @@ void RenderProcessHostImpl::PropagateBro
      switches::kEnableWebGLDraftExtensions,
      switches::kEnableWebGLImageChromium,
      switches::kFileUrlPathAlias,
@@ -73,7 +73,7 @@
      switches::kForceGpuMemAvailableMb,
 --- a/content/child/BUILD.gn
 +++ b/content/child/BUILD.gn
-@@ -123,6 +123,7 @@ target(link_target_type, "child") {
+@@ -125,6 +125,7 @@ target(link_target_type, "child") {
      "//third_party/blink/public/common",
      "//third_party/blink/public/strings",
      "//third_party/ced",
@@ -83,7 +83,7 @@
      "//ui/events/blink",
 --- a/content/child/runtime_features.cc
 +++ b/content/child/runtime_features.cc
-@@ -28,6 +28,7 @@
+@@ -30,6 +30,7 @@
  #include "third_party/blink/public/common/features.h"
  #include "third_party/blink/public/common/switches.h"
  #include "third_party/blink/public/platform/web_runtime_features.h"
@@ -91,7 +91,7 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/events/blink/blink_features.h"
-@@ -466,6 +467,10 @@ void SetRuntimeFeaturesFromCommandLine(c
+@@ -496,6 +497,10 @@ void SetRuntimeFeaturesFromCommandLine(c
         switches::kEnableAccessibilityObjectModel, true},
        {wrf::EnableAllowSyncXHRInPageDismissal,
         switches::kAllowSyncXHRInPageDismissal, true},
@@ -104,7 +104,7 @@
      if (command_line.HasSwitch(mapping.switch_name))
 --- a/third_party/blink/public/platform/web_runtime_features.h
 +++ b/third_party/blink/public/platform/web_runtime_features.h
-@@ -223,6 +223,8 @@ class WebRuntimeFeatures {
+@@ -224,6 +224,8 @@ class WebRuntimeFeatures {
    BLINK_PLATFORM_EXPORT static void EnableTranslateService(bool);
    BLINK_PLATFORM_EXPORT static void EnableGetDisplayMedia(bool);
    BLINK_PLATFORM_EXPORT static void EnableAllowSyncXHRInPageDismissal(bool);
@@ -115,7 +115,7 @@
    BLINK_PLATFORM_EXPORT static void EnableHTMLImports(bool);
 --- a/third_party/blink/renderer/core/dom/document.cc
 +++ b/third_party/blink/renderer/core/dom/document.cc
-@@ -35,6 +35,7 @@
+@@ -41,6 +41,7 @@
  #include "base/auto_reset.h"
  #include "base/macros.h"
  #include "base/optional.h"
@@ -123,7 +123,7 @@
  #include "base/time/time.h"
  #include "cc/input/overscroll_behavior.h"
  #include "cc/input/scroll_snap_data.h"
-@@ -904,6 +905,14 @@ Range* Document::CreateRangeAdjustedToTr
+@@ -898,6 +899,14 @@ Range* Document::CreateRangeAdjustedToTr
                                       Position::BeforeNode(*shadow_host));
  }
  
@@ -138,7 +138,7 @@
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
-@@ -2510,6 +2519,15 @@ void Document::UpdateStyleAndLayoutTree(
+@@ -2472,6 +2481,15 @@ void Document::UpdateStyleAndLayoutTree(
  #if DCHECK_IS_ON()
    AssertLayoutTreeUpdated(*this);
  #endif
@@ -156,7 +156,7 @@
  void Document::UpdateActiveStyle() {
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -451,6 +451,10 @@ class CORE_EXPORT Document : public Cont
+@@ -438,6 +438,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -167,7 +167,7 @@
    String visibilityState() const;
    bool IsPageVisible() const;
    bool hidden() const;
-@@ -1971,6 +1975,9 @@ class CORE_EXPORT Document : public Cont
+@@ -1940,6 +1944,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -179,7 +179,7 @@
    HeapVector<Member<ScriptElementBase>> current_script_stack_;
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -2031,6 +2031,11 @@ DOMRectList* Element::getClientRects() {
+@@ -2019,6 +2019,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustFloatQuadsForScrollAndAbsoluteZoom(
        quads, *element_layout_object);
@@ -191,7 +191,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -2048,6 +2053,9 @@ DOMRect* Element::getBoundingClientRect(
+@@ -2036,6 +2041,9 @@ DOMRect* Element::getBoundingClientRect(
    DCHECK(element_layout_object);
    GetDocument().AdjustFloatRectForScrollAndAbsoluteZoom(result,
                                                          *element_layout_object);
@@ -285,7 +285,7 @@
  void CanvasRenderingContext2D::DrawTextInternal(
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1569,6 +1569,7 @@ jumbo_component("platform") {
+@@ -1569,6 +1569,7 @@ component("platform") {
      "//base/allocator:buildflags",
      "//cc/ipc",
      "//components/paint_preview/common",
@@ -295,8 +295,8 @@
      "//crypto",
 --- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
 +++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-@@ -709,4 +709,12 @@ void WebRuntimeFeatures::EnableContentIn
-   RuntimeEnabledFeatures::SetContentIndexEnabled(enable);
+@@ -729,4 +729,12 @@ void WebRuntimeFeatures::EnableConversio
+   RuntimeEnabledFeatures::SetConversionMeasurementInfraSupportEnabled(enable);
  }
  
 +void WebRuntimeFeatures::EnableFingerprintingClientRectsNoise(bool enable) {
@@ -310,7 +310,7 @@
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -774,6 +774,12 @@
+@@ -817,6 +817,12 @@
        status: "stable",
      },
      {
@@ -320,6 +320,6 @@
 +      name: "FingerprintingCanvasMeasureTextNoise",
 +    },
 +    {
-       name: "FlexGaps",
-       status: "stable",
+       name: "FlexAspectRatio",
+       status: "experimental",
      },
