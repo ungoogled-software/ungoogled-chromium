@@ -68,6 +68,5 @@ ninja -C out/Default chrome chromedriver chrome_sandbox
 
 Here are several ways to address this, in decreasing order of preference:
 
-1. Set the GN flag `jumbo_file_merge_limit` to a lower value. At the time of writing, Debian uses `8` (the default varies, but it can be a higher value like `50`)
-2. Decrease the number of parallel threads to Ninja (the `-j` flag)
-3. Add swap space
+1. Decrease the number of parallel threads to Ninja (the `-j` flag)
+2. Add swap space
