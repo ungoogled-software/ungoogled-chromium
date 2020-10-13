@@ -567,7 +567,7 @@
  #include "components/safe_browsing/core/proto/webprotect.pb.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "content/public/browser/browser_context.h"
-@@ -868,15 +867,6 @@ bool SafeBrowsingPrivateEventRouter::IsR
+@@ -886,15 +885,6 @@ bool SafeBrowsingPrivateEventRouter::IsR
  
  void SafeBrowsingPrivateEventRouter::IfAuthorized(
      base::OnceCallback<void(bool)> cont) {
@@ -706,6 +706,43 @@
  #include "components/security_interstitials/content/cert_logger.pb.h"
  #include "components/sync_preferences/testing_pref_service_syncable.h"
  #include "content/public/browser/browser_task_traits.h"
+--- a/chrome/browser/password_manager/generated_password_leak_detection_pref.cc
++++ b/chrome/browser/password_manager/generated_password_leak_detection_pref.cc
+@@ -13,7 +13,6 @@
+ #include "chrome/common/extensions/api/settings_private.h"
+ #include "components/password_manager/core/common/password_manager_pref_names.h"
+ #include "components/prefs/pref_service.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ 
+ namespace {
+@@ -40,8 +39,7 @@ bool IsUserSignedInAndSyncing(Profile* p
+ // Returns whether the effective value of the Safe Browsing preferences for
+ // |profile| is standard protection.
+ bool IsSafeBrowsingStandard(Profile* profile) {
+-  return profile->GetPrefs()->GetBoolean(prefs::kSafeBrowsingEnabled) &&
+-         !profile->GetPrefs()->GetBoolean(prefs::kSafeBrowsingEnhanced);
++  return false;
+ }
+ 
+ }  // namespace
+@@ -60,16 +58,6 @@ GeneratedPasswordLeakDetectionPref::Gene
+       base::BindRepeating(
+           &GeneratedPasswordLeakDetectionPref::OnSourcePreferencesChanged,
+           base::Unretained(this)));
+-  user_prefs_registrar_.Add(
+-      prefs::kSafeBrowsingEnabled,
+-      base::BindRepeating(
+-          &GeneratedPasswordLeakDetectionPref::OnSourcePreferencesChanged,
+-          base::Unretained(this)));
+-  user_prefs_registrar_.Add(
+-      prefs::kSafeBrowsingEnhanced,
+-      base::BindRepeating(
+-          &GeneratedPasswordLeakDetectionPref::OnSourcePreferencesChanged,
+-          base::Unretained(this)));
+ 
+   if (auto* identity_manager = IdentityManagerFactory::GetForProfile(profile))
+     identity_manager_observer_.Add(identity_manager);
 --- a/chrome/browser/password_manager/password_store_factory.cc
 +++ b/chrome/browser/password_manager/password_store_factory.cc
 @@ -192,14 +192,6 @@ PasswordStoreFactory::BuildServiceInstan
@@ -892,7 +929,21 @@
    handlers->AddHandler(std::make_unique<SimpleDeprecatingPolicyHandler>(
        std::make_unique<SimplePolicyHandler>(key::kAuthServerWhitelist,
                                              prefs::kAuthServerAllowlist,
-@@ -1540,13 +1478,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -1494,13 +1432,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+           key::kAuthNegotiateDelegateAllowlist,
+           prefs::kAuthNegotiateDelegateAllowlist, base::Value::Type::STRING)));
+ 
+-  handlers->AddHandler(std::make_unique<SimpleDeprecatingPolicyHandler>(
+-      std::make_unique<SimplePolicyHandler>(
+-          key::kSafeBrowsingWhitelistDomains,
+-          prefs::kSafeBrowsingWhitelistDomains, base::Value::Type::LIST),
+-      std::make_unique<SimplePolicyHandler>(
+-          key::kSafeBrowsingAllowlistDomains,
+-          prefs::kSafeBrowsingWhitelistDomains, base::Value::Type::LIST)));
+   handlers->AddHandler(std::make_unique<syncer::SyncPolicyHandler>());
+   handlers->AddHandler(std::make_unique<StringMappingListPolicyHandler>(
+       key::kEnableDeprecatedWebPlatformFeatures,
+@@ -1540,13 +1471,6 @@ std::unique_ptr<ConfigurationPolicyHandl
        SimpleSchemaValidatingPolicyHandler::RECOMMENDED_ALLOWED,
        SimpleSchemaValidatingPolicyHandler::MANDATORY_PROHIBITED));
  
@@ -906,7 +957,19 @@
    handlers->AddHandler(std::make_unique<SimpleDeprecatingPolicyHandler>(
        std::make_unique<SimplePolicyHandler>(key::kAutoplayWhitelist,
                                              prefs::kAutoplayWhitelist,
-@@ -1857,17 +1788,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -1596,11 +1520,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+           enterprise_connectors::EnterpriseConnectorsPolicyHandler>(
+           key::kOnSecurityEventEnterpriseConnector,
+           enterprise_connectors::kOnSecurityEventPref, chrome_schema));
+-  handlers->AddHandler(
+-      std::make_unique<
+-          enterprise_connectors::EnterpriseConnectorsPolicyHandler>(
+-          key::kEnterpriseRealTimeUrlCheckMode,
+-          prefs::kSafeBrowsingEnterpriseRealTimeUrlCheckMode, chrome_schema));
+ #endif  // defined(OS_ANDROID)
+ 
+ #if defined(OS_CHROMEOS)
+@@ -1857,17 +1776,6 @@ std::unique_ptr<ConfigurationPolicyHandl
    signin_legacy_policies.push_back(std::make_unique<SimplePolicyHandler>(
        key::kForceBrowserSignin, prefs::kForceBrowserSignin,
        base::Value::Type::BOOLEAN));
@@ -2359,6 +2422,28 @@
  #include "components/security_interstitials/content/cert_report_helper.h"
  #include "components/security_interstitials/content/certificate_error_report.h"
  #include "components/variations/variations_associated_data.h"
+--- a/chrome/browser/ssl/sct_reporting_service.cc
++++ b/chrome/browser/ssl/sct_reporting_service.cc
+@@ -6,7 +6,6 @@
+ 
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/safe_browsing/safe_browsing_service.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "content/public/browser/network_service_instance.h"
+ #include "content/public/browser/storage_partition.h"
+ #include "services/network/public/mojom/network_context.mojom.h"
+@@ -49,10 +48,7 @@ void SCTReportingService::SetReportingEn
+ }
+ 
+ void SCTReportingService::OnPreferenceChanged() {
+-  const bool enabled = safe_browsing_service_ &&
+-                       safe_browsing_service_->enabled_by_prefs() &&
+-                       safe_browsing::IsExtendedReportingEnabled(pref_service_);
+-  SetReportingEnabled(enabled);
++  SetReportingEnabled(false);
+ }
+ 
+ void SCTReportingService::OnSCTReportReady(const std::string& cache_key) {
 --- a/chrome/browser/ssl/ssl_browsertest.cc
 +++ b/chrome/browser/ssl/ssl_browsertest.cc
 @@ -89,7 +89,6 @@
@@ -3609,6 +3694,17 @@
  }
  
  // static
+@@ -164,9 +163,7 @@ bool RealTimePolicyEngine::CanPerformEnt
+     return false;
+   }
+ 
+-  return pref_service->GetInteger(
+-             prefs::kSafeBrowsingEnterpriseRealTimeUrlCheckMode) ==
+-         REAL_TIME_CHECK_FOR_MAINFRAME_ENABLED;
++  return false;
+ }
+ 
+ // static
 --- a/components/safe_browsing/core/realtime/url_lookup_service.cc
 +++ b/components/safe_browsing/core/realtime/url_lookup_service.cc
 @@ -14,7 +14,6 @@
@@ -3628,6 +3724,29 @@
  }
  
  bool RealTimeUrlLookupService::CanCheckSafeBrowsingDb() const {
+--- a/components/safe_browsing/core/realtime/url_lookup_service_base.cc
++++ b/components/safe_browsing/core/realtime/url_lookup_service_base.cc
+@@ -13,7 +13,6 @@
+ #include "base/time/time.h"
+ #include "build/build_config.h"
+ #include "components/prefs/pref_service.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/safe_browsing/core/common/thread_utils.h"
+ #include "components/safe_browsing/core/verdict_cache_manager.h"
+ #include "components/sync/driver/sync_service.h"
+@@ -450,11 +449,7 @@ std::unique_ptr<RTLookupRequest> RealTim
+ 
+   ChromeUserPopulation* user_population = request->mutable_population();
+   user_population->set_user_population(
+-      IsEnhancedProtectionEnabled(*pref_service_)
+-          ? ChromeUserPopulation::ENHANCED_PROTECTION
+-          : IsExtendedReportingEnabled(*pref_service_)
+-                ? ChromeUserPopulation::EXTENDED_REPORTING
+-                : ChromeUserPopulation::SAFE_BROWSING);
++      ChromeUserPopulation::UNKNOWN_USER_POPULATION);
+ 
+   user_population->set_profile_management_status(profile_management_status_);
+   user_population->set_is_history_sync_enabled(IsHistorySyncEnabled());
 --- a/components/safe_browsing/core/triggers/trigger_manager.cc
 +++ b/components/safe_browsing/core/triggers/trigger_manager.cc
 @@ -10,7 +10,6 @@
