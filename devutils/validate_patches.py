@@ -525,7 +525,7 @@ def _apply_file_unidiff(patched_file, files_under_test):
         assert len(patched_file) == 1 # Should be only one hunk
         assert patched_file[0].removed == 0
         assert patched_file[0].target_start == 1
-        files_under_test[patched_file_path] = [x.value for x in patched_file[0]]
+        files_under_test[patched_file_path] = [x.value.rstrip('\n') for x in patched_file[0]]
     elif patched_file.is_removed_file:
         # Remove lines to see if file to be removed matches patch
         _modify_file_lines(patched_file, files_under_test[patched_file_path])
