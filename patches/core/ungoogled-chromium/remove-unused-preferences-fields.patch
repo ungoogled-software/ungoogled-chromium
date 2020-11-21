@@ -634,6 +634,30 @@
  
    GURL page_url = GetTestServerURLWithReferrers("empty_referrer_chain.html");
    ASSERT_TRUE(RunPageTest(page_url.spec()));
+--- a/chrome/browser/net/profile_network_context_service.cc
++++ b/chrome/browser/net/profile_network_context_service.cc
+@@ -42,7 +42,6 @@
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_registry_simple.h"
+ #include "components/prefs/pref_service.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/browser_thread.h"
+ #include "content/public/browser/network_service_instance.h"
+@@ -738,13 +737,6 @@ void ProfileNetworkContextService::Confi
+   network_context_params->enable_certificate_reporting = true;
+   network_context_params->enable_expect_ct_reporting = true;
+ 
+-  // Initialize the network context to do SCT auditing only if the current
+-  // profile is opted in to Safe Browsing Extended Reporting.
+-  if (!profile_->IsOffTheRecord() &&
+-      safe_browsing::IsExtendedReportingEnabled(*profile_->GetPrefs())) {
+-    network_context_params->enable_sct_auditing = true;
+-  }
+-
+   network_context_params->ct_policy = GetCTPolicy();
+ 
+ #if BUILDFLAG(TRIAL_COMPARISON_CERT_VERIFIER_SUPPORTED)
 --- a/chrome/browser/net/trial_comparison_cert_verifier_browsertest.cc
 +++ b/chrome/browser/net/trial_comparison_cert_verifier_browsertest.cc
 @@ -12,7 +12,6 @@
@@ -2800,6 +2824,41 @@
  #include "components/strings/grit/components_strings.h"
  #include "content/public/browser/storage_partition.h"
  #include "content/public/browser/web_contents.h"
+--- a/chrome/browser/ui/webui/new_tab_page/promo_browser_command/promo_browser_command_handler.cc
++++ b/chrome/browser/ui/webui/new_tab_page/promo_browser_command/promo_browser_command_handler.cc
+@@ -17,7 +17,6 @@
+ #include "chrome/common/webui_url_constants.h"
+ #include "components/safe_browsing/content/web_ui/safe_browsing_ui.h"
+ #include "components/safe_browsing/core/common/safe_browsing_policy_handler.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "ui/base/page_transition_types.h"
+ #include "ui/base/window_open_disposition.h"
+ 
+@@ -46,24 +45,6 @@ void PromoBrowserCommandHandler::CanShow
+     promo_browser_command::mojom::Command command_id,
+     CanShowPromoWithCommandCallback callback) {
+   bool can_show = false;
+-  switch (static_cast<Command>(command_id)) {
+-    case Command::kUnknownCommand:
+-      // Nothing to do.
+-      break;
+-    case Command::kOpenSafetyCheck:
+-      can_show = true;
+-      break;
+-    case Command::kOpenSafeBrowsingEnhancedProtectionSettings: {
+-      bool managed = safe_browsing::SafeBrowsingPolicyHandler::
+-          IsSafeBrowsingProtectionLevelSetByPolicy(profile_->GetPrefs());
+-      bool already_enabled =
+-          safe_browsing::IsEnhancedProtectionEnabled(*(profile_->GetPrefs()));
+-      can_show = !managed && !already_enabled;
+-    } break;
+-    default:
+-      NOTREACHED() << "Unspecified behavior for command " << command_id;
+-      break;
+-  }
+   std::move(callback).Run(can_show);
+ }
+ 
 --- a/chrome/browser/ui/webui/profile_info_watcher.cc
 +++ b/chrome/browser/ui/webui/profile_info_watcher.cc
 @@ -12,7 +12,6 @@
@@ -3810,7 +3869,7 @@
  #include "components/safe_browsing/core/common/thread_utils.h"
  #include "components/safe_browsing/core/features.h"
  #include "components/security_interstitials/core/unsafe_resource.h"
-@@ -83,11 +82,11 @@ SBErrorOptions TriggerManager::GetSBErro
+@@ -83,16 +82,16 @@ SBErrorOptions TriggerManager::GetSBErro
      const PrefService& pref_service,
      content::WebContents* web_contents) {
    return SBErrorOptions(/*is_main_frame_load_blocked=*/false,
@@ -3826,6 +3885,13 @@
                          /*is_proceed_anyway_disabled=*/false,
                          /*should_open_links_in_new_tab=*/false,
                          /*show_back_to_safety_button=*/true,
+-                        IsEnhancedProtectionMessageInInterstitialsEnabled(),
+-                        IsSafeBrowsingPolicyManaged(pref_service),
++                        /*IsEnhancedProtectionMessageInInterstitialsEnabled()*/false,
++                        /*IsSafeBrowsingPolicyManaged(pref_service)*/false,
+                         /*help_center_article_link=*/std::string());
+ }
+ 
 --- a/components/safe_browsing/core/triggers/trigger_throttler.cc
 +++ b/components/safe_browsing/core/triggers/trigger_throttler.cc
 @@ -11,7 +11,6 @@
@@ -3988,7 +4054,7 @@
      return;
  
    if (metrics_helper_) {
-@@ -178,21 +170,7 @@ void CertReportHelper::FinishCertCollect
+@@ -178,51 +170,11 @@ void CertReportHelper::FinishCertCollect
  }
  
  bool CertReportHelper::ShouldShowCertificateReporterCheckbox() {
@@ -4011,6 +4077,37 @@
  }
  
  bool CertReportHelper::ShouldShowEnhancedProtectionMessage() {
+-  // Only show the enhanced protection message iff the user is part of the
+-  // respective Finch group and the window is not incognito and Safe Browsing is
+-  // not managed by policy and the user is not already in enhanced protection
+-  // mode.
+-  const bool in_incognito =
+-      web_contents_->GetBrowserContext()->IsOffTheRecord();
+-  const PrefService* pref_service = GetPrefs(web_contents_);
+-  bool is_enhanced_protection_enabled =
+-      safe_browsing::IsEnhancedProtectionEnabled(*pref_service);
+-  bool is_safe_browsing_managed =
+-      safe_browsing::IsSafeBrowsingPolicyManaged(*pref_service);
+-  bool is_enhanced_protection_message_enabled =
+-      safe_browsing::IsEnhancedProtectionMessageInInterstitialsEnabled();
+-
+-  if (in_incognito) {
+-    return false;
+-  }
+-  if (is_enhanced_protection_enabled) {
+-    return false;
+-  }
+-  if (is_safe_browsing_managed) {
+-    return false;
+-  }
+-  if (!is_enhanced_protection_message_enabled) {
+-    return false;
+-  }
+-  return true;
++  return false;
+ }
+ 
+ bool CertReportHelper::ShouldReportCertificateError() {
 --- a/components/security_interstitials/content/mitm_software_blocking_page.cc
 +++ b/components/security_interstitials/content/mitm_software_blocking_page.cc
 @@ -6,7 +6,6 @@

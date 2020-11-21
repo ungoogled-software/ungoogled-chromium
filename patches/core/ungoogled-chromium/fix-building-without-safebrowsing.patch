@@ -932,6 +932,24 @@
    void CheckSafeBrowsingReputation(const GURL& form_action,
                                     const GURL& frame_url) override;
  #endif
+--- a/chrome/browser/permissions/abusive_origin_permission_revocation_request.cc
++++ b/chrome/browser/permissions/abusive_origin_permission_revocation_request.cc
+@@ -112,6 +112,7 @@ void AbusiveOriginPermissionRevocationRe
+   DCHECK(profile_);
+   DCHECK(callback_);
+ 
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   if (!AbusiveOriginNotificationsPermissionRevocationConfig::IsEnabled()) {
+     std::move(callback_).Run(Outcome::PERMISSION_NOT_REVOKED);
+     return;
+@@ -147,6 +148,7 @@ void AbusiveOriginPermissionRevocationRe
+       return;
+     }
+   }
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+   std::move(callback_).Run(Outcome::PERMISSION_NOT_REVOKED);
+ }
 --- a/chrome/browser/permissions/contextual_notification_permission_ui_selector.cc
 +++ b/chrome/browser/permissions/contextual_notification_permission_ui_selector.cc
 @@ -19,12 +19,10 @@
@@ -997,6 +1015,40 @@
  #include "components/safe_browsing/core/db/v4_protocol_manager_util.h"
  #include "third_party/re2/src/re2/re2.h"
  #include "url/gurl.h"
+--- a/chrome/browser/safe_browsing/url_lookup_service_factory.cc
++++ b/chrome/browser/safe_browsing/url_lookup_service_factory.cc
+@@ -50,30 +50,7 @@ RealTimeUrlLookupServiceFactory::RealTim
+ 
+ KeyedService* RealTimeUrlLookupServiceFactory::BuildServiceInstanceFor(
+     content::BrowserContext* context) const {
+-  if (!g_browser_process->safe_browsing_service()) {
+-    return nullptr;
+-  }
+-  Profile* profile = Profile::FromBrowserContext(context);
+-  auto url_loader_factory =
+-      std::make_unique<network::CrossThreadPendingSharedURLLoaderFactory>(
+-          g_browser_process->safe_browsing_service()->GetURLLoaderFactory(
+-              profile));
+-  const policy::BrowserPolicyConnector* browser_policy_connector =
+-      g_browser_process->browser_policy_connector();
+-  bool is_under_advanced_protection = false;
+-#if BUILDFLAG(FULL_SAFE_BROWSING)
+-  is_under_advanced_protection =
+-      AdvancedProtectionStatusManagerFactory::GetForProfile(profile)
+-          ->IsUnderAdvancedProtection();
+-#endif
+-  return new RealTimeUrlLookupService(
+-      network::SharedURLLoaderFactory::Create(std::move(url_loader_factory)),
+-      VerdictCacheManagerFactory::GetForProfile(profile),
+-      IdentityManagerFactory::GetForProfile(profile),
+-      ProfileSyncServiceFactory::GetForProfile(profile), profile->GetPrefs(),
+-      GetProfileManagementStatus(browser_policy_connector),
+-      is_under_advanced_protection, profile->IsOffTheRecord(),
+-      g_browser_process->variations_service());
++  return nullptr;
+ }
+ 
+ }  // namespace safe_browsing
 --- a/chrome/browser/ssl/sct_reporting_service_factory.cc
 +++ b/chrome/browser/ssl/sct_reporting_service_factory.cc
 @@ -32,15 +32,7 @@ SCTReportingServiceFactory::~SCTReportin
@@ -1217,70 +1269,156 @@
  // Interface for setting the CSD model and to start phishing classification.
  interface PhishingDetector {
    // A classification model for client-side phishing detection.
+--- a/components/safe_browsing/core/file_type_policies.cc
++++ b/components/safe_browsing/core/file_type_policies.cc
+@@ -21,7 +21,9 @@ struct FileTypePoliciesSingletonTrait
+     : public base::DefaultSingletonTraits<FileTypePolicies> {
+   static FileTypePolicies* New() {
+     FileTypePolicies* instance = new FileTypePolicies();
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+     instance->PopulateFromResourceBundle();
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+     return instance;
+   }
+ };
+@@ -48,10 +50,12 @@ FileTypePolicies::~FileTypePolicies() {
+   AutoLock lock(lock_);  // DCHECK fail if the lock is held.
+ }
+ 
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+ std::string FileTypePolicies::ReadResourceBundle() {
+   ui::ResourceBundle& bundle = ui::ResourceBundle::GetSharedInstance();
+   return bundle.LoadDataResourceString(IDR_DOWNLOAD_FILE_TYPES_PB);
+ }
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+ void FileTypePolicies::RecordUpdateMetrics(UpdateResult result,
+                                            const std::string& src_name) {
+@@ -67,12 +71,14 @@ void FileTypePolicies::RecordUpdateMetri
+   }
+ }
+ 
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+ void FileTypePolicies::PopulateFromResourceBundle() {
+   AutoLock lock(lock_);
+   std::string binary_pb = ReadResourceBundle();
+   UpdateResult result = PopulateFromBinaryPb(binary_pb);
+   RecordUpdateMetrics(result, "ResourceBundle");
+ }
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+ void FileTypePolicies::PopulateFromDynamicUpdate(const std::string& binary_pb) {
+   AutoLock lock(lock_);
 --- a/components/safe_browsing/core/file_type_policies.h
 +++ b/components/safe_browsing/core/file_type_policies.h
-@@ -11,7 +11,6 @@
+@@ -11,6 +11,7 @@
  #include "base/files/file_path.h"
  #include "base/gtest_prod_util.h"
  #include "base/synchronization/lock.h"
--#include "components/safe_browsing/core/proto/download_file_types.pb.h"
++#include "components/safe_browsing/buildflags.h"
+ #include "components/safe_browsing/core/proto/download_file_types.pb.h"
  
  namespace safe_browsing {
+@@ -105,8 +106,10 @@ class FileTypePolicies {
+   // only if it passes integrity checks.
+   virtual UpdateResult PopulateFromBinaryPb(const std::string& binary_pb);
  
-@@ -64,20 +63,8 @@ class FileTypePolicies {
-   // True if the user can select this file type to be opened automatically.
-   bool IsAllowedToOpenAutomatically(const base::FilePath& file) const;
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   // Fetch the blob from the main resource bundle.
+   virtual std::string ReadResourceBundle();
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
  
--  // Return the danger level of this file type.
--  DownloadFileType::DangerLevel GetFileDangerLevel(
--      const base::FilePath& file) const;
--
--  // Return the type of ping we should send for this file
--  DownloadFileType::PingSetting PingSettingForFile(
--      const base::FilePath& file) const;
--
-   float SampledPingProbability() const;
+   // Record the result of an update attempt.
+   virtual void RecordUpdateMetrics(UpdateResult result,
+@@ -124,10 +127,12 @@ class FileTypePolicies {
+   void SwapConfig(std::unique_ptr<DownloadFileTypeConfig>& new_config);
+   void SwapConfigLocked(std::unique_ptr<DownloadFileTypeConfig>& new_config);
  
--  DownloadFileType PolicyForFile(const base::FilePath& file) const;
--  DownloadFileType::PlatformSettings SettingsForFile(
--      const base::FilePath& file) const;
--
-   // Return max size for which unpacking and/or binary feature extration is
-   // supported for the given file extension.
-   uint64_t GetMaxFileSizeToAnalyze(const std::string& ascii_ext) const;
-@@ -115,32 +102,12 @@ class FileTypePolicies {
-   // Return the ASCII lowercase extension w/o leading dot, or empty.
-   static std::string CanonicalizedExtension(const base::FilePath& file);
- 
--  // Look up the policy for a given ASCII ext.
--  virtual const DownloadFileType& PolicyForExtension(
--      const std::string& ext) const;
--
-  private:
--  // Swap in a different config. This will rebuild file_type_by_ext_ index.
--  void SwapConfig(std::unique_ptr<DownloadFileTypeConfig>& new_config);
--  void SwapConfigLocked(std::unique_ptr<DownloadFileTypeConfig>& new_config);
--
++#if BUILDFLAG(FULL_SAFE_BROWSING)
    // Read data from the main ResourceBundle. This updates the internal list
    // only if the data passes integrity checks. This is normally called once
    // after construction.
    void PopulateFromResourceBundle();
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
  
--  // The latest config we've committed. Starts out null.
--  // Protected by lock_.
--  std::unique_ptr<DownloadFileTypeConfig> config_;
--
--  // This references entries in config_.
--  // Protected by lock_.
--  std::map<std::string, const DownloadFileType*> file_type_by_ext_;
--
--  // Type used if we can't load from disk.
--  // Written only in the constructor.
--  DownloadFileType last_resort_default_;
--
-   mutable base::Lock lock_;
+   // The latest config we've committed. Starts out null.
+   // Protected by lock_.
+--- a/content/browser/file_system_access/native_file_system_file_writer_impl.cc
++++ b/content/browser/file_system_access/native_file_system_file_writer_impl.cc
+@@ -462,51 +462,7 @@ void NativeFileSystemFileWriterImpl::Clo
+   // swap file even if the writer was destroyed at that point.
+   state_ = State::kClosePending;
  
-   FRIEND_TEST_ALL_PREFIXES(FileTypePoliciesTest, UnpackResourceBundle);
+-  if (!RequireSecurityChecks() || !manager()->permission_context()) {
+-    DidPassAfterWriteCheck(std::move(callback));
+-    return;
+-  }
+-
+-  ComputeHashForSwapFile(base::BindOnce(
+-      &NativeFileSystemFileWriterImpl::DoAfterWriteCheck,
+-      weak_factory_.GetWeakPtr(), base::WrapRefCounted(manager()), swap_url(),
+-      std::move(callback)));
+-}
+-
+-// static
+-void NativeFileSystemFileWriterImpl::DoAfterWriteCheck(
+-    base::WeakPtr<NativeFileSystemFileWriterImpl> file_writer,
+-    scoped_refptr<NativeFileSystemManagerImpl> manager,
+-    const storage::FileSystemURL& swap_url,
+-    NativeFileSystemFileWriterImpl::CloseCallback callback,
+-    base::File::Error hash_result,
+-    const std::string& hash,
+-    int64_t size) {
+-  if (!file_writer || hash_result != base::File::FILE_OK) {
+-    // If writer was deleted, or calculating the hash failed try deleting the
+-    // swap file and invoke the callback.
+-    manager->operation_runner().PostTaskWithThisObject(
+-        FROM_HERE, base::BindOnce(&RemoveSwapFile, swap_url));
+-    std::move(callback).Run(native_file_system_error::FromStatus(
+-        NativeFileSystemStatus::kOperationAborted,
+-        "Failed to perform Safe Browsing check."));
+-    return;
+-  }
+-
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(file_writer->sequence_checker_);
+-
+-  auto item = std::make_unique<NativeFileSystemWriteItem>();
+-  item->target_file_path = file_writer->url().path();
+-  item->full_path = file_writer->swap_url().path();
+-  item->sha256_hash = hash;
+-  item->size = size;
+-  item->frame_url = file_writer->context().url;
+-  item->has_user_gesture = file_writer->has_transient_user_activation_;
+-  file_writer->manager()->permission_context()->PerformAfterWriteChecks(
+-      std::move(item), file_writer->context().frame_id,
+-      base::BindOnce(&NativeFileSystemFileWriterImpl::DidAfterWriteCheck,
+-                     file_writer, std::move(manager), swap_url,
+-                     std::move(callback)));
++  DidPassAfterWriteCheck(std::move(callback));
+ }
+ 
+ // static
+--- a/content/browser/file_system_access/native_file_system_file_writer_impl.h
++++ b/content/browser/file_system_access/native_file_system_file_writer_impl.h
+@@ -81,16 +81,8 @@ class CONTENT_EXPORT NativeFileSystemFil
+                 bool complete);
+   void TruncateImpl(uint64_t length, TruncateCallback callback);
+   void CloseImpl(CloseCallback callback);
+-  // The following two methods are static, because they need to be invoked to
+-  // perform cleanup even if the writer was deleted before they were invoked.
+-  static void DoAfterWriteCheck(
+-      base::WeakPtr<NativeFileSystemFileWriterImpl> file_writer,
+-      scoped_refptr<NativeFileSystemManagerImpl> manager,
+-      const storage::FileSystemURL& swap_url,
+-      NativeFileSystemFileWriterImpl::CloseCallback callback,
+-      base::File::Error hash_result,
+-      const std::string& hash,
+-      int64_t size);
++  // The following method is static, because it needs to be invoked to
++  // perform cleanup even if the writer was deleted before it was invoked.
+   static void DidAfterWriteCheck(
+       base::WeakPtr<NativeFileSystemFileWriterImpl> file_writer,
+       scoped_refptr<NativeFileSystemManagerImpl> manager,
 --- a/content/public/browser/native_file_system_permission_context.h
 +++ b/content/public/browser/native_file_system_permission_context.h
 @@ -85,12 +85,6 @@ class NativeFileSystemPermissionContext
