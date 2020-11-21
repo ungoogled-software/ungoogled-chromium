@@ -14,6 +14,7 @@ import collections
 import contextlib
 import io
 import os
+import stat
 import re
 import tarfile
 import tempfile
@@ -88,6 +89,10 @@ def _substitute_path(path, regex_iter):
     Raises FileNotFoundError if path does not exist.
     Raises UnicodeDecodeError if path's contents cannot be decoded.
     """
+    if not os.access(path, os.W_OK):
+        # If the patch cannot be written to, it cannot be opened for updating
+        print(str(path) + " cannot be opened for writing! Adding write permission...")
+        path.chmod(path.stat().st_mode | stat.S_IWUSR)
     with path.open('r+b') as input_file:
         original_content = input_file.read()
         if not original_content:
