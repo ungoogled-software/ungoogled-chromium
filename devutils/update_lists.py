@@ -55,6 +55,8 @@ PRUNING_EXCLUDE_PATTERNS = [
     'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank0.bin',
     'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank1.bin',
     'components/language/content/browser/ulp_language_code_locator/geolanguage-data_rank2.bin',
+    # Exclusion for required prebuilt object for Windows arm64 builds
+    'third_party/crashpad/crashpad/util/misc/capture_context_win_arm64.obj',
     'third_party/icu/common/icudtl.dat', # Exclusion for ICU data
     # Exclusions for safe file extensions
     '*.ttf',
