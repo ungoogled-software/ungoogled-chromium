@@ -58,7 +58,7 @@
    return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
 --- a/components/url_formatter/url_fixer.cc
 +++ b/components/url_formatter/url_fixer.cc
-@@ -557,6 +557,10 @@ GURL FixupURL(const std::string& text, c
+@@ -560,6 +560,10 @@ GURL FixupURL(const std::string& text, c
      }
    }
  
@@ -71,7 +71,7 @@
      return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -672,6 +672,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+@@ -760,6 +760,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
  #endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
    RegisterWebSafeScheme(url::kFtpScheme);
    RegisterWebSafeScheme(url::kDataScheme);
@@ -81,7 +81,7 @@
    // TODO(nick): https://crbug.com/651534 blob: and filesystem: schemes embed
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
-@@ -1092,6 +1092,8 @@ component("net") {
+@@ -1095,6 +1095,8 @@ component("net") {
        "url_request/report_sender.h",
        "url_request/static_http_user_agent_settings.cc",
        "url_request/static_http_user_agent_settings.h",
@@ -92,7 +92,7 @@
        "url_request/url_fetcher_core.cc",
 --- /dev/null
 +++ b/net/url_request/trk_protocol_handler.cc
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,25 @@
 +// Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -107,11 +107,10 @@
 +
 +TrkProtocolHandler::TrkProtocolHandler() = default;
 +
-+URLRequestJob* TrkProtocolHandler::MaybeCreateJob(
-+    URLRequest* request, NetworkDelegate* network_delegate) const {
++std::unique_ptr<URLRequestJob> TrkProtocolHandler::CreateJob(
++    URLRequest* request) const {
 +  LOG(ERROR) << "Blocked URL in TrkProtocolHandler: " << request->original_url();
-+  return new URLRequestErrorJob(
-+      request, network_delegate, ERR_BLOCKED_BY_CLIENT);
++  return std::make_unique<URLRequestErrorJob>(request, ERR_BLOCKED_BY_CLIENT);
 +}
 +
 +bool TrkProtocolHandler::IsSafeRedirectTarget(const GURL& location) const {
@@ -121,7 +120,7 @@
 +}  // namespace net
 --- /dev/null
 +++ b/net/url_request/trk_protocol_handler.h
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,32 @@
 +// Copyright (c) 2018 The ungoogled-chromium Authors. All rights reserved.
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -143,9 +142,8 @@
 +    : public URLRequestJobFactory::ProtocolHandler {
 + public:
 +  TrkProtocolHandler();
-+  URLRequestJob* MaybeCreateJob(
-+      URLRequest* request,
-+      NetworkDelegate* network_delegate) const override;
++  std::unique_ptr<URLRequestJob> CreateJob(
++      URLRequest* request) const override;
 +  bool IsSafeRedirectTarget(const GURL& location) const override;
 +
 + private:
@@ -173,7 +171,7 @@
  
  using base::Time;
  using std::string;
-@@ -570,6 +572,12 @@ URLRequest::URLRequest(const GURL& url,
+@@ -566,6 +568,12 @@ URLRequest::URLRequest(const GURL& url,
    // Sanity check out environment.
    DCHECK(base::ThreadTaskRunnerHandle::IsSet());
  
@@ -195,7 +193,7 @@
 +#include "net/url_request/trk_protocol_handler.h"
  #include "net/url_request/url_request_context.h"
  #include "net/url_request/url_request_context_storage.h"
- #include "net/url_request/url_request_job_factory_impl.h"
+ #include "net/url_request/url_request_job_factory.h"
 @@ -616,6 +617,9 @@ std::unique_ptr<URLRequestContext> URLRe
    }
    protocol_handlers_.clear();

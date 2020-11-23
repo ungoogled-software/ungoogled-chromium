@@ -39,9 +39,6 @@ PRUNING_INCLUDE_PATTERNS = [
 # pathlib.Path.match() paths to exclude from binary pruning
 PRUNING_EXCLUDE_PATTERNS = [
     'chrome/common/win/eventlog_messages.mc', # TODO: False positive textfile
-    # Exclude AFDO sample profile in binary format (Auto FDO)
-    # Details: https://clang.llvm.org/docs/UsersManual.html#sample-profile-formats
-    'chrome/android/profiles/afdo.prof',
     # TabRanker example preprocessor config
     # Details in chrome/browser/resource_coordinator/tab_ranker/README.md
     'chrome/browser/resource_coordinator/tab_ranker/example_preprocessor_config.pb',
@@ -59,6 +56,7 @@ PRUNING_EXCLUDE_PATTERNS = [
     'third_party/crashpad/crashpad/util/misc/capture_context_win_arm64.obj',
     'third_party/icu/common/icudtl.dat', # Exclusion for ICU data
     # Exclusions for safe file extensions
+    '*.avif',
     '*.ttf',
     '*.png',
     '*.jpg',
