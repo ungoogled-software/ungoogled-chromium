@@ -112,7 +112,7 @@ Also, ungoogled-chromium is available in several **software repositories**:
 * Flatpak: Available in the Flathub [`beta`](https://flathub.org/beta-repo/flathub-beta.flatpakrepo) repo as `com.github.Eloston.UngoogledChromium`
 * Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
 * GNU Guix: Available as `ungoogled-chromium`
-* macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew fetch eloston-chromium --cask` and `brew install eloston-chromium --cask`. Chromium will appear in your `/Applications` directory.
+* macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew fetch --cask eloston-chromium` and `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
 * NixOS/nixpkgs: Available as `ungoogled-chromium`
 
 ## Source Code
