@@ -15,6 +15,8 @@ import argparse
 import os
 import sys
 
+from itertools import repeat
+from multiprocessing import Pool
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
@@ -160,22 +162,23 @@ def _dir_empty(path):
     return False
 
 
-def should_prune(path, relative_path, unused_patterns):
+def should_prune(path, relative_path, used_pep_set, used_pip_set):
     """
     Returns True if a path should be pruned from the source tree; False otherwise
 
     path is the pathlib.Path to the file from the current working directory.
     relative_path is the pathlib.Path to the file from the source tree
-    unused_patterns is a UnusedPatterns object
+    used_pep_set is a list of PRUNING_EXCLUDE_PATTERNS that have been matched
+    used_pip_set is a list of PRUNING_INCLUDE_PATTERNS that have been matched
     """
     # Match against include patterns
     for pattern in filter(relative_path.match, PRUNING_INCLUDE_PATTERNS):
-        unused_patterns.pruning_include_patterns.discard(pattern)
+        used_pip_set.add(pattern)
         return True
 
     # Match against exclude patterns
     for pattern in filter(Path(str(relative_path).lower()).match, PRUNING_EXCLUDE_PATTERNS):
-        unused_patterns.pruning_exclude_patterns.discard(pattern)
+        used_pep_set.add(pattern)
         return False
 
     # Do binary data detection
@@ -208,78 +211,104 @@ def _check_regex_match(file_path, search_regex):
     return False
 
 
-def should_domain_substitute(path, relative_path, search_regex, unused_patterns):
+def should_domain_substitute(path, relative_path, search_regex, used_dep_set, used_dip_set):
     """
     Returns True if a path should be domain substituted in the source tree; False otherwise
 
     path is the pathlib.Path to the file from the current working directory.
     relative_path is the pathlib.Path to the file from the source tree.
-    search_regex is a compiled regex object to search for domain names
-    unused_patterns is a UnusedPatterns object
+    used_dep_set is a list of DOMAIN_EXCLUDE_PREFIXES that have been matched
+    used_dip_set is a list of DOMAIN_INCLUDE_PATTERNS that have been matched
     """
     relative_path_posix = relative_path.as_posix().lower()
     for include_pattern in DOMAIN_INCLUDE_PATTERNS:
         if PurePosixPath(relative_path_posix).match(include_pattern):
-            unused_patterns.domain_include_patterns.discard(include_pattern)
+            used_dip_set.add(include_pattern)
             for exclude_prefix in DOMAIN_EXCLUDE_PREFIXES:
                 if relative_path_posix.startswith(exclude_prefix):
-                    unused_patterns.domain_exclude_prefixes.discard(exclude_prefix)
+                    used_dep_set.add(exclude_prefix)
                     return False
             return _check_regex_match(path, search_regex)
     return False
 
 
-def compute_lists(source_tree, search_regex):
+def compute_lists_proc(path, source_tree, search_regex):
     """
-    Compute the binary pruning and domain substitution lists of the source tree.
-    Returns a tuple of two items in the following order:
-    1. The sorted binary pruning list
-    2. The sorted domain substitution list
+    Adds the path to appropriate lists to be used by compute_lists.
 
+    path is the pathlib.Path to the file from the current working directory.
     source_tree is a pathlib.Path to the source tree
     search_regex is a compiled regex object to search for domain names
     """
+    used_pep_set = set() # PRUNING_EXCLUDE_PATTERNS
+    used_pip_set = set() # PRUNING_INCLUDE_PATTERNS
+    used_dep_set = set() # DOMAIN_EXCLUDE_PREFIXES
+    used_dip_set = set() # DOMAIN_INCLUDE_PATTERNS
     pruning_set = set()
     domain_substitution_set = set()
-    deferred_symlinks = dict() # POSIX resolved path -> set of POSIX symlink paths
-    source_tree = source_tree.resolve()
-    unused_patterns = UnusedPatterns()
-
-    for path in source_tree.rglob('*'):
-        if not path.is_file():
-            # NOTE: Path.rglob() does not traverse symlink dirs; no need for special handling
-            continue
+    symlink_set = set()
+    if path.is_file():
         relative_path = path.relative_to(source_tree)
         if path.is_symlink():
             try:
                 resolved_relative_posix = path.resolve().relative_to(source_tree).as_posix()
+                symlink_set.add((resolved_relative_posix, relative_path.as_posix()))
             except ValueError:
                 # Symlink leads out of the source tree
-                continue
-            if resolved_relative_posix in pruning_set:
-                pruning_set.add(relative_path.as_posix())
-            else:
-                symlink_set = deferred_symlinks.get(resolved_relative_posix, None)
-                if symlink_set is None:
-                    symlink_set = set()
-                    deferred_symlinks[resolved_relative_posix] = symlink_set
-                symlink_set.add(relative_path.as_posix())
-            # Path has finished processing because...
-            # Pruning: either symlink has been added or removal determination has been deferred
-            # Domain substitution: Only the real paths can be added, not symlinks
-            continue
-        try:
-            if should_prune(path, relative_path, unused_patterns):
-                relative_posix_path = relative_path.as_posix()
-                pruning_set.add(relative_posix_path)
-                symlink_set = deferred_symlinks.pop(relative_posix_path, tuple())
-                if symlink_set:
-                    pruning_set.update(symlink_set)
-            elif should_domain_substitute(path, relative_path, search_regex, unused_patterns):
-                domain_substitution_set.add(relative_path.as_posix())
-        except: #pylint: disable=bare-except
-            get_logger().exception('Unhandled exception while processing %s', relative_path)
-            exit(1)
+                pass
+        else:
+            try:
+                if should_prune(path, relative_path, used_pep_set, used_pip_set):
+                    pruning_set.add(relative_path.as_posix())
+                elif should_domain_substitute(path, relative_path, search_regex, used_dep_set,
+                                              used_dip_set):
+                    domain_substitution_set.add(relative_path.as_posix())
+            except: #pylint: disable=bare-except
+                get_logger().exception('Unhandled exception while processing %s', relative_path)
+    return (used_pep_set, used_pip_set, used_dep_set, used_dip_set, pruning_set,
+            domain_substitution_set, symlink_set)
+
+
+def compute_lists(source_tree, search_regex, processes):
+    """
+    Compute the binary pruning and domain substitution lists of the source tree.
+    Returns a tuple of three items in the following order:
+    1. The sorted binary pruning list
+    2. The sorted domain substitution list
+    3. An UnusedPatterns object
+
+    source_tree is a pathlib.Path to the source tree
+    search_regex is a compiled regex object to search for domain names
+    processes is the maximum number of worker processes to create
+    """
+    pruning_set = set()
+    domain_substitution_set = set()
+    symlink_set = set() # POSIX resolved path -> set of POSIX symlink paths
+    source_tree = source_tree.resolve()
+    unused_patterns = UnusedPatterns()
+
+    # Launch multiple processes iterating over the source tree
+    with Pool(processes) as procpool:
+        returned_data = procpool.starmap(
+            compute_lists_proc,
+            zip(source_tree.rglob('*'), repeat(source_tree), repeat(search_regex)))
+
+    # Handle the returned data
+    for (used_pep_set, used_pip_set, used_dep_set, used_dip_set, returned_pruning_set,
+         returned_domain_sub_set, returned_symlink_set) in returned_data:
+        unused_patterns.pruning_exclude_patterns.difference_update(used_pep_set)
+        unused_patterns.pruning_include_patterns.difference_update(used_pip_set)
+        unused_patterns.domain_exclude_prefixes.difference_update(used_dep_set)
+        unused_patterns.domain_include_patterns.difference_update(used_dip_set)
+        pruning_set.update(returned_pruning_set)
+        domain_substitution_set.update(returned_domain_sub_set)
+        symlink_set.update(returned_symlink_set)
+
+    # Prune symlinks for pruned files
+    for (resolved, symlink) in symlink_set:
+        if resolved in pruning_set:
+            pruning_set.add(symlink)
+
     return sorted(pruning_set), sorted(domain_substitution_set), unused_patterns
 
 
@@ -311,6 +340,13 @@ def main(args_list=None):
         type=Path,
         required=True,
         help='The path to the source tree to use.')
+    parser.add_argument(
+        '--processes',
+        metavar='NUM',
+        type=int,
+        default=None,
+        help=
+        'The maximum number of worker processes to create. Defaults to the number of system CPUs.')
     args = parser.parse_args(args_list)
     if args.tree.exists() and not _dir_empty(args.tree):
         get_logger().info('Using existing source tree at %s', args.tree)
@@ -318,13 +354,13 @@ def main(args_list=None):
         get_logger().error('No source tree found. Aborting.')
         exit(1)
     get_logger().info('Computing lists...')
-    pruning_list, domain_substitution_list, unused_patterns = compute_lists(
+    pruning_set, domain_substitution_set, unused_patterns = compute_lists(
         args.tree,
-        DomainRegexList(args.domain_regex).search_regex)
+        DomainRegexList(args.domain_regex).search_regex, args.processes)
     with args.pruning.open('w', encoding=_ENCODING) as file_obj:
-        file_obj.writelines('%s\n' % line for line in pruning_list)
+        file_obj.writelines('%s\n' % line for line in pruning_set)
     with args.domain_substitution.open('w', encoding=_ENCODING) as file_obj:
-        file_obj.writelines('%s\n' % line for line in domain_substitution_list)
+        file_obj.writelines('%s\n' % line for line in domain_substitution_set)
     if unused_patterns.log_unused():
         get_logger().error('Please update or remove unused patterns and/or prefixes. '
                            'The lists have still been updated with the remaining valid entries.')
