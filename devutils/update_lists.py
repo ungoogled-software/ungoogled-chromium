@@ -169,16 +169,14 @@ def should_prune(path, relative_path, unused_patterns):
     unused_patterns is a UnusedPatterns object
     """
     # Match against include patterns
-    for pattern in PRUNING_INCLUDE_PATTERNS:
-        if relative_path.match(pattern):
-            unused_patterns.pruning_include_patterns.discard(pattern)
-            return True
+    for pattern in filter(relative_path.match, PRUNING_INCLUDE_PATTERNS):
+        unused_patterns.pruning_include_patterns.discard(pattern)
+        return True
 
     # Match against exclude patterns
-    for pattern in PRUNING_EXCLUDE_PATTERNS:
-        if Path(str(relative_path).lower()).match(pattern):
-            unused_patterns.pruning_exclude_patterns.discard(pattern)
-            return False
+    for pattern in filter(Path(str(relative_path).lower()).match, PRUNING_EXCLUDE_PATTERNS):
+        unused_patterns.pruning_exclude_patterns.discard(pattern)
+        return False
 
     # Do binary data detection
     with path.open('rb') as file_obj:
