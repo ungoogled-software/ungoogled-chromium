@@ -57,6 +57,12 @@ PRUNING_EXCLUDE_PATTERNS = [
     # Exclusion for required prebuilt object for Windows arm64 builds
     'third_party/crashpad/crashpad/util/misc/capture_context_win_arm64.obj',
     'third_party/icu/common/icudtl.dat', # Exclusion for ICU data
+    # Exclusion for Android
+    'build/android/chromium-debug.keystore',
+    'third_party/icu/android/icudtl.dat',
+    'third_party/icu/android_small/icudtl.dat',
+    'third_party/icu/common/icudtb.dat',
+    'third_party/jetifier_standalone/lib/jetifier-standalone.jar',
     # Exclusions for safe file extensions
     '*.avif',
     '*.ttf',
