@@ -61,6 +61,7 @@ PRUNING_EXCLUDE_PATTERNS = [
     'build/android/chromium-debug.keystore',
     'third_party/icu/android/icudtl.dat',
     'third_party/icu/android_small/icudtl.dat',
+    'third_party/icu/android_small/icudtl_extra.dat',
     'third_party/icu/common/icudtb.dat',
     'third_party/jetifier_standalone/lib/jetifier-standalone.jar',
     # Exclusions for safe file extensions
