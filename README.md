@@ -79,6 +79,7 @@ Contents of this section:
     * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
 * (Iridium and Inox feature change) Prevent pinging of IPv6 address when detecting the availability of IPv6. See the `--set-ipv6-probe-false` flag above to adjust the behavior instead.
 * (Windows-specific) Do not set the Zone Identifier on downloaded files
+* Add flag to disable avatar button (chrome://flags/#show-avatar-button)
 
 ### Borrowed Features
 
