@@ -61,12 +61,12 @@ Contents of this section:
     * This includes disabling [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing). Consult [the FAQ for the rationale](//ungoogled-software.github.io/ungoogled-chromium-wiki/faq#why-is-safe-browsing-disabled).
 * Block internal requests to Google at runtime. This feature is a fail-safe measure for the above, in case Google changes or introduces new components that our patches do not disable. This feature is implemented by replacing many Google web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution; [see docs/design.md](docs/design.md#source-file-processors) for details), then [modifying Chromium to block its own requests with such domains](patches/core/ungoogled-chromium/block-trk-and-subdomains.patch). In other words, no connections are attempted to the `qjz9zk` domain.
 * Strip binaries from the source code (known as binary pruning; [see docs/design.md](docs/design.md#source-file-processors) for details)
-* Add many new command-line switches and `chrome://flags` entries to configure disabled-by-default features. See [docs/flags.md](docs/flags.md) for the exhaustive list.
 
 ### Enhancing Features
 
 *These are the non-essential features introduced by ungoogled-chromium.*
 
+* Add many new command-line switches and `chrome://flags` entries to configure new features (which are disabled by default). See [docs/flags.md](docs/flags.md) for the exhaustive list.
 * Add *Suggestions URL* text field in the search engine editor (`chrome://settings/searchEngines`) for customizing search engine suggestions.
 * Add more URL schemes allowed to save page schemes.
 * Add Omnibox search provider "No Search" to allow disabling of searching
@@ -77,7 +77,6 @@ Contents of this section:
     * This breaks captive portal detection, but captive portals still work.
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
     * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
-* (Iridium and Inox feature change) Prevent pinging of IPv6 address when detecting the availability of IPv6. See the `--set-ipv6-probe-false` flag above to adjust the behavior instead.
 * (Windows-specific) Do not set the Zone Identifier on downloaded files
 
 ### Borrowed Features
