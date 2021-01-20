@@ -57,6 +57,22 @@
    }
    if (ShouldBlockFile(target_info->danger_type, item)) {
      MaybeReportDangerousDownloadBlocked(
+--- a/chrome/browser/enterprise/connectors/content_analysis_delegate.cc
++++ b/chrome/browser/enterprise/connectors/content_analysis_delegate.cc
+@@ -37,13 +37,11 @@
+ #include "chrome/browser/safe_browsing/cloud_content_scanning/binary_upload_service_factory.h"
+ #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
+ #include "chrome/browser/safe_browsing/cloud_content_scanning/file_analysis_request.h"
+-#include "chrome/browser/safe_browsing/download_protection/check_client_download_request.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/enterprise/common/proto/connectors.pb.h"
+ #include "components/policy/core/browser/url_util.h"
+ #include "components/policy/core/common/chrome_schema.h"
+ #include "components/prefs/pref_service.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/safe_browsing/core/features.h"
+ #include "components/url_matcher/url_matcher.h"
+ #include "content/public/browser/web_contents.h"
 --- a/chrome/browser/extensions/api/safe_browsing_private/safe_browsing_private_event_router.cc
 +++ b/chrome/browser/extensions/api/safe_browsing_private/safe_browsing_private_event_router.cc
 @@ -273,6 +273,7 @@ void SafeBrowsingPrivateEventRouter::OnD
@@ -489,7 +505,15 @@
  #endif
 --- a/chrome/browser/permissions/abusive_origin_permission_revocation_request.cc
 +++ b/chrome/browser/permissions/abusive_origin_permission_revocation_request.cc
-@@ -113,6 +113,7 @@ void AbusiveOriginPermissionRevocationRe
+@@ -17,7 +17,6 @@
+ #include "components/permissions/permission_uma_util.h"
+ #include "components/permissions/permissions_client.h"
+ #include "components/prefs/pref_service.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/safe_browsing/core/db/database_manager.h"
+ 
+ namespace {
+@@ -113,6 +112,7 @@ void AbusiveOriginPermissionRevocationRe
    DCHECK(profile_);
    DCHECK(callback_);
  
@@ -497,7 +521,7 @@
    if (!AbusiveOriginNotificationsPermissionRevocationConfig::IsEnabled() ||
        !safe_browsing::IsSafeBrowsingEnabled(*profile_->GetPrefs()) ||
        IsOriginExemptedFromFutureRevocations(profile_, origin_)) {
-@@ -145,6 +146,7 @@ void AbusiveOriginPermissionRevocationRe
+@@ -145,6 +145,7 @@ void AbusiveOriginPermissionRevocationRe
        return;
      }
    }
@@ -558,6 +582,37 @@
  }
  
  void ContextualNotificationPermissionUiSelector::OnSafeBrowsingVerdictReceived(
+--- a/chrome/browser/permissions/prediction_based_permission_ui_selector.cc
++++ b/chrome/browser/permissions/prediction_based_permission_ui_selector.cc
+@@ -18,7 +18,6 @@
+ #include "components/permissions/prediction_service/prediction_service.h"
+ #include "components/permissions/prediction_service/prediction_service_messages.pb.h"
+ #include "components/prefs/pref_service.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ 
+ namespace {
+ 
+@@ -203,6 +202,5 @@ bool PredictionBasedPermissionUiSelector
+   // We need to also check `kQuietNotificationPrompts` here since there is no
+   // generic safeguard anywhere else in the stack.
+   return base::FeatureList::IsEnabled(features::kQuietNotificationPrompts) &&
+-         base::FeatureList::IsEnabled(features::kPermissionPredictions) &&
+-         safe_browsing::IsEnhancedProtectionEnabled(*(profile_->GetPrefs()));
++         base::FeatureList::IsEnabled(features::kPermissionPredictions);
+ }
+--- a/chrome/browser/reputation/reputation_service.cc
++++ b/chrome/browser/reputation/reputation_service.cc
+@@ -111,9 +111,7 @@ void ReputationService::GetReputationSta
+                                             ReputationCheckCallback callback) {
+   DCHECK(url.SchemeIsHTTPOrHTTPS());
+ 
+-  bool has_delayed_warning =
+-      !!safe_browsing::SafeBrowsingUserInteractionObserver::FromWebContents(
+-          web_contents);
++  bool has_delayed_warning = false;
+ 
+   LookalikeUrlService* service = LookalikeUrlService::Get(profile_);
+   if (service->EngagedSitesNeedUpdating()) {
 --- a/chrome/browser/safe_browsing/url_lookup_service_factory.cc
 +++ b/chrome/browser/safe_browsing/url_lookup_service_factory.cc
 @@ -50,30 +50,7 @@ RealTimeUrlLookupServiceFactory::RealTim
@@ -801,6 +856,37 @@
    // Checks the safe browsing reputation of the webpage when the
    // user focuses on a username/password field. This is used for reporting
    // only, and won't trigger a warning.
+@@ -337,6 +340,7 @@ class PasswordManagerClient {
+                                            const GURL& frame_url) = 0;
+ #endif
+ 
++#if defined(PASSWORD_REUSE_DETECTION_ENABLED)
+   // Checks the safe browsing reputation of the webpage where password reuse
+   // happens. This is called by the PasswordReuseDetectionManager when a
+   // protected password is typed on the wrong domain. This may trigger a
+@@ -349,6 +353,7 @@ class PasswordManagerClient {
+       const std::string& username,
+       const std::vector<MatchingReusedCredential>& matching_reused_credentials,
+       bool password_field_exists) = 0;
++#endif
+ 
+ #if defined(PASSWORD_REUSE_WARNING_ENABLED)
+   // Records a Chrome Sync event that GAIA password reuse was detected.
+--- a/components/password_manager/core/browser/password_reuse_detection_manager.cc
++++ b/components/password_manager/core/browser/password_reuse_detection_manager.cc
+@@ -172,10 +172,12 @@ void PasswordReuseDetectionManager::OnRe
+                              ? reused_protected_password_hash->username
+                              : "";
+ 
++#if defined(PASSWORD_REUSE_DETECTION_ENABLED)
+   client_->CheckProtectedPasswordEntry(
+       reused_password_type, username,
+       std::move(all_matching_reused_credentials_).extract(),
+       password_field_detected);
++#endif
+ 
+   all_matching_reused_credentials_.clear();
+ }
 --- a/components/safe_browsing/content/common/safe_browsing.mojom
 +++ b/components/safe_browsing/content/common/safe_browsing.mojom
 @@ -117,7 +117,6 @@ enum PhishingDetectorResult {

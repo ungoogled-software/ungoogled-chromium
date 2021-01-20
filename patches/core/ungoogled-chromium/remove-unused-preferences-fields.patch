@@ -801,7 +801,42 @@
    handlers->AddHandler(std::make_unique<SimpleDeprecatingPolicyHandler>(
        std::make_unique<SimplePolicyHandler>(key::kAuthServerWhitelist,
                                              prefs::kAuthServerAllowlist,
-@@ -1798,17 +1769,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -1453,9 +1424,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+           key::kAuthNegotiateDelegateAllowlist,
+           prefs::kAuthNegotiateDelegateAllowlist, base::Value::Type::STRING)));
+ 
+-  handlers->AddHandler(std::make_unique<SimplePolicyHandler>(
+-      key::kSafeBrowsingAllowlistDomains, prefs::kSafeBrowsingWhitelistDomains,
+-      base::Value::Type::LIST));
+   handlers->AddHandler(std::make_unique<syncer::SyncPolicyHandler>());
+   handlers->AddHandler(std::make_unique<BrowsingHistoryPolicyHandler>());
+ 
+@@ -1464,12 +1432,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+   handlers->AddHandler(std::make_unique<SimplePolicyHandler>(
+       key::kURLAllowlist, policy_prefs::kUrlWhitelist,
+       base::Value::Type::LIST));
+-  handlers->AddHandler(std::make_unique<SimpleSchemaValidatingPolicyHandler>(
+-      key::kSafeBrowsingExtendedReportingEnabled,
+-      prefs::kSafeBrowsingScoutReportingEnabled, chrome_schema,
+-      SCHEMA_ALLOW_UNKNOWN,
+-      SimpleSchemaValidatingPolicyHandler::RECOMMENDED_ALLOWED,
+-      SimpleSchemaValidatingPolicyHandler::MANDATORY_ALLOWED));
+ 
+ #if defined(OS_ANDROID)
+   handlers->AddHandler(
+@@ -1535,11 +1497,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+           enterprise_connectors::EnterpriseConnectorsPolicyHandler>(
+           key::kOnSecurityEventEnterpriseConnector,
+           enterprise_connectors::kOnSecurityEventPref, chrome_schema));
+-  handlers->AddHandler(
+-      std::make_unique<
+-          enterprise_connectors::EnterpriseConnectorsPolicyHandler>(
+-          key::kEnterpriseRealTimeUrlCheckMode,
+-          prefs::kSafeBrowsingEnterpriseRealTimeUrlCheckMode, chrome_schema));
+ 
+   handlers->AddHandler(std::make_unique<SimpleSchemaValidatingPolicyHandler>(
+       key::kBrowsingDataLifetime, browsing_data::prefs::kBrowsingDataLifetime,
+@@ -1798,17 +1755,6 @@ std::unique_ptr<ConfigurationPolicyHandl
    signin_legacy_policies.push_back(std::make_unique<SimplePolicyHandler>(
        key::kForceBrowserSignin, prefs::kForceBrowserSignin,
        base::Value::Type::BOOLEAN));
@@ -3086,6 +3121,17 @@
  #include "google_apis/gaia/gaia_auth_util.h"
  #include "google_apis/gaia/gaia_urls.h"
  #include "url/origin.h"
+@@ -177,9 +176,7 @@ PasswordReuseDetector::CheckNonGaiaEnter
+   // Skips password reuse check if |domain| matches enterprise login URL or
+   // enterprise change password URL.
+   GURL page_url(domain);
+-  if (enterprise_password_urls_.has_value() &&
+-      safe_browsing::MatchesURLList(page_url,
+-                                    enterprise_password_urls_.value())) {
++  if (enterprise_password_urls_.has_value()) {
+     return base::nullopt;
+   }
+ 
 --- a/components/password_manager/core/browser/password_store.cc
 +++ b/components/password_manager/core/browser/password_store.cc
 @@ -42,7 +42,6 @@
@@ -3096,6 +3142,22 @@
  
  namespace password_manager {
  
+@@ -658,15 +657,6 @@ void PasswordStore::SchedulePasswordHash
+ }
+ 
+ void PasswordStore::ScheduleEnterprisePasswordURLUpdate() {
+-  std::vector<GURL> enterprise_login_urls;
+-  safe_browsing::GetPasswordProtectionLoginURLsPref(*prefs_,
+-                                                    &enterprise_login_urls);
+-  GURL enterprise_change_password_url =
+-      safe_browsing::GetPasswordProtectionChangePasswordURLPref(*prefs_);
+-
+-  ScheduleTask(base::BindOnce(&PasswordStore::SaveEnterprisePasswordURLs, this,
+-                              std::move(enterprise_login_urls),
+-                              std::move(enterprise_change_password_url)));
+ }
+ 
+ PasswordStore::~PasswordStore() {
 --- a/components/password_manager/core/browser/password_sync_util.cc
 +++ b/components/password_manager/core/browser/password_sync_util.cc
 @@ -15,7 +15,6 @@
