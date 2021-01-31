@@ -1,6 +1,6 @@
 --- a/chrome/browser/ungoogled_flag_choices.h
 +++ b/chrome/browser/ungoogled_flag_choices.h
-@@ -45,4 +45,13 @@ const FeatureEntry::Choice kBookmarkBarN
+@@ -45,4 +45,19 @@ const FeatureEntry::Choice kBookmarkBarN
       "bookmark-bar-ntp",
       "never"},
  };
@@ -8,10 +8,16 @@
 +    {flags_ui::kGenericExperimentChoiceDefault, "", ""},
 +    {"Search suggestions only",
 +     "omnibox-autocomplete-filtering",
-+     "search-suggestions-only"},
++     "search"},
 +    {"Search suggestions and bookmarks",
 +     "omnibox-autocomplete-filtering",
-+     "search-suggestions-and-bookmarks"},
++     "search-bookmarks"},
++    {"Search suggestions and internal chrome pages",
++     "omnibox-autocomplete-filtering",
++     "search-chrome"},
++    {"Search suggestions, bookmarks, and internal chrome pages",
++     "omnibox-autocomplete-filtering",
++     "search-bookmarks-chrome"},
 +};
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_CHOICES_H_
 --- a/chrome/browser/ungoogled_flag_entries.h
@@ -22,7 +28,7 @@
       kOsDesktop, MULTI_VALUE_TYPE(kBookmarkBarNewTab)},
 +    {"omnibox-autocomplete-filtering",
 +     "Omnibox Autocomplete Filtering",
-+     "Restrict omnibox autocomplete results to search suggestions (if enabled) or search suggestions and bookmarks.  ungoogled-chromium flag.",
++     "Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages.  ungoogled-chromium flag.",
 +     kOsAll, MULTI_VALUE_TYPE(kOmniboxAutocompleteFiltering)},
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
 --- a/components/omnibox/browser/autocomplete_controller.cc
@@ -35,48 +41,29 @@
  #include "base/feature_list.h"
  #include "base/format_macros.h"
  #include "base/metrics/histogram.h"
-@@ -248,11 +249,31 @@ AutocompleteController::AutocompleteCont
-       first_query_(true),
+@@ -249,6 +250,15 @@ AutocompleteController::AutocompleteCont
        search_service_worker_signal_sent_(false),
        template_url_service_(provider_client_->GetTemplateURLService()) {
-+  const std::string flag_value =
-+    base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
    provider_types &= ~OmniboxFieldTrial::GetDisabledProviderTypes();
--  if (provider_types & AutocompleteProvider::TYPE_BOOKMARK)
-+  if (provider_types & AutocompleteProvider::TYPE_BOOKMARK && flag_value != "search-suggestions-only")
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("omnibox-autocomplete-filtering")) {
++    const std::string flag_value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
++    provider_types &= AutocompleteProvider::TYPE_KEYWORD | AutocompleteProvider::TYPE_SEARCH |
++        AutocompleteProvider::TYPE_HISTORY_URL | AutocompleteProvider::TYPE_BOOKMARK | AutocompleteProvider::TYPE_BUILTIN;
++    if (!base::Contains(flag_value, "bookmarks"))
++      provider_types &= ~AutocompleteProvider::TYPE_BOOKMARK;
++    if (!base::Contains(flag_value, "chrome"))
++      provider_types &= ~AutocompleteProvider::TYPE_BUILTIN;
++  }
+   if (provider_types & AutocompleteProvider::TYPE_BOOKMARK)
      providers_.push_back(new BookmarkProvider(provider_client_.get()));
    if (provider_types & AutocompleteProvider::TYPE_BUILTIN)
-     providers_.push_back(new BuiltinProvider(provider_client_.get()));
-+  if (flag_value == "search-suggestions-only" || flag_value == "search-suggestions-and-bookmarks") {
-+    if (provider_types & AutocompleteProvider::TYPE_KEYWORD) {
-+      keyword_provider_ = new KeywordProvider(provider_client_.get(), this);
-+      providers_.push_back(keyword_provider_);
-+    }
-+    if (provider_types & AutocompleteProvider::TYPE_SEARCH) {
-+      search_provider_ = new SearchProvider(provider_client_.get(), this);
-+      providers_.push_back(search_provider_);
-+    }
-+    if (provider_types & AutocompleteProvider::TYPE_HISTORY_URL) {
-+      history_url_provider_ = new HistoryURLProvider(provider_client_.get(), this);
-+      if (provider_types & AutocompleteProvider::TYPE_HISTORY_URL)
-+        providers_.push_back(history_url_provider_);
-+    }
-+    base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(
-+        this, "AutocompleteController", base::ThreadTaskRunnerHandle::Get());
-+    return;
-+  }
-   if (provider_types & AutocompleteProvider::TYPE_HISTORY_QUICK)
-     providers_.push_back(new HistoryQuickProvider(provider_client_.get()));
-   if (provider_types & AutocompleteProvider::TYPE_KEYWORD) {
 --- a/components/omnibox/browser/history_url_provider.cc
 +++ b/components/omnibox/browser/history_url_provider.cc
-@@ -551,6 +551,11 @@ void HistoryURLProvider::Start(const Aut
+@@ -551,6 +551,9 @@ void HistoryURLProvider::Start(const Aut
    if (fixed_up_input.type() != metrics::OmniboxInputType::QUERY)
      matches_.push_back(what_you_typed_match);
  
-+  const std::string flag_value =
-+    base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
-+  if (flag_value == "search-suggestions-only" || flag_value == "search-suggestions-and-bookmarks")
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("omnibox-autocomplete-filtering"))
 +    return;
 +
    // We'll need the history service to run both passes, so try to obtain it.
@@ -92,15 +79,32 @@
  #include "base/feature_list.h"
  #include "base/i18n/break_iterator.h"
  #include "base/i18n/case_conversion.h"
-@@ -646,6 +647,11 @@ void SearchProvider::Run(bool query_is_p
+@@ -646,6 +647,9 @@ void SearchProvider::Run(bool query_is_p
  }
  
  void SearchProvider::DoHistoryQuery(bool minimal_changes) {
-+  const std::string flag_value =
-+    base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
-+  if (flag_value == "search-suggestions-only" || flag_value == "search-suggestions-and-bookmarks")
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("omnibox-autocomplete-filtering"))
 +    return;
 +
    // The history query results are synchronous, so if minimal_changes is true,
    // we still have the last results and don't need to do anything.
    if (minimal_changes)
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -9,6 +9,7 @@
+ #include <algorithm>
+ 
+ #include "base/check_op.h"
++#include "base/command_line.h"
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
+ #include "base/strings/string_number_conversions.h"
+@@ -605,6 +606,8 @@ GURL FixupURL(const std::string& text, c
+ 
+     FixupHost(trimmed, parts.host, parts.scheme.is_valid(), desired_tld, &url);
+     if (chrome_url && !parts.host.is_valid())
++     if (!base::CommandLine::ForCurrentProcess()->HasSwitch("omnibox-autocomplete-filtering") ||
++         base::Contains(base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering"), "chrome"))
+       url.append(kChromeUIDefaultHost);
+     FixupPort(trimmed, parts.port, &url);
+     FixupPath(trimmed, parts.path, &url);

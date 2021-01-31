@@ -20,7 +20,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--fingerprinting-client-rects-noise` | (Added flag to Bromite feature) Implements fingerprinting deception of JS APIs `getClientRects()` and `getBoundingClientRect()` by scaling their output values with a random factor in the range -0.0003% to 0.0003%, which are recomputed for every document instantiation.
   `--hide-crashed-bubble` | Hides the bubble box with the message "Restore Pages? Chromium didn't shut down correctly." that shows on startup after the browser did not exit cleanly.
   `--max-connections-per-host` | (from Bromite) Configure the maximum allowed connections per host. Valid values are `6` and `15`
-  `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to search suggestions (if enabled) or search suggestions and bookmarks. The type of filtering is determined by the values `search-suggestions-only` and `search-suggestions-and-bookmarks`, respectively.
+  `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages.  Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
 
 - ### Available only on desktop
 
