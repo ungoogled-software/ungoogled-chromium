@@ -298,7 +298,7 @@ def compute_lists(source_tree, search_regex, processes):
     with Pool(processes) as procpool:
         returned_data = procpool.starmap(
             compute_lists_proc,
-            zip(source_tree.rglob('*'), repeat(source_tree), repeat(search_regex)))
+            zip(filter(lambda x: '.git' not in x.parts, source_tree.rglob('*')), repeat(source_tree), repeat(search_regex)))
 
     # Handle the returned data
     for (used_pep_set, used_pip_set, used_dep_set, used_dip_set, returned_pruning_set,
