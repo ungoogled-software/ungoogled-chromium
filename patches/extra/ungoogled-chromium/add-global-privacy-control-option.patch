@@ -1,0 +1,823 @@
+# Add Global Privacy Control support and option in settings
+
+---
+ chrome/app/settings_strings.grdp                                                             |    9 
+ chrome/browser/extensions/api/preference/preference_api.cc                                   |    2 
+ chrome/browser/extensions/api/settings_private/prefs_util.cc                                 |    2 
+ chrome/browser/renderer_preferences_util.cc                                                  |    2 
+ chrome/browser/resources/settings/BUILD.gn                                                   |    1 
+ chrome/browser/resources/settings/privacy_page/BUILD.gn                                      |   12 +
+ chrome/browser/resources/settings/privacy_page/cookies_page.html                             |    3 
+ chrome/browser/resources/settings/privacy_page/cookies_page.js                               |    1 
+ chrome/browser/resources/settings/privacy_page/global_privacy_control_toggle.html            |   25 ++
+ chrome/browser/resources/settings/privacy_page/global_privacy_control_toggle.js              |   91 ++++++++++
+ chrome/browser/ui/browser_ui_prefs.cc                                                        |    3 
+ chrome/browser/ui/prefs/pref_watcher.cc                                                      |    2 
+ chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc                      |    7 
+ chrome/common/extensions/api/privacy.json                                                    |    5 
+ chrome/common/pref_names.cc                                                                  |    3 
+ chrome/common/pref_names.h                                                                   |    1 
+ chrome/common/url_constants.cc                                                               |    3 
+ chrome/common/url_constants.h                                                                |    3 
+ content/browser/loader/browser_initiated_resource_request.cc                                 |    8 
+ content/common/content_constants_internal.cc                                                 |    1 
+ content/common/content_constants_internal.h                                                  |    3 
+ content/public/common/common_param_traits_macros.h                                           |    1 
+ content/renderer/loader/web_worker_fetch_context_impl.cc                                     |    4 
+ content/renderer/render_frame_impl.cc                                                        |   10 +
+ content/renderer/render_frame_impl.h                                                         |    1 
+ content/renderer/service_worker/service_worker_fetch_context_impl.cc                         |    4 
+ third_party/blink/common/renderer_preferences/renderer_preferences_mojom_traits.cc           |    1 
+ third_party/blink/public/common/renderer_preferences/renderer_preferences.h                  |    1 
+ third_party/blink/public/common/renderer_preferences/renderer_preferences_mojom_traits.h     |    5 
+ third_party/blink/public/mojom/renderer_preferences.mojom                                    |    3 
+ third_party/blink/public/mojom/web_feature/web_feature.mojom                                 |    1 
+ third_party/blink/public/web/web_local_frame_client.h                                        |    7 
+ third_party/blink/renderer/bindings/idl_in_modules.gni                                       |    1 
+ third_party/blink/renderer/core/frame/local_frame_client.h                                   |    1 
+ third_party/blink/renderer/core/frame/local_frame_client_impl.cc                             |    7 
+ third_party/blink/renderer/core/frame/local_frame_client_impl.h                              |    1 
+ third_party/blink/renderer/core/loader/empty_clients.h                                       |    1 
+ third_party/blink/renderer/modules/BUILD.gn                                                  |    1 
+ third_party/blink/renderer/modules/globalprivacycontrol/BUILD.gn                             |   26 ++
+ third_party/blink/renderer/modules/globalprivacycontrol/idls.gni                             |   19 ++
+ third_party/blink/renderer/modules/globalprivacycontrol/navigator_global_privacy_control.cc  |   40 ++++
+ third_party/blink/renderer/modules/globalprivacycontrol/navigator_global_privacy_control.h   |   36 +++
+ third_party/blink/renderer/modules/globalprivacycontrol/navigator_global_privacy_control.idl |   25 ++
+ third_party/blink/renderer/modules/modules_idl_files.gni                                     |    1 
+ 44 files changed, 384 insertions(+)
+
+ 
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -1338,6 +1338,15 @@
+   <message name="IDS_SETTINGS_ENABLE_DO_NOT_TRACK_DIALOG_TEXT" desc="The text of a confirmation dialog that confirms that the user want to send the 'Do Not Track' header">
+     Enabling "Do Not Track" means that a request will be included with your browsing traffic. Any effect depends on whether a website responds to the request, and how the request is interpreted. For example, some websites may respond to this request by showing you ads that aren't based on other websites you've visited. Many websites will still collect and use your browsing data - for example to improve security, to provide content, services, ads and recommendations on their websites, and to generate reporting statistics. <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph>Learn more<ph name="END_LINK">&lt;/a&gt;<ex>&lt;/a&gt;</ex></ph>
+   </message>
++  <message name="IDS_SETTINGS_ENABLE_GLOBAL_PRIVACY_CONTROL" desc="The label of the checkbox to enable/disable Global Privacy Control">
++    Enable Global Privacy Control to communicate your privacy preferences
++  </message>
++  <message name="IDS_SETTINGS_ENABLE_GLOBAL_PRIVACY_CONTROL_DIALOG_TITLE" desc="The title of a confirmation dialog that confirms that the user want to enable Global Privacy Control">
++    Global Privacy Control
++  </message>
++  <message name="IDS_SETTINGS_ENABLE_GLOBAL_PRIVACY_CONTROL_DIALOG_TEXT" desc="The text of a confirmation dialog that confirms that the user want to enable Global Privacy Control">
++    Global Privacy Control (GPC) is a proposed specification designed to allow Internet users to notify businesses of their privacy preferences, such as whether or not they want their personal information to be sold or shared. It consists of a setting or extension in the user’s browser or mobile device and acts as a mechanism that websites can use to indicate they support the specification.  <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph>Learn more<ph name="END_LINK">&lt;/a&gt;<ex>&lt;/a&gt;</ex></ph>
++  </message>
+   <message name="IDS_SETTINGS_PERMISSIONS" desc="Name of the settings page which allows users to manage permissions and site content settings">
+     Permissions and content settings
+   </message>
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1272,6 +1272,8 @@ void AddPrivacyStrings(content::WebUIDat
+       {"discardedPerSiteSetting", IDS_POLICY_LABEL_IGNORED},
+       {"doNotTrack", IDS_SETTINGS_ENABLE_DO_NOT_TRACK},
+       {"doNotTrackDialogTitle", IDS_SETTINGS_ENABLE_DO_NOT_TRACK_DIALOG_TITLE},
++      {"globalPrivacyControl", IDS_SETTINGS_ENABLE_GLOBAL_PRIVACY_CONTROL},
++      {"globalPrivacyControlTitle", IDS_SETTINGS_ENABLE_GLOBAL_PRIVACY_CONTROL_DIALOG_TITLE},
+       // TODO(crbug.com/1062607): This string is no longer used. Remove.
+       {"permissionsPageTitle", IDS_SETTINGS_PERMISSIONS},
+       {"permissionsPageDescription", IDS_SETTINGS_PERMISSIONS_DESCRIPTION},
+@@ -1372,6 +1374,11 @@ void AddPrivacyStrings(content::WebUIDat
+           IDS_SETTINGS_ENABLE_DO_NOT_TRACK_DIALOG_TEXT,
+           base::ASCIIToUTF16(chrome::kDoNotTrackLearnMoreURL)));
+   html_source->AddString(
++      "globalPrivacyControlDialogMessage",
++      l10n_util::GetStringFUTF16(
++          IDS_SETTINGS_ENABLE_GLOBAL_PRIVACY_CONTROL_DIALOG_TEXT,
++          base::ASCIIToUTF16(chrome::kGlobalPrivacyControlLearnMoreURL)));
++  html_source->AddString(
+       "exceptionsLearnMoreURL",
+       base::ASCIIToUTF16(chrome::kContentSettingsExceptionsLearnMoreURL));
+   html_source->AddBoolean(
+--- a/chrome/common/url_constants.cc
++++ b/chrome/common/url_constants.cc
+@@ -141,6 +141,9 @@ const char kDoNotTrackLearnMoreURL[] =
+     "https://support.google.com/chrome/?p=settings_do_not_track";
+ #endif
+ 
++const char kGlobalPrivacyControlLearnMoreURL[] =
++    "https://globalprivacycontrol.org/#faq";
++
+ const char kDownloadInterruptedLearnMoreURL[] =
+     "https://support.google.com/chrome/?p=ui_download_errors";
+ 
+--- a/chrome/common/url_constants.h
++++ b/chrome/common/url_constants.h
+@@ -139,6 +139,9 @@ extern const char kCrashReasonFeedbackDi
+ // "Learn more" URL for the "Do not track" setting in the privacy section.
+ extern const char kDoNotTrackLearnMoreURL[];
+ 
++// "Learn more" URL for the "Do not track" setting in the privacy section.
++extern const char kGlobalPrivacyControlLearnMoreURL[];
++
+ // The URL for the "Learn more" page for interrupted downloads.
+ extern const char kDownloadInterruptedLearnMoreURL[];
+ 
+--- a/content/public/common/common_param_traits_macros.h
++++ b/content/public/common/common_param_traits_macros.h
+@@ -126,6 +126,7 @@ IPC_STRUCT_TRAITS_BEGIN(blink::RendererP
+   IPC_STRUCT_TRAITS_MEMBER(use_custom_colors)
+   IPC_STRUCT_TRAITS_MEMBER(enable_referrers)
+   IPC_STRUCT_TRAITS_MEMBER(enable_do_not_track)
++  IPC_STRUCT_TRAITS_MEMBER(enable_global_privacy_control)
+   IPC_STRUCT_TRAITS_MEMBER(enable_encrypted_media)
+   IPC_STRUCT_TRAITS_MEMBER(webrtc_ip_handling_policy)
+   IPC_STRUCT_TRAITS_MEMBER(webrtc_udp_min_port)
+--- a/content/renderer/loader/web_worker_fetch_context_impl.cc
++++ b/content/renderer/loader/web_worker_fetch_context_impl.cc
+@@ -454,6 +454,10 @@ void WebWorkerFetchContextImpl::WillSend
+     request.SetHttpHeaderField(blink::WebString::FromUTF8(kDoNotTrackHeader),
+                                "1");
+   }
++  if (renderer_preferences_.enable_global_privacy_control) {
++    request.SetHttpHeaderField(blink::WebString::FromUTF8(kGlobalPrivacyControlHeader),
++                               "1");
++  }
+ 
+   auto url_request_extra_data =
+       base::MakeRefCounted<blink::WebURLRequestExtraData>();
+--- a/content/browser/loader/browser_initiated_resource_request.cc
++++ b/content/browser/loader/browser_initiated_resource_request.cc
+@@ -38,6 +38,14 @@ void UpdateAdditionalHeadersForBrowserIn
+     headers->SetHeaderIfMissing(kDoNotTrackHeader, "1");
+   }
+ 
++  // Set the GlobalPrivacyControl header if appropriate.
++  if (renderer_preferences.enable_global_privacy_control) {
++    if (should_update_existing_headers) {
++      headers->RemoveHeader(kGlobalPrivacyControlHeader);
++    }
++    headers->SetHeaderIfMissing(kGlobalPrivacyControlHeader, "1");
++  }
++
+   // Set the Save-Data header if appropriate.
+   // https://tools.ietf.org/html/draft-grigorik-http-client-hints-03#section-7
+   if (GetContentClient()->browser()->IsDataSaverEnabled(browser_context) &&
+--- a/content/common/content_constants_internal.cc
++++ b/content/common/content_constants_internal.cc
+@@ -18,6 +18,7 @@ const int kTraceEventGpuProcessSortIndex
+ const int kTraceEventRendererMainThreadSortIndex = -1;
+ 
+ const char kDoNotTrackHeader[] = "DNT";
++const char kGlobalPrivacyControlHeader[] = "Sec-GPC";
+ 
+ const int kChildProcessReceiverAttachmentName = 0;
+ const int kChildProcessHostRemoteAttachmentName = 1;
+--- a/content/common/content_constants_internal.h
++++ b/content/common/content_constants_internal.h
+@@ -41,6 +41,9 @@ CONTENT_EXPORT extern const int kTraceEv
+ // HTTP header set in requests to indicate they should be marked DoNotTrack.
+ extern const char kDoNotTrackHeader[];
+ 
++// HTTP header set in requests to indicate the Global Privacy Control signal.
++extern const char kGlobalPrivacyControlHeader[];
++
+ // Constants for attaching message pipes to the mojo invitation used to
+ // initialize child processes.
+ extern const int kChildProcessReceiverAttachmentName;
+--- a/content/renderer/render_frame_impl.cc
++++ b/content/renderer/render_frame_impl.cc
+@@ -4632,6 +4632,10 @@ void RenderFrameImpl::WillSendRequestInt
+     request.SetHttpHeaderField(blink::WebString::FromUTF8(kDoNotTrackHeader),
+                                "1");
+   }
++  if (render_view_->GetRendererPreferences().enable_global_privacy_control) {
++    request.SetHttpHeaderField(blink::WebString::FromUTF8(kGlobalPrivacyControlHeader),
++                               "1");
++  }
+ 
+   ApplyFilePathAlias(&request);
+   GURL new_url;
+@@ -4910,6 +4914,12 @@ blink::WebString RenderFrameImpl::DoNotT
+     return WebString::FromUTF8("1");
+   return WebString();
+ }
++
++blink::WebString RenderFrameImpl::GlobalPrivacyControlValue() {
++  if (render_view_->GetRendererPreferences().enable_global_privacy_control)
++    return WebString::FromUTF8("1");
++  return WebString();
++}
+ 
+ blink::mojom::RendererAudioInputStreamFactory*
+ RenderFrameImpl::GetAudioInputStreamFactory() {
+--- a/content/renderer/service_worker/service_worker_fetch_context_impl.cc
++++ b/content/renderer/service_worker/service_worker_fetch_context_impl.cc
+@@ -118,6 +118,10 @@ void ServiceWorkerFetchContextImpl::Will
+     request.SetHttpHeaderField(blink::WebString::FromUTF8(kDoNotTrackHeader),
+                                "1");
+   }
++  if (renderer_preferences_.enable_global_privacy_control) {
++    request.SetHttpHeaderField(blink::WebString::FromUTF8(kGlobalPrivacyControlHeader),
++                               "1");
++  }
+   auto url_request_extra_data =
+       base::MakeRefCounted<blink::WebURLRequestExtraData>();
+   url_request_extra_data->set_originated_from_service_worker(true);
+--- a/content/renderer/render_frame_impl.h
++++ b/content/renderer/render_frame_impl.h
+@@ -679,6 +679,7 @@ class CONTENT_EXPORT RenderFrameImpl
+   blink::WebString UserAgentOverride() override;
+   base::Optional<blink::UserAgentMetadata> UserAgentMetadataOverride() override;
+   blink::WebString DoNotTrackValue() override;
++  blink::WebString GlobalPrivacyControlValue() override;
+   blink::mojom::RendererAudioInputStreamFactory* GetAudioInputStreamFactory();
+   bool AllowContentInitiatedDataUrlNavigations(
+       const blink::WebURL& url) override;
+--- a/third_party/blink/public/web/web_local_frame_client.h
++++ b/third_party/blink/public/web/web_local_frame_client.h
+@@ -588,6 +588,13 @@ class BLINK_EXPORT WebLocalFrameClient {
+   // header. An empty string indicates that no DNT header will be send.
+   virtual WebString DoNotTrackValue() { return WebString(); }
+ 
++  // Global privacy control ----------------------------------------------------
++
++  // Asks the embedder what value the network stack will send for the
++  // Global Privacy Control header. An empty string indicates that
++  // no Global Privacy Control header will be send.
++  virtual WebString GlobalPrivacyControlValue() { return WebString(); }
++
+   //
+   // Accessibility -------------------------------------------------------
+   //
+--- a/third_party/blink/renderer/core/frame/local_frame_client.h
++++ b/third_party/blink/renderer/core/frame/local_frame_client.h
+@@ -234,6 +234,7 @@ class CORE_EXPORT LocalFrameClient : pub
+   virtual base::Optional<blink::UserAgentMetadata> UserAgentMetadata() = 0;
+ 
+   virtual String DoNotTrackValue() = 0;
++  virtual String GlobalPrivacyControlValue() = 0;
+ 
+   virtual void TransitionToCommittedForNewPage() = 0;
+ 
+--- a/third_party/blink/renderer/core/frame/local_frame_client_impl.cc
++++ b/third_party/blink/renderer/core/frame/local_frame_client_impl.cc
+@@ -883,6 +883,13 @@ String LocalFrameClientImpl::DoNotTrackV
+   return String();
+ }
+ 
++String LocalFrameClientImpl::GlobalPrivacyControlValue() {
++  WebString global_privacy_control = web_frame_->Client()->GlobalPrivacyControlValue();
++  if (!global_privacy_control.IsEmpty())
++    return global_privacy_control;
++  return String();
++}
++
+ // Called when the FrameLoader goes into a state in which a new page load
+ // will occur.
+ void LocalFrameClientImpl::TransitionToCommittedForNewPage() {
+--- a/third_party/blink/renderer/core/frame/local_frame_client_impl.h
++++ b/third_party/blink/renderer/core/frame/local_frame_client_impl.h
+@@ -164,6 +164,7 @@ class CORE_EXPORT LocalFrameClientImpl f
+   WTF::String UserAgent() override;
+   base::Optional<blink::UserAgentMetadata> UserAgentMetadata() override;
+   WTF::String DoNotTrackValue() override;
++  WTF::String GlobalPrivacyControlValue() override;
+   void TransitionToCommittedForNewPage() override;
+   LocalFrame* CreateFrame(const WTF::AtomicString& name,
+                           HTMLFrameOwnerElement*) override;
+--- a/third_party/blink/renderer/core/loader/empty_clients.h
++++ b/third_party/blink/renderer/core/loader/empty_clients.h
+@@ -294,6 +294,7 @@ class CORE_EXPORT EmptyLocalFrameClient
+   }
+ 
+   String DoNotTrackValue() override { return String(); }
++  String GlobalPrivacyControlValue() override { return String(); }
+ 
+   void TransitionToCommittedForNewPage() override {}
+ 
+--- a/chrome/browser/extensions/api/preference/preference_api.cc
++++ b/chrome/browser/extensions/api/preference/preference_api.cc
+@@ -115,6 +115,8 @@ const PrefMappingEntry kPrefMapping[] =
+      APIPermission::kPrivacy},
+     {"doNotTrackEnabled", prefs::kEnableDoNotTrack, APIPermission::kPrivacy,
+      APIPermission::kPrivacy},
++    {"globalPrivacyControlEnabled", prefs::kEnableGlobalPrivacyControl, APIPermission::kPrivacy,
++     APIPermission::kPrivacy},
+     {"searchSuggestEnabled", prefs::kSearchSuggestEnabled,
+      APIPermission::kPrivacy, APIPermission::kPrivacy},
+     {"spellingServiceEnabled", spellcheck::prefs::kSpellCheckUseSpellingService,
+--- /dev/null
++++ b/chrome/browser/resources/settings/privacy_page/global_privacy_control_toggle.html
+@@ -0,0 +1,25 @@
++    <style include="settings-shared"></style>
++    <settings-toggle-button id="toggle" class="hr" label="$i18n{globalPrivacyControl}"
++        pref="{{prefs.enable_global_privacy_control}}"
++        on-settings-boolean-control-change="onToggleChange_"
++        no-set-pref>
++    </settings-toggle-button>
++    <template is="dom-if" if="[[showDialog_]]"
++        on-dom-change="onDomChange_" restamp>
++      <cr-dialog id="confirmDialog"
++          close-text="$i18n{close}" on-cancel="onDialogCancel_"
++          on-close="onDialogClosed_">
++        <div slot="title">$i18n{globalPrivacyControlTitle}</div>
++        <div slot="body">$i18nRaw{globalPrivacyControlDialogMessage}</div>
++        <div slot="button-container">
++          <cr-button class="cancel-button"
++              on-click="onDialogCancel_">
++            $i18n{cancel}
++          </cr-button>
++          <cr-button class="action-button"
++              on-click="onDialogConfirm_">
++            $i18n{confirm}
++          </cr-button>
++        </div>
++      </cr-dialog>
++    </template>
+--- /dev/null
++++ b/chrome/browser/resources/settings/privacy_page/global_privacy_control_toggle.js
+@@ -0,0 +1,91 @@
++// Copyright 2020 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
++import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.m.js';
++import '../settings_shared_css.m.js';
++import '../controls/settings_toggle_button.m.js';
++
++import {focusWithoutInk} from 'chrome://resources/js/cr/ui/focus_without_ink.m.js';
++import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
++
++import {MetricsBrowserProxyImpl, PrivacyElementInteractions} from '../metrics_browser_proxy.js';
++
++Polymer({
++  is: 'settings-global-privacy-control-toggle',
++
++  _template: html`{__html_template__}`,
++
++  properties: {
++    /**
++     * Preferences state.
++     */
++    prefs: {
++      type: Object,
++      notify: true,
++    },
++
++    /** @private */
++    showDialog_: {
++      type: Boolean,
++      value: false,
++    },
++  },
++
++  /** @private */
++  onDomChange_() {
++    if (this.showDialog_) {
++      this.$$('#confirmDialog').showModal();
++    }
++  },
++
++  /**
++   * Handles the change event for the global-privacy-control toggle. Shows a
++   * confirmation dialog when enabling the setting.
++   * @param {!Event} event
++   * @private
++   */
++  onToggleChange_(event) {
++    const target = /** @type {!SettingsToggleButtonElement} */ (event.target);
++    if (!target.checked) {
++      // Always allow disabling the pref.
++      target.sendPrefChange();
++      return;
++    }
++
++    this.showDialog_ = true;
++  },
++
++  /** @private */
++  closeDialog_() {
++    this.$$('#confirmDialog').close();
++    this.showDialog_ = false;
++  },
++
++  /** @private */
++  onDialogClosed_() {
++    focusWithoutInk(this.$.toggle);
++  },
++
++  /**
++   * Handles the shared proxy confirmation dialog 'Confirm' button.
++   * @private
++   */
++  onDialogConfirm_() {
++    /** @type {!SettingsToggleButtonElement} */ (this.$.toggle)
++        .sendPrefChange();
++    this.closeDialog_();
++  },
++
++  /**
++   * Handles the shared proxy confirmation dialog 'Cancel' button or a cancel
++   * event.
++   * @private
++   */
++  onDialogCancel_() {
++    /** @type {!SettingsToggleButtonElement} */ (this.$.toggle)
++        .resetToPrefValue();
++    this.closeDialog_();
++  },
++});
+--- a/chrome/common/extensions/api/privacy.json
++++ b/chrome/common/extensions/api/privacy.json
+@@ -105,6 +105,11 @@
+             "value": ["doNotTrackEnabled", {"type":"boolean"}],
+             "description": "If enabled, Chrome sends 'Do Not Track' (<code>DNT: 1</code>) header with your requests. The value of this preference is of type boolean, and the default value is <code>false</code>."
+           },
++          "globalPrivacyControlEnabled": {
++            "$ref": "types.ChromeSetting",
++            "value": ["globalPrivacyControlEnabled", {"type":"boolean"}],
++            "description": "If enabled, Chrome sends 'Global Privacy Control' (<code>Sec-GPC: 1</code>) header with your requests. The value of this preference is of type boolean, and the default value is <code>false</code>."
++          },
+           "protectedContentEnabled": {
+             "$ref": "types.ChromeSetting",
+             "value": ["protectedContentEnabled", {"type":"boolean"}],
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -231,6 +231,7 @@ preprocess_grit("preprocess_generated")
+     "privacy_page/collapse_radio_button.js",
+     "privacy_page/cookies_page.js",
+     "privacy_page/do_not_track_toggle.js",
++    "privacy_page/global_privacy_control_toggle.js",
+     "privacy_page/privacy_page.js",
+     "privacy_page/personalization_options.m.js",
+     "privacy_page/privacy_page_browser_proxy.m.js",
+--- a/chrome/browser/resources/settings/privacy_page/BUILD.gn
++++ b/chrome/browser/resources/settings/privacy_page/BUILD.gn
+@@ -45,6 +45,7 @@ js_type_check("closure_compile_module")
+     ":cookies_page",
+     ":disable_safebrowsing_dialog",
+     ":do_not_track_toggle",
++    ":global_privacy_control_toggle",
+     ":personalization_options.m",
+     ":privacy_page",
+     ":privacy_page_browser_proxy.m",
+@@ -65,6 +66,7 @@ js_library("cookies_page") {
+   deps = [
+     ":collapse_radio_button",
+     ":do_not_track_toggle",
++    ":global_privacy_control_toggle",
+     "..:metrics_browser_proxy",
+     "..:route",
+     "..:router.m",
+@@ -120,6 +122,15 @@ js_library("do_not_track_toggle") {
+   ]
+ }
+ 
++js_library("global_privacy_control_toggle") {
++  deps = [
++    "..:metrics_browser_proxy",
++    "../controls:settings_toggle_button.m",
++    "//third_party/polymer/v3_0/components-chromium/polymer:polymer_bundled",
++    "//ui/webui/resources/js/cr/ui:focus_without_ink.m",
++  ]
++}
++
+ js_library("personalization_options.m") {
+   sources = [ "$root_gen_dir/chrome/browser/resources/settings/privacy_page/personalization_options.m.js" ]
+   deps = [
+@@ -256,6 +267,7 @@ html_to_js("v3_ready_elements") {
+     "cookies_page.js",
+     "disable_safebrowsing_dialog.js",
+     "do_not_track_toggle.js",
++    "global_privacy_control_toggle.js",
+     "privacy_page.js",
+     "secure_dns.js",
+     "secure_dns_input.js",
+--- a/chrome/browser/resources/settings/privacy_page/cookies_page.html
++++ b/chrome/browser/resources/settings/privacy_page/cookies_page.html
+@@ -128,6 +128,9 @@
+     <settings-do-not-track-toggle id="doNotTrack"
+         prefs="{{prefs}}">
+     </settings-do-not-track-toggle>
++    <settings-global-privacy-control-toggle id="globalPrivacyControl"
++        prefs="{{prefs}}">
++    </settings-global-privacy-control-toggle>
+     <settings-toggle-button id="networkPrediction"
+         class="hr"
+         hidden="[[!pageVisibility.networkPrediction]]"
+--- a/chrome/browser/resources/settings/privacy_page/cookies_page.js
++++ b/chrome/browser/resources/settings/privacy_page/cookies_page.js
+@@ -18,6 +18,7 @@ import '../settings_shared_css.m.js';
+ import '../site_settings/site_list.js';
+ import './collapse_radio_button.js';
+ import './do_not_track_toggle.js';
++import './global_privacy_control_toggle.js';
+ 
+ import {assert} from 'chrome://resources/js/assert.m.js';
+ import {focusWithoutInk} from 'chrome://resources/js/cr/ui/focus_without_ink.m.js';
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -239,6 +239,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+   // Miscellaneous. TODO(stevenjb): categorize.
+   (*s_allowlist)[::prefs::kEnableDoNotTrack] =
+       settings_api::PrefType::PREF_TYPE_BOOLEAN;
++  (*s_allowlist)[::prefs::kEnableGlobalPrivacyControl] =
++      settings_api::PrefType::PREF_TYPE_BOOLEAN;
+   (*s_allowlist)[::prefs::kEnableEncryptedMedia] =
+       settings_api::PrefType::PREF_TYPE_BOOLEAN;
+   (*s_allowlist)[::language::prefs::kApplicationLocale] =
+--- a/chrome/browser/renderer_preferences_util.cc
++++ b/chrome/browser/renderer_preferences_util.cc
+@@ -108,6 +108,8 @@ void UpdateFromSystemSettings(blink::Ren
+   prefs->enable_referrers = pref_service->GetBoolean(prefs::kEnableReferrers);
+   prefs->enable_do_not_track =
+       pref_service->GetBoolean(prefs::kEnableDoNotTrack);
++  prefs->enable_global_privacy_control =
++      pref_service->GetBoolean(prefs::kEnableGlobalPrivacyControl);
+   prefs->enable_encrypted_media =
+       pref_service->GetBoolean(prefs::kEnableEncryptedMedia);
+   prefs->webrtc_ip_handling_policy = std::string();
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -82,6 +82,9 @@ void RegisterBrowserUserPrefs(user_prefs
+   registry->RegisterBooleanPref(
+       prefs::kEnableDoNotTrack, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
++  registry->RegisterBooleanPref(
++      prefs::kEnableGlobalPrivacyControl, false,
++      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+ #if !defined(OS_CHROMEOS) && !defined(OS_ANDROID)
+   registry->RegisterBooleanPref(prefs::kPrintPreviewUseSystemDefaultPrinter,
+                                 false);
+--- a/chrome/browser/ui/prefs/pref_watcher.cc
++++ b/chrome/browser/ui/prefs/pref_watcher.cc
+@@ -78,6 +78,8 @@ PrefWatcher::PrefWatcher(Profile* profil
+                                      renderer_callback);
+   profile_pref_change_registrar_.Add(prefs::kEnableDoNotTrack,
+                                      renderer_callback);
++  profile_pref_change_registrar_.Add(prefs::kEnableGlobalPrivacyControl,
++                                     renderer_callback);
+   profile_pref_change_registrar_.Add(prefs::kEnableReferrers,
+                                      renderer_callback);
+   profile_pref_change_registrar_.Add(prefs::kEnableEncryptedMedia,
+--- a/chrome/common/pref_names.cc
++++ b/chrome/common/pref_names.cc
+@@ -1281,6 +1281,9 @@ const char kEnableReferrers[] = "enable_
+ // Whether to send the DNT header.
+ const char kEnableDoNotTrack[] = "enable_do_not_track";
+ 
++// Whether to enable Global Privacy Control.
++const char kEnableGlobalPrivacyControl[] = "enable_global_privacy_control";
++
+ // Whether to allow the use of Encrypted Media Extensions (EME), except for the
+ // use of Clear Key key sytems, which is always allowed as required by the spec.
+ // TODO(crbug.com/784675): This pref was used as a WebPreference which is why
+--- a/chrome/common/pref_names.h
++++ b/chrome/common/pref_names.h
+@@ -401,6 +401,7 @@ extern const char kDisable3DAPIs[];
+ extern const char kEnableHyperlinkAuditing[];
+ extern const char kEnableReferrers[];
+ extern const char kEnableDoNotTrack[];
++extern const char kEnableGlobalPrivacyControl[];
+ extern const char kEnableEncryptedMedia[];
+ 
+ extern const char kImportAutofillFormData[];
+--- a/third_party/blink/public/common/renderer_preferences/renderer_preferences.h
++++ b/third_party/blink/public/common/renderer_preferences/renderer_preferences.h
+@@ -41,6 +41,7 @@ struct BLINK_COMMON_EXPORT RendererPrefe
+   bool enable_referrers{true};
+   bool allow_cross_origin_auth_prompt{false};
+   bool enable_do_not_track{false};
++  bool enable_global_privacy_control{false};
+   bool enable_encrypted_media{true};
+   std::string webrtc_ip_handling_policy;
+   uint16_t webrtc_udp_min_port{0};
+--- a/third_party/blink/public/common/renderer_preferences/renderer_preferences_mojom_traits.h
++++ b/third_party/blink/public/common/renderer_preferences/renderer_preferences_mojom_traits.h
+@@ -114,6 +114,11 @@ struct BLINK_COMMON_EXPORT
+     return data.enable_do_not_track;
+   }
+ 
++  static const bool& enable_global_privacy_control(
++      const ::blink::RendererPreferences& data) {
++    return data.enable_global_privacy_control;
++  }
++
+   static const bool& enable_encrypted_media(
+       const ::blink::RendererPreferences& data) {
+     return data.enable_encrypted_media;
+--- a/third_party/blink/renderer/modules/BUILD.gn
++++ b/third_party/blink/renderer/modules/BUILD.gn
+@@ -109,6 +109,7 @@ component("modules") {
+     "//third_party/blink/renderer/modules/font_access",
+     "//third_party/blink/renderer/modules/gamepad",
+     "//third_party/blink/renderer/modules/geolocation",
++    "//third_party/blink/renderer/modules/globalprivacycontrol",
+     "//third_party/blink/renderer/modules/hid",
+     "//third_party/blink/renderer/modules/idle",
+     "//third_party/blink/renderer/modules/imagecapture",
+--- /dev/null
++++ b/third_party/blink/renderer/modules/globalprivacycontrol/BUILD.gn
+@@ -0,0 +1,26 @@
++# Copyright 2021 The Ungoogled Chromium Authors. All rights reserved.
++#
++# This file is part of Ungoogled Chromium Android.
++#
++# Ungoogled Chromium Android is free software: you can redistribute it
++# and/or modify it under the terms of the GNU General Public License as
++# published by the Free Software Foundation, either version 3 of the
++# License, or any later version.
++#
++# Ungoogled Chromium Android is distributed in the hope that it will be
++# useful, but WITHOUT ANY WARRANTY; without even the implied warranty
++# of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with Ungoogled Chromium Android.  If not,
++# see <https://www.gnu.org/licenses/>.
++
++import("//third_party/blink/renderer/modules/modules.gni")
++
++blink_modules_sources("globalprivacycontrol") {
++  sources = [
++    "navigator_global_privacy_control.cc",
++    "navigator_global_privacy_control.h",
++  ]
++}
+--- /dev/null
++++ b/third_party/blink/renderer/modules/globalprivacycontrol/idls.gni
+@@ -0,0 +1,19 @@
++# Copyright 2021 The Ungoogled Chromium Authors. All rights reserved.
++#
++# This file is part of Ungoogled Chromium Android.
++#
++# Ungoogled Chromium Android is free software: you can redistribute it
++# and/or modify it under the terms of the GNU General Public License as
++# published by the Free Software Foundation, either version 3 of the
++# License, or any later version.
++#
++# Ungoogled Chromium Android is distributed in the hope that it will be
++# useful, but WITHOUT ANY WARRANTY; without even the implied warranty
++# of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with Ungoogled Chromium Android.  If not,
++# see <https://www.gnu.org/licenses/>.
++
++modules_dependency_idl_files = [ "navigator_global_privacy_control.idl" ]
+--- a/third_party/blink/renderer/modules/modules_idl_files.gni
++++ b/third_party/blink/renderer/modules/modules_idl_files.gni
+@@ -79,6 +79,7 @@ _idl_imports = [
+   "//third_party/blink/renderer/modules/font_access/idls.gni",
+   "//third_party/blink/renderer/modules/gamepad/idls.gni",
+   "//third_party/blink/renderer/modules/geolocation/idls.gni",
++  "//third_party/blink/renderer/modules/globalprivacycontrol/idls.gni",
+   "//third_party/blink/renderer/modules/hid/idls.gni",
+   "//third_party/blink/renderer/modules/idle/idls.gni",
+   "//third_party/blink/renderer/modules/imagecapture/idls.gni",
+--- a/third_party/blink/renderer/bindings/idl_in_modules.gni
++++ b/third_party/blink/renderer/bindings/idl_in_modules.gni
+@@ -178,6 +178,7 @@ static_idl_files_in_modules = get_path_i
+           "//third_party/blink/renderer/modules/device_orientation/window_device_motion.idl",
+           "//third_party/blink/renderer/modules/device_orientation/window_device_orientation.idl",
+           "//third_party/blink/renderer/modules/donottrack/navigator_do_not_track.idl",
++          "//third_party/blink/renderer/modules/globalprivacycontrol/navigator_global_privacy_control.idl",
+           "//third_party/blink/renderer/modules/encoding/text_decode_options.idl",
+           "//third_party/blink/renderer/modules/encoding/text_decoder.idl",
+           "//third_party/blink/renderer/modules/encoding/text_decoder_options.idl",
+--- /dev/null
++++ b/third_party/blink/renderer/modules/globalprivacycontrol/navigator_global_privacy_control.idl
+@@ -0,0 +1,25 @@
++/*
++ * Copyright 2021 The Ungoogled Chromium Authors. All rights reserved.
++ *
++ * This file is part of Ungoogled Chromium Android.
++ *
++ * Ungoogled Chromium Android is free software: you can redistribute it
++ * and/or modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation, either version 3 of the
++ * License, or any later version.
++ *
++ * Ungoogled Chromium Android is distributed in the hope that it will be
++ * useful, but WITHOUT ANY WARRANTY; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with Ungoogled Chromium Android.  If not,
++ * see <https://www.gnu.org/licenses/>.
++ */
++
++[
++    ImplementedAs=NavigatorGlobalPrivacyControl
++] partial interface Navigator {
++    [HighEntropy=Direct, MeasureAs=NavigatorGlobalPrivacyControl] readonly attribute boolean globalPrivacyControl;
++};
+--- /dev/null
++++ b/third_party/blink/renderer/modules/globalprivacycontrol/navigator_global_privacy_control.cc
+@@ -0,0 +1,40 @@
++/*
++ * Copyright 2021 The Ungoogled Chromium Authors. All rights reserved.
++ *
++ * This file is part of Ungoogled Chromium Android.
++ *
++ * Ungoogled Chromium Android is free software: you can redistribute it
++ * and/or modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation, either version 3 of the
++ * License, or any later version.
++ *
++ * Ungoogled Chromium Android is distributed in the hope that it will be
++ * useful, but WITHOUT ANY WARRANTY; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with Ungoogled Chromium Android.  If not,
++ * see <https://www.gnu.org/licenses/>.
++ */
++
++#include "third_party/blink/renderer/modules/globalprivacycontrol/navigator_global_privacy_control.h"
++
++#include "third_party/blink/renderer/core/frame/local_dom_window.h"
++#include "third_party/blink/renderer/core/frame/local_frame.h"
++#include "third_party/blink/renderer/core/frame/local_frame_client.h"
++#include "third_party/blink/renderer/core/frame/navigator.h"
++
++namespace blink {
++namespace NavigatorGlobalPrivacyControl {
++
++bool globalPrivacyControl(Navigator& navigator) {
++  LocalDOMWindow* window = navigator.DomWindow();
++  if (window)
++      return window->GetFrame()->Client()->GlobalPrivacyControlValue().IsEmpty() ? false : true;
++  else
++      return false;
++}
++
++}  // namespace NavigatorGlobalPrivacyControl
++}  // namespace blink
+--- /dev/null
++++ b/third_party/blink/renderer/modules/globalprivacycontrol/navigator_global_privacy_control.h
+@@ -0,0 +1,36 @@
++/*
++ * Copyright 2021 The Ungoogled Chromium Authors. All rights reserved.
++ *
++ * This file is part of Ungoogled Chromium Android.
++ *
++ * Ungoogled Chromium Android is free software: you can redistribute it
++ * and/or modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation, either version 3 of the
++ * License, or any later version.
++ *
++ * Ungoogled Chromium Android is distributed in the hope that it will be
++ * useful, but WITHOUT ANY WARRANTY; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with Ungoogled Chromium Android.  If not,
++ * see <https://www.gnu.org/licenses/>.
++ */
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_GLOBALPRIVACYCONTROL_NAVIGATOR_GLOBAL_PRIVACY_CONTROL_H_
++#define THIRD_PARTY_BLINK_RENDERER_MODULES_GLOBALPRIVACYCONTROL_NAVIGATOR_GLOBAL_PRIVACY_CONTROL_H_
++
++#include "third_party/blink/renderer/core/frame/navigator.h"
++#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
++
++namespace blink {
++class Navigator;
++
++namespace NavigatorGlobalPrivacyControl {
++bool globalPrivacyControl(Navigator&);
++}
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_GLOBALPRIVACYCONTROL_NAVIGATOR_GLOBAL_PRIVACY_CONTROL_H_
+--- a/third_party/blink/common/renderer_preferences/renderer_preferences_mojom_traits.cc
++++ b/third_party/blink/common/renderer_preferences/renderer_preferences_mojom_traits.cc
+@@ -44,6 +44,7 @@ bool StructTraits<blink::mojom::Renderer
+   out->enable_referrers = data.enable_referrers();
+   out->allow_cross_origin_auth_prompt = data.allow_cross_origin_auth_prompt();
+   out->enable_do_not_track = data.enable_do_not_track();
++  out->enable_global_privacy_control = data.enable_global_privacy_control();
+   out->enable_encrypted_media = data.enable_encrypted_media();
+ 
+   if (!data.ReadWebrtcIpHandlingPolicy(&out->webrtc_ip_handling_policy))
+--- a/third_party/blink/public/mojom/renderer_preferences.mojom
++++ b/third_party/blink/public/mojom/renderer_preferences.mojom
+@@ -73,6 +73,9 @@ struct RendererPreferences {
+   // Set to true to indicate that the preference to set DNT to 1 is enabled.
+   bool enable_do_not_track = false;
+ 
++  // Set to true to indicate that the preference to set Global Privacy Control is enabled.
++  bool enable_global_privacy_control = false;
++
+   // Whether to allow the use of Encrypted Media Extensions (EME), except for
+   // the use of Clear Key key system which is always allowed as required by the
+   // spec.
+--- a/third_party/blink/public/mojom/web_feature/web_feature.mojom
++++ b/third_party/blink/public/mojom/web_feature/web_feature.mojom
+@@ -3059,6 +3059,7 @@ enum WebFeature {
+   kAddEventListenerWithAbortSignal = 3730,
+   kXRSessionRequestLightProbe = 3731,
+ 
++  kNavigatorGlobalPrivacyControl = 3732,
+   // Add new features immediately above this line. Don't change assigned
+   // numbers of any item, and don't reuse removed slots.
+   // Also, run update_use_counter_feature_enum.py in
