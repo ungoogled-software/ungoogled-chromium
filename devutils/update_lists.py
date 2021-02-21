@@ -166,6 +166,7 @@ def _is_writable(path):
     st = os.stat(path)
     return bool(st.st_mode & stat.S_IWRITE)
 
+
 def _dir_empty(path):
     """
     Returns True if the directory is empty; False otherwise
