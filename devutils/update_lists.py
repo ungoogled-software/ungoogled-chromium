@@ -14,6 +14,7 @@ the process has finished.
 import argparse
 import os
 import sys
+import stat
 
 from itertools import repeat
 from multiprocessing import Pool
@@ -156,6 +157,15 @@ def _is_binary(bytes_data):
     return bool(bytes_data.translate(None, _TEXTCHARS))
 
 
+def _is_writable(path):
+    """
+    Return True if path has write permission; False otherwise
+
+    path is a pathlib.Path or string to a directory to test.
+    """
+    st = os.stat(path)
+    return bool(st.st_mode & stat.S_IWRITE)
+
 def _dir_empty(path):
     """
     Returns True if the directory is empty; False otherwise
@@ -227,6 +237,8 @@ def should_domain_substitute(path, relative_path, search_regex, used_dep_set, us
     used_dep_set is a list of DOMAIN_EXCLUDE_PREFIXES that have been matched
     used_dip_set is a list of DOMAIN_INCLUDE_PATTERNS that have been matched
     """
+    if not _is_writable(path):
+        return False
     relative_path_posix = relative_path.as_posix().lower()
     for include_pattern in DOMAIN_INCLUDE_PATTERNS:
         if PurePosixPath(relative_path_posix).match(include_pattern):
