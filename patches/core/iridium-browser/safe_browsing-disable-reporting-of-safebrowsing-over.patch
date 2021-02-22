@@ -1,108 +1,34 @@
-From 8f348bf2c249701de2f6049ac57fe346bd6b665f Mon Sep 17 00:00:00 2001
-From: Joachim Bauch <jojo@struktur.de>
+From c89ce946e5328ca8a7df923d421e904bb6bfe9b6 Mon Sep 17 00:00:00 2001
+From: Jan Engelhardt <jengelh@inai.de>
 Date: Tue, 7 Jul 2015 18:28:46 +0200
-Subject: [PATCH 48/66] safe_browsing: disable reporting of safebrowsing
+Subject: [PATCH 63/76] safe_browsing: disable reporting of safebrowsing
  override
 
 Disables reporting of the safebrowsing override, i.e. the report sent
 if a user decides to visit a page that was flagged as "insecure".
 This prevents trk:148 (phishing) and trk:149 (malware).
 ---
- .../browser/safe_browsing/client_side_detection_service.cc   | 12 ++++++++++++
- 1 file changed, 12 insertions(+)
+ components/safe_browsing/content/browser/client_side_detection_service.cc   | 5 +++++
+ 1 file changed, 5 insertions(+)
 
---- a/chrome/browser/safe_browsing/client_side_detection_service.cc
-+++ b/chrome/browser/safe_browsing/client_side_detection_service.cc
-@@ -221,90 +221,8 @@ void ClientSideDetectionService::StartCl
-     ClientReportPhishingRequestCallback callback) {
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+--- a/components/safe_browsing/content/browser/client_side_detection_service.cc
++++ b/components/safe_browsing/content/browser/client_side_detection_service.cc
+@@ -216,6 +216,10 @@ void ClientSideDetectionService::StartCl
+     return;
+   }
  
--  if (!enabled_) {
--    if (!callback.is_null())
--      std::move(callback).Run(GURL(request->url()), false);
--    return;
--  }
--
--  // Fill in metadata about which model we used.
--  request->set_model_filename(model_loader_->name());
--  if (is_extended_reporting || is_enhanced_reporting) {
--    if (is_enhanced_reporting) {
--      request->mutable_population()->set_user_population(
--          ChromeUserPopulation::ENHANCED_PROTECTION);
--    } else {
--      request->mutable_population()->set_user_population(
--          ChromeUserPopulation::EXTENDED_REPORTING);
--    }
--  } else {
--    request->mutable_population()->set_user_population(
--        ChromeUserPopulation::SAFE_BROWSING);
--  }
--  request->mutable_population()->set_profile_management_status(
--      GetProfileManagementStatus(
--          g_browser_process->browser_policy_connector()));
--
--  std::string request_data;
--  request->SerializeToString(&request_data);
--
--  net::NetworkTrafficAnnotationTag traffic_annotation =
--      net::DefineNetworkTrafficAnnotation(
--          "safe_browsing_client_side_phishing_detector", R"(
--          semantics {
--            sender: "Safe Browsing Client-Side Phishing Detector"
--            description:
--              "If the client-side phishing detector determines that the "
--              "current page contents are similar to phishing pages, it will "
--              "send a request to Safe Browsing to ask for a final verdict. If "
--              "Safe Browsing agrees the page is dangerous, Chrome will show a "
--              "full-page interstitial warning."
--            trigger:
--              "Whenever the clinet-side detector machine learning model "
--              "computes a phishy-ness score above a threshold, after page-load."
--            data:
--              "Top-level page URL without CGI parameters, boolean and double "
--              "features extracted from DOM, such as the number of resources "
--              "loaded in the page, if certain likely phishing and social "
--              "engineering terms found on the page, etc."
--            destination: GOOGLE_OWNED_SERVICE
--          }
--          policy {
--            cookies_allowed: YES
--            cookies_store: "Safe browsing cookie store"
--            setting:
--              "Users can enable or disable this feature by toggling 'Protect "
--              "you and your device from dangerous sites' in Chrome settings "
--              "under Privacy. This feature is enabled by default."
--            chrome_policy {
--              SafeBrowsingEnabled {
--                policy_options {mode: MANDATORY}
--                SafeBrowsingEnabled: false
--              }
--            }
--          })");
--  auto resource_request = std::make_unique<network::ResourceRequest>();
--  resource_request->url = GetClientReportUrl(kClientReportPhishingUrl);
--  resource_request->method = "POST";
--  resource_request->load_flags = net::LOAD_DISABLE_CACHE;
--  auto loader = network::SimpleURLLoader::Create(std::move(resource_request),
--                                                 traffic_annotation);
--  loader->AttachStringForUpload(request_data, "application/octet-stream");
--  loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
--      url_loader_factory_.get(),
--      base::BindOnce(&ClientSideDetectionService::OnURLLoaderComplete,
--                     base::Unretained(this), loader.get()));
--
--  // Remember which callback and URL correspond to the current fetcher object.
--  std::unique_ptr<ClientPhishingReportInfo> info(new ClientPhishingReportInfo);
--  auto* loader_ptr = loader.get();
--  info->loader = std::move(loader);
--  info->callback = std::move(callback);
--  info->phishing_url = GURL(request->url());
--  client_phishing_reports_[loader_ptr] = std::move(info);
--
--  // Record that we made a request
--  phishing_report_times_.push(base::Time::Now());
++#if 1
 +  if (!callback.is_null())
-+    std::move(callback).Run(GURL(request->url()), false);
++    callback.Run(GURL(request->url()), false);
++#else
+   // Fill in metadata about which model we used.
+   request->set_model_filename(model_loader_->name());
+   if (is_extended_reporting || is_enhanced_reporting) {
+@@ -293,6 +297,7 @@ void ClientSideDetectionService::StartCl
+ 
+   // Record that we made a request
+   phishing_report_times_.push(base::Time::Now());
++#endif
  }
  
  void ClientSideDetectionService::HandlePhishingVerdict(
