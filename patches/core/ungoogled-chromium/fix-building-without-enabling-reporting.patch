@@ -22,3 +22,157 @@
        "net/reporting_service_proxy.cc",
        "net/reporting_service_proxy.h",
      ]
+--- a/third_party/blink/renderer/core/frame/local_frame.cc
++++ b/third_party/blink/renderer/core/frame/local_frame.cc
+@@ -38,6 +38,7 @@
+ #include "base/unguessable_token.h"
+ #include "mojo/public/cpp/bindings/self_owned_receiver.h"
+ #include "mojo/public/cpp/system/message_pipe.h"
++#include "net/net_buildflags.h"
+ #include "services/data_decoder/public/mojom/resource_snapshot_for_web_bundle.mojom-blink.h"
+ #include "services/network/public/cpp/features.h"
+ #include "services/network/public/mojom/content_security_policy.mojom-blink.h"
+@@ -551,7 +552,9 @@ void LocalFrame::Trace(Visitor* visitor)
+   visitor->Trace(raw_system_clipboard_);
+   visitor->Trace(virtual_keyboard_overlay_changed_observers_);
+   visitor->Trace(pause_handle_receivers_);
++#if BUILDFLAG(ENABLE_REPORTING)
+   visitor->Trace(reporting_service_);
++#endif
+ #if defined(OS_MAC)
+   visitor->Trace(text_input_host_);
+ #endif
+@@ -2273,6 +2276,7 @@ const base::UnguessableToken& LocalFrame
+   return base::UnguessableToken::Null();
+ }
+ 
++#if BUILDFLAG(ENABLE_REPORTING)
+ mojom::blink::ReportingServiceProxy* LocalFrame::GetReportingService() {
+   if (!reporting_service_.is_bound()) {
+     GetBrowserInterfaceBroker().GetInterface(
+@@ -2281,6 +2285,7 @@ mojom::blink::ReportingServiceProxy* Loc
+   }
+   return reporting_service_.get();
+ }
++#endif
+ 
+ // static
+ void LocalFrame::NotifyUserActivation(
+--- a/third_party/blink/renderer/core/frame/local_frame.h
++++ b/third_party/blink/renderer/core/frame/local_frame.h
+@@ -38,6 +38,7 @@
+ #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
+ #include "mojo/public/cpp/bindings/unique_receiver_set.h"
++#include "net/net_buildflags.h"
+ #include "third_party/blink/public/common/frame/transient_allow_fullscreen.h"
+ #include "third_party/blink/public/mojom/blob/blob_url_store.mojom-blink.h"
+ #include "third_party/blink/public/mojom/frame/back_forward_cache_controller.mojom-blink.h"
+@@ -521,9 +522,9 @@ class CORE_EXPORT LocalFrame final
+   }
+ 
+   SmoothScrollSequencer& GetSmoothScrollSequencer();
+-
++#if BUILDFLAG(ENABLE_REPORTING)
+   mojom::blink::ReportingServiceProxy* GetReportingService();
+-
++#endif
+   // Returns the frame host ptr. The interface returned is backed by an
+   // associated interface with the legacy Chrome IPC channel.
+   mojom::blink::LocalFrameHost& GetLocalFrameHostRemote() const;
+--- a/third_party/blink/renderer/core/frame/reporting_context.cc
++++ b/third_party/blink/renderer/core/frame/reporting_context.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "third_party/blink/renderer/core/frame/reporting_context.h"
+ 
++#include "net/net_buildflags.h"
+ #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+ #include "third_party/blink/public/platform/platform.h"
+ #include "third_party/blink/public/platform/task_type.h"
+@@ -54,7 +55,9 @@ const char ReportingContext::kSupplement
+ ReportingContext::ReportingContext(ExecutionContext& context)
+     : Supplement<ExecutionContext>(context),
+       execution_context_(context),
++#if BUILDFLAG(ENABLE_REPORTING)
+       reporting_service_(&context),
++#endif
+       receiver_(this, &context) {}
+ 
+ // static
+@@ -118,7 +121,9 @@ void ReportingContext::Trace(Visitor* vi
+   visitor->Trace(observers_);
+   visitor->Trace(report_buffer_);
+   visitor->Trace(execution_context_);
++#if BUILDFLAG(ENABLE_REPORTING)
+   visitor->Trace(reporting_service_);
++#endif
+   visitor->Trace(receiver_);
+   Supplement<ExecutionContext>::Trace(visitor);
+ }
+@@ -140,6 +145,7 @@ void ReportingContext::CountReport(Repor
+   UseCounter::Count(execution_context_, feature);
+ }
+ 
++#if BUILDFLAG(ENABLE_REPORTING)
+ const HeapMojoRemote<mojom::blink::ReportingServiceProxy>&
+ ReportingContext::GetReportingService() const {
+   if (!reporting_service_.is_bound()) {
+@@ -149,6 +155,7 @@ ReportingContext::GetReportingService()
+   }
+   return reporting_service_;
+ }
++#endif
+ 
+ void ReportingContext::NotifyInternal(Report* report) {
+   // Buffer the report.
+@@ -171,6 +178,7 @@ void ReportingContext::NotifyInternal(Re
+ 
+ void ReportingContext::SendToReportingAPI(Report* report,
+                                           const String& endpoint) const {
++#if BUILDFLAG(ENABLE_REPORTING)
+   const String& type = report->type();
+   if (!(type == ReportType::kCSPViolation || type == ReportType::kDeprecation ||
+         type == ReportType::kFeaturePolicyViolation ||
+@@ -227,6 +235,7 @@ void ReportingContext::SendToReportingAP
+         "Document policy violation", body->sourceFile(), line_number,
+         column_number);
+   }
++#endif
+ }
+ 
+ }  // namespace blink
+--- a/third_party/blink/renderer/core/frame/reporting_context.h
++++ b/third_party/blink/renderer/core/frame/reporting_context.h
+@@ -5,6 +5,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_REPORTING_CONTEXT_H_
+ #define THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_REPORTING_CONTEXT_H_
+ 
++#include "net/net_buildflags.h"
+ #include "third_party/blink/public/mojom/frame/reporting_observer.mojom-blink.h"
+ #include "third_party/blink/public/mojom/reporting/reporting.mojom-blink.h"
+ #include "third_party/blink/renderer/core/core_export.h"
+@@ -53,10 +54,10 @@ class CORE_EXPORT ReportingContext : pub
+  private:
+   // Counts the use of a report type via UseCounter.
+   void CountReport(Report*);
+-
++#if BUILDFLAG(ENABLE_REPORTING)
+   const HeapMojoRemote<mojom::blink::ReportingServiceProxy>&
+   GetReportingService() const;
+-
++#endif
+   void NotifyInternal(Report* report);
+   // Send |report| via the Reporting API to |endpoint|.
+   void SendToReportingAPI(Report* report, const String& endpoint) const;
+@@ -67,8 +68,10 @@ class CORE_EXPORT ReportingContext : pub
+ 
+   // This is declared mutable so that the service endpoint can be cached by
+   // const methods.
++#if BUILDFLAG(ENABLE_REPORTING)
+   mutable HeapMojoRemote<mojom::blink::ReportingServiceProxy>
+       reporting_service_;
++#endif
+ 
+   HeapMojoReceiver<mojom::blink::ReportingObserver, ReportingContext> receiver_;
+ };
