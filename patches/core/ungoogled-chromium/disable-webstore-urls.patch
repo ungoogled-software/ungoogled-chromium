@@ -15,14 +15,18 @@
  
 --- a/chrome/browser/extensions/chrome_content_verifier_delegate.cc
 +++ b/chrome/browser/extensions/chrome_content_verifier_delegate.cc
-@@ -288,13 +288,7 @@ bool ChromeContentVerifierDelegate::IsFr
+@@ -289,17 +289,7 @@ bool ChromeContentVerifierDelegate::IsFr
    // between which extensions are considered in-store.
    // See https://crbug.com/766806 for details.
-   if (!InstallVerifier::IsFromStore(extension)) {
+   if (!InstallVerifier::IsFromStore(extension, context_)) {
 -    // It's possible that the webstore update url was overridden for testing
 -    // so also consider extensions with the default (production) update url
--    // to be from the store as well.
--    if (ManifestURL::GetUpdateURL(&extension) !=
+-    // to be from the store as well. Therefore update URL is compared with
+-    // |GetDefaultWebstoreUpdateUrl|, not the |GetWebstoreUpdateUrl| used by
+-    // |IsWebstoreUpdateUrl|.
+-    ExtensionManagement* extension_management =
+-        ExtensionManagementFactory::GetForBrowserContext(context_);
+-    if (extension_management->GetEffectiveUpdateURL(extension) !=
 -        extension_urls::GetDefaultWebstoreUpdateUrl()) {
 -      return false;
 -    }
@@ -72,7 +76,7 @@
  };
 --- a/extensions/browser/updater/extension_downloader.cc
 +++ b/extensions/browser/updater/extension_downloader.cc
-@@ -95,27 +95,18 @@ const char kNotFromWebstoreInstallSource
+@@ -94,27 +94,18 @@ const char kNotFromWebstoreInstallSource
  const char kDefaultInstallSource[] = "";
  const char kReinstallInstallSource[] = "reinstall";
  
@@ -102,7 +106,7 @@
  
  bool ShouldRetryRequest(const network::SimpleURLLoader* loader) {
    DCHECK(loader);
-@@ -332,12 +323,6 @@ void ExtensionDownloader::DoStartAllPend
+@@ -310,12 +301,6 @@ void ExtensionDownloader::DoStartAllPend
    ReportStats();
    url_stats_ = URLStats();
  
@@ -115,7 +119,7 @@
    fetches_preparing_.clear();
  }
  
-@@ -376,11 +361,6 @@ bool ExtensionDownloader::AddExtensionDa
+@@ -354,11 +339,6 @@ bool ExtensionDownloader::AddExtensionDa
      return false;
    }
  
@@ -127,7 +131,7 @@
    // Skip extensions with empty IDs.
    if (id.empty()) {
      DLOG(WARNING) << "Found extension with empty ID";
-@@ -389,12 +369,10 @@ bool ExtensionDownloader::AddExtensionDa
+@@ -367,12 +347,10 @@ bool ExtensionDownloader::AddExtensionDa
      return false;
    }
  
@@ -142,7 +146,7 @@
    } else {
      url_stats_.other_url_count++;
    }
-@@ -864,20 +842,6 @@ void ExtensionDownloader::HandleManifest
+@@ -842,20 +820,6 @@ void ExtensionDownloader::HandleManifest
          update->info);
    }
  
@@ -163,7 +167,7 @@
    NotifyExtensionsDownloadStageChanged(
        no_updates, ExtensionDownloaderDelegate::Stage::FINISHED);
    NotifyExtensionsDownloadFailed(
-@@ -1426,11 +1390,7 @@ bool ExtensionDownloader::IterateFetchCr
+@@ -1404,11 +1368,7 @@ bool ExtensionDownloader::IterateFetchCr
    // fetch.
    switch (fetch->credentials) {
      case ExtensionFetch::CREDENTIALS_NONE:
@@ -176,14 +180,3 @@
        return true;
      case ExtensionFetch::CREDENTIALS_OAUTH2_TOKEN:
        fetch->oauth2_attempt_count++;
---- a/extensions/common/extension_urls.cc
-+++ b/extensions/common/extension_urls.cc
-@@ -26,7 +26,7 @@ bool IsSourceFromAnExtension(const base:
- 
- namespace extension_urls {
- 
--const char kChromeWebstoreBaseURL[] = "https://chrome.google.com/webstore";
-+const char kChromeWebstoreBaseURL[] = "trk:09:https://chrome.google.com/webstore";
- const char kChromeWebstoreUpdateURL[] =
-     "trk:05:https://clients2.google.com/service/update2/crx";
- 

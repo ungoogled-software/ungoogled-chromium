@@ -2,9 +2,9 @@
 
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -13,10 +13,6 @@
- #include "net/base/url_util.h"
+@@ -14,10 +14,6 @@
  #include "services/network/public/mojom/url_response_head.mojom.h"
+ #include "services/network/public/mojom/x_frame_options.mojom.h"
  
 -#if BUILDFLAG(ENABLE_EXTENSIONS)
 -#include "extensions/common/extension_urls.h"
@@ -13,7 +13,7 @@
  namespace {
  
  #if defined(OS_ANDROID)
-@@ -58,53 +54,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -59,53 +55,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -67,7 +67,7 @@
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -114,37 +63,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -115,37 +64,6 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
@@ -105,19 +105,25 @@
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -152,16 +70,5 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -153,22 +71,5 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
--  // Built-in additional protection for the chrome web store origin.
+-  // Built-in additional protection for the chrome web store origin by ensuring
+-  // that the X-Frame-Options protection mechanism is set to either DENY or
+-  // SAMEORIGIN.
 -  GURL webstore_url(extension_urls::GetWebstoreLaunchURL());
 -  if (response_url.SchemeIsHTTPOrHTTPS() &&
 -      response_url.DomainIs(webstore_url.host_piece())) {
--    if (response_head && response_head->headers &&
--        !response_head->headers->HasHeaderValue("x-frame-options", "deny") &&
--        !response_head->headers->HasHeaderValue("x-frame-options",
--                                                "sameorigin")) {
--      response_head->headers->AddHeader("x-frame-options", "sameorigin");
+-    // TODO(mkwst): Consider shifting this to a NavigationThrottle rather than
+-    // relying on implicit ordering between this check and the time at which
+-    // ParsedHeaders is created.
+-    CHECK(response_head);
+-    CHECK(response_head->parsed_headers);
+-    if (response_head->parsed_headers->xfo !=
+-        network::mojom::XFrameOptionsValue::kDeny) {
+-      response_head->parsed_headers->xfo =
+-          network::mojom::XFrameOptionsValue::kSameOrigin;
 -    }
 -  }
  }
@@ -235,7 +241,7 @@
  
  // Global functions -----------------------------------------------------------
 @@ -143,12 +40,6 @@ bool IsGoogleSearchSubdomainUrl(const GU
- const char kGoogleHomepageURL[] = "https://www.google.com/";
+ const char kGoogleHomepageURL[] = "trk:113:https://www.google.com/";
  
  bool HasGoogleSearchQueryParam(base::StringPiece str) {
 -  url::Component query(0, static_cast<int>(str.length())), key, value;
@@ -476,7 +482,7 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -513,11 +513,7 @@ base::string16 TemplateURLRef::SearchTer
+@@ -526,11 +526,7 @@ base::string16 TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -574,7 +580,7 @@
  }  // namespace variations
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -415,27 +415,6 @@ bool HasGoogleHost(const GURL& url) {
+@@ -430,27 +430,6 @@ bool HasGoogleHost(const GURL& url) {
  }
  
  bool IsGoogleHost(base::StringPiece host) {
