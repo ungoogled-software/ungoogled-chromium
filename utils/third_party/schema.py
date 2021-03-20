@@ -270,17 +270,16 @@ class Schema(object):
                             raise SchemaForbiddenKeyError(
                                     'Forbidden key encountered: %r in %r' %
                                     (nkey, data), e)
+                        try:
+                            nvalue = Schema(svalue, error=e,
+                                            ignore_extra_keys=i).validate(value)
+                        except SchemaError as x:
+                            k = "Key '%s' error:" % nkey
+                            raise SchemaError([k] + x.autos, [e] + x.errors)
                         else:
-                            try:
-                                nvalue = Schema(svalue, error=e,
-                                                ignore_extra_keys=i).validate(value)
-                            except SchemaError as x:
-                                k = "Key '%s' error:" % nkey
-                                raise SchemaError([k] + x.autos, [e] + x.errors)
-                            else:
-                                new[nkey] = nvalue
-                                coverage.add(skey)
-                                break
+                            new[nkey] = nvalue
+                            coverage.add(skey)
+                            break
             required = {k for k in s if type(k) not in [Optional, Forbidden]}
             if not required.issubset(coverage):
                 missing_keys = required - coverage
