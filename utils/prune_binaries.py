@@ -10,6 +10,7 @@ import argparse
 from pathlib import Path
 
 from _common import ENCODING, get_logger, add_common_params
+import sys
 
 
 def prune_dir(unpack_root, prune_files):
@@ -32,7 +33,7 @@ def prune_dir(unpack_root, prune_files):
 def _callback(args):
     if not args.directory.exists():
         get_logger().error('Specified directory does not exist: %s', args.directory)
-        exit(1)
+        sys.exit(1)
     if not args.pruning_list.exists():
         get_logger().error('Could not find the pruning list: %s', args.pruning_list)
     prune_files = tuple(filter(len, args.pruning_list.read_text(encoding=ENCODING).splitlines()))
@@ -41,7 +42,7 @@ def _callback(args):
         get_logger().error('%d files could not be pruned.', len(unremovable_files))
         get_logger().debug('Files could not be pruned:\n%s',
                            '\n'.join(f for f in unremovable_files))
-        exit(1)
+        sys.exit(1)
 
 
 def main():

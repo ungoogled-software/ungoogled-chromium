@@ -365,7 +365,7 @@ def _retrieve_callback(args):
         check_downloads(DownloadInfo(args.ini), args.cache)
     except HashMismatchError as exc:
         get_logger().error('File checksum does not match: %s', exc)
-        exit(1)
+        sys.exit(1)
 
 
 def _unpack_callback(args):
