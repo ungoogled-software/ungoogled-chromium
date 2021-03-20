@@ -67,7 +67,7 @@ class SchemaUnexpectedTypeError(SchemaError):
     pass
 
 
-class And(object):
+class And:
     """
     Utility function to combine validation directives in AND Boolean fashion.
     """
@@ -120,7 +120,7 @@ class Or(And):
                           x.errors)
 
 
-class Regex(object):
+class Regex:
     """
     Enables schema.py to validate string using regular expressions.
     """
@@ -163,7 +163,7 @@ class Regex(object):
             raise SchemaError('%r is not string nor buffer' % data, e)
 
 
-class Use(object):
+class Use:
     """
     For more general use cases, you can use the Use class to transform
     the data while it is being validate.
@@ -209,7 +209,7 @@ def _priority(s):
         return COMPARABLE
 
 
-class Schema(object):
+class Schema:
     """
     Entry point of the library, use this class to instantiate validation
     schema for the data that will be validated.
