@@ -281,7 +281,7 @@ class Schema(object):
                                 new[nkey] = nvalue
                                 coverage.add(skey)
                                 break
-            required = set(k for k in s if type(k) not in [Optional, Forbidden])
+            required = {k for k in s if type(k) not in [Optional, Forbidden]}
             if not required.issubset(coverage):
                 missing_keys = required - coverage
                 s_missing_keys = \
@@ -298,8 +298,8 @@ class Schema(object):
                         e.format(data) if e else None)
 
             # Apply default-having optionals that haven't been used:
-            defaults = set(k for k in s if type(k) is Optional and
-                           hasattr(k, 'default')) - coverage
+            defaults = {k for k in s if type(k) is Optional and
+                           hasattr(k, 'default')} - coverage
             for default in defaults:
                 new[default.key] = default.default
 
