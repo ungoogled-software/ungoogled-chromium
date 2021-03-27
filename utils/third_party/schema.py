@@ -67,7 +67,7 @@ class SchemaUnexpectedTypeError(SchemaError):
     pass
 
 
-class And(object):
+class And:
     """
     Utility function to combine validation directives in AND Boolean fashion.
     """
@@ -120,7 +120,7 @@ class Or(And):
                           x.errors)
 
 
-class Regex(object):
+class Regex:
     """
     Enables schema.py to validate string using regular expressions.
     """
@@ -163,7 +163,7 @@ class Regex(object):
             raise SchemaError('%r is not string nor buffer' % data, e)
 
 
-class Use(object):
+class Use:
     """
     For more general use cases, you can use the Use class to transform
     the data while it is being validate.
@@ -209,7 +209,7 @@ def _priority(s):
         return COMPARABLE
 
 
-class Schema(object):
+class Schema:
     """
     Entry point of the library, use this class to instantiate validation
     schema for the data that will be validated.
@@ -270,18 +270,17 @@ class Schema(object):
                             raise SchemaForbiddenKeyError(
                                     'Forbidden key encountered: %r in %r' %
                                     (nkey, data), e)
+                        try:
+                            nvalue = Schema(svalue, error=e,
+                                            ignore_extra_keys=i).validate(value)
+                        except SchemaError as x:
+                            k = "Key '%s' error:" % nkey
+                            raise SchemaError([k] + x.autos, [e] + x.errors)
                         else:
-                            try:
-                                nvalue = Schema(svalue, error=e,
-                                                ignore_extra_keys=i).validate(value)
-                            except SchemaError as x:
-                                k = "Key '%s' error:" % nkey
-                                raise SchemaError([k] + x.autos, [e] + x.errors)
-                            else:
-                                new[nkey] = nvalue
-                                coverage.add(skey)
-                                break
-            required = set(k for k in s if type(k) not in [Optional, Forbidden])
+                            new[nkey] = nvalue
+                            coverage.add(skey)
+                            break
+            required = {k for k in s if type(k) not in [Optional, Forbidden]}
             if not required.issubset(coverage):
                 missing_keys = required - coverage
                 s_missing_keys = \
@@ -298,8 +297,8 @@ class Schema(object):
                         e.format(data) if e else None)
 
             # Apply default-having optionals that haven't been used:
-            defaults = set(k for k in s if type(k) is Optional and
-                           hasattr(k, 'default')) - coverage
+            defaults = {k for k in s if type(k) is Optional and
+                           hasattr(k, 'default')} - coverage
             for default in defaults:
                 new[default.key] = default.default
 

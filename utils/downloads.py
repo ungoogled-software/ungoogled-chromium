@@ -88,7 +88,7 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
             if name in self._passthrough_properties:
                 return self._section_dict.get(name, fallback=None)
             if name == 'hashes':
-                hashes_dict = dict()
+                hashes_dict = {}
                 for hash_name in (*self._hashes, 'hash_url'):
                     value = self._section_dict.get(hash_name, fallback=None)
                     if value:
@@ -365,7 +365,7 @@ def _retrieve_callback(args):
         check_downloads(DownloadInfo(args.ini), args.cache)
     except HashMismatchError as exc:
         get_logger().error('File checksum does not match: %s', exc)
-        exit(1)
+        sys.exit(1)
 
 
 def _unpack_callback(args):

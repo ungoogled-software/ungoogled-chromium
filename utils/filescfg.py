@@ -177,7 +177,7 @@ def main():
         type=Path,
         metavar='PATH',
         action='append',
-        default=list(),
+        default=[],
         help=('File or directory to include in the root of the archive. Specify '
               'multiple times to include multiple different items. '
               'For zip files, these contents must only be regular files.'))

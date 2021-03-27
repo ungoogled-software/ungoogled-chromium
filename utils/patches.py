@@ -155,7 +155,7 @@ def merge_patches(source_iter, destination, prepend=False):
     destination must not already exist, unless prepend is True. If prepend is True, then
     the source patches will be prepended to the destination.
     """
-    series = list()
+    series = []
     known_paths = set()
     if destination.exists():
         if prepend:
