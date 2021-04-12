@@ -105,7 +105,7 @@ These binaries are known as **contributor binaries**.
 Also, ungoogled-chromium is available in several **software repositories**:
 
 * Android: Available via a custom [F-Droid](https://f-droid.org/) repo. [See instructions in ungoogled-chromium-android](https://github.com/ungoogled-software/ungoogled-chromium-android#f-droid-repository)
-* Arch: Available in [AUR](https://aur.archlinux.org/) as [`ungoogled-chromium`](https://aur.archlinux.org/packages/ungoogled-chromium/)
+* Arch: Available in AUR & OBS, [see instructions in ungoogled-chromium-archlinux](//github.com/ungoogled-software/ungoogled-chromium-archlinux)
 * Debian & Ubuntu: Available in OBS, find your [distribution specific instructions](//github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
 * Fedora & CentOS: Available in OBS, by following [instructions](//github.com/ungoogled-software/ungoogled-chromium-fedora) in the downloads section. For Fedora also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy`.
 * Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
