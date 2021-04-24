@@ -35,7 +35,7 @@
      GURL rewritten_tab_url = tab_url;
 --- a/components/omnibox/browser/autocomplete_input.cc
 +++ b/components/omnibox/browser/autocomplete_input.cc
-@@ -526,7 +526,8 @@ void AutocompleteInput::ParseForEmphasiz
+@@ -552,7 +552,8 @@ void AutocompleteInput::ParseForEmphasiz
    // For the view-source and blob schemes, we should emphasize the host of the
    // URL qualified by the view-source or blob prefix.
    if ((base::LowerCaseEqualsASCII(scheme_str, kViewSourceScheme) ||
@@ -45,20 +45,9 @@
        (static_cast<int>(text.length()) > after_scheme_and_colon)) {
      // Obtain the URL prefixed by view-source or blob and parse it.
      base::string16 real_url(text.substr(after_scheme_and_colon));
-@@ -599,7 +600,9 @@ int AutocompleteInput::NumNonHostCompone
- bool AutocompleteInput::HasHTTPScheme(const base::string16& input) {
-   std::string utf8_input(base::UTF16ToUTF8(input));
-   url::Component scheme;
--  if (url::FindAndCompareScheme(utf8_input, kViewSourceScheme, &scheme)) {
-+  if (url::FindAndCompareScheme(utf8_input, url::kTraceScheme, &scheme)) {
-+    return false;
-+  } else if (url::FindAndCompareScheme(utf8_input, kViewSourceScheme, &scheme)) {
-     utf8_input.erase(0, scheme.end() + 1);
-   }
-   return url::FindAndCompareScheme(utf8_input, url::kHttpScheme, nullptr);
 --- a/components/url_formatter/url_fixer.cc
 +++ b/components/url_formatter/url_fixer.cc
-@@ -560,6 +560,10 @@ GURL FixupURL(const std::string& text, c
+@@ -562,6 +562,10 @@ GURL FixupURL(const std::string& text, c
      }
    }
  
@@ -71,7 +60,7 @@
      return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
 --- a/content/browser/child_process_security_policy_impl.cc
 +++ b/content/browser/child_process_security_policy_impl.cc
-@@ -772,6 +772,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
+@@ -793,6 +793,7 @@ ChildProcessSecurityPolicyImpl::ChildPro
  #endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
    RegisterWebSafeScheme(url::kFtpScheme);
    RegisterWebSafeScheme(url::kDataScheme);
@@ -81,7 +70,7 @@
    // TODO(nick): https://crbug.com/651534 blob: and filesystem: schemes embed
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
-@@ -1086,6 +1086,8 @@ component("net") {
+@@ -1075,6 +1075,8 @@ component("net") {
        "url_request/report_sender.h",
        "url_request/static_http_user_agent_settings.cc",
        "url_request/static_http_user_agent_settings.h",
@@ -211,9 +200,9 @@
  const char kQuicTransportScheme[] = "quic-transport";
  const char kTelScheme[] = "tel";
 +const char kTraceScheme[] = "trk";
+ const char kUrnScheme[] = "urn";
  const char kWsScheme[] = "ws";
  const char kWssScheme[] = "wss";
- 
 --- a/url/url_constants.h
 +++ b/url/url_constants.h
 @@ -32,6 +32,7 @@ COMPONENT_EXPORT(URL) extern const char
@@ -221,9 +210,9 @@
  COMPONENT_EXPORT(URL) extern const char kQuicTransportScheme[];
  COMPONENT_EXPORT(URL) extern const char kTelScheme[];
 +COMPONENT_EXPORT(URL) extern const char kTraceScheme[];
+ COMPONENT_EXPORT(URL) extern const char kUrnScheme[];
  COMPONENT_EXPORT(URL) extern const char kWsScheme[];
  COMPONENT_EXPORT(URL) extern const char kWssScheme[];
- 
 --- a/url/url_util.cc
 +++ b/url/url_util.cc
 @@ -62,7 +62,7 @@ struct SchemeRegistry {
