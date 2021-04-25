@@ -19,6 +19,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--fingerprinting-canvas-measuretext-noise` | (Added flag to Bromite feature) Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.
   `--fingerprinting-client-rects-noise` | (Added flag to Bromite feature) Implements fingerprinting deception of JS APIs `getClientRects()` and `getBoundingClientRect()` by scaling their output values with a random factor in the range -0.0003% to 0.0003%, which are recomputed for every document instantiation.
   `--hide-crashed-bubble` | Hides the bubble box with the message "Restore Pages? Chromium didn't shut down correctly." that shows on startup after the browser did not exit cleanly.
+  `--keep-old-history` | Disables deletion of local browser history after 90 days
   `--max-connections-per-host` | (from Bromite) Configure the maximum allowed connections per host. Valid values are `6` and `15`
   `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages.  Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
