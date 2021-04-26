@@ -60,7 +60,7 @@ The resulting source tree in `build/src` *will not* have binaries pruned or doma
 1. Run `source devutils/set_quilt_vars.sh`
     * This will setup quilt to modify patches directly in `patches/`
 2. Go into the source tree: `cd build/src`
-3. Use `quilt` to refresh all patches: `while quilt push; do quilt refresh; done`
+3. Use `quilt` to refresh all patches: `quilt push -a --refresh`
 	* If an error occurs, go to the next step. Otherwise, skip to Step 5.
 4. Use `quilt` to fix the broken patch:
     1. Run `quilt push -f`
