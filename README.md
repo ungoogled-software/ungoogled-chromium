@@ -113,7 +113,7 @@ Also, ungoogled-chromium is available in several **software repositories**:
 
 If your GNU/Linux distribution is not listed, there are distro-independent builds available via the following **package managers**:
 
-* Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/com.github.Eloston.UngoogledChromium) as `com.github.Eloston.UngoogledChromium`
+* Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/com.github.Eloston.UngoogledChromium) as `com.github.Eloston.UngoogledChromium`. Flatpak related issues should be created in [flathub/com.github.Eloston.UngoogledChromium](https://github.com/flathub/com.github.Eloston.UngoogledChromium)
 * GNU Guix: Available as `ungoogled-chromium`
 * NixOS/nixpkgs: Available as `ungoogled-chromium`
 
