@@ -6,8 +6,10 @@ labels: ''
 assignees: ''
 
 ---
-
-Is your issue related to the ungoogled-chromium flatpak _ONLY_? If so, please direct it to https://github.com/flathub/com.github.Eloston.UngoogledChromium/issues/new. Otherwise delete this line.
+<!-----
+Is your issue related to the ungoogled-chromium flatpak ONLY? If so, please direct it to
+https://github.com/flathub/com.github.Eloston.UngoogledChromium/issues/new instead!
+------>
 
 **Describe the bug**
 A clear and concise description of what the bug is.
