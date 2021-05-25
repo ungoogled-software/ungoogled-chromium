@@ -6,11 +6,11 @@
  #include "components/download/public/common/download_interrupt_reasons_utils.h"
  #include "components/download/public/common/download_item.h"
  #include "components/download/public/common/download_stats.h"
--#include "components/download/quarantine/quarantine.h"
+-#include "components/services/quarantine/quarantine.h"
  #include "crypto/secure_hash.h"
  
  #if defined(OS_WIN)
-@@ -533,133 +532,12 @@ DownloadInterruptReason BaseFile::Publis
+@@ -533,105 +532,6 @@ DownloadInterruptReason BaseFile::Publis
  }
  #endif  // defined(OS_ANDROID)
  
@@ -88,34 +88,6 @@
 -
 -}  // namespace
 -
--#if defined(OS_WIN) || defined(OS_APPLE) || defined(OS_LINUX) || \
--    defined(OS_CHROMEOS)
--
--DownloadInterruptReason BaseFile::AnnotateWithSourceInformationSync(
--    const std::string& client_guid,
--    const GURL& source_url,
--    const GURL& referrer_url) {
--  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
--  DCHECK(!detached_);
--  DCHECK(!full_path_.empty());
--
--  CONDITIONAL_TRACE(BEGIN0("download", "DownloadFileAnnotate"));
--  QuarantineFileResult result = QuarantineFile(
--      full_path_, GetEffectiveAuthorityURL(source_url, referrer_url),
--      referrer_url, client_guid);
--  CONDITIONAL_TRACE(END0("download", "DownloadFileAnnotate"));
--
--  return QuarantineFileResultToReason(result);
--}
--#else  // !OS_WIN && !OS_APPLE && !OS_LINUX && !OS_CHROMEOS
- DownloadInterruptReason BaseFile::AnnotateWithSourceInformationSync(
-     const std::string& client_guid,
-     const GURL& source_url,
-     const GURL& referrer_url) {
-   return DOWNLOAD_INTERRUPT_REASON_NONE;
- }
--#endif
--
 -void BaseFile::OnFileQuarantined(
 -    bool connection_error,
 -    quarantine::mojom::QuarantineFileResult result) {
@@ -144,17 +116,19 @@
  
  void BaseFile::AnnotateWithSourceInformation(
      const std::string& client_guid,
-@@ -667,30 +545,8 @@ void BaseFile::AnnotateWithSourceInforma
+@@ -639,32 +539,8 @@ void BaseFile::AnnotateWithSourceInforma
      const GURL& referrer_url,
      mojo::PendingRemote<quarantine::mojom::Quarantine> remote_quarantine,
      OnAnnotationDoneCallback on_annotation_done_callback) {
 -  GURL authority_url = GetEffectiveAuthorityURL(source_url, referrer_url);
 -  if (!remote_quarantine) {
 -#if defined(OS_WIN)
--    QuarantineFileResult result = quarantine::SetInternetZoneIdentifierDirectly(
--        full_path_, authority_url, referrer_url);
+-    quarantine::mojom::QuarantineFileResult result =
+-        quarantine::SetInternetZoneIdentifierDirectly(full_path_, authority_url,
+-                                                      referrer_url);
 -#else
--    QuarantineFileResult result = QuarantineFileResult::ANNOTATION_FAILED;
+-    quarantine::mojom::QuarantineFileResult result =
+-        quarantine::mojom::QuarantineFileResult::ANNOTATION_FAILED;
 -#endif
 -    std::move(on_annotation_done_callback)
 -        .Run(QuarantineFileResultToReason(result));
@@ -179,17 +153,17 @@
  }  // namespace download
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -64,7 +64,6 @@ source_set("browser") {
-     "//components/discardable_memory/service",
-     "//components/download/database",
-     "//components/download/public/common:public",
--    "//components/download/quarantine",
-     "//components/filename_generation",
-     "//components/link_header_util",
-     "//components/metrics",
+@@ -78,7 +78,6 @@ source_set("browser") {
+     "//components/payments/mojom",
+     "//components/power_scheduler",
+     "//components/services/filesystem:lib",
+-    "//components/services/quarantine:quarantine",
+     "//components/services/storage",
+     "//components/services/storage:filesystem_proxy_factory",
+     "//components/services/storage/dom_storage:local_storage_proto",
 --- a/content/browser/renderer_host/pepper/pepper_file_io_host.cc
 +++ b/content/browser/renderer_host/pepper/pepper_file_io_host.cc
-@@ -437,7 +437,7 @@ void PepperFileIOHost::OnLocalFileOpened
+@@ -438,7 +438,7 @@ void PepperFileIOHost::OnLocalFileOpened
      ppapi::host::ReplyMessageContext reply_context,
      const base::FilePath& path,
      base::File::Error error_code) {
@@ -198,7 +172,7 @@
    // Quarantining a file before its contents are available is only supported on
    // Windows and Linux.
    if (!FileOpenForWrite(open_flags_) || error_code != base::File::FILE_OK) {
-@@ -458,7 +458,7 @@ void PepperFileIOHost::OnLocalFileOpened
+@@ -472,7 +472,7 @@ void PepperFileIOHost::OnLocalFileOpened
  #endif
  }
  
@@ -213,17 +187,19 @@
  #include "base/macros.h"
  #include "base/memory/ref_counted.h"
  #include "base/memory/weak_ptr.h"
--#include "components/download/quarantine/quarantine.h"
+-#include "components/services/quarantine/public/mojom/quarantine.mojom.h"
  #include "content/browser/renderer_host/pepper/browser_ppapi_host_impl.h"
  #include "ipc/ipc_listener.h"
  #include "ipc/ipc_platform_file.h"
-@@ -90,10 +89,6 @@ class PepperFileIOHost : public ppapi::h
+@@ -91,12 +90,6 @@ class PepperFileIOHost : public ppapi::h
                           const base::FilePath& path,
                           base::File::Error error_code);
  
--  void OnLocalFileQuarantined(ppapi::host::ReplyMessageContext reply_context,
--                              const base::FilePath& path,
--                              download::QuarantineFileResult quarantine_result);
+-  void OnLocalFileQuarantined(
+-      ppapi::host::ReplyMessageContext reply_context,
+-      const base::FilePath& path,
+-      mojo::Remote<quarantine::mojom::Quarantine> quarantine_remote,
+-      quarantine::mojom::QuarantineFileResult quarantine_result);
 -
    void SendFileOpenReply(ppapi::host::ReplyMessageContext reply_context,
                           base::File::Error error_code);
