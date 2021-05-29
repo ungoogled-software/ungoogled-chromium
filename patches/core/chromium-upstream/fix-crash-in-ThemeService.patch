@@ -1,0 +1,43 @@
+From c2d0133f47afb59b4ce64e42215d1d053f15250a Mon Sep 17 00:00:00 2001
+From: Stephan Hartmann <stha09@googlemail.com>
+Date: Tue, 13 Apr 2021 23:21:42 +0000
+Subject: [PATCH] fix crash in ThemeService
+
+ThemeSyncableService and ThemeService are owned by each other. On
+destruction of ThemeService, ThemeSyncableService gets destructed as
+well, but calls RemoveObserver of partly destructed ThemeService object.
+To avoid already destructed |observers_| list, move it before
+|theme_syncable_service_| definition.
+
+Bug: 1190561
+Change-Id: I4dc2c990d589071d97b7fa737afef54463c84751
+Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/2821311
+Commit-Queue: Peter Kasting <pkasting@chromium.org>
+Reviewed-by: Peter Kasting <pkasting@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#872164}
+---
+
+diff --git a/chrome/browser/themes/theme_service.h b/chrome/browser/themes/theme_service.h
+index 592d40a..337dfac9 100644
+--- a/chrome/browser/themes/theme_service.h
++++ b/chrome/browser/themes/theme_service.h
+@@ -299,6 +299,10 @@
+   // The number of infobars currently displayed.
+   int number_of_reinstallers_ = 0;
+ 
++  // Declared before |theme_syncable_service_|, because ThemeSyncableService
++  // removes itself from the |observers_| list on destruction.
++  base::ObserverList<ThemeServiceObserver> observers_;
++
+   std::unique_ptr<ThemeSyncableService> theme_syncable_service_;
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+@@ -320,8 +324,6 @@
+   ScopedObserver<ui::NativeTheme, ui::NativeThemeObserver>
+       native_theme_observer_{this};
+ 
+-  base::ObserverList<ThemeServiceObserver> observers_;
+-
+   base::WeakPtrFactory<ThemeService> weak_ptr_factory_{this};
+ 
+   DISALLOW_COPY_AND_ASSIGN(ThemeService);
