@@ -7,4 +7,9 @@ assignees: ''
 
 ---
 
-*IMPORTANT: Please ensure you have read SUPPORT.md before continuing*
+<!--
+*** IMPORTANT ***
+
+Please ensure you have read SUPPORT.md before continuing:
+https://github.com/Eloston/ungoogled-chromium/blob/master/SUPPORT.md
+-->
