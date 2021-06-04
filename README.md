@@ -96,11 +96,11 @@ Other platforms are discussed and tracked in this repository's Issue Tracker. Le
 
 ## Downloads
 
-[**Download binaries from here**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+An automated, reproducible, and dependency-free build of ungoogled-chromium for 64-bit Linux is available on the [releases page](//github.com/Eloston/ungoogled-chromium/releases).  It can be unpacked anywhere on the file system and invoked with `./bin/chromium` from the directory it was unpacked to.  It is updated daily using [GNU Guix](https://guix.gnu.org) and a custom [GitHub action](/.github/workflows/portable-build.yml).
+
+For other operating systems, **contributor binaries** can be [downloaded from here](//ungoogled-software.github.io/ungoogled-chromium-binaries/).
 
 *NOTE: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).*
-
-These binaries are known as **contributor binaries**.
 
 Also, ungoogled-chromium is available in several **software repositories**:
 
