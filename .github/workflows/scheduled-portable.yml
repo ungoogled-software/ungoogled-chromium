@@ -1,0 +1,74 @@
+name: Create portable executable
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '40 3,15 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Guix cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/guix
+          key: guix-cache-${{ github.sha }}
+          restore-keys: |
+            guix-cache-
+      - name: Install Guix
+        uses: PromyLOPH/guix-install-action@v1
+      - name: Assert that substitute is available
+        run: guix weather ungoogled-chromium
+      - name: Download substitutes
+        run: guix build --no-grafts --fallback ungoogled-chromium
+      - name: Install Recutils
+        run: sudo apt-get -q install recutils
+      - name: Export Guix version
+        run: >
+          echo version=$(guix show ungoogled-chromium | recsel -P version)
+          >> $GITHUB_ENV
+      - name: Create Guix pack
+        run: >
+          guix pack --fallback -RR -S /bin=bin
+          --root=ungoogled-chromium-${{ env.version }}.tar.gz
+          ungoogled-chromium
+      - name: Export Guix commit
+        run: >
+          echo shortcommit=$(echo ${{ env.version }} | cut -d- -f2 | cut -d. -f2)
+          >> $GITHUB_ENV
+      - name: Export long commit
+        run: echo commit=$(git rev-parse ${{ env.shortcommit }}) >> $GITHUB_ENV
+      - name: Create release notes
+        run: |
+          echo "Chromium version: $(echo ${{ env.version }} | cut -d- -f1)" >> release_notes.md
+          echo "Ungoogled revision: $(echo ${{ env.commit }})" >> release_notes.md
+          echo >> release_notes.md
+          echo "Built with GNU Guix on commit " >> release_notes.md
+          echo "$(guix --version | head -n 1 | awk '{ print $NF }')." >> release_notes.md
+          echo >> release_notes.md
+      - name: Update tag
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: latest-portable
+          commit_sha: ${{ env.commit }}
+          message: Latest portable build (${{ env.version }})
+          force_push_tag: true
+      - name: Upload release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: ungoogled-chromium-${{ env.version }}.tar.gz
+          artifactContentType: application/gzip
+          bodyFile: release_notes.md
+          omitBodyDuringUpdate: false
+          omitName: true
+          omitNameDuringUpdate: true
+          tag: latest-portable
+          commit: "${{ env.commit }}"
+          token: "${{ secrets.GITHUB_TOKEN }}"
