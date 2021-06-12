@@ -109,7 +109,7 @@ Also, ungoogled-chromium is available in several **software repositories**:
 * Debian & Ubuntu: Available in OBS, find your [distribution specific instructions](//github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
 * Fedora & CentOS: Available in OBS, by following [instructions](//github.com/ungoogled-software/ungoogled-chromium-fedora) in the downloads section. For Fedora also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy`.
 * Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
-* macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew fetch --cask eloston-chromium` and `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
+* macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
 
 If your GNU/Linux distribution is not listed, there are distro-independent builds available via the following **package managers**:
 
