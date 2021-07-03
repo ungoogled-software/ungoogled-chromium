@@ -1,0 +1,160 @@
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -64,4 +64,8 @@
+      "Keep old history",
+      "Keep history older than 3 months.  ungoogled-chromium flag",
+      kOsAll, SINGLE_VALUE_TYPE("keep-old-history")},
++    {"prevent-autoplay",
++     "PreventAutoplay",
++     "Prevents media from playing automatically.  ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(media::kPreventAutoplay)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/media/base/media_switches.cc
++++ b/media/base/media_switches.cc
+@@ -859,6 +859,8 @@ const base::Feature kUseFakeDeviceForMed
+ const base::Feature kBresenhamCadence{"BresenhamCadence",
+                                       base::FEATURE_DISABLED_BY_DEFAULT};
+ 
++const base::Feature kPreventAutoplay{"PreventAutoplay", base::FEATURE_DISABLED_BY_DEFAULT};
++
+ bool IsVideoCaptureAcceleratedJpegDecodingEnabled() {
+   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+           switches::kDisableAcceleratedMjpegDecode)) {
+--- a/media/base/media_switches.h
++++ b/media/base/media_switches.h
+@@ -236,6 +236,8 @@ MEDIA_EXPORT extern const base::Feature
+ MEDIA_EXPORT extern const base::Feature kDeprecateLowUsageCodecs;
+ #endif
+ 
++MEDIA_EXPORT extern const base::Feature kPreventAutoplay;
++
+ // Based on a |command_line| and the current platform, returns the effective
+ // autoplay policy. In other words, it will take into account the default policy
+ // if none is specified via the command line and options passed for testing.
+--- a/third_party/blink/renderer/core/dom/document.cc
++++ b/third_party/blink/renderer/core/dom/document.cc
+@@ -4331,6 +4331,7 @@ void Document::SetURL(const KURL& url) {
+   if (GetFrame()) {
+     if (FrameScheduler* frame_scheduler = GetFrame()->GetFrameScheduler())
+       frame_scheduler->TraceUrlChange(url_.GetString());
++    GetFrame()->ClearRealUserActivation();
+   }
+ }
+ 
+--- a/third_party/blink/renderer/core/frame/local_frame.h
++++ b/third_party/blink/renderer/core/frame/local_frame.h
+@@ -796,7 +796,17 @@ class CORE_EXPORT LocalFrame final
+   // event.
+   void DidActivateForPrerendering();
+ 
++  void RealUserActivation() { rua_time_ = base::TimeTicks::Now(); }
++  void ClearRealUserActivation() { rua_time_ = base::TimeTicks(); rua_allowed_ = false; }
++  bool HasRealUserActivation() {
++    if (!rua_allowed_) rua_allowed_ = (base::TimeTicks::Now() - rua_time_).InSeconds() < 1;
++    return rua_allowed_;
++  }
++
+  private:
++  bool rua_allowed_ = false;
++  base::TimeTicks rua_time_ = base::TimeTicks();
++
+   friend class FrameNavigationDisabler;
+   FRIEND_TEST_ALL_PREFIXES(LocalFrameTest, CharacterIndexAtPointWithPinchZoom);
+   FRIEND_TEST_ALL_PREFIXES(WebFrameTest, SmartClipData);
+--- a/third_party/blink/renderer/core/html/media/html_media_element.cc
++++ b/third_party/blink/renderer/core/html/media/html_media_element.cc
+@@ -2471,6 +2471,7 @@ bool HTMLMediaElement::ended() const {
+ }
+ 
+ bool HTMLMediaElement::Autoplay() const {
++  if (base::FeatureList::IsEnabled(media::kPreventAutoplay)) return false;
+   return FastHasAttribute(html_names::kAutoplayAttr);
+ }
+ 
+@@ -2579,6 +2580,17 @@ ScriptPromise HTMLMediaElement::playForB
+ base::Optional<DOMExceptionCode> HTMLMediaElement::Play() {
+   DVLOG(2) << "play(" << *this << ")";
+ 
++  if (base::FeatureList::IsEnabled(media::kPreventAutoplay)) {
++    if (!GetDocument().GetFrame()->HasRealUserActivation()) {
++      if (rua_mute_state_ == -1) rua_mute_state_ = muted_;
++      return DOMExceptionCode::kNotAllowedError;
++    }
++    if (rua_mute_state_ > -1) {
++      if (muted_ != rua_mute_state_) setMuted(rua_mute_state_);
++      rua_mute_state_ = -1;
++    }
++  }
++
+   base::Optional<DOMExceptionCode> exception_code =
+       autoplay_policy_->RequestPlay();
+ 
+--- a/third_party/blink/renderer/core/html/media/html_media_element.h
++++ b/third_party/blink/renderer/core/html/media/html_media_element.h
+@@ -754,6 +754,8 @@ class CORE_EXPORT HTMLMediaElement
+   // playback raters other than 1.0.
+   bool preserves_pitch_ = true;
+ 
++  signed char rua_mute_state_ = -1;
++
+   // Keeps track of when the player seek event was sent to the browser process.
+   base::TimeTicks last_seek_update_time_;
+ 
+--- a/third_party/blink/renderer/core/input/event_handler.cc
++++ b/third_party/blink/renderer/core/input/event_handler.cc
+@@ -829,6 +829,7 @@ WebInputEventResult EventHandler::Handle
+     return WebInputEventResult::kHandledSuppressed;
+   }
+ 
++  frame_->RealUserActivation();
+   LocalFrame::NotifyUserActivation(
+       frame_, mojom::blink::UserActivationNotificationType::kInteraction,
+       RuntimeEnabledFeatures::BrowserVerifiedUserActivationMouseEnabled());
+--- a/third_party/blink/renderer/core/input/gesture_manager.cc
++++ b/third_party/blink/renderer/core/input/gesture_manager.cc
+@@ -224,6 +224,7 @@ WebInputEventResult GestureManager::Hand
+       FlooredIntPoint(gesture_event.PositionInRootFrame());
+   Node* tapped_node = current_hit_test.InnerNode();
+   Element* tapped_element = current_hit_test.InnerElement();
++  if(tapped_node) tapped_node->GetDocument().GetFrame()->RealUserActivation();
+   LocalFrame::NotifyUserActivation(
+       tapped_node ? tapped_node->GetDocument().GetFrame() : nullptr,
+       mojom::blink::UserActivationNotificationType::kInteraction);
+@@ -375,6 +376,7 @@ WebInputEventResult GestureManager::Hand
+     return WebInputEventResult::kNotHandled;
+   }
+ 
++  if(inner_node) inner_node->GetDocument().GetFrame()->RealUserActivation();
+   LocalFrame::NotifyUserActivation(
+       inner_node ? inner_node->GetDocument().GetFrame() : nullptr,
+       mojom::blink::UserActivationNotificationType::kInteraction);
+--- a/third_party/blink/renderer/core/input/keyboard_event_manager.cc
++++ b/third_party/blink/renderer/core/input/keyboard_event_manager.cc
+@@ -208,6 +208,7 @@ WebInputEventResult KeyboardEventManager
+   if (!is_modifier && initial_key_event.dom_key != ui::DomKey::ESCAPE &&
+       (initial_key_event.GetType() == WebInputEvent::Type::kKeyDown ||
+        initial_key_event.GetType() == WebInputEvent::Type::kRawKeyDown)) {
++    frame_->RealUserActivation();
+     LocalFrame::NotifyUserActivation(
+         frame_, mojom::blink::UserActivationNotificationType::kInteraction,
+         RuntimeEnabledFeatures::BrowserVerifiedUserActivationKeyboardEnabled());
+--- a/third_party/blink/renderer/core/input/pointer_event_manager.cc
++++ b/third_party/blink/renderer/core/input/pointer_event_manager.cc
+@@ -645,6 +645,7 @@ WebInputEventResult PointerEventManager:
+   // associated with so just pick the pointer event that comes.
+   if (event.GetType() == WebInputEvent::Type::kPointerUp &&
+       !non_hovering_pointers_canceled_ && pointer_event_target.target_frame) {
++    pointer_event_target.target_frame->RealUserActivation();
+     LocalFrame::NotifyUserActivation(
+         pointer_event_target.target_frame,
+         mojom::blink::UserActivationNotificationType::kInteraction);
+--- a/third_party/blink/renderer/modules/mediasession/media_session.cc
++++ b/third_party/blink/renderer/modules/mediasession/media_session.cc
+@@ -409,6 +409,7 @@ void MediaSession::DidReceiveAction(
+   LocalDOMWindow* window = GetSupplementable()->DomWindow();
+   if (!window)
+     return;
++  window->GetFrame()->RealUserActivation();
+   LocalFrame::NotifyUserActivation(
+       window->GetFrame(),
+       mojom::blink::UserActivationNotificationType::kInteraction);

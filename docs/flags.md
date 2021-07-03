@@ -51,4 +51,5 @@ These are also available on the `chrome://flags` page.
 
   <code>Feature&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code> | Description
   -- | --
+  `PreventAutoplay` | Prevents media from playing automatically.
   `SetIpv6ProbeFalse` | Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
