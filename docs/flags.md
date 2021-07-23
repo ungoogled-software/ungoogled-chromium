@@ -31,6 +31,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--bookmark-bar-ntp` | Sets the visibility of the bookmark bar on the New Tab Page. Only takes the value `never`.
   `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed.  Only takes the value `never`.
   `--pdf-plugin-name` | Sets the internal PDF viewer plugin name. Useful for sites that probe JavaScript API `navigator.plugins`. Supports values `chrome` for Chrome, `edge` for Microsoft Edge. Default value when omitted is Chromium.
+  `--remove-tabsearch-button` | Removes the tabsearch button from the tabstrip.
   `--scroll-tabs` | Determines if scrolling will cause a switch to a neighboring tab if the cursor hovers over the tabs, or the empty space beside the tabs. The flag requires one the values: `always`, `never`, `incognito-and-guest`. When omitted, the default is to use platform-specific behavior, which is currently enabled only on desktop Linux.
   `--show-avatar-button` | Sets visibility of the avatar button. The flag requires one of the values: `always`, `incognito-and-guest` (only show Incognito or Guest modes), or `never`.
 
