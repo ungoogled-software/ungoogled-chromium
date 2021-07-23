@@ -161,6 +161,98 @@
      "//components/services/storage",
      "//components/services/storage:filesystem_proxy_factory",
      "//components/services/storage/dom_storage:local_storage_proto",
+--- a/content/browser/file_system_access/file_system_access_file_writer_impl.cc
++++ b/content/browser/file_system_access/file_system_access_file_writer_impl.cc
+@@ -11,7 +11,6 @@
+ #include "base/task/thread_pool.h"
+ #include "build/build_config.h"
+ #include "build/chromeos_buildflags.h"
+-#include "components/services/quarantine/quarantine.h"
+ #include "content/browser/file_system_access/file_system_access_error.h"
+ #include "content/browser/file_system_access/file_system_access_manager_impl.h"
+ #include "content/public/browser/content_browser_client.h"
+@@ -377,22 +376,9 @@ void FileSystemAccessFileWriterImpl::Did
+   // In case of error, the swap file URL will point to a valid filesystem
+   // location. The file at this URL will be deleted when the mojo pipe closes.
+   base::OnceCallback<void(base::File::Error)> result_callback;
+-  if (RequireSecurityChecks()) {
+-    GURL referrer_url = manager()->is_off_the_record() ? GURL() : context().url;
+-    mojo::Remote<quarantine::mojom::Quarantine> quarantine_remote;
+-    if (quarantine_connection_callback_) {
+-      quarantine_connection_callback_.Run(
+-          quarantine_remote.BindNewPipeAndPassReceiver());
+-    }
+-    result_callback =
+-        base::BindOnce(&FileSystemAccessFileWriterImpl::DidSwapFileDoQuarantine,
+-                       weak_factory_.GetWeakPtr(), url(), referrer_url,
+-                       std::move(quarantine_remote));
+-  } else {
+     result_callback = base::BindOnce(
+         &FileSystemAccessFileWriterImpl::DidSwapFileSkipQuarantine,
+         weak_factory_.GetWeakPtr());
+-  }
+   DoFileSystemOperation(
+       FROM_HERE, &FileSystemOperationRunner::MoveFileLocal,
+       std::move(result_callback), swap_url(), url(),
+@@ -417,7 +403,6 @@ void FileSystemAccessFileWriterImpl::Did
+ void FileSystemAccessFileWriterImpl::DidSwapFileDoQuarantine(
+     const storage::FileSystemURL& target_url,
+     const GURL& referrer_url,
+-    mojo::Remote<quarantine::mojom::Quarantine> quarantine_remote,
+     base::File::Error result) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ 
+@@ -448,37 +433,9 @@ void FileSystemAccessFileWriterImpl::Did
+       referrer_url.is_valid() && referrer_url.SchemeIsHTTPOrHTTPS()
+           ? referrer_url
+           : GURL();
+-
+-  if (quarantine_remote) {
+-    quarantine::mojom::Quarantine* raw_quarantine = quarantine_remote.get();
+-    raw_quarantine->QuarantineFile(
+-        target_url.path(), authority_url, referrer_url,
+-        GetContentClient()
+-            ->browser()
+-            ->GetApplicationClientGUIDForQuarantineCheck(),
+-        mojo::WrapCallbackWithDefaultInvokeIfNotRun(
+-            base::BindOnce(&FileSystemAccessFileWriterImpl::DidAnnotateFile,
+-                           weak_factory_.GetWeakPtr(),
+-                           std::move(quarantine_remote)),
+-            quarantine::mojom::QuarantineFileResult::ANNOTATION_FAILED));
+-  } else {
+-#if defined(OS_WIN)
+-    base::ThreadPool::PostTaskAndReplyWithResult(
+-        FROM_HERE, {base::MayBlock()},
+-        base::BindOnce(&quarantine::SetInternetZoneIdentifierDirectly,
+-                       target_url.path(), authority_url, referrer_url),
+-        base::BindOnce(&FileSystemAccessFileWriterImpl::DidAnnotateFile,
+-                       weak_factory_.GetWeakPtr(),
+-                       std::move(quarantine_remote)));
+-#else
+-    DidAnnotateFile(std::move(quarantine_remote),
+-                    quarantine::mojom::QuarantineFileResult::ANNOTATION_FAILED);
+-#endif
+-  }
+ }
+ 
+ void FileSystemAccessFileWriterImpl::DidAnnotateFile(
+-    mojo::Remote<quarantine::mojom::Quarantine> quarantine_remote,
+     quarantine::mojom::QuarantineFileResult result) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ 
+--- a/content/browser/file_system_access/file_system_access_file_writer_impl.h
++++ b/content/browser/file_system_access/file_system_access_file_writer_impl.h
+@@ -105,10 +105,8 @@ class CONTENT_EXPORT FileSystemAccessFil
+   void DidSwapFileDoQuarantine(
+       const storage::FileSystemURL& target_url,
+       const GURL& referrer_url,
+-      mojo::Remote<quarantine::mojom::Quarantine> quarantine_remote,
+       base::File::Error result);
+   void DidAnnotateFile(
+-      mojo::Remote<quarantine::mojom::Quarantine> quarantine_remote,
+       quarantine::mojom::QuarantineFileResult result);
+ 
+   // After write and quarantine checks should apply to paths on all filesystems
 --- a/content/browser/renderer_host/pepper/pepper_file_io_host.cc
 +++ b/content/browser/renderer_host/pepper/pepper_file_io_host.cc
 @@ -480,7 +480,7 @@ void PepperFileIOHost::OnLocalFileOpened
