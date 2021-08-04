@@ -13,7 +13,7 @@
  namespace {
  
  #if defined(OS_ANDROID)
-@@ -66,61 +62,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -64,52 +60,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -54,15 +54,6 @@
 -      google_util::IsGoogleHomePageUrl(request->url) ||
 -      google_util::IsGoogleSearchUrl(request->url);
 -  if (is_google_homepage_or_search) {
--    // TODO (crbug.com/1081510): Remove this experimental code once a final
--    // solution is agreed upon.
--    if (base::FeatureList::IsEnabled(features::kAndroidDarkSearch)) {
--      request->url = net::AppendOrReplaceQueryParameter(
--          request->url, "cs", night_mode_enabled_ ? "1" : "0");
--    }
--    base::UmaHistogramBoolean("Android.DarkTheme.DarkSearchRequested",
--                              night_mode_enabled_);
--
 -    if (base::FeatureList::IsEnabled(features::kRequestDesktopSiteForTablets) &&
 -        ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
 -      request->headers.SetHeader(kRequestDesktopDataHeader,
@@ -75,7 +66,7 @@
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -130,37 +71,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -119,37 +69,6 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
@@ -113,7 +104,7 @@
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -168,22 +78,5 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -157,22 +76,5 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
@@ -138,7 +129,7 @@
  #endif
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
-@@ -32,109 +32,6 @@ namespace google_util {
+@@ -33,109 +33,6 @@ namespace google_util {
  
  namespace {
  
@@ -248,20 +239,20 @@
  }  // namespace
  
  // Global functions -----------------------------------------------------------
-@@ -142,12 +39,6 @@ bool IsGoogleSearchSubdomainUrl(const GU
+@@ -143,12 +40,6 @@ bool IsGoogleSearchSubdomainUrl(const GU
  const char kGoogleHomepageURL[] = "trk:113:https://www.google.com/";
  
  bool HasGoogleSearchQueryParam(base::StringPiece str) {
 -  url::Component query(0, static_cast<int>(str.length())), key, value;
 -  while (url::ExtractQueryKeyValue(str.data(), &query, &key, &value)) {
 -    base::StringPiece key_str = str.substr(key.begin, key.len);
--    if (key_str == "q" || key_str == "as_q")
+-    if (key_str == "q" || key_str == "as_q" || key_str == "imgurl")
 -      return true;
 -  }
    return false;
  }
  
-@@ -158,161 +49,53 @@ std::string GetGoogleLocale(const std::s
+@@ -159,161 +50,53 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -289,7 +280,7 @@
 -  // so use Spain instead.
 -  if (country_code == "cat")
 -    return "es";
--  return country_code.as_string();
+-  return std::string(country_code);
 +  return "nolocale";
  }
  
@@ -372,7 +363,7 @@
 -  // Make sure the path is a known search path.
 -  base::StringPiece path(url.path_piece());
 -  bool is_home_page_base = IsPathHomePageBase(path);
--  if (!is_home_page_base && (path != "/search"))
+-  if (!is_home_page_base && path != "/search" && path != "/imgres")
 -    return false;
 -
 -  // Check for query parameter in URL parameter and hash fragment, depending on
@@ -439,7 +430,7 @@
  }
  
  bool IsGoogleSearchHostname(const GURL& url) {
--  base::Optional<std::string> result =
+-  absl::optional<std::string> result =
 -      page_load_metrics::GetGoogleHostnamePrefix(url);
 -  return result && result.value() == "www";
 +  return false;
@@ -448,10 +439,10 @@
  bool IsGoogleSearchResultUrl(const GURL& url) {
 --- a/components/page_load_metrics/common/page_load_metrics_util.cc
 +++ b/components/page_load_metrics/common/page_load_metrics_util.cc
-@@ -12,38 +12,7 @@
- namespace page_load_metrics {
+@@ -32,38 +32,7 @@ const char* kBufferTimerDelayParamName =
+ }  // namespace
  
- base::Optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
+ absl::optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
 -  const size_t registry_length =
 -      net::registry_controlled_domains::GetRegistryLength(
 -          url,
@@ -467,7 +458,7 @@
 -  const base::StringPiece hostname = url.host_piece();
 -  if (registry_length == 0 || registry_length == std::string::npos ||
 -      registry_length >= hostname.length()) {
--    return base::Optional<std::string>();
+-    return absl::optional<std::string>();
 -  }
 -
 -  // Removes the tld and the preceding dot.
@@ -479,12 +470,12 @@
 -
 -  if (!base::EndsWith(hostname_minus_registry, ".google",
 -                      base::CompareCase::INSENSITIVE_ASCII)) {
--    return base::Optional<std::string>();
+-    return absl::optional<std::string>();
 -  }
 -
 -  return std::string(hostname_minus_registry.substr(
 -      0, hostname_minus_registry.length() - strlen(".google")));
-+  return base::Optional<std::string>();
++  return absl::optional<std::string>();
  }
  
  bool IsGoogleHostname(const GURL& url) {
