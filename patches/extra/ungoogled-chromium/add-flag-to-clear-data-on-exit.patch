@@ -8,7 +8,29 @@
  #include "components/browsing_data/core/pref_names.h"
  #include "components/keep_alive_registry/keep_alive_types.h"
  #include "components/keep_alive_registry/scoped_keep_alive.h"
-@@ -277,8 +278,9 @@ void ChromeBrowsingDataLifetimeManager::
+@@ -137,6 +138,21 @@ class BrowsingDataRemoverObserver
+   std::unique_ptr<ScopedKeepAlive> keep_alive_;
+ };
+ 
++uint64_t AllOriginTypeMask() {
++  return content::BrowsingDataRemover::ORIGIN_TYPE_PROTECTED_WEB |
++         content::BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB;
++}
++
++uint64_t AllRemoveMask() {
++  return content::BrowsingDataRemover::DATA_TYPE_CACHE |
++         content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS |
++         chrome_browsing_data_remover::DATA_TYPE_CONTENT_SETTINGS |
++         chrome_browsing_data_remover::DATA_TYPE_FORM_DATA |
++         chrome_browsing_data_remover::DATA_TYPE_HISTORY |
++         chrome_browsing_data_remover::DATA_TYPE_PASSWORDS |
++         chrome_browsing_data_remover::DATA_TYPE_SITE_DATA;
++}
++
+ uint64_t GetOriginTypeMask(const base::Value& data_types) {
+   uint64_t result = 0;
+   for (const auto& data_type : data_types.GetList()) {
+@@ -277,8 +293,9 @@ void ChromeBrowsingDataLifetimeManager::
      bool keep_browser_alive) {
    auto* data_types = profile_->GetPrefs()->GetList(
        browsing_data::prefs::kClearBrowsingDataOnExitList);
@@ -20,14 +42,14 @@
      profile_->GetPrefs()->SetBoolean(
          browsing_data::prefs::kClearBrowsingDataOnExitDeletionPending, true);
      auto* remover = profile_->GetBrowsingDataRemover();
-@@ -294,8 +296,8 @@ void ChromeBrowsingDataLifetimeManager::
+@@ -294,8 +311,8 @@ void ChromeBrowsingDataLifetimeManager::
                                  KeepAliveRestartOption::DISABLED)
                            : nullptr;
      remover->RemoveAndReply(base::Time(), base::Time::Max(),
 -                            GetRemoveMask(*data_types),
 -                            GetOriginTypeMask(*data_types),
-+                            cdoe ? 0xffffffffffffffffull : GetRemoveMask(*data_types),
-+                            cdoe ? 0xffffffffffffffffull : GetOriginTypeMask(*data_types),
++                            cdoe ? AllRemoveMask() : GetRemoveMask(*data_types),
++                            cdoe ? AllOriginTypeMask() : GetOriginTypeMask(*data_types),
                              BrowsingDataRemoverObserver::Create(
                                  remover, /*filterable_deletion=*/true, profile_,
                                  std::move(keep_alive)));
