@@ -59,3 +59,4 @@ These are also available on the `chrome://flags` page.
   <code>Feature&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code> | Description
   -- | --
   `ClearDataOnExit` | Clears all browsing data on exit.
+  `DisableQRGenerator` | Disables the QR generator for sharing page links.
