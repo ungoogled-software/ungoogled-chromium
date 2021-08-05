@@ -10,7 +10,7 @@ import argparse
 from pathlib import Path
 
 from _common import ENCODING, get_logger, add_common_params
-import sys
+import sys, os, stat
 
 
 def prune_dir(unpack_root, prune_files):
@@ -24,6 +24,9 @@ def prune_dir(unpack_root, prune_files):
     for relative_file in prune_files:
         file_path = unpack_root / relative_file
         try:
+            file_path.unlink()
+        except PermissionError:
+            os.chmod(file_path, stat.S_IWRITE)
             file_path.unlink()
         except FileNotFoundError:
             unremovable_files.add(Path(relative_file).as_posix())
