@@ -10,7 +10,9 @@ import argparse
 from pathlib import Path
 
 from _common import ENCODING, get_logger, add_common_params
-import sys, os, stat
+import sys
+import os
+import stat
 
 
 def prune_dir(unpack_root, prune_files):
@@ -25,6 +27,8 @@ def prune_dir(unpack_root, prune_files):
         file_path = unpack_root / relative_file
         try:
             file_path.unlink()
+        # read-only files can't be deleted on Windows
+        # so remove the flag and try again.
         except PermissionError:
             os.chmod(file_path, stat.S_IWRITE)
             file_path.unlink()
