@@ -1,5 +1,31 @@
 # Additional changes to Inox's fix-building-without-safebrowsing.patch
 
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -3583,9 +3583,6 @@ static_library("browser") {
+       "download/offline_item_model_manager_factory.h",
+       "enterprise/connectors/analysis/analysis_service_settings.cc",
+       "enterprise/connectors/analysis/analysis_service_settings.h",
+-      "enterprise/connectors/analysis/content_analysis_delegate.cc",
+-      "enterprise/connectors/analysis/content_analysis_delegate.h",
+-      "enterprise/connectors/analysis/content_analysis_delegate_base.h",
+       "enterprise/connectors/analysis/content_analysis_dialog.cc",
+       "enterprise/connectors/analysis/content_analysis_dialog.h",
+       "enterprise/connectors/analysis/content_analysis_downloads_delegate.cc",
+--- a/chrome/browser/accuracy_tips/accuracy_service_factory.cc
++++ b/chrome/browser/accuracy_tips/accuracy_service_factory.cc
+@@ -40,10 +40,7 @@ KeyedService* AccuracyServiceFactory::Bu
+     content::BrowserContext* profile) const {
+   DCHECK(base::FeatureList::IsEnabled(safe_browsing::kAccuracyTipsFeature));
+   auto ui = std::make_unique<ChromeAccuracyTipUI>();
+-  auto sb_database =
+-      g_browser_process->safe_browsing_service()
+-          ? g_browser_process->safe_browsing_service()->database_manager()
+-          : nullptr;
++  auto sb_database = nullptr;
+   return new accuracy_tips::AccuracyService(
+       std::move(ui), std::move(sb_database), content::GetUIThreadTaskRunner({}),
+       content::GetIOThreadTaskRunner({}));
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
 @@ -4109,11 +4109,13 @@ ChromeContentBrowserClient::CreateThrott
@@ -156,6 +182,39 @@
    }
    if (ShouldBlockFile(target_info->danger_type, item)) {
      MaybeReportDangerousDownloadBlocked(
+@@ -1513,10 +1510,10 @@ void ChromeDownloadManagerDelegate::Mayb
+     service->MaybeSendDangerousDownloadOpenedReport(download,
+                                                     show_download_in_folder);
+   }
+-#endif
+   safe_browsing::RecordDownloadOpened(download->GetDangerType(),
+                                       base::Time::Now(), download->GetEndTime(),
+                                       show_download_in_folder);
++#endif
+ }
+ 
+ void ChromeDownloadManagerDelegate::CheckDownloadAllowed(
+--- a/chrome/browser/download/download_stats.cc
++++ b/chrome/browser/download/download_stats.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/download/download_stats.h"
+ #include "components/profile_metrics/browser_profile_type.h"
++#include "components/safe_browsing/buildflags.h"
+ #include "components/safe_browsing/content/browser/download/download_stats.h"
+ 
+ #include "base/metrics/histogram_functions.h"
+@@ -26,8 +27,10 @@ void RecordDangerousDownloadWarningShown
+     bool has_user_gesture) {
+   base::UmaHistogramEnumeration("Download.ShowedDownloadWarning", danger_type,
+                                 download::DOWNLOAD_DANGER_TYPE_MAX);
++#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+   safe_browsing::RecordDangerousDownloadWarningShown(
+       danger_type, file_path, is_https, has_user_gesture);
++#endif
+ }
+ 
+ void RecordOpenedDangerousConfirmDialog(
 --- a/chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.cc
 +++ b/chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.cc
 @@ -38,14 +38,12 @@
@@ -1206,6 +1265,77 @@
  }
  
  void JavaScriptTabModalDialogManagerDelegateDesktop::DidCloseDialog() {
+--- a/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
++++ b/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
+@@ -11,7 +11,10 @@
+ #include "base/task/post_task.h"
+ #include "base/task/thread_pool.h"
+ #include "base/task_runner_util.h"
++#include "components/safe_browsing/buildflags.h"
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+ #include "chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.h"
++#endif
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
+ #include "content/public/browser/web_contents.h"
+@@ -22,6 +25,7 @@
+ 
+ namespace {
+ 
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+ void CompletionCallback(
+     content::WebContentsViewDelegate::DropCompletionCallback callback,
+     const enterprise_connectors::ContentAnalysisDelegate::Data& data,
+@@ -63,6 +67,7 @@ enterprise_connectors::ContentAnalysisDe
+   }
+   return data;
+ }
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+ // Helper class to handle WebContents being destroyed while files are opened in
+ // the threadpool. This class deletes itself either when it's no longer needed
+@@ -76,6 +81,7 @@ class HandleDropScanData : public conten
+       : content::WebContentsObserver(web_contents),
+         callback_(std::move(callback)) {}
+ 
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   void ScanData(
+       enterprise_connectors::ContentAnalysisDelegate::Data analysis_data) {
+     DCHECK(web_contents());
+@@ -87,6 +93,7 @@ class HandleDropScanData : public conten
+ 
+     delete this;
+   }
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ 
+   void WebContentsDestroyed() override { delete this; }
+ 
+@@ -106,13 +113,16 @@ void HandleOnPerformDrop(
+     content::WebContents* web_contents,
+     const content::DropData& drop_data,
+     content::WebContentsViewDelegate::DropCompletionCallback callback) {
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   enterprise_connectors::ContentAnalysisDelegate::Data data;
++#endif
+   Profile* profile =
+       Profile::FromBrowserContext(web_contents->GetBrowserContext());
+   auto connector =
+       drop_data.filenames.empty()
+           ? enterprise_connectors::AnalysisConnector::BULK_DATA_ENTRY
+           : enterprise_connectors::AnalysisConnector::FILE_ATTACHED;
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   if (!enterprise_connectors::ContentAnalysisDelegate::IsEnabled(
+           profile, web_contents->GetLastCommittedURL(), &data, connector)) {
+     std::move(callback).Run(
+@@ -141,4 +151,8 @@ void HandleOnPerformDrop(
+         base::BindOnce(&HandleDropScanData::ScanData,
+                        handle_drop_scan_data->GetWeakPtr()));
+   }
++#else
++  std::move(callback).Run(
++      content::WebContentsViewDelegate::DropCompletionResult::kContinue);
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ }
 --- a/chrome/browser/ui/views/download/download_item_view.cc
 +++ b/chrome/browser/ui/views/download/download_item_view.cc
 @@ -806,9 +806,7 @@ void DownloadItemView::UpdateLabels() {
@@ -1270,6 +1400,58 @@
  #if BUILDFLAG(IS_CHROMEOS_ASH)
    std::string enterprise_manager = GetDeviceManager();
    if (enterprise_manager.empty())
+--- a/chrome/browser/webshare/share_service_impl.cc
++++ b/chrome/browser/webshare/share_service_impl.cc
+@@ -15,7 +15,9 @@
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/safe_browsing/safe_browsing_service.h"
+ #include "chrome/common/chrome_features.h"
++#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+ #include "components/safe_browsing/content/common/file_type_policies.h"
++#endif
+ #include "components/safe_browsing/core/browser/db/database_manager.h"
+ #include "content/public/browser/web_contents.h"
+ #include "mojo/public/cpp/bindings/self_owned_receiver.h"
+@@ -183,11 +185,13 @@ void ShareServiceImpl::Share(const std::
+     // Check if at least one file is marked by the download protection service
+     // to send a ping to check this file type.
+     const base::FilePath path = base::FilePath::FromUTF8Unsafe(file->name);
++#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+     if (!should_check_url &&
+         safe_browsing::FileTypePolicies::GetInstance()->IsCheckedBinaryFile(
+             path)) {
+       should_check_url = true;
+     }
++#endif // BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+ 
+     // In the case where the original blob handle was to a native file (of
+     // unknown size), the serialized data does not contain an accurate file
+@@ -197,6 +201,7 @@ void ShareServiceImpl::Share(const std::
+   }
+ 
+   DCHECK(!safe_browsing_request_);
++#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+   if (should_check_url && g_browser_process->safe_browsing_service()) {
+     safe_browsing_request_.emplace(
+         g_browser_process->safe_browsing_service()->database_manager(),
+@@ -206,6 +211,7 @@ void ShareServiceImpl::Share(const std::
+                        std::move(files), std::move(callback)));
+     return;
+   }
++#endif // BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+ 
+   OnSafeBrowsingResultReceived(title, text, share_url, std::move(files),
+                                std::move(callback),
+--- a/components/omnibox/browser/autocomplete_controller.cc
++++ b/components/omnibox/browser/autocomplete_controller.cc
+@@ -15,6 +15,7 @@
+ 
+ #include "base/bind.h"
+ #include "base/check_op.h"
++#include "base/containers/contains.h"
+ #include "base/feature_list.h"
+ #include "base/format_macros.h"
+ #include "base/metrics/histogram.h"
 --- a/components/password_manager/content/browser/content_password_manager_driver.cc
 +++ b/components/password_manager/content/browser/content_password_manager_driver.cc
 @@ -318,7 +318,7 @@ void ContentPasswordManagerDriver::Check
@@ -1339,6 +1521,16 @@
  // Interface for setting the CSD model and to start phishing classification.
  interface PhishingDetector {
    // A classification model for client-side phishing detection.
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -9,6 +9,7 @@
+ #include <algorithm>
+ 
+ #include "base/check_op.h"
++#include "base/containers/contains.h"
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
+ #include "base/ranges/algorithm.h"
 --- a/content/browser/file_system_access/file_system_access_file_writer_impl.cc
 +++ b/content/browser/file_system_access/file_system_access_file_writer_impl.cc
 @@ -339,15 +339,8 @@ void FileSystemAccessFileWriterImpl::Clo
