@@ -1,0 +1,225 @@
+From: Marek Behún <kabel@kernel.org>
+
+For some reason, building with ThinLTO (via the use_thin_lto=true flag)
+fails when ungoogled-chromium patches are applied.
+
+The failure is caused by undefined references to various crashpad
+and breakpad symbols when linking.
+
+It seems that building some of the crashpad/breakpad libraries without
+LTO fixes this issues.
+
+This patch separates the ThinLTO stuff from config("compiler") into
+config("thinlto"), adds this new config into default_compiler_configs,
+and then removes this config from the relevant crashpad and breakpad
+libraries.
+
+diff --git a/build/config/BUILDCONFIG.gn b/build/config/BUILDCONFIG.gn
+--- a/build/config/BUILDCONFIG.gn
++++ b/build/config/BUILDCONFIG.gn
+@@ -319,6 +319,7 @@ default_compiler_configs = [
+   "//build/config/compiler:afdo_optimize_size",
+   "//build/config/compiler:cet_shadow_stack",
+   "//build/config/compiler:compiler",
++  "//build/config/compiler:thinlto",
+   "//build/config/compiler:compiler_arm_fpu",
+   "//build/config/compiler:compiler_arm_thumb",
+   "//build/config/compiler:chromium_code",
+diff --git a/build/config/compiler/BUILD.gn b/build/config/compiler/BUILD.gn
+--- a/build/config/compiler/BUILD.gn
++++ b/build/config/compiler/BUILD.gn
+@@ -610,6 +610,81 @@ config("compiler") {
+     ldflags += [ "-stdlib=libc++" ]
+   }
+ 
++  if (compiler_timing) {
++    if (is_clang && !is_nacl) {
++      cflags += [ "-ftime-trace" ]
++    } else if (is_win) {
++      cflags += [
++        # "Documented" here:
++        # http://aras-p.info/blog/2017/10/23/Best-unknown-MSVC-flag-d2cgsummary/
++        "/d2cgsummary",
++      ]
++    }
++  }
++
++  # Pass flag to LLD so Android builds can allow debuggerd to properly symbolize
++  # stack crashes (http://crbug.com/919499).
++  if (use_lld && is_android) {
++    ldflags += [ "-Wl,--no-rosegment" ]
++  }
++
++  # LLD does call-graph-sorted binary layout by default when profile data is
++  # present. On Android this increases binary size due to more thinks for long
++  # jumps. Turn it off by default and enable selectively for targets where it's
++  # beneficial.
++  if (use_lld && !enable_call_graph_profile_sort) {
++    if (is_win) {
++      ldflags += [ "/call-graph-profile-sort:no" ]
++    } else if (!is_apple) {
++      # TODO(thakis): Once LLD's Mach-O port basically works, implement call
++      # graph profile sorting for it, add an opt-out flag, and pass it here.
++      ldflags += [ "-Wl,--no-call-graph-profile-sort" ]
++    }
++  }
++
++  if (is_clang && !is_nacl && show_includes) {
++    if (is_win) {
++      # TODO(crbug.com/1223741): Goma mixes the -H and /showIncludes output.
++      assert(!use_goma, "show_includes on Windows is not reliable with goma")
++      cflags += [
++        "/clang:-H",
++        "/clang:-fshow-skipped-includes",
++      ]
++    } else {
++      cflags += [
++        "-H",
++        "-fshow-skipped-includes",
++      ]
++    }
++  }
++
++  # This flag enforces that member pointer base types are complete. It helps
++  # prevent us from running into problems in the Microsoft C++ ABI (see
++  # https://crbug.com/847724).
++  # TODO(crbug/1052397): Remove is_chromeos_lacros once lacros-chrome switches
++  # to target_os="chromeos".
++  if (is_clang && !is_nacl && target_os != "chromeos" && !use_xcode_clang &&
++      !is_chromeos_lacros && (is_win || use_custom_libcxx)) {
++    cflags += [ "-fcomplete-member-pointers" ]
++  }
++
++  # Pass the same C/C++ flags to the objective C/C++ compiler.
++  cflags_objc += cflags_c
++  cflags_objcc += cflags_cc
++
++  # Assign any flags set for the C compiler to asmflags so that they are sent
++  # to the assembler. The Windows assembler takes different types of flags
++  # so only do so for posix platforms.
++  if (is_posix || is_fuchsia) {
++    asmflags += cflags
++    asmflags += cflags_c
++  }
++}
++
++config("thinlto") {
++  cflags = []
++  ldflags = []
++
+   # Add flags for link-time optimization. These flags enable
+   # optimizations/transformations that require whole-program visibility at link
+   # time, so they need to be applied to all translation units, and we may end up
+@@ -693,76 +768,6 @@ config("compiler") {
+       ldflags += [ "-march=$arm_arch" ]
+     }
+   }
+-
+-  if (compiler_timing) {
+-    if (is_clang && !is_nacl) {
+-      cflags += [ "-ftime-trace" ]
+-    } else if (is_win) {
+-      cflags += [
+-        # "Documented" here:
+-        # http://aras-p.info/blog/2017/10/23/Best-unknown-MSVC-flag-d2cgsummary/
+-        "/d2cgsummary",
+-      ]
+-    }
+-  }
+-
+-  # Pass flag to LLD so Android builds can allow debuggerd to properly symbolize
+-  # stack crashes (http://crbug.com/919499).
+-  if (use_lld && is_android) {
+-    ldflags += [ "-Wl,--no-rosegment" ]
+-  }
+-
+-  # LLD does call-graph-sorted binary layout by default when profile data is
+-  # present. On Android this increases binary size due to more thinks for long
+-  # jumps. Turn it off by default and enable selectively for targets where it's
+-  # beneficial.
+-  if (use_lld && !enable_call_graph_profile_sort) {
+-    if (is_win) {
+-      ldflags += [ "/call-graph-profile-sort:no" ]
+-    } else if (!is_apple) {
+-      # TODO(thakis): Once LLD's Mach-O port basically works, implement call
+-      # graph profile sorting for it, add an opt-out flag, and pass it here.
+-      ldflags += [ "-Wl,--no-call-graph-profile-sort" ]
+-    }
+-  }
+-
+-  if (is_clang && !is_nacl && show_includes) {
+-    if (is_win) {
+-      # TODO(crbug.com/1223741): Goma mixes the -H and /showIncludes output.
+-      assert(!use_goma, "show_includes on Windows is not reliable with goma")
+-      cflags += [
+-        "/clang:-H",
+-        "/clang:-fshow-skipped-includes",
+-      ]
+-    } else {
+-      cflags += [
+-        "-H",
+-        "-fshow-skipped-includes",
+-      ]
+-    }
+-  }
+-
+-  # This flag enforces that member pointer base types are complete. It helps
+-  # prevent us from running into problems in the Microsoft C++ ABI (see
+-  # https://crbug.com/847724).
+-  # TODO(crbug/1052397): Remove is_chromeos_lacros once lacros-chrome switches
+-  # to target_os="chromeos".
+-  if (is_clang && !is_nacl && target_os != "chromeos" && !use_xcode_clang &&
+-      !is_chromeos_lacros && (is_win || use_custom_libcxx)) {
+-    cflags += [ "-fcomplete-member-pointers" ]
+-  }
+-
+-  # Pass the same C/C++ flags to the objective C/C++ compiler.
+-  cflags_objc += cflags_c
+-  cflags_objcc += cflags_cc
+-
+-  # Assign any flags set for the C compiler to asmflags so that they are sent
+-  # to the assembler. The Windows assembler takes different types of flags
+-  # so only do so for posix platforms.
+-  if (is_posix || is_fuchsia) {
+-    asmflags += cflags
+-    asmflags += cflags_c
+-  }
+ }
+ 
+ # The BUILDCONFIG file sets this config on targets by default, which means when
+diff --git a/third_party/breakpad/BUILD.gn b/third_party/breakpad/BUILD.gn
+--- a/third_party/breakpad/BUILD.gn
++++ b/third_party/breakpad/BUILD.gn
+@@ -590,6 +590,8 @@ if (is_linux || is_chromeos || is_androi
+   }
+ 
+   static_library("client") {
++    configs -= [ "//build/config/compiler:thinlto" ]
++
+     sources = [
+       "breakpad/src/client/linux/crash_generation/crash_generation_client.cc",
+       "breakpad/src/client/linux/crash_generation/crash_generation_client.h",
+diff --git a/third_party/crashpad/crashpad/client/BUILD.gn b/third_party/crashpad/crashpad/client/BUILD.gn
+--- a/third_party/crashpad/crashpad/client/BUILD.gn
++++ b/third_party/crashpad/crashpad/client/BUILD.gn
+@@ -102,6 +102,8 @@ crashpad_static_library("client") {
+ }
+ 
+ static_library("common") {
++  configs -= [ "//build/config/compiler:thinlto" ]
++
+   sources = [
+     "annotation.cc",
+     "annotation.h",
+diff --git a/third_party/crashpad/crashpad/util/BUILD.gn b/third_party/crashpad/crashpad/util/BUILD.gn
+--- a/third_party/crashpad/crashpad/util/BUILD.gn
++++ b/third_party/crashpad/crashpad/util/BUILD.gn
+@@ -170,6 +170,8 @@ if (crashpad_is_mac || crashpad_is_ios)
+ }
+ 
+ crashpad_static_library("util") {
++  remove_configs = [ "//build/config/compiler:thinlto" ]
++
+   sources = [
+     "file/delimited_file_reader.cc",
+     "file/delimited_file_reader.h",
