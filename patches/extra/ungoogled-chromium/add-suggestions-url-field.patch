@@ -17,19 +17,33 @@
        </div>
        <div slot="button-container">
          <cr-button class="cancel-button" on-click="cancel_" id="cancel">
---- a/chrome/browser/resources/settings/search_engines_page/search_engine_dialog.js
-+++ b/chrome/browser/resources/settings/search_engines_page/search_engine_dialog.js
-@@ -56,6 +56,9 @@ class SettingsSearchEngineDialogElement 
+--- a/chrome/browser/resources/settings/search_engines_page/search_engine_dialog.ts
++++ b/chrome/browser/resources/settings/search_engines_page/search_engine_dialog.ts
+@@ -26,6 +26,7 @@ interface SettingsSearchEngineDialogElem
+     dialog: CrDialogElement,
+     keyword: CrInputElement,
+     queryUrl: CrInputElement,
++    suggestionsUrl: CrInputElement,
+     searchEngine: CrInputElement,
+   };
+ }
+@@ -55,6 +56,7 @@ class SettingsSearchEngineDialogElement
+       searchEngine_: String,
+       keyword_: String,
        queryUrl_: String,
- 
-       /** @private {string} */
 +      suggestionsUrl_: String,
-+
-+      /** @private {string} */
        dialogTitle_: String,
- 
-       /** @private {string} */
-@@ -93,6 +96,7 @@ class SettingsSearchEngineDialogElement 
+       actionButtonText_: String,
+     };
+@@ -64,6 +66,7 @@ class SettingsSearchEngineDialogElement
+   private searchEngine_: string;
+   private keyword_: string;
+   private queryUrl_: string;
++  private suggestionsUrl_: string;
+   private dialogTitle_: string;
+   private actionButtonText_: string;
+   private browserProxy_: SearchEnginesBrowserProxy =
+@@ -93,6 +96,7 @@ class SettingsSearchEngineDialogElement
        this.searchEngine_ = this.model.name;
        this.keyword_ = this.model.keyword;
        this.queryUrl_ = this.model.url;
@@ -37,7 +51,7 @@
      } else {
        this.dialogTitle_ =
            loadTimeData.getString('searchEnginesAddSearchEngine');
-@@ -133,8 +137,12 @@ class SettingsSearchEngineDialogElement 
+@@ -128,8 +132,12 @@ class SettingsSearchEngineDialogElement
        }
      }
  
@@ -51,10 +65,10 @@
 +    ].forEach(element => this.validateElement_(element));
    }
  
-   /** @private */
-@@ -145,7 +153,8 @@ class SettingsSearchEngineDialogElement 
-   /** @private */
-   onActionButtonTap_() {
+   private cancel_() {
+@@ -138,7 +146,8 @@ class SettingsSearchEngineDialogElement
+ 
+   private onActionButtonTap_() {
      this.browserProxy_.searchEngineEditCompleted(
 -        this.searchEngine_, this.keyword_, this.queryUrl_);
 +        this.searchEngine_, this.keyword_, this.queryUrl_,
@@ -62,9 +76,9 @@
      this.$.dialog.close();
    }
  
-@@ -182,9 +191,11 @@ class SettingsSearchEngineDialogElement 
-   /** @private */
-   updateActionButtonState_() {
+@@ -166,9 +175,11 @@ class SettingsSearchEngineDialogElement
+ 
+   private updateActionButtonState_() {
      const allValid = [
 -      this.$.searchEngine, this.$.keyword, this.$.queryUrl
 +      this.$.searchEngine, this.$.keyword, this.$.queryUrl,
@@ -76,33 +90,31 @@
      });
      this.$.actionButton.disabled = !allValid;
    }
---- a/chrome/browser/resources/settings/search_engines_page/search_engines_browser_proxy.js
-+++ b/chrome/browser/resources/settings/search_engines_page/search_engines_browser_proxy.js
-@@ -28,6 +28,7 @@ import {addSingletonGetter, sendWithProm
-  *            modelIndex: number,
-  *            name: string,
-  *            url: string,
-+ *            suggestionsUrl: string,
-  *            urlLocked: boolean}}
-  * @see chrome/browser/ui/webui/settings/search_engine_manager_handler.cc
-  */
-@@ -60,8 +61,9 @@ export class SearchEnginesBrowserProxy {
-    * @param {string} searchEngine
-    * @param {string} keyword
-    * @param {string} queryUrl
-+   * @param {string} suggestionsUrl
-    */
--  searchEngineEditCompleted(searchEngine, keyword, queryUrl) {}
-+  searchEngineEditCompleted(searchEngine, keyword, queryUrl, suggestionsUrl) {}
+--- a/chrome/browser/resources/settings/search_engines_page/search_engines_browser_proxy.ts
++++ b/chrome/browser/resources/settings/search_engines_page/search_engines_browser_proxy.ts
+@@ -28,6 +28,7 @@ export type SearchEngine = {
+   modelIndex: number,
+   name: string,
+   url: string,
++  suggestionsUrl: string,
+   urlLocked: boolean,
+ };
  
-   /** @return {!Promise<!SearchEnginesInfo>} */
-   getSearchEnginesList() {}
-@@ -99,11 +101,12 @@ export class SearchEnginesBrowserProxyIm
+@@ -49,7 +50,7 @@ export interface SearchEnginesBrowserPro
+   searchEngineEditCancelled(): void;
+ 
+   searchEngineEditCompleted(
+-      searchEngine: string, keyword: string, queryUrl: string): void;
++      searchEngine: string, keyword: string, queryUrl: string, suggestionsUrl: string): void;
+ 
+   getSearchEnginesList(): Promise<SearchEnginesInfo>;
+ 
+@@ -76,11 +77,12 @@ export class SearchEnginesBrowserProxyIm
    }
  
-   /** @override */
--  searchEngineEditCompleted(searchEngine, keyword, queryUrl) {
-+  searchEngineEditCompleted(searchEngine, keyword, queryUrl, suggestionsUrl) {
+   searchEngineEditCompleted(
+-      searchEngine: string, keyword: string, queryUrl: string) {
++      searchEngine: string, keyword: string, queryUrl: string, suggestionsUrl: string) {
      chrome.send('searchEngineEditCompleted', [
        searchEngine,
        keyword,
@@ -260,7 +272,7 @@
    bool CanEdit(const TemplateURL* url) const;
 --- a/chrome/browser/ui/search_engines/template_url_table_model.cc
 +++ b/chrome/browser/ui/search_engines/template_url_table_model.cc
-@@ -112,20 +112,24 @@ void TemplateURLTableModel::Remove(int i
+@@ -109,20 +109,24 @@ void TemplateURLTableModel::Remove(int i
  void TemplateURLTableModel::Add(int index,
                                  const std::u16string& short_name,
                                  const std::u16string& keyword,
@@ -290,7 +302,7 @@
    DCHECK(index >= 0 && index <= RowCount());
    DCHECK(!url.empty());
    TemplateURL* template_url = GetTemplateURL(index);
-@@ -134,7 +138,8 @@ void TemplateURLTableModel::ModifyTempla
+@@ -131,7 +135,8 @@ void TemplateURLTableModel::ModifyTempla
    DCHECK(template_url_service_->GetDefaultSearchProvider() != template_url ||
           template_url->SupportsReplacement(
               template_url_service_->search_terms_data()));
@@ -426,17 +438,17 @@
    DCHECK(!IsCreatedByExtension(url));
    DCHECK(!keyword.empty());
    DCHECK(!search_url.empty());
-@@ -654,6 +655,7 @@ void TemplateURLService::ResetTemplateUR
-   }
+@@ -655,6 +656,7 @@ void TemplateURLService::ResetTemplateUR
    data.safe_for_autoreplace = false;
    data.last_modified = clock_->Now();
+   data.is_active = TemplateURLData::ActiveStatus::kTrue;
 +  data.suggestions_url = suggestions_url;
+ 
    Update(url, TemplateURL(data));
  }
- 
 --- a/components/search_engines/template_url_service.h
 +++ b/components/search_engines/template_url_service.h
-@@ -248,7 +248,8 @@ class TemplateURLService : public WebDat
+@@ -249,7 +249,8 @@ class TemplateURLService : public WebDat
    void ResetTemplateURL(TemplateURL* url,
                          const std::u16string& title,
                          const std::u16string& keyword,
