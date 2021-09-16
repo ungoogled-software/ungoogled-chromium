@@ -1,6 +1,6 @@
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -1226,6 +1226,10 @@ source_set("browser") {
+@@ -1239,6 +1239,10 @@ source_set("browser") {
      "net/browser_online_state_observer.cc",
      "net/browser_online_state_observer.h",
      "net/cookie_store_factory.cc",
@@ -11,7 +11,7 @@
      "net/network_errors_listing_ui.cc",
      "net/network_errors_listing_ui.h",
      "net/network_quality_observer_impl.cc",
-@@ -2965,10 +2969,6 @@ source_set("browser") {
+@@ -2988,10 +2992,6 @@ source_set("browser") {
  
    if (enable_reporting) {
      sources += [
@@ -22,6 +22,20 @@
        "net/reporting_service_proxy.cc",
        "net/reporting_service_proxy.h",
      ]
+--- a/content/public/common/content_switch_dependent_feature_overrides.cc
++++ b/content/public/common/content_switch_dependent_feature_overrides.cc
+@@ -47,9 +47,11 @@ GetSwitchDependentFeatureOverrides(const
+        std::cref(features::kDocumentPolicyNegotiation),
+        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
+       {switches::kEnableExperimentalWebPlatformFeatures,
++#if BUILDFLAG(ENABLE_REPORTING)
+        std::cref(net::features::kDocumentReporting),
+        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
+       {switches::kEnableExperimentalWebPlatformFeatures,
++#endif
+        std::cref(features::kExperimentalContentSecurityPolicyFeatures),
+        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
+       {switches::kEnableExperimentalWebPlatformFeatures,
 --- a/third_party/blink/renderer/core/frame/local_frame.cc
 +++ b/third_party/blink/renderer/core/frame/local_frame.cc
 @@ -39,6 +39,7 @@
@@ -32,27 +46,13 @@
  #include "services/data_decoder/public/mojom/resource_snapshot_for_web_bundle.mojom-blink.h"
  #include "services/network/public/cpp/features.h"
  #include "services/network/public/mojom/content_security_policy.mojom-blink.h"
-@@ -423,7 +424,9 @@ void LocalFrame::Trace(Visitor* visitor)
-   visitor->Trace(raw_system_clipboard_);
-   visitor->Trace(virtual_keyboard_overlay_changed_observers_);
-   visitor->Trace(pause_handle_receivers_);
-+#if BUILDFLAG(ENABLE_REPORTING)
-   visitor->Trace(reporting_service_);
-+#endif
- #if defined(OS_MAC)
-   visitor->Trace(text_input_host_);
- #endif
-@@ -2310,6 +2313,7 @@ const base::UnguessableToken& LocalFrame
+@@ -2284,9 +2285,11 @@ const base::UnguessableToken& LocalFrame
    return base::UnguessableToken::Null();
  }
  
 +#if BUILDFLAG(ENABLE_REPORTING)
  mojom::blink::ReportingServiceProxy* LocalFrame::GetReportingService() {
-   if (!reporting_service_.is_bound()) {
-     GetBrowserInterfaceBroker().GetInterface(
-@@ -2318,6 +2322,7 @@ mojom::blink::ReportingServiceProxy* Loc
-   }
-   return reporting_service_.get();
+   return mojo_handler_->ReportingService();
  }
 +#endif
  
@@ -65,10 +65,10 @@
  #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
  #include "mojo/public/cpp/bindings/pending_receiver.h"
 +#include "net/net_buildflags.h"
+ #include "services/device/public/mojom/device_posture_provider.mojom-blink-forward.h"
  #include "services/network/public/mojom/fetch_api.mojom-blink-forward.h"
  #include "third_party/blink/public/common/frame/frame_ad_evidence.h"
- #include "third_party/blink/public/common/frame/payment_request_token.h"
-@@ -545,9 +546,9 @@ class CORE_EXPORT LocalFrame final : pub
+@@ -543,9 +544,9 @@ class CORE_EXPORT LocalFrame final : pub
    }
  
    SmoothScrollSequencer& GetSmoothScrollSequencer();
@@ -80,17 +80,6 @@
    // Returns the frame host ptr. The interface returned is backed by an
    // associated interface with the legacy Chrome IPC channel.
    mojom::blink::LocalFrameHost& GetLocalFrameHostRemote() const;
-@@ -875,8 +876,10 @@ class CORE_EXPORT LocalFrame final : pub
-   // const methods.
-   //
-   // LocalFrame can be reused by multiple ExecutionContext.
-+#if BUILDFLAG(ENABLE_REPORTING)
-   mutable HeapMojoRemote<mojom::blink::ReportingServiceProxy>
-       reporting_service_{nullptr};
-+#endif
- 
- #if defined(OS_MAC)
-   // LocalFrame can be reused by multiple ExecutionContext.
 --- a/third_party/blink/renderer/core/frame/reporting_context.cc
 +++ b/third_party/blink/renderer/core/frame/reporting_context.cc
 @@ -4,6 +4,7 @@
@@ -129,7 +118,7 @@
  const HeapMojoRemote<mojom::blink::ReportingServiceProxy>&
  ReportingContext::GetReportingService() const {
    if (!reporting_service_.is_bound()) {
-@@ -149,6 +155,7 @@ ReportingContext::GetReportingService() 
+@@ -149,6 +155,7 @@ ReportingContext::GetReportingService()
    }
    return reporting_service_;
  }
