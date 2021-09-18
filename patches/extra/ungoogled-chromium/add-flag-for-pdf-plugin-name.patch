@@ -1,17 +1,17 @@
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -5770,7 +5770,7 @@ bool ChromeContentBrowserClient::ShouldA
+@@ -5794,7 +5794,7 @@ bool ChromeContentBrowserClient::ShouldA
      const url::Origin& embedder_origin,
      const content::PepperPluginInfo& plugin_info) {
  #if BUILDFLAG(ENABLE_PDF)
 -  if (plugin_info.name == ChromeContentClient::kPDFInternalPluginName) {
 +  if (plugin_info.name == ChromeContentClient::GetPDFInternalPluginName()) {
- #if BUILDFLAG(ENABLE_EXTENSIONS)
-     // Allow embedding the internal PDF plugin in the built-in PDF extension.
-     if (embedder_origin.scheme() == extensions::kExtensionScheme &&
+     return IsPdfInternalPluginAllowedOrigin(embedder_origin);
+   }
+ #endif  // BUILDFLAG(ENABLE_PDF)
 --- a/chrome/browser/pdf/pdf_extension_util.cc
 +++ b/chrome/browser/pdf/pdf_extension_util.cc
-@@ -169,7 +169,7 @@ std::string GetManifest() {
+@@ -170,7 +170,7 @@ std::string GetManifest() {
    DCHECK(manifest_contents.find(kNameTag) != std::string::npos);
    base::ReplaceFirstSubstringAfterOffset(
        &manifest_contents, 0, kNameTag,
@@ -22,7 +22,7 @@
  }
 --- a/chrome/browser/plugins/pdf_iframe_navigation_throttle_unittest.cc
 +++ b/chrome/browser/plugins/pdf_iframe_navigation_throttle_unittest.cc
-@@ -64,7 +64,7 @@ class PDFIFrameNavigationThrottleTest :
+@@ -65,7 +65,7 @@ class PDFIFrameNavigationThrottleTest : 
      // Register a fake PDF Viewer plugin into our plugin service.
      content::WebPluginInfo info;
      info.name =
@@ -254,17 +254,17 @@
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
 --- a/chrome/common/BUILD.gn
 +++ b/chrome/common/BUILD.gn
-@@ -251,6 +251,7 @@ static_library("common") {
+@@ -248,6 +248,7 @@ static_library("common") {
      "//components/no_state_prefetch/common",
      "//components/no_state_prefetch/common:mojo_bindings",
      "//components/page_load_metrics/common:common",
 +    "//components/ungoogled:ungoogled_switches",
    ]
  
-   if (enable_plugins) {
+   if (enable_pdf) {
 --- a/chrome/common/chrome_content_client.cc
 +++ b/chrome/common/chrome_content_client.cc
-@@ -120,7 +120,7 @@ void ComputeBuiltInPlugins(std::vector<c
+@@ -121,7 +121,7 @@ void ComputeBuiltInPlugins(std::vector<c
    content::PepperPluginInfo pdf_info;
    pdf_info.is_internal = true;
    pdf_info.is_out_of_process = true;
@@ -363,7 +363,7 @@
      FILE_PATH_LITERAL("internal-pdf-viewer");
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -992,7 +992,7 @@ WebPlugin* ChromeContentRendererClient::
+@@ -1021,7 +1021,7 @@ WebPlugin* ChromeContentRendererClient::
              }
            }
          } else if (info.name ==
@@ -372,7 +372,16 @@
            // Report PDF load metrics. Since the PDF plugin is comprised of an
            // extension that loads a second plugin, avoid double counting by
            // ignoring the creation of the second plugin.
-@@ -1038,7 +1038,7 @@ WebPlugin* ChromeContentRendererClient::
+@@ -1053,7 +1053,7 @@ WebPlugin* ChromeContentRendererClient::
+ 
+ #if BUILDFLAG(ENABLE_PDF)
+         if (info.name ==
+-            ASCIIToUTF16(ChromeContentClient::kPDFInternalPluginName)) {
++            ASCIIToUTF16(ChromeContentClient::GetPDFInternalPluginName())) {
+           return pdf::CreateInternalPlugin(
+               info, std::move(params), render_frame,
+               std::make_unique<ChromePdfInternalPluginDelegate>(render_frame));
+@@ -1066,7 +1066,7 @@ WebPlugin* ChromeContentRendererClient::
          PluginUMAReporter::GetInstance()->ReportPluginDisabled(orig_mime_type,
                                                                 url);
          if (info.name ==
