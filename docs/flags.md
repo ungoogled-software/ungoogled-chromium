@@ -29,6 +29,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   <code>Switch&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code> | Description
   -- | --
   `--bookmark-bar-ntp` | Sets the visibility of the bookmark bar on the New Tab Page. Only takes the value `never`.
+  `--close-multitab-confirmation` | Show a warning prompt when closing multiple tabs.
   `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed.  Only takes the value `never`.
   `--pdf-plugin-name` | Sets the internal PDF viewer plugin name. Useful for sites that probe JavaScript API `navigator.plugins`. Supports values `chrome` for Chrome, `edge` for Microsoft Edge. Default value when omitted is Chromium.
   `--remove-grab-handle` | Removes the reserved empty space in the tabstrip for moving the window.
