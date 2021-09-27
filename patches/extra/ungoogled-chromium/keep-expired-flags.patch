@@ -1,0 +1,38 @@
+--- a/components/flags_ui/flags_state.cc
++++ b/components/flags_ui/flags_state.cc
+@@ -22,6 +22,7 @@
+ #include "base/values.h"
+ #include "build/build_config.h"
+ #include "build/chromeos_buildflags.h"
++#include "chrome/browser/unexpire_flags.h"
+ #include "components/flags_ui/feature_entry.h"
+ #include "components/flags_ui/flags_storage.h"
+ #include "components/flags_ui/flags_ui_switches.h"
+@@ -577,14 +578,18 @@ void FlagsState::GetFlagFeatureEntries(
+   int current_platform = GetCurrentPlatform();
+ 
+   for (const FeatureEntry& entry : feature_entries_) {
++    std::string desc = entry.visible_description;
+     if (skip_feature_entry.Run(entry))
++      if (flags::IsFlagExpired(flags_storage, entry.internal_name))
++        desc.insert(0, "!!! NOTE: THIS FLAG IS EXPIRED AND MAY STOP FUNCTIONING OR BE REMOVED SOON !!! ");
++      else
+       continue;
+ 
+     base::Value data(base::Value::Type::DICTIONARY);
+     data.SetStringKey("internal_name", entry.internal_name);
+     data.SetStringKey("name", base::StringPiece(entry.visible_name));
+     data.SetStringKey("description",
+-                      base::StringPiece(entry.visible_description));
++                      base::StringPiece(desc));
+ 
+     base::Value supported_platforms(base::Value::Type::LIST);
+     AddOsStrings(entry.supported_platforms, &supported_platforms);
+@@ -901,6 +906,7 @@ bool FlagsState::IsSupportedFeature(cons
+     if (!entry.InternalNameMatches(name))
+       continue;
+     if (delegate_ && delegate_->ShouldExcludeFlag(storage, entry))
++      if (!flags::IsFlagExpired(storage, entry.internal_name))
+       continue;
+     return true;
+   }
