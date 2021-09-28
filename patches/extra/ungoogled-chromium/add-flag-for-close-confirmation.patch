@@ -41,13 +41,12 @@
    unload_controller_.ResetTryToCloseWindow();
  }
  
-@@ -2696,6 +2701,54 @@ bool Browser::CanCloseWithInProgressDown
+@@ -2696,6 +2701,62 @@ bool Browser::CanCloseWithInProgressDown
    return false;
  }
  
 +bool Browser::CanCloseWithMultipleTabs() {
-+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-+          "close-multitab-confirmation"))
++  if (!base::CommandLine::ForCurrentProcess()->HasSwitch("close-confirmation"))
 +    return true;
 +
 +  // If we've prompted, we need to hear from the user before we
@@ -58,6 +57,9 @@
 +  // If we're not running a full browser process with a profile manager
 +  // (testing), it's ok to close the browser.
 +  if (!g_browser_process->profile_manager())
++    return true;
++
++  if (this->IsAttemptingToCloseBrowser())
 +    return true;
 +
 +  // Figure out how many windows are open total
@@ -71,9 +73,15 @@
 +    total_window_count++;
 +  }
 +
-+  if (total_window_count >= 1 || this->IsAttemptingToCloseBrowser() ||
-+      this->tab_strip_model()->count() <= 1)
++  const auto flag_value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("close-confirmation");
++  bool show_confirmation_last_window = flag_value == "last";
++
++  if (show_confirmation_last_window) {
++    if (total_window_count >= 1 || this->tab_strip_model()->count() <= 1)
++      return true;
++  } else if (total_window_count == 0) {
 +    return true;
++  }
 +
 +  close_multitab_confirmation_state_ = WAITING_FOR_RESPONSE;
 +
@@ -84,9 +92,9 @@
 +  auto callback = base::BindOnce(&Browser::MultitabResponse,
 +                                 weak_factory_.GetWeakPtr());
 +  MessageBoxDialog::Show(window_->GetNativeWindow(),
-+                         u"Do you want to close all tabs?", std::u16string(),
-+                         chrome::MESSAGE_BOX_TYPE_QUESTION, u"Close all",
-+                         u"Cancel", std::u16string(), std::move(callback));
++                         u"Do you want to close this window?", std::u16string(),
++                         chrome::MESSAGE_BOX_TYPE_QUESTION, u"Close", u"Cancel",
++                         std::u16string(), std::move(callback));
 +
 +  // Return false so the browser does not close.  We'll close if the user
 +  // confirms in the dialog.
@@ -96,7 +104,7 @@
  void Browser::InProgressDownloadResponse(bool cancel_downloads) {
    if (cancel_downloads) {
      cancel_download_confirmation_state_ = RESPONSE_RECEIVED;
-@@ -2714,6 +2767,22 @@ void Browser::InProgressDownloadResponse
+@@ -2714,6 +2775,22 @@ void Browser::InProgressDownloadResponse
  
    std::move(warn_before_closing_callback_)
        .Run(WarnBeforeClosingResult::kDoNotClose);
@@ -156,14 +164,30 @@
    /////////////////////////////////////////////////////////////////////////////
  
    // Override values for the bounds of the window and its maximized or minimized
+--- a/chrome/browser/ungoogled_flag_choices.h
++++ b/chrome/browser/ungoogled_flag_choices.h
+@@ -66,4 +66,13 @@ const FeatureEntry::Choice kCloseWindowW
+      "close-window-with-last-tab",
+      "never"},
+ };
++const FeatureEntry::Choice kCloseConfirmation[] = {
++    {flags_ui::kGenericExperimentChoiceDefault, "", ""},
++    {"Show confirmation with last window",
++     "close-confirmation",
++     "last"},
++    {"Show confirmation with multiple windows",
++     "close-confirmation",
++     "all"},
++};
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_CHOICES_H_
 --- a/chrome/browser/ungoogled_flag_entries.h
 +++ b/chrome/browser/ungoogled_flag_entries.h
 @@ -80,4 +80,8 @@
       "Remove Grab Handle",
       "Removes the reserved empty space in the tabstrip for moving the window.  ungoogled-chromium flag",
       kOsDesktop, SINGLE_VALUE_TYPE("remove-grab-handle")},
-+    {"close-multitab-confirmation", 
-+     "Close Multitab Confirmation",
-+     "Show a warning prompt when closing multiple tabs.  ungoogled-chromium flag",
-+     kOsDesktop, SINGLE_VALUE_TYPE("close-multitab-confirmation")},
++    {"close-confirmation", 
++     "Close Confirmation",
++     "Show a warning prompt when closing the browser window.  ungoogled-chromium flag",
++     kOsDesktop, MULTI_VALUE_TYPE(kCloseConfirmation)},
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
