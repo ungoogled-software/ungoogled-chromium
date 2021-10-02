@@ -17,15 +17,6 @@
        override_bounds_(params.initial_bounds),
        initial_show_state_(params.initial_show_state),
        initial_workspace_(params.initial_workspace),
-@@ -828,7 +831,7 @@ Browser::WarnBeforeClosingResult Browser
-   // If the browser can close right away (there are no pending downloads we need
-   // to prompt about) then there's no need to warn. In the future, we might need
-   // to check other conditions as well.
--  if (CanCloseWithInProgressDownloads())
-+  if (CanCloseWithInProgressDownloads() && CanCloseWithMultipleTabs())
-     return WarnBeforeClosingResult::kOkToClose;
- 
-   DCHECK(!warn_before_closing_callback_)
 @@ -852,12 +855,14 @@ bool Browser::TryToCloseWindow(
      bool skip_beforeunload,
      const base::RepeatingCallback<void(bool)>& on_close_confirmed) {
@@ -41,7 +32,21 @@
    unload_controller_.ResetTryToCloseWindow();
  }
  
-@@ -2696,6 +2701,62 @@ bool Browser::CanCloseWithInProgressDown
+@@ -1741,6 +1746,13 @@ void Browser::BeforeUnloadFired(WebConte
+   if (is_type_devtools() && DevToolsWindow::HandleBeforeUnload(
+                                 web_contents, proceed, proceed_to_fire_unload))
+     return;
++  if (proceed &&
++      (IsAttemptingToCloseBrowser() || this->tab_strip_model()->count() <= 1) &&
++      !CanCloseWithMultipleTabs()) {
++    proceed = false;
++    warn_before_closing_callback_ = base::BindOnce(
++        &Browser::FinishWarnBeforeClosing, weak_factory_.GetWeakPtr());
++  }
+ 
+   *proceed_to_fire_unload =
+       unload_controller_.BeforeUnloadFired(web_contents, proceed);
+@@ -2696,6 +2708,59 @@ bool Browser::CanCloseWithInProgressDown
    return false;
  }
  
@@ -57,9 +62,6 @@
 +  // If we're not running a full browser process with a profile manager
 +  // (testing), it's ok to close the browser.
 +  if (!g_browser_process->profile_manager())
-+    return true;
-+
-+  if (this->IsAttemptingToCloseBrowser())
 +    return true;
 +
 +  // Figure out how many windows are open total
@@ -104,7 +106,7 @@
  void Browser::InProgressDownloadResponse(bool cancel_downloads) {
    if (cancel_downloads) {
      cancel_download_confirmation_state_ = RESPONSE_RECEIVED;
-@@ -2714,6 +2775,22 @@ void Browser::InProgressDownloadResponse
+@@ -2714,6 +2779,22 @@ void Browser::InProgressDownloadResponse
  
    std::move(warn_before_closing_callback_)
        .Run(WarnBeforeClosingResult::kDoNotClose);
