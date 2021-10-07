@@ -75,3 +75,24 @@ These are also available on the `chrome://flags` page.
   `ClearDataOnExit` | Clears all browsing data on exit.
   `DisableLinkDrag` | Prevents dragging of links and selected text. Allows selecting text from a middle of a link. Also allows starting selection without first clearing the existing one. This behaviour is similar to the one from older Opera. See https://github.com/ungoogled-software/ungoogled-chromium/pull/2080 and https://github.com/ungoogled-software/ungoogled-chromium/discussions/2055 for more information.
   `DisableQRGenerator` | Disables the QR generator for sharing page links.
+
+
+## Flags for existing switches
+
+Chromium contains switches that do no have corresponding entries in `chrome://flags`. For convenience, ungoogled-chromium has created entries for some of the commonly-used switches.
+
+- ### Available on all platforms
+  <code>Switch&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code> | Description
+  -- | --
+  `--disable-top-sites` | Disables the top sites and most visited entries on the new tab page.
+  `--disable-webgl` | Disable all versions of WebGL.
+  `--enable-low-end-device-mode` | Force low-end device mode when set.
+  `--force-dark-mode` | Forces dark mode in UI for platforms that support it.
+  `--no-pings` | Don't send hyperlink auditing pings.
+  `--web-ui-dark-mode` | Whether to enable 'dark mode' enhancements for UIs implemented with web technologies.
+  `--webrtc-ip-handling-policy` | Restrict which IP addresses and interfaces WebRTC uses.
+- ### Available only on desktop
+  <code>Switch&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code> | Description
+  -- | --
+  `--incognito` | Start in Incognito.
+  `--start-maximized` | Starts the browser maximized, regardless of any previous settings.
