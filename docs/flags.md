@@ -37,6 +37,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--remove-tabsearch-button` | Removes the tabsearch button from the tabstrip.
   `--scroll-tabs` | Determines if scrolling will cause a switch to a neighboring tab if the cursor hovers over the tabs, or the empty space beside the tabs. The flag requires one the values: `always`, `never`, `incognito-and-guest`. When omitted, the default is to use platform-specific behavior, which is currently enabled only on desktop Linux.
   `--show-avatar-button` | Sets visibility of the avatar button. The flag requires one of the values: `always`, `incognito-and-guest` (only show Incognito or Guest modes), or `never`.
+  `--tab-hover-cards` | Allows removing the tab hover cards or using a tooltip as a replacement. This can be set with the values `none` or `tooltip`.
 
   - #### Available only on Windows
 
