@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2331,6 +2331,7 @@ static_library("browser") {
+@@ -2354,6 +2354,7 @@ static_library("browser") {
      "//third_party/libyuv",
      "//third_party/metrics_proto",
      "//third_party/re2",
@@ -19,7 +19,7 @@
      "//third_party/widevine/cdm:headers",
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -141,6 +141,7 @@
+@@ -147,6 +147,7 @@
  #include "components/translate/core/browser/translate_ranker_impl.h"
  #include "components/translate/core/common/translate_util.h"
  #include "components/ui_devtools/switches.h"
@@ -44,7 +44,7 @@
  #endif  // CHROME_BROWSER_BROMITE_FLAG_ENTRIES_H_
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -221,6 +221,7 @@ source_set("browser") {
+@@ -220,6 +220,7 @@ source_set("browser") {
      "//third_party/libyuv",
      "//third_party/re2",
      "//third_party/sqlite",
@@ -54,15 +54,15 @@
      "//third_party/zlib",
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -215,6 +215,7 @@
- #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
- #include "third_party/blink/public/mojom/disk_allocator.mojom.h"
- #include "third_party/blink/public/public_buildflags.h"
+@@ -68,6 +68,7 @@
+ #include "components/services/storage/public/mojom/cache_storage_control.mojom.h"
+ #include "components/services/storage/public/mojom/indexed_db_control.mojom.h"
+ #include "components/tracing/common/tracing_switches.h"
 +#include "components/ungoogled/ungoogled_switches.h"
- #include "third_party/skia/include/core/SkBitmap.h"
- #include "ui/accessibility/accessibility_switches.h"
- #include "ui/base/ui_base_switches.h"
-@@ -3446,6 +3447,8 @@ void RenderProcessHostImpl::PropagateBro
+ #include "components/viz/common/switches.h"
+ #include "components/viz/host/gpu_client.h"
+ #include "content/browser/bad_message.h"
+@@ -3479,6 +3480,8 @@ void RenderProcessHostImpl::PropagateBro
      switches::kEnableWebGLDraftExtensions,
      switches::kEnableWebGLImageChromium,
      switches::kFileUrlPathAlias,
@@ -123,7 +123,7 @@
  #include "base/time/time.h"
  #include "cc/input/overscroll_behavior.h"
  #include "cc/input/scroll_snap_data.h"
-@@ -858,6 +859,14 @@ Range* Document::CreateRangeAdjustedToTr
+@@ -856,6 +857,14 @@ Range* Document::CreateRangeAdjustedToTr
                                       Position::BeforeNode(*shadow_host));
  }
  
@@ -138,9 +138,9 @@
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
-@@ -2131,6 +2140,15 @@ void Document::UpdateStyleAndLayoutTreeF
+@@ -2146,6 +2155,15 @@ void Document::UpdateStyleAndLayoutTreeF
  #if DCHECK_IS_ON()
-   AssertLayoutTreeUpdated(*this);
+   AssertLayoutTreeUpdated(*this, true /* allow_dirty_container_subtrees */);
  #endif
 +
 +  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
@@ -156,7 +156,7 @@
  void Document::InvalidateStyleAndLayoutForFontUpdates() {
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -453,6 +453,10 @@ class CORE_EXPORT Document : public Cont
+@@ -456,6 +456,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -167,7 +167,7 @@
    AtomicString visibilityState() const;
    bool IsPageVisible() const;
    bool hidden() const;
-@@ -2049,6 +2053,9 @@ class CORE_EXPORT Document : public Cont
+@@ -2074,6 +2078,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -179,7 +179,7 @@
    HeapVector<Member<ScriptElementBase>> current_script_stack_;
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -2107,6 +2107,11 @@ DOMRectList* Element::getClientRects() {
+@@ -2115,6 +2115,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustFloatQuadsForScrollAndAbsoluteZoom(
        quads, *element_layout_object);
@@ -191,7 +191,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -2124,6 +2129,9 @@ FloatRect Element::GetBoundingClientRect
+@@ -2132,6 +2137,9 @@ FloatRect Element::GetBoundingClientRect
    DCHECK(element_layout_object);
    GetDocument().AdjustFloatRectForScrollAndAbsoluteZoom(result,
                                                          *element_layout_object);
@@ -203,7 +203,7 @@
  
 --- a/third_party/blink/renderer/core/dom/range.cc
 +++ b/third_party/blink/renderer/core/dom/range.cc
-@@ -1591,11 +1591,21 @@ DOMRectList* Range::getClientRects() con
+@@ -1595,11 +1595,21 @@ DOMRectList* Range::getClientRects() con
    Vector<FloatQuad> quads;
    GetBorderAndTextQuads(quads);
  
@@ -266,7 +266,7 @@
                const TextDirection&,
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
-@@ -960,9 +960,15 @@ TextMetrics* CanvasRenderingContext2D::m
+@@ -963,9 +963,15 @@ TextMetrics* CanvasRenderingContext2D::m
    TextDirection direction =
        ToTextDirection(GetState().GetDirection(), canvas());
  
@@ -285,7 +285,7 @@
  void CanvasRenderingContext2D::fillFormattedText(
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1678,6 +1678,7 @@ component("platform") {
+@@ -1681,6 +1681,7 @@ component("platform") {
      "//components/paint_preview/common",
      "//components/power_scheduler",
      "//components/search_engines:search_engine_utils",
@@ -310,7 +310,7 @@
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -1041,6 +1041,12 @@
+@@ -1066,6 +1066,12 @@
        origin_trial_feature_name: "FledgeInterestGroupAPI",
      },
      {
