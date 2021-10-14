@@ -1,25 +1,56 @@
 --- a/chrome/browser/privacy_sandbox/privacy_sandbox_settings.cc
 +++ b/chrome/browser/privacy_sandbox/privacy_sandbox_settings.cc
-@@ -207,7 +207,7 @@ PrivacySandboxSettings::PrivacySandboxSe
- PrivacySandboxSettings::~PrivacySandboxSettings() = default;
+@@ -379,7 +379,7 @@ std::vector<GURL> PrivacySandboxSettings
+ }
  
- /*static*/ bool PrivacySandboxSettings::PrivacySandboxSettingsFunctional() {
--  return base::FeatureList::IsEnabled(features::kPrivacySandboxSettings);
+ bool PrivacySandboxSettings::IsPrivacySandboxAllowed() {
+-  return pref_service_->GetBoolean(prefs::kPrivacySandboxApisEnabled);
 +  return false;
  }
  
- bool PrivacySandboxSettings::IsFlocAllowed() const {
+ bool PrivacySandboxSettings::IsPrivacySandboxEnabled() {
+@@ -391,8 +391,6 @@ bool PrivacySandboxSettings::IsPrivacySa
+ }
+ 
+ void PrivacySandboxSettings::SetPrivacySandboxEnabled(bool enabled) {
+-  pref_service_->SetBoolean(prefs::kPrivacySandboxManuallyControlled, true);
+-  pref_service_->SetBoolean(prefs::kPrivacySandboxApisEnabled, enabled);
+ }
+ 
+ void PrivacySandboxSettings::OnCookiesCleared() {
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
+@@ -65,19 +65,6 @@
+             sub-label="$i18n{permissionsPageDescription}"
+             on-click="onPermissionsPageClick_"
+             role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
+-        <cr-link-row id="privacySandboxLinkRow"
+-            start-icon="settings20:experiment"
+-            class="hr"
+-            label="$i18n{privacySandboxTitle}"
+-            sub-label="[[computePrivacySandboxSublabel_(
+-                prefs.privacy_sandbox.apis_enabled.*)]]"
+-            on-click="onPrivacySandboxClick_"
+-            external
+-            role-description="$i18n{subpageArrowRoleDescription}">
+-        </cr-link-row>
+-        <a id="privacySandboxLink" href="privacySandbox"
+-            target="_blank" tabindex="-1" aria-disabled="true"
+-            role="none"></a>
+       </div>
+ 
+ <if expr="use_nss_certs">
 --- a/chrome/common/chrome_features.cc
 +++ b/chrome/common/chrome_features.cc
-@@ -782,7 +782,7 @@ const base::Feature kPrivacyReview{"Priv
+@@ -789,7 +789,7 @@ const base::Feature kPrivacyReview{"Priv
  
- // Enables the privacy sandbox settings page.
- const base::Feature kPrivacySandboxSettings{"PrivacySandboxSettings",
--                                            base::FEATURE_ENABLED_BY_DEFAULT};
-+                                            base::FEATURE_DISABLED_BY_DEFAULT};
- const base::FeatureParam<std::string> kPrivacySandboxSettingsURL{
-     &kPrivacySandboxSettings, "website-url", "https://www.privacysandbox.com"};
- 
+ // Enables additional control set 2 on the privacy sandbox settings page.
+ const base::Feature kPrivacySandboxSettings2{"PrivacySandboxSettings2",
+-                                             base::FEATURE_ENABLED_BY_DEFAULT};
++                                             base::FEATURE_DISABLED_BY_DEFAULT};
+ const base::FeatureParam<std::string> kPrivacySandboxSettings2FlocURL{
+     &kPrivacySandboxSettings2, "floc-website-url",
+     "https://privacysandbox.com/proposals/floc"};
 --- a/components/privacy_sandbox/privacy_sandbox_prefs.cc
 +++ b/components/privacy_sandbox/privacy_sandbox_prefs.cc
 @@ -31,7 +31,7 @@ namespace privacy_sandbox {
