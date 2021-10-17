@@ -112,7 +112,7 @@ DOMAIN_EXCLUDE_PREFIXES = [
 # pathlib.Path.match() patterns to include in domain substitution
 DOMAIN_INCLUDE_PATTERNS = [
     '*.h', '*.hh', '*.hpp', '*.hxx', '*.cc', '*.cpp', '*.cxx', '*.c', '*.h', '*.json', '*.js',
-    '*.html', '*.htm', '*.css', '*.py*', '*.grd', '*.sql', '*.idl', '*.mk', '*.gyp*', 'makefile',
+    '*.html', '*.htm', '*.css', '*.py*', '*.grd*', '*.sql', '*.idl', '*.mk', '*.gyp*', 'makefile',
     '*.txt', '*.xml', '*.mm', '*.jinja*', '*.gn', '*.gni'
 ]
 
