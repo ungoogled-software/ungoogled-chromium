@@ -231,6 +231,40 @@
  }
  
  void RecordOpenedDangerousConfirmDialog(
+--- a/chrome/browser/download/download_target_determiner.cc
++++ b/chrome/browser/download/download_target_determiner.cc
+@@ -872,11 +872,13 @@ void DownloadTargetDeterminer::CheckVisi
+     bool visited_referrer_before) {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   DCHECK_EQ(STATE_DETERMINE_INTERMEDIATE_PATH, next_state_);
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   safe_browsing::RecordDownloadFileTypeAttributes(
+       safe_browsing::FileTypePolicies::GetInstance()->GetFileDangerLevel(
+           virtual_path_.BaseName()),
+       download_->HasUserGesture(), visited_referrer_before,
+       GetLastDownloadBypassTimestamp());
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+   danger_level_ = GetDangerLevel(
+       visited_referrer_before ? VISITED_REFERRER : NO_VISITS_TO_REFERRER);
+   if (danger_level_ != DownloadFileType::NOT_DANGEROUS &&
+@@ -1111,6 +1113,7 @@ DownloadFileType::DangerLevel DownloadTa
+ 
+ absl::optional<base::Time>
+ DownloadTargetDeterminer::GetLastDownloadBypassTimestamp() const {
++#if BUILDFLAG(FULL_SAFE_BROWSING)
+   safe_browsing::SafeBrowsingMetricsCollector* metrics_collector =
+       safe_browsing::SafeBrowsingMetricsCollectorFactory::GetForProfile(
+           GetProfile());
+@@ -1119,6 +1122,9 @@ DownloadTargetDeterminer::GetLastDownloa
+                                  safe_browsing::SafeBrowsingMetricsCollector::
+                                      EventType::DANGEROUS_DOWNLOAD_BYPASS)
+                            : absl::nullopt;
++#else
++  return absl::nullopt;
++#endif // BUILDFLAG(FULL_SAFE_BROWSING)
+ }
+ 
+ void DownloadTargetDeterminer::OnDownloadDestroyed(
 --- a/chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.cc
 +++ b/chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.cc
 @@ -32,14 +32,12 @@
