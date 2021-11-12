@@ -1,39 +1,8 @@
 # Disable some background communication with clients2.google.com
 
---- a/chrome/browser/tracing/crash_service_uploader.cc
-+++ b/chrome/browser/tracing/crash_service_uploader.cc
-@@ -131,11 +131,16 @@ void TraceCrashServiceUploader::DoUpload
-   progress_callback_ = progress_callback;
-   done_callback_ = std::move(done_callback);
- 
--  base::ThreadPool::PostTask(
-+  if (!progress_callback_.is_null()) {
-+    base::ThreadPool::PostTask(
-       FROM_HERE, {base::TaskPriority::BEST_EFFORT},
--      base::BindOnce(&TraceCrashServiceUploader::DoCompressOnBackgroundThread,
--                     base::Unretained(this), file_contents, upload_mode,
--                     upload_url_, std::move(metadata)));
-+      base::BindOnce(progress_callback_, 1, 1));
-+  }
-+  if (!done_callback_.is_null()) {
-+    base::ThreadPool::PostTask(
-+      FROM_HERE, {base::TaskPriority::BEST_EFFORT},
-+      base::BindOnce(std::move(done_callback_), true, "Upload skipped."));
-+  }
- }
- 
- void TraceCrashServiceUploader::DoCompressOnBackgroundThread(
-@@ -312,6 +317,7 @@ bool TraceCrashServiceUploader::Compress
- void TraceCrashServiceUploader::CreateAndStartURLLoader(
-     const std::string& upload_url,
-     const std::string& post_data) {
-+  return;
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-   DCHECK(!simple_url_loader_);
- 
 --- a/components/crash/core/app/crashpad_linux.cc
 +++ b/components/crash/core/app/crashpad_linux.cc
-@@ -55,8 +55,7 @@ void SetFirstChanceExceptionHandler(bool
+@@ -59,8 +59,7 @@ void SetFirstChanceExceptionHandler(bool
  }
  
  bool IsCrashpadEnabled() {

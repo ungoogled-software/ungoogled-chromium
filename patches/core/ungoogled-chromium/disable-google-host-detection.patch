@@ -130,7 +130,7 @@
  #endif
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
-@@ -33,111 +33,6 @@ namespace google_util {
+@@ -33,112 +33,6 @@ namespace google_util {
  
  namespace {
  
@@ -148,10 +148,11 @@
 -// with a valid TLD that appears in |allowed_tlds|. If |subdomain_permission| is
 -// ALLOW_SUBDOMAIN, we check against host "*.<domain_in_lower_case>.<TLD>"
 -// instead.
+-template <typename Container>
 -bool IsValidHostName(base::StringPiece host,
 -                     base::StringPiece domain_in_lower_case,
 -                     SubdomainPermission subdomain_permission,
--                     const base::flat_set<base::StringPiece>& allowed_tlds) {
+-                     const Container& allowed_tlds) {
 -  // Fast path to avoid searching the registry set.
 -  if (host.find(domain_in_lower_case) == base::StringPiece::npos)
 -    return false;
@@ -205,21 +206,21 @@
 -  if (base_url.is_valid() && (canonical_host == base_url.host_piece()))
 -    return true;
 -
--  static const base::NoDestructor<base::flat_set<base::StringPiece>>
--      google_tlds(std::initializer_list<base::StringPiece>({GOOGLE_TLD_LIST}));
+-  static constexpr auto google_tlds =
+-      base::MakeFixedFlatSet<base::StringPiece>({GOOGLE_TLD_LIST});
 -  return IsValidHostName(canonical_host, "google", subdomain_permission,
--                         *google_tlds);
+-                         google_tlds);
 -}
 -
 -bool IsCanonicalHostYoutubeHostname(base::StringPiece canonical_host,
 -                                    SubdomainPermission subdomain_permission) {
--  static const base::NoDestructor<base::flat_set<base::StringPiece>>
--      youtube_tlds(
--          std::initializer_list<base::StringPiece>({YOUTUBE_TLD_LIST}));
+-  static constexpr auto youtube_tlds =
+-      base::MakeFixedFlatSet<base::StringPiece>({YOUTUBE_TLD_LIST});
+-
 -  return IsValidHostName(canonical_host, "youtube", subdomain_permission,
--                         *youtube_tlds) ||
--      IsValidHostName(canonical_host, "youtubekids", subdomain_permission,
--                         *youtube_tlds);
+-                         youtube_tlds) ||
+-         IsValidHostName(canonical_host, "youtubekids", subdomain_permission,
+-                         youtube_tlds);
 -}
 -
 -// True if |url| is a valid URL with a host that is in the static list of
@@ -232,17 +233,17 @@
 -  base::StringPiece host(url.host_piece());
 -  StripTrailingDot(&host);
 -
--  static const base::NoDestructor<base::flat_set<base::StringPiece>>
--      google_subdomains(std::initializer_list<base::StringPiece>(
--          {"ipv4.google.com", "ipv6.google.com"}));
+-  static constexpr auto google_subdomains =
+-      base::MakeFixedFlatSet<base::StringPiece>(
+-          {"ipv4.google.com", "ipv6.google.com"});
 -
--  return google_subdomains->contains(host);
+-  return google_subdomains.contains(host);
 -}
 -
  }  // namespace
  
  // Global functions -----------------------------------------------------------
-@@ -145,12 +40,6 @@ bool IsGoogleSearchSubdomainUrl(const GU
+@@ -146,12 +40,6 @@ bool IsGoogleSearchSubdomainUrl(const GU
  const char kGoogleHomepageURL[] = "trk:113:https://www.google.com/";
  
  bool HasGoogleSearchQueryParam(base::StringPiece str) {
@@ -255,7 +256,7 @@
    return false;
  }
  
-@@ -161,161 +50,53 @@ std::string GetGoogleLocale(const std::s
+@@ -162,161 +50,53 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -484,7 +485,7 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -526,11 +526,7 @@ std::u16string TemplateURLRef::SearchTer
+@@ -527,11 +527,7 @@ std::u16string TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -510,8 +511,8 @@
  namespace {
  
  // The result of checking whether a request to a URL should have variations
-@@ -235,29 +231,7 @@ class VariationsHeaderHelper {
-   }
+@@ -238,29 +234,7 @@ class VariationsHeaderHelper {
+   VariationsHeaderHelper& operator=(const VariationsHeaderHelper&) = delete;
  
    bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
 -    AppendOmniboxOnDeviceSuggestionsHeaderIfNeeded(url, resource_request_);
@@ -541,7 +542,7 @@
    }
  
   private:
-@@ -327,8 +301,6 @@ void RemoveVariationsHeaderIfNeeded(
+@@ -328,8 +302,6 @@ void RemoveVariationsHeaderIfNeeded(
      const net::RedirectInfo& redirect_info,
      const network::mojom::URLResponseHead& response_head,
      std::vector<std::string>* to_be_removed_headers) {
@@ -550,7 +551,7 @@
  }
  
  std::unique_ptr<network::SimpleURLLoader>
-@@ -358,14 +330,11 @@ CreateSimpleURLLoaderWithVariationsHeade
+@@ -359,14 +331,11 @@ CreateSimpleURLLoaderWithVariationsHeade
  }
  
  bool IsVariationsHeader(const std::string& header_name) {
@@ -567,7 +568,7 @@
  }
  
  bool ShouldAppendVariationsHeaderForTesting(
-@@ -376,12 +345,6 @@ bool ShouldAppendVariationsHeaderForTest
+@@ -377,12 +346,6 @@ bool ShouldAppendVariationsHeaderForTest
  
  void UpdateCorsExemptHeaderForVariations(
      network::mojom::NetworkContextParams* params) {
