@@ -65,3 +65,17 @@ These are also available on the `chrome://flags` page.
   -- | --
   `ClearDataOnExit` | Clears all browsing data on exit.
   `DisableQRGenerator` | Disables the QR generator for sharing page links.
+
+
+<br>
+
+---
+
+<br>
+
+
+# Existing Chromium flags
+
+Behavior for existing Chromium flags is normally not altered, but due to build flags or other core modifications used by ungoogled-chromium some exceptions may apply:
+
+* `WebRtcHideLocalIpsWithMdns`:  This feature flag does not use mDNS to hide the local IP since ungoogled-chromium is built with `enable_mds=false`.  A randomized address will be provided instead.  
