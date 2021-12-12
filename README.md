@@ -96,18 +96,14 @@ Other platforms are discussed and tracked in this repository's Issue Tracker. Le
 
 ## Downloads
 
-[**Download binaries from here**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+### Automated or maintained builds
 
-*NOTE: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).*
-
-These binaries are known as **contributor binaries**.
-
-Also, ungoogled-chromium is available in several **software repositories**:
+ungoogled-chromium is available in the following **software repositories**:
 
 * Android: Available via a custom [F-Droid](https://f-droid.org/) repo. [See instructions in ungoogled-chromium-android](https://github.com/ungoogled-software/ungoogled-chromium-android#f-droid-repository)
 * Arch: Available in AUR & OBS, [see instructions in ungoogled-chromium-archlinux](//github.com/ungoogled-software/ungoogled-chromium-archlinux)
 * Debian & Ubuntu: Available in OBS, find your [distribution specific instructions](//github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
-* Fedora & CentOS: Available in OBS, by following [instructions](//github.com/ungoogled-software/ungoogled-chromium-fedora) in the downloads section. For Fedora also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy`.
+* Fedora: Available in OBS, by following [instructions](//github.com/ungoogled-software/ungoogled-chromium-fedora) in the downloads section. Also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy` (outdated).
 * Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) ebuild
 * macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
 
@@ -116,6 +112,14 @@ If your GNU/Linux distribution is not listed, there are distro-independent build
 * Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/com.github.Eloston.UngoogledChromium) as `com.github.Eloston.UngoogledChromium`
 * GNU Guix: Available as `ungoogled-chromium`
 * NixOS/nixpkgs: Available as `ungoogled-chromium`
+
+### Third-party binaries
+
+If your operating system is not listed above, you can also try to [**Download binaries from here**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+
+*NOTE: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).*
+
+These binaries are known as **contributor binaries**.
 
 ## Source Code
 
