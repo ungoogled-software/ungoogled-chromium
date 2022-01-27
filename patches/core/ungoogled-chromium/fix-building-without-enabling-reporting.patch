@@ -1,82 +1,3 @@
---- a/content/browser/BUILD.gn
-+++ b/content/browser/BUILD.gn
-@@ -1218,6 +1218,10 @@ source_set("browser") {
-     "net/browser_online_state_observer.cc",
-     "net/browser_online_state_observer.h",
-     "net/cookie_store_factory.cc",
-+    "net/cross_origin_embedder_policy_reporter.cc",
-+    "net/cross_origin_embedder_policy_reporter.h",
-+    "net/cross_origin_opener_policy_reporter.cc",
-+    "net/cross_origin_opener_policy_reporter.h",
-     "net/network_errors_listing_ui.cc",
-     "net/network_errors_listing_ui.h",
-     "net/network_quality_observer_impl.cc",
-@@ -2983,10 +2987,6 @@ source_set("browser") {
- 
-   if (enable_reporting) {
-     sources += [
--      "net/cross_origin_embedder_policy_reporter.cc",
--      "net/cross_origin_embedder_policy_reporter.h",
--      "net/cross_origin_opener_policy_reporter.cc",
--      "net/cross_origin_opener_policy_reporter.h",
-       "net/reporting_service_proxy.cc",
-       "net/reporting_service_proxy.h",
-     ]
---- a/content/browser/devtools/protocol/network_handler.h
-+++ b/content/browser/devtools/protocol/network_handler.h
-@@ -309,8 +309,10 @@ class NetworkHandler : public DevToolsDo
-       Response response,
-       mojo::ScopedDataPipeConsumerHandle pipe,
-       const std::string& mime_type);
-+#if BUILDFLAG(ENABLE_REPORTING)
-   std::unique_ptr<protocol::Network::ReportingApiReport> BuildProtocolReport(
-       const net::ReportingReport& report);
-+#endif
- 
-   // TODO(dgozman): Remove this.
-   const std::string host_id_;
---- a/content/public/common/content_switch_dependent_feature_overrides.cc
-+++ b/content/public/common/content_switch_dependent_feature_overrides.cc
-@@ -36,9 +36,11 @@ GetSwitchDependentFeatureOverrides(const
-       {switches::kEnableExperimentalWebPlatformFeatures,
-        std::cref(features::kDocumentPolicyNegotiation),
-        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
-+#if BUILDFLAG(ENABLE_REPORTING)
-       {switches::kEnableExperimentalWebPlatformFeatures,
-        std::cref(net::features::kDocumentReporting),
-        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
-+#endif
-       {switches::kEnableExperimentalWebPlatformFeatures,
-        std::cref(features::kExperimentalContentSecurityPolicyFeatures),
-        base::FeatureList::OVERRIDE_ENABLE_FEATURE},
---- a/services/network/network_context.cc
-+++ b/services/network/network_context.cc
-@@ -1145,6 +1145,11 @@ void NetworkContext::QueueSignedExchange
-     const net::NetworkIsolationKey& network_isolation_key) {
-   NOTREACHED();
- }
-+
-+void NetworkContext::AddReportingApiObserver(
-+    mojo::PendingRemote<network::mojom::ReportingApiObserver> observer) {
-+  NOTREACHED();
-+}
- #endif  // BUILDFLAG(ENABLE_REPORTING)
- 
- void NetworkContext::ClearDomainReliability(
---- a/services/network/network_context.h
-+++ b/services/network/network_context.h
-@@ -578,10 +578,10 @@ class COMPONENT_EXPORT(NETWORK_SERVICE)
-     return cors_non_wildcard_request_headers_support_;
-   }
- 
--#if BUILDFLAG(ENABLE_REPORTING)
-   void AddReportingApiObserver(
-       mojo::PendingRemote<network::mojom::ReportingApiObserver> observer)
-       override;
-+#if BUILDFLAG(ENABLE_REPORTING)
-   void OnReportAdded(const net::ReportingReport* service_report) override;
-   void OnReportUpdated(const net::ReportingReport* service_report) override;
-   void OnReportingObserverDisconnect(mojo::RemoteSetElementId mojo_id);
 --- a/third_party/blink/renderer/core/frame/local_frame.cc
 +++ b/third_party/blink/renderer/core/frame/local_frame.cc
 @@ -39,6 +39,7 @@
@@ -87,7 +8,7 @@
  #include "services/data_decoder/public/mojom/resource_snapshot_for_web_bundle.mojom-blink.h"
  #include "services/network/public/cpp/features.h"
  #include "services/network/public/mojom/content_security_policy.mojom-blink.h"
-@@ -2325,9 +2326,11 @@ const base::UnguessableToken& LocalFrame
+@@ -2289,9 +2290,11 @@ const base::UnguessableToken& LocalFrame
    return base::UnguessableToken::Null();
  }
  
@@ -109,7 +30,7 @@
  #include "services/device/public/mojom/device_posture_provider.mojom-blink-forward.h"
  #include "services/network/public/mojom/fetch_api.mojom-blink-forward.h"
  #include "third_party/blink/public/common/frame/frame_ad_evidence.h"
-@@ -548,7 +549,9 @@ class CORE_EXPORT LocalFrame final : pub
+@@ -543,7 +544,9 @@ class CORE_EXPORT LocalFrame final
  
    SmoothScrollSequencer& GetSmoothScrollSequencer();
  
@@ -191,7 +112,7 @@
  #include "third_party/blink/public/mojom/frame/reporting_observer.mojom-blink.h"
  #include "third_party/blink/public/mojom/reporting/reporting.mojom-blink.h"
  #include "third_party/blink/renderer/core/core_export.h"
-@@ -54,8 +55,10 @@ class CORE_EXPORT ReportingContext : pub
+@@ -55,8 +56,10 @@ class CORE_EXPORT ReportingContext : pub
    // Counts the use of a report type via UseCounter.
    void CountReport(Report*);
  
@@ -202,7 +123,7 @@
  
    void NotifyInternal(Report* report);
    // Send |report| via the Reporting API to |endpoint|.
-@@ -67,8 +70,10 @@ class CORE_EXPORT ReportingContext : pub
+@@ -68,8 +71,10 @@ class CORE_EXPORT ReportingContext : pub
  
    // This is declared mutable so that the service endpoint can be cached by
    // const methods.
