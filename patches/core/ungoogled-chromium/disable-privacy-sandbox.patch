@@ -9,7 +9,7 @@
 -            class="hr"
 -            label="$i18n{privacySandboxTitle}"
 -            sub-label="[[computePrivacySandboxSublabel_(
--                prefs.privacy_sandbox.apis_enabled.*)]]"
+-                prefs.privacy_sandbox.*)]]"
 -            on-click="onPrivacySandboxClick_"
 -            external
 -            role-description="$i18n{subpageArrowRoleDescription}">
@@ -22,28 +22,46 @@
  <if expr="use_nss_certs">
 --- a/components/privacy_sandbox/privacy_sandbox_prefs.cc
 +++ b/components/privacy_sandbox/privacy_sandbox_prefs.cc
-@@ -34,7 +34,7 @@ namespace privacy_sandbox {
+@@ -48,7 +48,7 @@ namespace privacy_sandbox {
  
  void RegisterProfilePrefs(PrefRegistrySimple* registry) {
    registry->RegisterBooleanPref(
 -      prefs::kPrivacySandboxApisEnabled, true,
 +      prefs::kPrivacySandboxApisEnabled, false,
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterBooleanPref(prefs::kPrivacySandboxApisEnabledV2, false);
    registry->RegisterBooleanPref(
-       prefs::kPrivacySandboxManuallyControlled, false,
 --- a/components/privacy_sandbox/privacy_sandbox_settings.cc
 +++ b/components/privacy_sandbox/privacy_sandbox_settings.cc
-@@ -261,12 +261,10 @@ std::vector<GURL> PrivacySandboxSettings
+@@ -290,31 +290,10 @@ std::vector<GURL> PrivacySandboxSettings
  }
  
- bool PrivacySandboxSettings::IsPrivacySandboxAllowed() {
+ bool PrivacySandboxSettings::IsPrivacySandboxEnabled() const {
+-  // Which preference is consulted is dependent on whether release 3 of the
+-  // settings is available.
+-  if (base::FeatureList::IsEnabled(privacy_sandbox::kPrivacySandboxSettings3)) {
+-    // For Privacy Sandbox Settings 3, APIs are disabled in incognito.
+-    if (incognito_profile_)
+       return false;
+-
+-    // The V2 pref was introduced with the 3rd Privacy Sandbox release.
+-    return pref_service_->GetBoolean(prefs::kPrivacySandboxApisEnabledV2);
+-  }
+-
 -  return pref_service_->GetBoolean(prefs::kPrivacySandboxApisEnabled);
-+  return false;
  }
  
  void PrivacySandboxSettings::SetPrivacySandboxEnabled(bool enabled) {
 -  pref_service_->SetBoolean(prefs::kPrivacySandboxManuallyControlled, true);
--  pref_service_->SetBoolean(prefs::kPrivacySandboxApisEnabled, enabled);
+-
+-  // Only apply the decision to the appropriate preference. Confirmation logic
+-  // DCHECKS that the user has not been able to enable the V2 preference
+-  // without seeing a dialog.
+-  if (base::FeatureList::IsEnabled(privacy_sandbox::kPrivacySandboxSettings3)) {
+-    pref_service_->SetBoolean(prefs::kPrivacySandboxApisEnabledV2, enabled);
+-  } else {
+-    pref_service_->SetBoolean(prefs::kPrivacySandboxApisEnabled, enabled);
+-  }
  }
  
- void PrivacySandboxSettings::OnCookiesCleared() {
+ bool PrivacySandboxSettings::IsTrustTokensAllowed() {
