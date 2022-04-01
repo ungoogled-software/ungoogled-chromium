@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/extensions/chrome_content_browser_client_extensions_part.cc
 +++ b/chrome/browser/extensions/chrome_content_browser_client_extensions_part.cc
-@@ -556,10 +556,6 @@ std::vector<url::Origin> ChromeContentBr
+@@ -555,10 +555,6 @@ std::vector<url::Origin> ChromeContentBr
      GetOriginsRequiringDedicatedProcess() {
    std::vector<url::Origin> list;
  
@@ -106,7 +106,7 @@
  
  bool ShouldRetryRequest(const network::SimpleURLLoader* loader) {
    DCHECK(loader);
-@@ -309,12 +300,6 @@ void ExtensionDownloader::DoStartAllPend
+@@ -326,12 +317,6 @@ void ExtensionDownloader::DoStartAllPend
    ReportStats();
    url_stats_ = URLStats();
  
@@ -119,7 +119,18 @@
    fetches_preparing_.clear();
  }
  
-@@ -353,11 +338,6 @@ bool ExtensionDownloader::AddExtensionDa
+@@ -353,9 +338,7 @@ void ExtensionDownloader::SetBackoffPoli
+ 
+ void ExtensionDownloader::UpdateURLStats(const GURL& update_url,
+                                          Manifest::Type extension_type) {
+-  if (update_url.DomainIs(kGoogleDotCom)) {
+-    url_stats_.google_url_count++;
+-  } else if (update_url.is_empty()) {
++  if (update_url.is_empty()) {
+     url_stats_.no_url_count++;
+   } else {
+     url_stats_.other_url_count++;
+@@ -395,11 +378,6 @@ bool ExtensionDownloader::AddExtensionDa
      return false;
    }
  
@@ -129,24 +140,18 @@
 -    update_url = extension_urls::GetWebstoreUpdateUrl();
 -
    // Skip extensions with empty IDs.
-   if (id.empty()) {
+   if (task.id.empty()) {
      DLOG(WARNING) << "Found extension with empty ID";
-@@ -366,12 +346,10 @@ bool ExtensionDownloader::AddExtensionDa
-     return false;
-   }
- 
--  if (update_url.DomainIs(kGoogleDotCom)) {
--    url_stats_.google_url_count++;
--  } else if (update_url.is_empty()) {
-+  if (update_url.is_empty()) {
-     url_stats_.no_url_count++;
+@@ -411,7 +389,7 @@ bool ExtensionDownloader::AddExtensionDa
+   UpdateURLStats(update_url, task.type);
+   if (update_url.is_empty()) {
      // Fill in default update URL.
 -    update_url = extension_urls::GetWebstoreUpdateUrl();
 +    update_url = GURL("chrome://blank/");
-   } else {
-     url_stats_.other_url_count++;
    }
-@@ -845,20 +823,6 @@ void ExtensionDownloader::HandleManifest
+ 
+   DCHECK(!update_url.is_empty());
+@@ -864,20 +842,6 @@ void ExtensionDownloader::HandleManifest
          update->info);
    }
  
@@ -167,7 +172,7 @@
    NotifyExtensionsDownloadStageChanged(
        no_updates, ExtensionDownloaderDelegate::Stage::FINISHED);
    NotifyExtensionsDownloadFailed(
-@@ -1417,11 +1381,7 @@ bool ExtensionDownloader::IterateFetchCr
+@@ -1436,11 +1400,7 @@ bool ExtensionDownloader::IterateFetchCr
    // fetch.
    switch (fetch->credentials) {
      case ExtensionFetch::CREDENTIALS_NONE:
