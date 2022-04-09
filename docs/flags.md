@@ -32,7 +32,6 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed.  Only takes the value `never`.
   `--custom-ntp` | Allows setting a custom URL for the new tab page.  Value can be internal (e.g. `about:blank`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`).  This applies for incognito windows as well when not set to a `chrome://` internal page.
   `--hide-tab-close-buttons` | Hides the close buttons on tabs.
-  `--pdf-plugin-name` | Sets the internal PDF viewer plugin name. Useful for sites that probe JavaScript API `navigator.plugins`. Supports values `chrome` for Chrome, `edge` for Microsoft Edge. Default value when omitted is Chromium.
   `--remove-grab-handle` | Removes the reserved empty space in the tabstrip for moving the window.
   `--remove-tabsearch-button` | Removes the tabsearch button from the tabstrip.
   `--scroll-tabs` | Determines if scrolling will cause a switch to a neighboring tab if the cursor hovers over the tabs, or the empty space beside the tabs. The flag requires one the values: `always`, `never`, `incognito-and-guest`. When omitted, the default is to use platform-specific behavior, which is currently enabled only on desktop Linux.
