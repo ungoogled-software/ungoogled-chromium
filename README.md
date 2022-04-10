@@ -157,6 +157,7 @@ List of mirrors:
 ## Contributing, Reporting, Contacting
 
 * For reporting and contacting, see [SUPPORT.md](SUPPORT.md)
+* If you're willing to help, check out the [Issue Tracker](//github.com/Eloston/ungoogled-chromium/issues) and especially issues, which [need help](//github.com/Eloston/ungoogled-chromium/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22)
 * For contributing (e.g. how to help, submitting changes, criteria for new features), see [docs/contributing.md](docs/contributing.md)
 * If you have some small contributions that don't fit our criteria, consider adding them to [ungoogled-software/contrib](https://github.com/ungoogled-software/contrib) or [our Wiki](https://github.com/ungoogled-software/ungoogled-chromium-wiki) instead.
 
