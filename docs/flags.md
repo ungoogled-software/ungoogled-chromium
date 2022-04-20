@@ -22,6 +22,8 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--max-connections-per-host` | (from Bromite) Configure the maximum allowed connections per host. Valid values are `6` and `15`
   `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages.  Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
+  `--http-accept-header` | Changes the default value of the `Accept` HTTP header sent with HTTP requests.
+  `--disable-grease-tls` | Disables GREASE for TLS.
 
 - ### Available only on desktop
 
