@@ -106,20 +106,18 @@
  
  bool ShouldRetryRequest(const network::SimpleURLLoader* loader) {
    DCHECK(loader);
-@@ -326,12 +317,6 @@ void ExtensionDownloader::DoStartAllPend
-   ReportStats();
-   url_stats_ = URLStats();
+@@ -372,10 +363,6 @@ void ExtensionDownloader::DoStartAllPend
+   }
+   pending_tasks_.clear();
  
--  for (auto it = fetches_preparing_.begin(); it != fetches_preparing_.end();
--       ++it) {
--    std::vector<std::unique_ptr<ManifestFetchData>>& list = it->second;
--    for (size_t i = 0; i < list.size(); ++i)
--      StartUpdateCheck(std::move(list[i]));
+-  for (auto& fetch_list : fetches_preparing) {
+-    for (auto& fetch : fetch_list.second)
+-      StartUpdateCheck(std::move(fetch));
 -  }
-   fetches_preparing_.clear();
  }
  
-@@ -353,9 +338,7 @@ void ExtensionDownloader::SetBackoffPoli
+ void ExtensionDownloader::SetIdentityManager(
+@@ -396,9 +383,7 @@ void ExtensionDownloader::SetBackoffPoli
  
  void ExtensionDownloader::UpdateURLStats(const GURL& update_url,
                                           Manifest::Type extension_type) {
@@ -130,28 +128,28 @@
      url_stats_.no_url_count++;
    } else {
      url_stats_.other_url_count++;
-@@ -395,11 +378,6 @@ bool ExtensionDownloader::AddExtensionDa
+@@ -436,11 +421,6 @@ bool ExtensionDownloader::AddExtensionDa
      return false;
    }
  
 -  // Make sure we use SSL for store-hosted extensions.
--  if (extension_urls::IsWebstoreUpdateUrl(update_url) &&
--      !update_url.SchemeIsCryptographic())
--    update_url = extension_urls::GetWebstoreUpdateUrl();
+-  if (extension_urls::IsWebstoreUpdateUrl(task.update_url) &&
+-      !task.update_url.SchemeIsCryptographic())
+-    task.update_url = extension_urls::GetWebstoreUpdateUrl();
 -
    // Skip extensions with empty IDs.
    if (task.id.empty()) {
      DLOG(WARNING) << "Found extension with empty ID";
-@@ -411,7 +389,7 @@ bool ExtensionDownloader::AddExtensionDa
-   UpdateURLStats(update_url, task.type);
-   if (update_url.is_empty()) {
+@@ -452,7 +432,7 @@ bool ExtensionDownloader::AddExtensionDa
+   UpdateURLStats(task.update_url, task.type);
+   if (task.update_url.is_empty()) {
      // Fill in default update URL.
--    update_url = extension_urls::GetWebstoreUpdateUrl();
-+    update_url = GURL("chrome://blank/");
+-    task.update_url = extension_urls::GetWebstoreUpdateUrl();
++    task.update_url = GURL("chrome://blank/");
    }
  
-   DCHECK(!update_url.is_empty());
-@@ -864,20 +842,6 @@ void ExtensionDownloader::HandleManifest
+   DCHECK(!task.update_url.is_empty());
+@@ -862,20 +842,6 @@ void ExtensionDownloader::HandleManifest
          update->info);
    }
  
@@ -172,7 +170,7 @@
    NotifyExtensionsDownloadStageChanged(
        no_updates, ExtensionDownloaderDelegate::Stage::FINISHED);
    NotifyExtensionsDownloadFailed(
-@@ -1436,11 +1400,7 @@ bool ExtensionDownloader::IterateFetchCr
+@@ -1434,11 +1400,7 @@ bool ExtensionDownloader::IterateFetchCr
    // fetch.
    switch (fetch->credentials) {
      case ExtensionFetch::CREDENTIALS_NONE:
