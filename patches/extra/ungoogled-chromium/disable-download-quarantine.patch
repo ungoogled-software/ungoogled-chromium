@@ -2,17 +2,17 @@
 
 --- a/components/download/internal/common/base_file.cc
 +++ b/components/download/internal/common/base_file.cc
-@@ -23,7 +23,6 @@
+@@ -22,7 +22,6 @@
  #include "components/download/public/common/download_interrupt_reasons_utils.h"
  #include "components/download/public/common/download_item.h"
  #include "components/download/public/common/download_stats.h"
 -#include "components/services/quarantine/quarantine.h"
  #include "crypto/secure_hash.h"
  
- #if defined(OS_WIN)
-@@ -530,105 +529,6 @@ DownloadInterruptReason BaseFile::Publis
+ #if BUILDFLAG(IS_ANDROID)
+@@ -525,102 +524,6 @@ DownloadInterruptReason BaseFile::Publis
  }
- #endif  // defined(OS_ANDROID)
+ #endif  // BUILDFLAG(IS_ANDROID)
  
 -namespace {
 -
@@ -102,27 +102,24 @@
 -
 -void BaseFile::OnQuarantineServiceError(const GURL& source_url,
 -                                        const GURL& referrer_url) {
--#if defined(OS_WIN)
--  if (base::FeatureList::IsEnabled(quarantine::kOutOfProcessQuarantine)) {
--    OnFileQuarantined(/*connection_error=*/true,
--                      quarantine::SetInternetZoneIdentifierDirectly(
--                          full_path_, source_url, referrer_url));
--    return;
--  }
--#endif  // defined(OS_WIN)
--
+-#if BUILDFLAG(IS_WIN)
+-  OnFileQuarantined(/*connection_error=*/true,
+-                    quarantine::SetInternetZoneIdentifierDirectly(
+-                        full_path_, source_url, referrer_url));
+-#else   // !BUILDFLAG(IS_WIN)
 -  CHECK(false) << "In-process quarantine service should not have failed.";
+-#endif  // !BUILDFLAG(IS_WIN)
 -}
  
  void BaseFile::AnnotateWithSourceInformation(
      const std::string& client_guid,
-@@ -636,32 +536,8 @@ void BaseFile::AnnotateWithSourceInforma
+@@ -628,32 +531,8 @@ void BaseFile::AnnotateWithSourceInforma
      const GURL& referrer_url,
      mojo::PendingRemote<quarantine::mojom::Quarantine> remote_quarantine,
      OnAnnotationDoneCallback on_annotation_done_callback) {
 -  GURL authority_url = GetEffectiveAuthorityURL(source_url, referrer_url);
 -  if (!remote_quarantine) {
--#if defined(OS_WIN)
+-#if BUILDFLAG(IS_WIN)
 -    quarantine::mojom::QuarantineFileResult result =
 -        quarantine::SetInternetZoneIdentifierDirectly(full_path_, authority_url,
 -                                                      referrer_url);
@@ -153,7 +150,7 @@
  }  // namespace download
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -81,7 +81,6 @@ source_set("browser") {
+@@ -85,7 +85,6 @@ source_set("browser") {
      "//components/permissions:permissions_common",
      "//components/power_scheduler",
      "//components/services/filesystem:lib",
@@ -163,15 +160,15 @@
      "//components/services/storage/dom_storage:local_storage_proto",
 --- a/content/browser/file_system_access/safe_move_helper.cc
 +++ b/content/browser/file_system_access/safe_move_helper.cc
-@@ -12,7 +12,6 @@
- #include "base/task/thread_pool.h"
+@@ -13,7 +13,6 @@
  #include "base/threading/sequenced_task_runner_handle.h"
  #include "build/build_config.h"
+ #include "build/chromeos_buildflags.h"
 -#include "components/services/quarantine/quarantine.h"
  #include "content/browser/file_system_access/file_system_access_error.h"
  #include "content/public/browser/content_browser_client.h"
- #include "content/public/common/content_client.h"
-@@ -193,20 +192,8 @@ void SafeMoveHelper::DidAfterWriteCheck(
+ #include "content/public/browser/global_routing_id.h"
+@@ -197,20 +196,8 @@ void SafeMoveHelper::DidAfterWriteCheck(
    // not exist anymore. In case of error, the source file URL will point to a
    // valid filesystem location.
    base::OnceCallback<void(base::File::Error)> result_callback;
@@ -192,7 +189,7 @@
    manager_->DoFileSystemOperation(
        FROM_HERE, &storage::FileSystemOperationRunner::Move,
        std::move(result_callback), source_url(), dest_url(), options_,
-@@ -222,7 +209,6 @@ void SafeMoveHelper::DidFileSkipQuaranti
+@@ -226,7 +213,6 @@ void SafeMoveHelper::DidFileSkipQuaranti
  void SafeMoveHelper::DidFileDoQuarantine(
      const storage::FileSystemURL& target_url,
      const GURL& referrer_url,
@@ -200,7 +197,7 @@
      base::File::Error result) {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
  
-@@ -253,37 +239,9 @@ void SafeMoveHelper::DidFileDoQuarantine
+@@ -257,37 +243,9 @@ void SafeMoveHelper::DidFileDoQuarantine
        referrer_url.is_valid() && referrer_url.SchemeIsHTTPOrHTTPS()
            ? referrer_url
            : GURL();
@@ -218,7 +215,7 @@
 -                           std::move(quarantine_remote)),
 -            quarantine::mojom::QuarantineFileResult::ANNOTATION_FAILED));
 -  } else {
--#if defined(OS_WIN)
+-#if BUILDFLAG(IS_WIN)
 -    base::ThreadPool::PostTaskAndReplyWithResult(
 -        FROM_HERE, {base::MayBlock()},
 -        base::BindOnce(&quarantine::SetInternetZoneIdentifierDirectly,
@@ -253,20 +250,20 @@
    void ComputeHashForSourceFile(HashCallback callback);
 --- a/content/browser/renderer_host/pepper/pepper_file_io_host.cc
 +++ b/content/browser/renderer_host/pepper/pepper_file_io_host.cc
-@@ -456,7 +456,7 @@ void PepperFileIOHost::OnLocalFileOpened
+@@ -455,7 +455,7 @@ void PepperFileIOHost::OnLocalFileOpened
      ppapi::host::ReplyMessageContext reply_context,
      const base::FilePath& path,
      base::File::Error error_code) {
--#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 +#if 0
    // Quarantining a file before its contents are available is only supported on
    // Windows and Linux.
    if (!FileOpenForWrite(open_flags_) || error_code != base::File::FILE_OK) {
-@@ -490,7 +490,7 @@ void PepperFileIOHost::OnLocalFileOpened
+@@ -489,7 +489,7 @@ void PepperFileIOHost::OnLocalFileOpened
  #endif
  }
  
--#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 +#if 0
  void PepperFileIOHost::OnLocalFileQuarantined(
      ppapi::host::ReplyMessageContext reply_context,
@@ -274,7 +271,7 @@
 --- a/content/browser/renderer_host/pepper/pepper_file_io_host.h
 +++ b/content/browser/renderer_host/pepper/pepper_file_io_host.h
 @@ -13,7 +13,6 @@
- #include "base/macros.h"
+ #include "base/memory/raw_ptr.h"
  #include "base/memory/ref_counted.h"
  #include "base/memory/weak_ptr.h"
 -#include "components/services/quarantine/public/mojom/quarantine.mojom.h"

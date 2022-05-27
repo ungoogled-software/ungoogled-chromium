@@ -1,0 +1,66 @@
+--- a/chrome/browser/ungoogled_flag_choices.h
++++ b/chrome/browser/ungoogled_flag_choices.h
+@@ -79,4 +79,16 @@ const FeatureEntry::Choice kTabHoverCard
+      "tab-hover-cards",
+      "tooltip"},
+ };
++const FeatureEntry::Choice kReferrerDirective[] = {
++    {flags_ui::kGenericExperimentChoiceDefault, "", ""},
++    {"No cross-origin referrer",
++     "referrer-directive",
++     "nocrossorigin"},
++    {"Minimal referrer",
++     "referrer-directive",
++     "minimal"},
++    {"No referrers",
++     "referrer-directive",
++     "noreferrers"},
++};
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_CHOICES_H_
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -88,4 +88,8 @@
+      "Hide tab close buttons",
+      "Hides the close buttons on tabs.  ungoogled-chromium flag.",
+      kOsDesktop, SINGLE_VALUE_TYPE("hide-tab-close-buttons")},
++    {"referrer-directive",
++     "Referrer directive",
++     "Allows setting a custom directive for referrer headers.  The no cross-origin referrer option removes all cross-origin referrers, the minimal option removes all cross-origin referrers and strips same-origin referrers down to the origin, and the no referrers option removes all referrers.  ungoogled-chromium flag.",
++     kOsAll, MULTI_VALUE_TYPE(kReferrerDirective)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/content/browser/utility_process_host.cc
++++ b/content/browser/utility_process_host.cc
+@@ -225,6 +225,7 @@ bool UtilityProcessHost::StartProcess()
+ 
+     // Browser command-line switches to propagate to the utility process.
+     static const char* const kSwitchNames[] = {
++      "referrer-directive",
+       network::switches::kAdditionalTrustTokenKeyCommitments,
+       network::switches::kForceEffectiveConnectionType,
+       network::switches::kHostResolverRules,
+--- a/services/network/network_service_network_delegate.cc
++++ b/services/network/network_service_network_delegate.cc
+@@ -7,6 +7,7 @@
+ #include <string>
+ 
+ #include "base/bind.h"
++#include "base/command_line.h"
+ #include "base/debug/dump_without_crashing.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "build/build_config.h"
+@@ -62,6 +63,15 @@ void NetworkServiceNetworkDelegate::Mayb
+     return;
+   }
+ 
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("referrer-directive")) {
++    std::string option = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("referrer-directive");
++    if (!url::IsSameOriginWith(effective_url, GURL(request->referrer())) || option == "noreferrers")
++      request->SetReferrer(std::string());
++    if (option == "minimal")
++      request->SetReferrer(url::Origin::Create(GURL(request->referrer())).GetURL().spec());
++    return;
++  }
++
+   if (base::FeatureList::IsEnabled(
+           net::features::kCapReferrerToOriginOnCrossOrigin)) {
+     if (!url::IsSameOriginWith(effective_url, GURL(request->referrer()))) {

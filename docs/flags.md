@@ -22,8 +22,9 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--max-connections-per-host` | (from Bromite) Configure the maximum allowed connections per host. Valid values are `6` and `15`
   `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages.  Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
-  `--http-accept-header` | Changes the default value of the `Accept` HTTP header sent with HTTP requests.
-  `--disable-grease-tls` | Disables GREASE for TLS.
+  `--referrer-directive` | Allows setting a custom directive for referrer headers. Accepts `nocrossorigin`, `minimal`, and `noreferrers`. The no cross-origin referrer option removes all cross-origin referrers, the minimal option removes all cross-origin referrers and strips same-origin referrers down to the origin, and the no referrers option removes all referrers.
+  `--http-accept-header` | Changes the default value of the `Accept` HTTP header sent with HTTP requests. Combined with `--disable-grease-tls` allows browser to look more like a tor-browser. See https://github.com/Eloston/ungoogled-chromium/issues/783 for more details.
+  `--disable-grease-tls` | Disables GREASE for TLS. Combined with `--http-accept-header` allows browser to look more like a tor-browser. See https://github.com/Eloston/ungoogled-chromium/issues/783 for more details.
 
 - ### Available only on desktop
 
@@ -34,7 +35,6 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed.  Only takes the value `never`.
   `--custom-ntp` | Allows setting a custom URL for the new tab page.  Value can be internal (e.g. `about:blank`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`).  This applies for incognito windows as well when not set to a `chrome://` internal page.
   `--hide-tab-close-buttons` | Hides the close buttons on tabs.
-  `--pdf-plugin-name` | Sets the internal PDF viewer plugin name. Useful for sites that probe JavaScript API `navigator.plugins`. Supports values `chrome` for Chrome, `edge` for Microsoft Edge. Default value when omitted is Chromium.
   `--remove-grab-handle` | Removes the reserved empty space in the tabstrip for moving the window.
   `--remove-tabsearch-button` | Removes the tabsearch button from the tabstrip.
   `--scroll-tabs` | Determines if scrolling will cause a switch to a neighboring tab if the cursor hovers over the tabs, or the empty space beside the tabs. The flag requires one the values: `always`, `never`, `incognito-and-guest`. When omitted, the default is to use platform-specific behavior, which is currently enabled only on desktop Linux.

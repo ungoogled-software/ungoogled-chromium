@@ -12,7 +12,7 @@
  void BackgroundModeManager::RegisterProfile(Profile* profile) {
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -1246,7 +1246,7 @@ void ChromeContentBrowserClient::Registe
+@@ -1292,7 +1292,7 @@ void ChromeContentBrowserClient::Registe
  void ChromeContentBrowserClient::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(prefs::kDisable3DAPIs, false);
@@ -21,31 +21,9 @@
    // Register user prefs for mapping SitePerProcess and IsolateOrigins in
    // user policy in addition to the same named ones in Local State (which are
    // used for mapping the command-line flags).
---- a/chrome/browser/net/prediction_options.cc
-+++ b/chrome/browser/net/prediction_options.cc
-@@ -31,7 +31,7 @@ NetworkPredictionStatus CanPrefetchAndPr
-       }
-       return NetworkPredictionStatus::DISABLED_DUE_TO_NETWORK;
-     default:
--      DCHECK_EQ(NETWORK_PREDICTION_NEVER, network_prediction_options);
-+      //DCHECK_EQ(NETWORK_PREDICTION_NEVER, network_prediction_options);
-       return NetworkPredictionStatus::DISABLED_ALWAYS;
-   }
- }
---- a/chrome/browser/net/prediction_options.h
-+++ b/chrome/browser/net/prediction_options.h
-@@ -22,7 +22,7 @@ enum NetworkPredictionOptions {
-   NETWORK_PREDICTION_ALWAYS,
-   NETWORK_PREDICTION_WIFI_ONLY,
-   NETWORK_PREDICTION_NEVER,
--  NETWORK_PREDICTION_DEFAULT = NETWORK_PREDICTION_WIFI_ONLY,
-+  NETWORK_PREDICTION_DEFAULT = NETWORK_PREDICTION_NEVER,
- };
- 
- enum class NetworkPredictionStatus {
 --- a/chrome/browser/net/profile_network_context_service.cc
 +++ b/chrome/browser/net/profile_network_context_service.cc
-@@ -324,7 +324,7 @@ void ProfileNetworkContextService::Updat
+@@ -338,7 +338,7 @@ void ProfileNetworkContextService::Updat
  void ProfileNetworkContextService::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(
@@ -54,16 +32,27 @@
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
    registry->RegisterBooleanPref(prefs::kQuicAllowed, true);
    registry->RegisterBooleanPref(prefs::kGloballyScopeHTTPAuthCacheEnabled,
+--- a/chrome/browser/prefetch/prefetch_prefs.h
++++ b/chrome/browser/prefetch/prefetch_prefs.h
+@@ -22,7 +22,7 @@ enum class NetworkPredictionOptions {
+   kWifiOnlyDeprecated = 1,
+   kDisabled = 2,
+   kExtended = 3,
+-  kDefault = kWifiOnlyDeprecated,
++  kDefault = kDisabled,
+ };
+ 
+ // Enum representing possible values of the Preload Pages opt-in state.  Since
 --- a/chrome/browser/profiles/profile.cc
 +++ b/chrome/browser/profiles/profile.cc
-@@ -276,7 +276,7 @@ const char Profile::kProfileKey[] = "__P
+@@ -278,7 +278,7 @@ const char Profile::kProfileKey[] = "__P
  void Profile::RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(
        prefs::kSearchSuggestEnabled,
 -      true,
 +      false,
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
- #if defined(OS_ANDROID)
+ #if BUILDFLAG(IS_ANDROID)
    registry->RegisterStringPref(
 --- a/chrome/browser/resources/settings/reset_page/reset_profile_dialog.html
 +++ b/chrome/browser/resources/settings/reset_page/reset_profile_dialog.html
@@ -78,7 +67,7 @@
      </cr-dialog>
 --- a/chrome/browser/signin/account_consistency_mode_manager.cc
 +++ b/chrome/browser/signin/account_consistency_mode_manager.cc
-@@ -111,7 +111,7 @@ AccountConsistencyModeManager::~AccountC
+@@ -110,7 +110,7 @@ AccountConsistencyModeManager::~AccountC
  // static
  void AccountConsistencyModeManager::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
@@ -103,17 +92,6 @@
    registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacement);
    registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacementPopup);
    registry->RegisterDictionaryPref(prefs::kAppWindowPlacement);
---- a/chrome/service/cloud_print/connector_settings.cc
-+++ b/chrome/service/cloud_print/connector_settings.cc
-@@ -59,7 +59,7 @@ void ConnectorSettings::InitFrom(Service
-   DCHECK(server_url_.is_valid());
- 
-   connect_new_printers_ = prefs->GetBoolean(
--      prefs::kCloudPrintConnectNewPrinters, true);
-+      prefs::kCloudPrintConnectNewPrinters, false);
- 
-   xmpp_ping_enabled_ = prefs->GetBoolean(
-       prefs::kCloudPrintXmppPingEnabled, false);
 --- a/components/autofill/core/common/autofill_prefs.cc
 +++ b/components/autofill/core/common/autofill_prefs.cc
 @@ -131,10 +131,10 @@ const char kAutocompleteLastVersionReten
@@ -140,29 +118,18 @@
        prefs::kAutofillProfileValidity, "",
 --- a/components/bookmarks/browser/bookmark_utils.cc
 +++ b/components/bookmarks/browser/bookmark_utils.cc
-@@ -437,7 +437,7 @@ bool DoesBookmarkContainWords(const std:
+@@ -436,7 +436,7 @@ bool DoesBookmarkContainWords(const std:
+ 
  void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(
-       prefs::kShowBookmarkBar,
--      false,
-+      true,
+-      prefs::kShowBookmarkBar, false,
++      prefs::kShowBookmarkBar, true,
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
    registry->RegisterBooleanPref(prefs::kEditBookmarksEnabled, true);
    registry->RegisterBooleanPref(
---- a/components/bookmarks/browser/features.cc
-+++ b/components/bookmarks/browser/features.cc
-@@ -10,7 +10,7 @@ namespace features {
- // Changes the apps shortcut on the bookmarks bar to default to off.
- // https://crbug.com/1236793
- const base::Feature kAppsShortcutDefaultOff{"AppsShortcutDefaultOff",
--                                            base::FEATURE_DISABLED_BY_DEFAULT};
-+                                            base::FEATURE_ENABLED_BY_DEFAULT};
- 
- }  // namespace features
- }  // namespace bookmarks
 --- a/components/content_settings/core/browser/cookie_settings.cc
 +++ b/components/content_settings/core/browser/cookie_settings.cc
-@@ -63,7 +63,7 @@ void CookieSettings::RegisterProfilePref
+@@ -64,7 +64,7 @@ void CookieSettings::RegisterProfilePref
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterIntegerPref(
        prefs::kCookieControlsMode,
@@ -173,7 +140,7 @@
  
 --- a/components/password_manager/core/browser/password_manager.cc
 +++ b/components/password_manager/core/browser/password_manager.cc
-@@ -204,10 +204,10 @@ bool HasMutedCredentials(base::span<cons
+@@ -210,10 +210,10 @@ bool HasMutedCredentials(const std::vect
  void PasswordManager::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(
