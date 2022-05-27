@@ -1,0 +1,49 @@
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -96,4 +96,8 @@
+      "Disable GREASE for TLS",
+      "Turn off GREASE (Generate Random Extensions And Sustain Extensibility) for TLS connections.  ungoogled-chromium flag.",
+      kOsAll, SINGLE_VALUE_TYPE("disable-grease-tls")},
++    {"http-accept-header",
++     "Custom HTTP Accept Header",
++     "Set a custom value for the Accept header which is sent by the browser with every HTTP request.  (e.g. `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`).  ungoogled-chromium flag.",
++     kOsAll, ORIGIN_LIST_VALUE_TYPE("http-accept-header", "")},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/components/flags_ui/flags_state.cc
++++ b/components/flags_ui/flags_state.cc
+@@ -209,6 +209,7 @@ std::string GetCombinedOriginListValue(c
+   const std::string new_value =
+       flags_storage.GetOriginListFlag(internal_entry_name);
+   if (command_line_switch == "custom-ntp") return existing_value.empty() ? new_value : existing_value;
++  if (command_line_switch == "http-accept-header") return existing_value.empty() ? new_value : existing_value;
+   return CombineAndSanitizeOriginLists(existing_value, new_value);
+ }
+ 
+@@ -398,6 +399,7 @@ void FlagsState::SetOriginListFlag(const
+                                    FlagsStorage* flags_storage) {
+   const std::string new_value =
+       internal_name == "custom-ntp" ? value :
++      internal_name == "http-accept-header" ? value :
+       CombineAndSanitizeOriginLists(std::string(), value);
+   flags_storage->SetOriginListFlag(internal_name, new_value);
+ 
+--- a/content/public/browser/frame_accept_header.cc
++++ b/content/public/browser/frame_accept_header.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "content/public/browser/frame_accept_header.h"
+ 
++#include "base/command_line.h"
+ #include "content/browser/web_package/signed_exchange_consts.h"
+ #include "content/browser/web_package/signed_exchange_utils.h"
+ #include "content/common/content_constants_internal.h"
+@@ -14,6 +15,9 @@ namespace content {
+ 
+ std::string FrameAcceptHeaderValue(bool allow_sxg_responses,
+                                    BrowserContext* browser_context) {
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("http-accept-header"))
++    return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("http-accept-header");
++
+   std::string header_value = kFrameAcceptHeaderValue;
+ 
+ #if BUILDFLAG(ENABLE_JXL_DECODER)

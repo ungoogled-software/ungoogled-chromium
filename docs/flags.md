@@ -23,6 +23,8 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages.  Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
   `--referrer-directive` | Allows setting a custom directive for referrer headers. Accepts `nocrossorigin`, `minimal`, and `noreferrers`. The no cross-origin referrer option removes all cross-origin referrers, the minimal option removes all cross-origin referrers and strips same-origin referrers down to the origin, and the no referrers option removes all referrers.
+  `--http-accept-header` | Changes the default value of the `Accept` HTTP header sent with HTTP requests. Combined with `--disable-grease-tls` allows browser to look more like a tor-browser. See https://github.com/Eloston/ungoogled-chromium/issues/783 for more details.
+  `--disable-grease-tls` | Disables GREASE for TLS. Combined with `--http-accept-header` allows browser to look more like a tor-browser. See https://github.com/Eloston/ungoogled-chromium/issues/783 for more details.
 
 - ### Available only on desktop
 
