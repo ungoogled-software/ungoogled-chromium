@@ -1,0 +1,165 @@
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -100,4 +100,8 @@
+      "Custom HTTP Accept Header",
+      "Set a custom value for the Accept header which is sent by the browser with every HTTP request.  (e.g. `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`).  ungoogled-chromium flag.",
+      kOsAll, ORIGIN_LIST_VALUE_TYPE("http-accept-header", "")},
++    {"enable-incognito-themes",
++     "Enable themes in Incognito mode",
++     "Allows themes to override Google's built-in Incognito theming.  ungoogled-chromium flag.",
++     kOsAll, SINGLE_VALUE_TYPE("enable-incognito-themes")},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/chrome/browser/themes/theme_helper.cc
++++ b/chrome/browser/themes/theme_helper.cc
+@@ -4,6 +4,7 @@
+
+ #include "chrome/browser/themes/theme_service.h"
+
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/no_destructor.h"
+ #include "build/build_config.h"
+@@ -140,6 +141,31 @@ SeparatorColorCache& GetSeparatorColorCache() {
+   return *cache;
+ }
+
++// For legacy reasons, the theme supplier requires the incognito variants of
++// color IDs.  This converts from normal to incognito IDs where they exist.
++int GetIncognitoId(int id) {
++  switch (id) {
++    case TP::COLOR_FRAME_ACTIVE:
++      return TP::COLOR_FRAME_ACTIVE_INCOGNITO;
++    case TP::COLOR_FRAME_INACTIVE:
++      return TP::COLOR_FRAME_INACTIVE_INCOGNITO;
++    case TP::COLOR_TAB_BACKGROUND_INACTIVE_FRAME_ACTIVE:
++      return TP::COLOR_TAB_BACKGROUND_INACTIVE_FRAME_ACTIVE_INCOGNITO;
++    case TP::COLOR_TAB_BACKGROUND_INACTIVE_FRAME_INACTIVE:
++      return TP::COLOR_TAB_BACKGROUND_INACTIVE_FRAME_INACTIVE_INCOGNITO;
++    case TP::COLOR_TAB_FOREGROUND_INACTIVE_FRAME_ACTIVE:
++      return TP::COLOR_TAB_FOREGROUND_INACTIVE_FRAME_ACTIVE_INCOGNITO;
++    case TP::COLOR_TAB_FOREGROUND_INACTIVE_FRAME_INACTIVE:
++      return TP::COLOR_TAB_FOREGROUND_INACTIVE_FRAME_INACTIVE_INCOGNITO;
++    case TP::COLOR_WINDOW_CONTROL_BUTTON_BACKGROUND_ACTIVE:
++      return TP::COLOR_WINDOW_CONTROL_BUTTON_BACKGROUND_INCOGNITO_ACTIVE;
++    case TP::COLOR_WINDOW_CONTROL_BUTTON_BACKGROUND_INACTIVE:
++      return TP::COLOR_WINDOW_CONTROL_BUTTON_BACKGROUND_INCOGNITO_INACTIVE;
++    default:
++      return id;
++  }
++}
++
+ }  // namespace
+
+ const char ThemeHelper::kDefaultThemeID[] = "";
+@@ -258,9 +284,10 @@ SkColor ThemeHelper::GetColor(int id,
+   if (omnibox_color.has_value())
+     return omnibox_color.value();
+
+-  if (theme_supplier && !incognito) {
++  if (theme_supplier && !ShouldIgnoreThemeSupplier(id, incognito, theme_supplier)) {
+     SkColor color;
+-    if (theme_supplier->GetColor(id, &color)) {
++    const int theme_supplier_id = incognito ? GetIncognitoId(id) : id;
++    if (theme_supplier->GetColor(theme_supplier_id, &color)) {
+       if (has_custom_color)
+         *has_custom_color = true;
+       return color;
+@@ -279,7 +306,8 @@ color_utils::HSL ThemeHelper::GetTint(
+   if (theme_supplier && theme_supplier->GetTint(id, &hsl))
+     return hsl;
+
+-  return TP::GetDefaultTint(id, incognito, UseDarkModeColors(theme_supplier));
++  const bool use_incognito_tint = incognito && UseIncognitoColor(id, theme_supplier);
++  return TP::GetDefaultTint(id, use_incognito_tint, UseDarkModeColors(theme_supplier));
+ }
+
+ gfx::ImageSkia* ThemeHelper::GetImageSkiaNamed(
+@@ -454,7 +482,8 @@ SkColor ThemeHelper::GetDefaultColor(
+     }
+   }
+
+-  return TP::GetDefaultColor(id, incognito, UseDarkModeColors(theme_supplier));
++  const bool use_incognito_color = incognito && UseIncognitoColor(id, theme_supplier);
++  return TP::GetDefaultColor(id, use_incognito_color, UseDarkModeColors(theme_supplier));
+ }
+
+ // static
+@@ -739,3 +768,26 @@ SkColor ThemeHelper::GetTabGroupColor(
+   }
+   return GetTabGroupColors(id)[incognito || use_dark_mode_colors];
+ }
++
++bool ThemeHelper::UseIncognitoColor(int id,
++                                    const CustomThemeSupplier* theme_supplier) {
++  // Incognito is disabled for any non-ignored custom theme colors so they apply
++  // atop a predictable state.
++  return ShouldIgnoreThemeSupplier(id, true, theme_supplier) ||
++         (!IsCustomTheme(theme_supplier) &&
++          (!theme_supplier || theme_supplier->CanUseIncognitoColors()));
++}
++// static
++bool ThemeHelper::ShouldIgnoreThemeSupplier(
++    int id,
++    bool incognito,
++    const CustomThemeSupplier* theme_supplier) {
++  if (incognito &&
++        !base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes")) {
++    return true;
++  }
++  // The incognito NTP uses the default background color instead of any theme
++  // background color, unless the theme also sets a custom background image.
++  return incognito && (id == TP::COLOR_NTP_BACKGROUND) &&
++         !HasCustomImage(IDR_THEME_NTP_BACKGROUND, theme_supplier);
++}
+diff --git a/chrome/browser/themes/theme_service.cc b/chrome/browser/themes/theme_service.cc
+index ba2d2b6..1f470c9 100644
+--- a/chrome/browser/themes/theme_service.cc
++++ b/chrome/browser/themes/theme_service.cc
+@@ -314,7 +314,9 @@ ThemeService::BrowserThemeProvider::GetColorProviderColor(int id) const {
+
+ CustomThemeSupplier* ThemeService::BrowserThemeProvider::GetThemeSupplier()
+     const {
+-  return incognito_ ? nullptr : delegate_->GetThemeSupplier();
++      bool should_ignore_theme_supplier =
++        incognito_ && !base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes");
++  return should_ignore_theme_supplier ? nullptr : delegate_->GetThemeSupplier();
+ }
+
+ // ThemeService ---------------------------------------------------------------
+diff --git a/chrome/browser/ui/views/frame/browser_frame.cc b/chrome/browser/ui/views/frame/browser_frame.cc
+index 8ae74ec..6c18e7b 100644
+--- a/chrome/browser/ui/views/frame/browser_frame.cc
++++ b/chrome/browser/ui/views/frame/browser_frame.cc
+@@ -369,7 +369,8 @@ void BrowserFrame::SelectNativeTheme() {
+   // Select between regular, dark and GTK theme.
+   ui::NativeTheme* native_theme = ui::NativeTheme::GetInstanceForNativeUi();
+
+-  if (browser_view_->browser()->profile()->IsIncognitoProfile()) {
++  if (browser_view_->browser()->profile()->IsIncognitoProfile() &&
++      !base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes")) {
+     // No matter if we are using the default theme or not we always use the dark
+     // ui instance.
+     SetNativeTheme(ui::NativeTheme::GetInstanceForDarkUI());
+diff --git a/ui/views/widget/widget.cc b/ui/views/widget/widget.cc
+index 79b61d6..1cd232b 100644
+--- a/ui/views/widget/widget.cc
++++ b/ui/views/widget/widget.cc
+@@ -9,6 +9,7 @@
+
+ #include "base/auto_reset.h"
+ #include "base/bind.h"
++#include "base/command_line.h"
+ #include "base/check_op.h"
+ #include "base/containers/adapters.h"
+ #include "base/i18n/rtl.h"
+@@ -1784,7 +1785,7 @@ const ui::NativeTheme* Widget::GetNativeTheme() const {
+   if (native_theme_)
+     return native_theme_;
+
+-  if (parent_)
++  if (!base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes") && parent_)
+     return parent_->GetNativeTheme();
+
+ #if BUILDFLAG(IS_LINUX)
+--
+2.29.2.windows.2
