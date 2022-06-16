@@ -60,8 +60,6 @@ PRUNING_EXCLUDE_PATTERNS = [
     # Exclusion for Android
     'build/android/chromium-debug.keystore',
     'third_party/icu/android/icudtl.dat',
-    'third_party/icu/android_small/icudtl.dat',
-    'third_party/icu/android_small/icudtl_extra.dat',
     'third_party/icu/common/icudtb.dat',
     # Exclusions for safe file extensions
     '*.avif',
