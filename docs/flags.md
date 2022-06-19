@@ -36,6 +36,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--custom-ntp` | Allows setting a custom URL for the new tab page.  Value can be internal (e.g. `about:blank`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`).  This applies for incognito windows as well when not set to a `chrome://` internal page.
   `--disable-sharing-hub` | Disables the sharing hub button.
   `--hide-sidepanel-button` | Hides the SidePanel Button.
+  `--hide-extensions-menu` | Hides the extensions menu (the puzzle piece icon) that allows the user to control extensions site access.
   `--hide-tab-close-buttons` | Hides the close buttons on tabs.
   `--remove-grab-handle` | Removes the reserved empty space in the tabstrip for moving the window.
   `--remove-tabsearch-button` | Removes the tabsearch button from the tabstrip.
