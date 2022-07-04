@@ -64,7 +64,7 @@ The resulting source tree in `build/src` *will not* have binaries pruned or doma
 
 **IMPORTANT**: Make sure domain substitution has not been applied before updating patches.
 
-1. Run `source devutils/set_quilt_vars.sh`
+1. Run `source devutils/set_quilt_vars.sh` (or `source devutils/set_quilt_vars.fish` if you are using the fish shell)
     * This will setup quilt to modify patches directly in `patches/`
 2. Go into the source tree: `cd build/src`
 3. Use `quilt` to refresh all patches: `quilt push -a --refresh`
