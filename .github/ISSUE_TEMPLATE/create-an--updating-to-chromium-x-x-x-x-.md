@@ -1,13 +1,13 @@
 ---
 name: Create an "Updating to Chromium x.x.x.x"
 about: For letting the community track progress to a new stable Chromium
-title: Updating to Chromium {{ env.VERSION }}
+title: Updating to Chromium {{ env.VERSION }} on {{ env.PLATFORM }}
 labels: update
 assignees: ''
 
 ---
 
-Chromium stable channel for Linux has been updated to a newer version: {{ env.VERSION }}.
+Chromium stable channel for {{ env.PLATFORM }} has been updated to a newer version: {{ env.VERSION }}.
 
 If you are willing to work on updating the patches and lists, please leave a comment in this issue in order to facilitate better coordination and avoid wasted/duplicated efforts.
 
