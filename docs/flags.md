@@ -25,6 +25,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages.  Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
   `--referrer-directive` | Allows setting a custom directive for referrer headers. Accepts `nocrossorigin`, `minimal`, and `noreferrers`. The no cross-origin referrer option removes all cross-origin referrers, the minimal option removes all cross-origin referrers and strips same-origin referrers down to the origin, and the no referrers option removes all referrers.
+  `--force-punycode-hostnames` | Convert all Internationalized Domain Names to punycode (ASCII representation of Unicode). See https://github.com/ungoogled-software/ungoogled-chromium/issues/370 for more details.
 
 - ### Available only on desktop
 
