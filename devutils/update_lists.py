@@ -113,7 +113,7 @@ DOMAIN_EXCLUDE_PREFIXES = [
 DOMAIN_INCLUDE_PATTERNS = [
     '*.h', '*.hh', '*.hpp', '*.hxx', '*.cc', '*.cpp', '*.cxx', '*.c', '*.h', '*.json', '*.js',
     '*.html', '*.htm', '*.css', '*.py*', '*.grd*', '*.sql', '*.idl', '*.mk', '*.gyp*', 'makefile',
-    '*.txt', '*.xml', '*.mm', '*.jinja*', '*.gn', '*.gni'
+    '*.ts', '*.txt', '*.xml', '*.mm', '*.jinja*', '*.gn', '*.gni'
 ]
 
 # Binary-detection constant
