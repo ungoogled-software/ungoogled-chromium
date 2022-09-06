@@ -15,4 +15,4 @@ If you'd like to increase visibility of your progress or get early feedback/advi
 
 Feel free to raise issues or questions throughout the process here. However, please refrain from asking for ETAs unless no visible progress has been made here or in the developer's PR for a while (e.g. 2 weeks).
 
-{{ env.NOTIFY_TEAMS }}
+{{ env.NOTIFY_MAINTAINERS }}
