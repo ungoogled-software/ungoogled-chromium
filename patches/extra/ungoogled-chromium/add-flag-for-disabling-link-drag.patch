@@ -1,0 +1,67 @@
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -14,6 +14,8 @@
+ 
+ namespace blink {
+ namespace features {
++
++const base::Feature kDisableLinkDrag{"DisableLinkDrag", base::FEATURE_DISABLED_BY_DEFAULT};
+ 
+ // Apply lazy-loading to ad frames which have embeds likely impacting Core Web
+ // Vitals.
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -16,6 +16,8 @@
+ 
+ namespace blink {
+ namespace features {
++
++BLINK_COMMON_EXPORT extern const base::Feature kDisableLinkDrag;
+ 
+ BLINK_COMMON_EXPORT extern const base::Feature kAutomaticLazyFrameLoadingToAds;
+ BLINK_COMMON_EXPORT extern const base::Feature
+--- a/third_party/blink/renderer/core/input/mouse_event_manager.cc
++++ b/third_party/blink/renderer/core/input/mouse_event_manager.cc
+@@ -687,8 +687,14 @@
+ 
+   bool single_click = event.Event().click_count <= 1;
+ 
++if (base::FeatureList::IsEnabled(features::kDisableLinkDrag)){
++  mouse_down_may_start_drag_ = single_click && !IsSelectionOverLink(event) &&
++                               !IsExtendingSelection(event) &&
++			        !event.GetHitTestResult().IsSelected(event.GetHitTestLocation());
++}else{
+   mouse_down_may_start_drag_ = single_click && !IsSelectionOverLink(event) &&
+                                !IsExtendingSelection(event);
++}
+ 
+   mouse_down_ = event.Event();
+ 
+--- a/third_party/blink/renderer/core/editing/selection_controller.cc
++++ b/third_party/blink/renderer/core/editing/selection_controller.cc
+@@ -1319,9 +1319,13 @@
+ }
+ 
+ bool IsSelectionOverLink(const MouseEventWithHitTestResults& event) {
++if (base::FeatureList::IsEnabled(features::kDisableLinkDrag)){
++  return event.IsOverLink();
++}else{
+   return (event.Event().GetModifiers() & WebInputEvent::Modifiers::kAltKey) !=
+              0 &&
+          event.IsOverLink();
++}
+ }
+ 
+ bool IsUserNodeDraggable(const MouseEventWithHitTestResults& event) {
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -108,4 +108,8 @@
+      "Hide SidePanel Button",
+      "Hides the SidePanel Button.  ungoogled-chromium flag.",
+      kOsDesktop, SINGLE_VALUE_TYPE("hide-sidepanel-button")},
++    {"disable-link-drag",
++     "Disable link drag",
++     "Prevents dragging of links and selected text.  ungoogled-chromium flag.",
++     kOsDesktop, FEATURE_VALUE_TYPE(blink::features::kDisableLinkDrag)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+
