@@ -68,4 +68,5 @@ These are also available on the `chrome://flags` page.
   Feature | Description
   -- | --
   `ClearDataOnExit` | Clears all browsing data on exit.
+  `DisableLinkDrag` | Prevents dragging of links and selected text. Allows selecting text from a middle of a link. Also allows starting selection without first clearing the existing one. This behaviour is similar to the one from older Opera. See https://github.com/ungoogled-software/ungoogled-chromium/pull/2080 and https://github.com/ungoogled-software/ungoogled-chromium/discussions/2055 for more information.
   `DisableQRGenerator` | Disables the QR generator for sharing page links.
