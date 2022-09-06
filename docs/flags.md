@@ -1,7 +1,7 @@
 # List of flags and switches
 
-This is an exhaustive list of command-line switches and flags introduced by ungoogled-chromium.  
-Each switch has a corresponding entry on the `chrome://flags` page which can be filtered by searching for `ungoogled-chromium`.  
+This is an exhaustive list of command-line switches and flags introduced by ungoogled-chromium.
+Each switch has a corresponding entry on the `chrome://flags` page which can be filtered by searching for `ungoogled-chromium`.
 
 If a switch requires a value, you must specify it with an `=` sign; e.g. flag `--foo` with value `bar` should be written as `--foo=bar`.
 
@@ -18,14 +18,14 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--fingerprinting-canvas-image-data-noise` | (Added flag to Bromite feature) Implements fingerprinting deception for Canvas image data retrieved via JS APIs. In the data, at most 10 pixels are slightly modified.
   `--fingerprinting-canvas-measuretext-noise` | (Added flag to Bromite feature) Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.
   `--fingerprinting-client-rects-noise` | (Added flag to Bromite feature) Implements fingerprinting deception of JS APIs `getClientRects()` and `getBoundingClientRect()` by scaling their output values with a random factor in the range -0.0003% to 0.0003%, which are recomputed for every document instantiation.
+  `--force-punycode-hostnames` | Convert all Internationalized Domain Names to punycode (ASCII representation of Unicode). See https://github.com/ungoogled-software/ungoogled-chromium/issues/370 for more details.
   `--hide-crashed-bubble` | Hides the bubble box with the message "Restore Pages? Chromium didn't shut down correctly." that shows on startup after the browser did not exit cleanly.
   `--http-accept-header` | Changes the default value of the `Accept` HTTP header sent with HTTP requests. Combined with `--disable-grease-tls` allows browser to look more like a tor-browser. See https://github.com/ungoogled-software/ungoogled-chromium/issues/783 for more details.
   `--keep-old-history` | Disables deletion of local browser history after 90 days
   `--max-connections-per-host` | (from Bromite) Configure the maximum allowed connections per host. Valid values are `6` and `15`
-  `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages.  Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
+  `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages. Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
   `--referrer-directive` | Allows setting a custom directive for referrer headers. Accepts `nocrossorigin`, `minimal`, and `noreferrers`. The no cross-origin referrer option removes all cross-origin referrers, the minimal option removes all cross-origin referrers and strips same-origin referrers down to the origin, and the no referrers option removes all referrers.
-  `--force-punycode-hostnames` | Convert all Internationalized Domain Names to punycode (ASCII representation of Unicode). See https://github.com/ungoogled-software/ungoogled-chromium/issues/370 for more details.
 
 - ### Available only on desktop
 
@@ -33,8 +33,8 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   -- | --
   `--bookmark-bar-ntp` | Sets the visibility of the bookmark bar on the New Tab Page. Only takes the value `never`.
   `--close-confirmation` | Show a warning prompt when closing the browser window. Accepts `last` (prompt when closing the last window with several tabs) and `multiple` (prompt only if more than one window is open). 
-  `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed.  Only takes the value `never`.
-  `--custom-ntp` | Allows setting a custom URL for the new tab page.  Value can be internal (e.g. `about:blank`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`).  This applies for incognito windows as well when not set to a `chrome://` internal page.
+  `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed. Only takes the value `never`.
+  `--custom-ntp` | Allows setting a custom URL for the new tab page. Value can be internal (e.g. `about:blank`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`). This applies for incognito windows as well when not set to a `chrome://` internal page.
   `--disable-sharing-hub` | Disables the sharing hub button.
   `--hide-sidepanel-button` | Hides the SidePanel Button.
   `--hide-tab-close-buttons` | Hides the close buttons on tabs.
@@ -54,8 +54,8 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
 
 ## Feature flags
 
-Feature flags are similar to switches with the difference being that they are passed as values for the `--enable-features` switch.  Multiple features can be passed at the same time by separating them with a comma, e.g. `--enable-features=flag1,flag2,flag3`.  
-These are also available on the `chrome://flags` page.  
+Feature flags are similar to switches with the difference being that they are passed as values for the `--enable-features` switch. Multiple features can be passed at the same time by separating them with a comma, e.g. `--enable-features=flag1,flag2,flag3`.
+These are also available on the `chrome://flags` page.
 
 - ### Available on all platforms
 
