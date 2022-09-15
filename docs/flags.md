@@ -14,6 +14,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--disable-beforeunload` | Disables JavaScript dialog boxes triggered by `beforeunload`
   `--disable-grease-tls` | Disables GREASE for TLS. Combined with `--http-accept-header` allows browser to look more like a tor-browser. See https://github.com/ungoogled-software/ungoogled-chromium/issues/783 for more details.
   `--disable-search-engine-collection` | Disable automatic search engine scraping from webpages.
+  `--enable-persistent-cookies` | Enables cookies to be persisted between sessions (by default cookies are session-only.)
   `--extension-mime-request-handling` | Change how extension MIME types (CRX and user scripts) are handled. Acceptable values are `download-as-regular-file` or `always-prompt-for-install`. Leave unset to use normal behavior.
   `--fingerprinting-canvas-image-data-noise` | (Added flag to Bromite feature) Implements fingerprinting deception for Canvas image data retrieved via JS APIs. In the data, at most 10 pixels are slightly modified.
   `--fingerprinting-canvas-measuretext-noise` | (Added flag to Bromite feature) Scale the output values of Canvas::measureText() with a randomly selected factor in the range -0.0003% to 0.0003%, which are recomputed on every document initialization.
