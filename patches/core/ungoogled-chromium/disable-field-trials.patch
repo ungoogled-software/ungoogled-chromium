@@ -1,0 +1,75 @@
+--- a/base/metrics/field_trial.cc
++++ b/base/metrics/field_trial.cc
+@@ -186,12 +186,6 @@ void AddFeatureAndFieldTrialFlags(Comman
+   if (!disabled_features.empty())
+     cmd_line->AppendSwitchASCII(switches::kDisableFeatures, disabled_features);
+ 
+-  std::string field_trial_states;
+-  FieldTrialList::AllStatesToString(&field_trial_states);
+-  if (!field_trial_states.empty()) {
+-    cmd_line->AppendSwitchASCII(switches::kForceFieldTrials,
+-                                field_trial_states);
+-  }
+ }
+ #endif  // !BUILDFLAG(IS_IOS)
+ 
+@@ -777,12 +771,6 @@ void FieldTrialList::PopulateLaunchOptio
+     return;
+   }
+ 
+-#if !BUILDFLAG(IS_NACL)
+-  global_->field_trial_allocator_->UpdateTrackingHistograms();
+-  std::string switch_value = SerializeSharedMemoryRegionMetadata(
+-      global_->readonly_allocator_region_, launch_options);
+-  command_line->AppendSwitchASCII(switches::kFieldTrialHandle, switch_value);
+-#endif  // !BUILDFLAG(IS_NACL)
+ 
+   // Append --enable-features and --disable-features switches corresponding
+   // to the features enabled on the command-line, so that child and browser
+--- a/components/variations/service/variations_field_trial_creator.cc
++++ b/components/variations/service/variations_field_trial_creator.cc
+@@ -289,13 +289,8 @@ bool VariationsFieldTrialCreator::SetUpF
+   // instance is set.
+   feature_list->RegisterExtraFeatureOverrides(extra_overrides);
+ 
+-  bool used_testing_config = false;
+   // TODO(crbug/1342057): Remove this code path.
+ #if BUILDFLAG(FIELDTRIAL_TESTING_ENABLED)
+-  if (ShouldUseFieldTrialTestingConfig(command_line)) {
+-    ApplyFieldTrialTestingConfig(feature_list.get());
+-    used_testing_config = true;
+-  }
+ #else
+   if (command_line->HasSwitch(switches::kEnableFieldTrialTestingConfig)) {
+     ExitWithMessage(
+@@ -312,10 +307,6 @@ bool VariationsFieldTrialCreator::SetUpF
+   auto entropy_providers = metrics_state_manager->CreateEntropyProviders();
+ 
+   bool used_seed = false;
+-  if (!used_testing_config) {
+-    used_seed = CreateTrialsFromSeed(*entropy_providers, feature_list.get(),
+-                                     safe_seed_manager);
+-  }
+ 
+   platform_field_trials->SetUpFeatureControllingFieldTrials(
+       used_seed, *entropy_providers, feature_list.get());
+--- a/components/variations/service/variations_service.cc
++++ b/components/variations/service/variations_service.cc
+@@ -220,17 +220,7 @@ bool GetInstanceManipulations(const net:
+ // Variations seed fetching is only enabled in official Chrome builds, if a URL
+ // is specified on the command line, and for testing.
+ bool IsFetchingEnabled() {
+-#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+-          switches::kVariationsServerURL) &&
+-      !g_should_fetch_for_testing) {
+-    DVLOG(1)
+-        << "Not performing repeated fetching in unofficial build without --"
+-        << switches::kVariationsServerURL << " specified.";
+     return false;
+-  }
+-#endif
+-  return true;
+ }
+ 
+ // Returns the already downloaded first run seed, and clear the seed from the
