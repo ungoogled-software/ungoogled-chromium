@@ -22,6 +22,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages. Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
   `--referrer-directive` | Allows setting a custom directive for referrer headers. Accepts `nocrossorigin`, `minimal`, and `noreferrers`. The no cross-origin referrer option removes all cross-origin referrers, the minimal option removes all cross-origin referrers and strips same-origin referrers down to the origin, and the no referrers option removes all referrers.
+  `--webrtc-ip-handling-policy` | Restrict which IP addresses and interfaces WebRTC uses. Accepts `default` (all available interfaces), `default_public_and_private_interfaces`, `default_public_interface_only`, and `disable_non_proxied_udp`. This switch exists in upstream Chromium, the flag is added by ungoogled-chromium.
 
 - ### Available only on desktop
 
