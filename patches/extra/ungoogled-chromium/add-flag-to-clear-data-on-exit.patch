@@ -27,35 +27,33 @@
 +         chrome_browsing_data_remover::DATA_TYPE_SITE_DATA;
 +}
 +
- uint64_t GetOriginTypeMask(const base::Value& data_types) {
+ uint64_t GetOriginTypeMask(const base::Value::List& data_types) {
    uint64_t result = 0;
-   for (const auto& data_type : data_types.GetListDeprecated()) {
-@@ -307,8 +323,9 @@ void ChromeBrowsingDataLifetimeManager::
+   for (const auto& data_type : data_types) {
+@@ -305,7 +321,8 @@ void ChromeBrowsingDataLifetimeManager::
      bool keep_browser_alive) {
-   auto* data_types = profile_->GetPrefs()->GetList(
+   const base::Value::List& data_types = profile_->GetPrefs()->GetValueList(
        browsing_data::prefs::kClearBrowsingDataOnExitList);
--  if (data_types && !data_types->GetListDeprecated().empty() &&
--      !SyncServiceFactory::IsSyncAllowed(profile_)) {
+-  if (!data_types.empty() && !SyncServiceFactory::IsSyncAllowed(profile_)) {
 +  bool cdoe = base::FeatureList::IsEnabled(browsing_data::features::kClearDataOnExit);
-+  if (cdoe || (data_types && !data_types->GetListDeprecated().empty() &&
-+      !SyncServiceFactory::IsSyncAllowed(profile_))) {
++  if (cdoe || (!data_types.empty() && !SyncServiceFactory::IsSyncAllowed(profile_))) {
      profile_->GetPrefs()->SetBoolean(
          browsing_data::prefs::kClearBrowsingDataOnExitDeletionPending, true);
      auto* remover = profile_->GetBrowsingDataRemover();
-@@ -319,8 +336,8 @@ void ChromeBrowsingDataLifetimeManager::
+@@ -316,8 +333,8 @@ void ChromeBrowsingDataLifetimeManager::
        DCHECK(keep_browser_alive);
  #endif
      remover->RemoveAndReply(base::Time(), base::Time::Max(),
--                            GetRemoveMask(*data_types),
--                            GetOriginTypeMask(*data_types),
-+                            cdoe ? AllRemoveMask() : GetRemoveMask(*data_types),
-+                            cdoe ? AllOriginTypeMask() : GetOriginTypeMask(*data_types),
+-                            GetRemoveMask(data_types),
+-                            GetOriginTypeMask(data_types),
++                            cdoe ? AllRemoveMask() : GetRemoveMask(data_types),
++                            cdoe ? AllOriginTypeMask() : GetOriginTypeMask(data_types),
                              BrowsingDataRemoverObserver::Create(
                                  remover, /*filterable_deletion=*/true, profile_,
                                  keep_browser_alive));
 --- a/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager_factory.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager_factory.cc
-@@ -48,6 +48,8 @@ ChromeBrowsingDataLifetimeManagerFactory
+@@ -43,6 +43,8 @@ ChromeBrowsingDataLifetimeManagerFactory
  KeyedService* ChromeBrowsingDataLifetimeManagerFactory::BuildServiceInstanceFor(
      content::BrowserContext* context) const {
    if (!base::FeatureList::IsEnabled(
@@ -63,7 +61,7 @@
 +      !base::FeatureList::IsEnabled(
            browsing_data::features::kEnableBrowsingDataLifetimeManager))
      return nullptr;
-   Profile* profile = Profile::FromBrowserContext(context);
+ #if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
 --- a/chrome/browser/ungoogled_flag_entries.h
 +++ b/chrome/browser/ungoogled_flag_entries.h
 @@ -56,4 +56,8 @@
@@ -77,14 +75,15 @@
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
 --- a/components/browsing_data/core/features.cc
 +++ b/components/browsing_data/core/features.cc
-@@ -19,5 +19,7 @@ const base::Feature kEnableBrowsingDataL
- const base::Feature kEnableBrowsingDataLifetimeManager{
-     "BrowsingDataLifetimeManager", base::FEATURE_ENABLED_BY_DEFAULT};
- #endif
-+
+@@ -9,6 +9,8 @@
+ namespace browsing_data {
+ namespace features {
+ 
 +const base::Feature kClearDataOnExit{"ClearDataOnExit", base::FEATURE_DISABLED_BY_DEFAULT};
- }  // namespace features
- }  // namespace browsing_data
++
+ const base::Feature kEnableRemovingAllThirdPartyCookies{
+     "EnableRemovingAllThirdPartyCookies", base::FEATURE_DISABLED_BY_DEFAULT};
+ 
 --- a/components/browsing_data/core/features.h
 +++ b/components/browsing_data/core/features.h
 @@ -17,6 +17,7 @@ extern const base::Feature kEnableRemovi
