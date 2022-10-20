@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2415,6 +2415,7 @@ static_library("browser") {
+@@ -2434,6 +2434,7 @@ static_library("browser") {
      "//third_party/libyuv",
      "//third_party/metrics_proto",
      "//third_party/re2",
@@ -19,7 +19,7 @@
      "//third_party/widevine/cdm:headers",
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -152,6 +152,7 @@
+@@ -154,6 +154,7 @@
  #include "components/translate/core/browser/translate_ranker_impl.h"
  #include "components/translate/core/common/translate_util.h"
  #include "components/ui_devtools/switches.h"
@@ -62,7 +62,7 @@
  #include "components/viz/common/switches.h"
  #include "components/viz/host/gpu_client.h"
  #include "content/browser/bad_message.h"
-@@ -3273,6 +3274,8 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3288,6 +3289,8 @@ void RenderProcessHostImpl::PropagateBro
      switches::kEnableWebGLImageChromium,
      switches::kEnableWebGPUDeveloperFeatures,
      switches::kFileUrlPathAlias,
@@ -91,7 +91,7 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/events/blink/blink_features.h"
-@@ -497,6 +498,10 @@ void SetRuntimeFeaturesFromCommandLine(c
+@@ -401,6 +402,10 @@ void SetRuntimeFeaturesFromCommandLine(c
        {wrf::EnableWebGPUDeveloperFeatures,
         switches::kEnableWebGPUDeveloperFeatures, true},
        {wrf::EnableDirectSockets, switches::kIsolatedAppOrigins, true},
@@ -104,15 +104,16 @@
      if (command_line.HasSwitch(mapping.switch_name))
 --- a/third_party/blink/public/platform/web_runtime_features.h
 +++ b/third_party/blink/public/platform/web_runtime_features.h
-@@ -218,6 +218,8 @@ class WebRuntimeFeatures {
-   BLINK_PLATFORM_EXPORT static void EnableMediaControlsExpandGesture(bool);
-   BLINK_PLATFORM_EXPORT static void EnableGetDisplayMedia(bool);
-   BLINK_PLATFORM_EXPORT static void EnableAllowSyncXHRInPageDismissal(bool);
-+  BLINK_PLATFORM_EXPORT static void EnableFingerprintingClientRectsNoise(bool);
-+  BLINK_PLATFORM_EXPORT static void EnableFingerprintingCanvasMeasureTextNoise(bool);
-   BLINK_PLATFORM_EXPORT static void EnableSignedExchangeSubresourcePrefetch(
-       bool);
-   BLINK_PLATFORM_EXPORT static void EnableSubresourceWebBundles(bool);
+@@ -68,6 +68,9 @@ class BLINK_PLATFORM_EXPORT WebRuntimeFe
+   static void EnableOverlayScrollbars(bool);
+   static void EnableFluentScrollbars(bool);
+ 
++  static void EnableFingerprintingClientRectsNoise(bool);
++  static void EnableFingerprintingCanvasMeasureTextNoise(bool);
++
+   WebRuntimeFeatures() = delete;
+ };
+ 
 --- a/third_party/blink/renderer/core/dom/document.cc
 +++ b/third_party/blink/renderer/core/dom/document.cc
 @@ -38,6 +38,7 @@
@@ -123,7 +124,7 @@
  #include "base/time/time.h"
  #include "cc/animation/animation_host.h"
  #include "cc/animation/animation_timeline.h"
-@@ -905,6 +906,14 @@ Range* Document::CreateRangeAdjustedToTr
+@@ -908,6 +909,14 @@ Range* Document::CreateRangeAdjustedToTr
                                       Position::BeforeNode(*shadow_host));
  }
  
@@ -138,7 +139,7 @@
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
-@@ -2228,6 +2237,15 @@ void Document::UpdateStyleAndLayoutTreeF
+@@ -2231,6 +2240,15 @@ void Document::UpdateStyleAndLayoutTreeF
  #if DCHECK_IS_ON()
    AssertLayoutTreeUpdated(*this, true /* allow_dirty_container_subtrees */);
  #endif
@@ -167,7 +168,7 @@
    AtomicString visibilityState() const;
    bool IsPageVisible() const;
    bool hidden() const;
-@@ -2271,6 +2275,9 @@ class CORE_EXPORT Document : public Cont
+@@ -2298,6 +2302,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -179,7 +180,7 @@
  
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -2132,6 +2132,11 @@ DOMRectList* Element::getClientRects() {
+@@ -2144,6 +2144,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustQuadsForScrollAndAbsoluteZoom(quads,
                                                      *element_layout_object);
@@ -191,7 +192,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -2149,6 +2154,9 @@ gfx::RectF Element::GetBoundingClientRec
+@@ -2168,6 +2173,9 @@ gfx::RectF Element::GetBoundingClientRec
    DCHECK(element_layout_object);
    GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
                                                     *element_layout_object);
@@ -203,7 +204,7 @@
  
 --- a/third_party/blink/renderer/core/dom/range.cc
 +++ b/third_party/blink/renderer/core/dom/range.cc
-@@ -1601,11 +1601,21 @@ DOMRectList* Range::getClientRects() con
+@@ -1604,11 +1604,21 @@ DOMRectList* Range::getClientRects() con
    Vector<gfx::QuadF> quads;
    GetBorderAndTextQuads(quads);
  
@@ -282,10 +283,10 @@
 +  return text_metrics;
  }
  
- void CanvasRenderingContext2D::fillFormattedText(
+ void CanvasRenderingContext2D::drawFormattedText(
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1651,6 +1651,7 @@ component("platform") {
+@@ -1655,6 +1655,7 @@ component("platform") {
      "//components/paint_preview/common",
      "//components/power_scheduler",
      "//components/search_engines:search_engine_utils",
@@ -295,8 +296,8 @@
      "//components/webrtc:net_address_utils",
 --- a/third_party/blink/renderer/platform/exported/web_runtime_features.cc
 +++ b/third_party/blink/renderer/platform/exported/web_runtime_features.cc
-@@ -703,4 +703,12 @@ void WebRuntimeFeatures::EnablePrefixedS
-   RuntimeEnabledFeatures::SetPrefixedStorageInfoEnabled(enable);
+@@ -64,4 +64,12 @@ void WebRuntimeFeatures::EnableFluentScr
+   ScrollbarThemeSettings::SetFluentScrollbarsEnabled(enable);
  }
  
 +void WebRuntimeFeatures::EnableFingerprintingClientRectsNoise(bool enable) {
@@ -310,7 +311,7 @@
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -1056,6 +1056,12 @@
+@@ -1237,6 +1237,12 @@
        origin_trial_feature_name: "Focusgroup",
      },
      {

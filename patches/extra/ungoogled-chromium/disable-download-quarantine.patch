@@ -158,8 +158,8 @@
      "//components/services/storage",
      "//components/services/storage:filesystem_proxy_factory",
      "//components/services/storage/dom_storage:local_storage_proto",
---- a/content/browser/file_system_access/safe_move_helper.cc
-+++ b/content/browser/file_system_access/safe_move_helper.cc
+--- a/content/browser/file_system_access/file_system_access_safe_move_helper.cc
++++ b/content/browser/file_system_access/file_system_access_safe_move_helper.cc
 @@ -14,7 +14,6 @@
  #include "base/threading/sequenced_task_runner_handle.h"
  #include "build/build_config.h"
@@ -168,7 +168,7 @@
  #include "content/browser/file_system_access/file_system_access_error.h"
  #include "content/public/browser/content_browser_client.h"
  #include "content/public/browser/global_routing_id.h"
-@@ -206,20 +205,8 @@ void SafeMoveHelper::DidAfterWriteCheck(
+@@ -210,22 +209,9 @@ void FileSystemAccessSafeMoveHelper::Did
    // not exist anymore. In case of error, the source file URL will point to a
    // valid filesystem location.
    base::OnceCallback<void(base::File::Error)> result_callback;
@@ -179,25 +179,27 @@
 -      quarantine_connection_callback_.Run(
 -          quarantine_remote.BindNewPipeAndPassReceiver());
 -    }
--    result_callback = base::BindOnce(
--        &SafeMoveHelper::DidFileDoQuarantine, weak_factory_.GetWeakPtr(),
--        dest_url(), referrer_url, std::move(quarantine_remote));
+-    result_callback =
+-        base::BindOnce(&FileSystemAccessSafeMoveHelper::DidFileDoQuarantine,
+-                       weak_factory_.GetWeakPtr(), dest_url(), referrer_url,
+-                       std::move(quarantine_remote));
 -  } else {
-     result_callback = base::BindOnce(&SafeMoveHelper::DidFileSkipQuarantine,
-                                      weak_factory_.GetWeakPtr());
+     result_callback =
+         base::BindOnce(&FileSystemAccessSafeMoveHelper::DidFileSkipQuarantine,
+                        weak_factory_.GetWeakPtr());
 -  }
    manager_->DoFileSystemOperation(
        FROM_HERE, &storage::FileSystemOperationRunner::Move,
        std::move(result_callback), source_url(), dest_url(), options_,
-@@ -235,7 +222,6 @@ void SafeMoveHelper::DidFileSkipQuaranti
- void SafeMoveHelper::DidFileDoQuarantine(
+@@ -242,7 +228,6 @@ void FileSystemAccessSafeMoveHelper::Did
+ void FileSystemAccessSafeMoveHelper::DidFileDoQuarantine(
      const storage::FileSystemURL& target_url,
      const GURL& referrer_url,
 -    mojo::Remote<quarantine::mojom::Quarantine> quarantine_remote,
      base::File::Error result) {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
  
-@@ -266,37 +252,9 @@ void SafeMoveHelper::DidFileDoQuarantine
+@@ -273,37 +258,9 @@ void FileSystemAccessSafeMoveHelper::Did
        referrer_url.is_valid() && referrer_url.SchemeIsHTTPOrHTTPS()
            ? referrer_url
            : GURL();
@@ -210,7 +212,7 @@
 -            ->browser()
 -            ->GetApplicationClientGUIDForQuarantineCheck(),
 -        mojo::WrapCallbackWithDefaultInvokeIfNotRun(
--            base::BindOnce(&SafeMoveHelper::DidAnnotateFile,
+-            base::BindOnce(&FileSystemAccessSafeMoveHelper::DidAnnotateFile,
 -                           weak_factory_.GetWeakPtr(),
 -                           std::move(quarantine_remote)),
 -            quarantine::mojom::QuarantineFileResult::ANNOTATION_FAILED));
@@ -220,7 +222,7 @@
 -        FROM_HERE, {base::MayBlock()},
 -        base::BindOnce(&quarantine::SetInternetZoneIdentifierDirectly,
 -                       target_url.path(), authority_url, referrer_url),
--        base::BindOnce(&SafeMoveHelper::DidAnnotateFile,
+-        base::BindOnce(&FileSystemAccessSafeMoveHelper::DidAnnotateFile,
 -                       weak_factory_.GetWeakPtr(),
 -                       std::move(quarantine_remote)));
 -#else
@@ -230,14 +232,14 @@
 -  }
  }
  
- void SafeMoveHelper::DidAnnotateFile(
+ void FileSystemAccessSafeMoveHelper::DidAnnotateFile(
 -    mojo::Remote<quarantine::mojom::Quarantine> quarantine_remote,
      quarantine::mojom::QuarantineFileResult result) {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
  
---- a/content/browser/file_system_access/safe_move_helper.h
-+++ b/content/browser/file_system_access/safe_move_helper.h
-@@ -59,10 +59,8 @@ class CONTENT_EXPORT SafeMoveHelper {
+--- a/content/browser/file_system_access/file_system_access_safe_move_helper.h
++++ b/content/browser/file_system_access/file_system_access_safe_move_helper.h
+@@ -61,10 +61,8 @@ class CONTENT_EXPORT FileSystemAccessSaf
    void DidFileDoQuarantine(
        const storage::FileSystemURL& target_url,
        const GURL& referrer_url,
