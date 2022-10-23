@@ -1,0 +1,220 @@
+--- a/chrome/browser/devtools/BUILD.gn
++++ b/chrome/browser/devtools/BUILD.gn
+@@ -107,6 +107,7 @@ static_library("devtools") {
+     "//components/paint_preview/buildflags:buildflags",
+     "//content/public/browser",
+     "//net",
++    "//services/network/public/cpp",
+     "//services/viz/privileged/mojom/compositing",
+     "//third_party/blink/public:buildflags",
+     "//ui/events:dom_keycode_converter",
+--- a/chrome/browser/devtools/device/devtools_android_bridge.cc
++++ b/chrome/browser/devtools/device/devtools_android_bridge.cc
+@@ -17,6 +17,7 @@
+ #include "base/callback_helpers.h"
+ #include "base/command_line.h"
+ #include "base/compiler_specific.h"
++#include "base/feature_list.h"
+ #include "base/json/json_reader.h"
+ #include "base/lazy_instance.h"
+ #include "base/memory/singleton.h"
+@@ -44,6 +45,7 @@
+ #include "content/public/browser/devtools_external_agent_proxy_delegate.h"
+ #include "net/base/host_port_pair.h"
+ #include "net/base/net_errors.h"
++#include "services/network/public/cpp/features.h"
+ 
+ #if BUILDFLAG(ENABLE_SERVICE_DISCOVERY)
+ #include "chrome/browser/devtools/device/cast_device_provider.h"
+@@ -372,7 +374,9 @@ void DevToolsAndroidBridge::CreateDevice
+     device_providers.push_back(provider);
+ 
+ #if BUILDFLAG(ENABLE_SERVICE_DISCOVERY)
+-  device_providers.push_back(new CastDeviceProvider());
++  if (!base::FeatureList::IsEnabled(network::features::kDisableMdns)) {
++    device_providers.push_back(new CastDeviceProvider());
++  }
+ #endif
+ 
+   device_providers.push_back(new AdbDeviceProvider());
+--- a/chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.cc
++++ b/chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.cc
+@@ -4,7 +4,9 @@
+ 
+ #include "chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.h"
+ 
++#include "base/feature_list.h"
+ #include "chrome/browser/media/router/discovery/mdns/dns_sd_delegate.h"
++#include "services/network/public/cpp/features.h"
+ 
+ using local_discovery::ServiceDescription;
+ 
+@@ -28,7 +30,8 @@ DnsSdDeviceLister::DnsSdDeviceLister(
+     local_discovery::ServiceDiscoveryClient* service_discovery_client,
+     DnsSdDelegate* delegate,
+     const std::string& service_type)
+-    : delegate_(delegate)
++    : delegate_(delegate),
++      enable_mdns_(!base::FeatureList::IsEnabled(network::features::kDisableMdns))
+ #if BUILDFLAG(ENABLE_SERVICE_DISCOVERY)
+       ,
+       service_discovery_client_(service_discovery_client),
+@@ -41,36 +44,46 @@ DnsSdDeviceLister::~DnsSdDeviceLister()
+ 
+ void DnsSdDeviceLister::Discover() {
+ #if BUILDFLAG(ENABLE_SERVICE_DISCOVERY)
+-  if (!device_lister_) {
+-    device_lister_ = local_discovery::ServiceDiscoveryDeviceLister::Create(
+-        this, service_discovery_client_, service_type_);
+-    device_lister_->Start();
++  if (enable_mdns_) {
++    if (!device_lister_) {
++      device_lister_ = local_discovery::ServiceDiscoveryDeviceLister::Create(
++          this, service_discovery_client_, service_type_);
++      device_lister_->Start();
++    }
++    device_lister_->DiscoverNewDevices();
+   }
+-  device_lister_->DiscoverNewDevices();
+ #endif
+ }
+ 
+ void DnsSdDeviceLister::Reset() {
+-  device_lister_.reset();
++  if (enable_mdns_) {
++    device_lister_.reset();
++  }
+ }
+ 
+ void DnsSdDeviceLister::OnDeviceChanged(
+     const std::string& service_type,
+     bool added,
+     const ServiceDescription& service_description) {
+-  DnsSdService service;
+-  FillServiceInfo(service_description, &service);
+-  delegate_->ServiceChanged(device_lister_->service_type(), added, service);
++  if (enable_mdns_) {
++    DnsSdService service;
++    FillServiceInfo(service_description, &service);
++    delegate_->ServiceChanged(device_lister_->service_type(), added, service);
++  }
+ }
+ 
+ void DnsSdDeviceLister::OnDeviceRemoved(const std::string& service_type,
+                                         const std::string& service_name) {
+-  delegate_->ServiceRemoved(service_type, service_name);
++  if (enable_mdns_) {
++    delegate_->ServiceRemoved(service_type, service_name);
++  }
+ }
+ 
+ void DnsSdDeviceLister::OnDeviceCacheFlushed(const std::string& service_type) {
+-  delegate_->ServicesFlushed(device_lister_->service_type());
+-  device_lister_->DiscoverNewDevices();
++  if (enable_mdns_) {
++    delegate_->ServicesFlushed(device_lister_->service_type());
++    device_lister_->DiscoverNewDevices();
++  }
+ }
+ 
+ }  // namespace media_router
+--- a/chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.h
++++ b/chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.h
+@@ -57,6 +57,8 @@ class DnsSdDeviceLister
+   // Created when Discover() is called, if service discovery is enabled.
+   std::unique_ptr<local_discovery::ServiceDiscoveryDeviceLister> device_lister_;
+ 
++  const bool enable_mdns_;
++
+ #if BUILDFLAG(ENABLE_SERVICE_DISCOVERY)
+   // The client and service type used to create |device_lister_|.
+   const raw_ptr<local_discovery::ServiceDiscoveryClient>
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -116,4 +116,8 @@
+      "Hide Extensions Menu",
+      "Hides the extensions menu (the puzzle piece icon). ungoogled-chromium flag.",
+      kOsDesktop, SINGLE_VALUE_TYPE("hide-extensions-menu")},
++	{"disable-mdns",
++	 "Disable mDNS",
++	 "Disables mDNS and Service Discovery. ungoogled-chromium flag.",
++	 kOsAll, FEATURE_VALUE_TYPE(network::features::kDisableMdns)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/content/browser/direct_sockets/resolve_host_and_open_socket.cc
++++ b/content/browser/direct_sockets/resolve_host_and_open_socket.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "content/browser/direct_sockets/resolve_host_and_open_socket.h"
+ 
++#include "base/feature_list.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/time/time.h"
+@@ -13,6 +14,7 @@
+ #include "net/base/ip_endpoint.h"
+ #include "net/http/http_response_headers.h"
+ #include "net/net_buildflags.h"
++#include "services/network/public/cpp/features.h"
+ #include "services/network/public/cpp/resource_request.h"
+ #include "services/network/public/cpp/simple_url_loader.h"
+ #include "services/network/public/mojom/network_context.mojom.h"
+@@ -90,7 +92,7 @@ void ResolveHostAndOpenSocket::Start() {
+   network::mojom::ResolveHostParametersPtr parameters =
+       network::mojom::ResolveHostParameters::New();
+ #if BUILDFLAG(ENABLE_MDNS)
+-  if (ResemblesMulticastDNSName(*options_->remote_hostname)) {
++  if (!base::FeatureList::IsEnabled(network::features::kDisableMDNS) && ResemblesMulticastDNSName(*options_->remote_hostname)) {
+     parameters->source = net::HostResolverSource::MULTICAST_DNS;
+     is_mdns_name_ = true;
+   }
+--- a/services/network/p2p/socket_manager.cc
++++ b/services/network/p2p/socket_manager.cc
+@@ -9,6 +9,7 @@
+ #include <utility>
+ 
+ #include "base/bind.h"
++#include "base/feature_list.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/task/thread_pool.h"
+ #include "base/threading/thread_task_runner_handle.h"
+@@ -27,6 +28,7 @@
+ #include "net/url_request/url_request_context_getter.h"
+ #include "services/network/p2p/socket.h"
+ #include "services/network/proxy_resolving_client_socket_factory.h"
++#include "services/network/public/cpp/features.h"
+ #include "services/network/public/cpp/p2p_param_traits.h"
+ #include "third_party/webrtc/media/base/rtp_utils.h"
+ #include "third_party/webrtc/media/base/turn_utils.h"
+@@ -103,7 +105,7 @@ class P2PSocketManager::DnsRequest {
+     net::HostPortPair host(host_name_, 0);
+ 
+     net::HostResolver::ResolveHostParameters parameters;
+-    if (enable_mdns_ && HasLocalTld(host_name_)) {
++    if (enable_mdns_ && HasLocalTld(host_name_) && !base::FeatureList::IsEnabled(feature::kDisableMdns)) {
+ #if BUILDFLAG(ENABLE_MDNS)
+       // HostResolver/MDnsClient expects a key without a trailing dot.
+       host.set_host(host_name_.substr(0, host_name_.size() - 1));
+--- a/services/network/public/cpp/features.cc
++++ b/services/network/public/cpp/features.cc
+@@ -15,6 +15,9 @@
+ namespace network {
+ namespace features {
+ 
++const base::Feature kDisableMdns{"DisableMdns",
++                                 base::FEATURE_DISABLED_BY_DEFAULT};
++
+ // Enables Expect CT reporting, which sends reports for opted-in sites
+ // that don't serve sufficient Certificate Transparency information.
+ const base::Feature kExpectCTReporting{"ExpectCTReporting",
+--- a/services/network/public/cpp/features.h
++++ b/services/network/public/cpp/features.h
+@@ -14,6 +14,9 @@ namespace network {
+ namespace features {
+ 
+ COMPONENT_EXPORT(NETWORK_CPP)
++extern const base::Feature kDisableMdns;
++
++COMPONENT_EXPORT(NETWORK_CPP)
+ extern const base::Feature kExpectCTReporting;
+ COMPONENT_EXPORT(NETWORK_CPP)
+ extern const base::Feature kNetworkErrorLogging;
