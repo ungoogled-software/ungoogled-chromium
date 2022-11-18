@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -627,8 +627,6 @@ static_library("browser") {
+@@ -631,8 +631,6 @@ static_library("browser") {
      "internal_auth.h",
      "interstitials/chrome_settings_page_helper.cc",
      "interstitials/chrome_settings_page_helper.h",
@@ -11,7 +11,7 @@
      "invalidation/profile_invalidation_provider_factory.cc",
      "invalidation/profile_invalidation_provider_factory.h",
      "k_anonymity_service/k_anonymity_service_client.cc",
-@@ -3742,10 +3740,6 @@ static_library("browser") {
+@@ -3757,10 +3755,6 @@ static_library("browser") {
        "enterprise/connectors/analysis/analysis_service_settings.h",
        "enterprise/connectors/analysis/analysis_settings.cc",
        "enterprise/connectors/analysis/analysis_settings.h",
@@ -22,7 +22,7 @@
        "enterprise/connectors/analysis/content_analysis_dialog.cc",
        "enterprise/connectors/analysis/content_analysis_dialog.h",
        "enterprise/connectors/analysis/content_analysis_downloads_delegate.cc",
-@@ -4021,10 +4015,6 @@ static_library("browser") {
+@@ -4040,10 +4034,6 @@ static_library("browser") {
        "new_tab_page/modules/recipes/recipes_service_factory.h",
        "new_tab_page/modules/recipes/time_format_util.cc",
        "new_tab_page/modules/recipes/time_format_util.h",
@@ -33,7 +33,7 @@
        "new_tab_page/new_tab_page_util.cc",
        "new_tab_page/new_tab_page_util.h",
        "new_tab_page/one_google_bar/one_google_bar_data.cc",
-@@ -4467,7 +4457,6 @@ static_library("browser") {
+@@ -4488,7 +4478,6 @@ static_library("browser") {
        "//chrome/browser/new_tab_page/modules/feed:mojo_bindings",
        "//chrome/browser/new_tab_page/modules/photos:mojo_bindings",
        "//chrome/browser/new_tab_page/modules/recipes:mojo_bindings",
@@ -41,7 +41,7 @@
        "//chrome/browser/policy:path_parser",
        "//chrome/browser/profile_resetter:profile_reset_report_proto",
        "//chrome/browser/resource_coordinator:intervention_policy_database_proto",
-@@ -7819,9 +7808,14 @@ static_library("browser") {
+@@ -7884,9 +7873,14 @@ static_library("browser") {
        "//components/safe_browsing/content/browser:safe_browsing_blocking_page",
        "//components/safe_browsing/content/browser/download:download_stats",
        "//components/safe_browsing/content/common:file_type_policies",
@@ -73,7 +73,7 @@
    auto delegate = std::make_unique<AccuracyServiceDelegate>(profile);
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -4618,11 +4618,13 @@ ChromeContentBrowserClient::CreateThrott
+@@ -4649,11 +4649,13 @@ ChromeContentBrowserClient::CreateThrott
        &throttles);
  #endif
  
@@ -85,9 +85,9 @@
    }
 +#endif
  
- // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
- // of lacros-chrome is complete.
-@@ -6054,26 +6056,7 @@ ChromeContentBrowserClient::GetSafeBrows
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+   MaybeAddThrottle(browser_switcher::BrowserSwitcherNavigationThrottle::
+@@ -6088,26 +6090,7 @@ ChromeContentBrowserClient::GetSafeBrows
      const std::vector<std::string>& allowlist_domains) {
    DCHECK_CURRENTLY_ON(BrowserThread::IO);
  
@@ -115,7 +115,7 @@
  }
  
  safe_browsing::RealTimeUrlLookupServiceBase*
-@@ -6094,11 +6077,6 @@ ChromeContentBrowserClient::GetUrlLookup
+@@ -6128,11 +6111,6 @@ ChromeContentBrowserClient::GetUrlLookup
          GetForProfile(profile);
    }
  #endif
@@ -129,7 +129,7 @@
  
 --- a/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
 +++ b/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
-@@ -145,34 +145,6 @@ void MaybeCreateSafeBrowsingForRenderer(
+@@ -143,34 +143,6 @@ void MaybeCreateSafeBrowsingForRenderer(
          const std::vector<std::string>& allowlist_domains)>
          get_checker_delegate,
      mojo::PendingReceiver<safe_browsing::mojom::SafeBrowsing> receiver) {
@@ -209,7 +209,7 @@
  #include "third_party/blink/public/common/renderer_preferences/renderer_preferences.h"
 --- a/chrome/browser/download/bubble/download_bubble_controller.cc
 +++ b/chrome/browser/download/bubble/download_bubble_controller.cc
-@@ -400,8 +400,6 @@ void DownloadBubbleUIController::Process
+@@ -402,8 +402,6 @@ void DownloadBubbleUIController::Process
        ProcessDownloadWarningButtonPress(model, command);
        break;
      case DownloadCommands::REVIEW:
@@ -321,7 +321,7 @@
  
 --- a/chrome/browser/download/download_item_model.cc
 +++ b/chrome/browser/download/download_item_model.cc
-@@ -905,76 +905,10 @@ void DownloadItemModel::ExecuteCommand(D
+@@ -924,100 +924,10 @@ void DownloadItemModel::ExecuteCommand(D
  
  DownloadItemModel::BubbleUIInfo
  DownloadItemModel::GetBubbleUIInfoForTailoredWarning() const {
@@ -352,8 +352,32 @@
 -          download::DOWNLOAD_DANGER_TYPE_DANGEROUS_ACCOUNT_COMPROMISE &&
 -      tailored_verdict.tailored_verdict_type() ==
 -          TailoredVerdict::COOKIE_THEFT) {
--    // TODO(crbug.com/1351925): Check the adjustments field and add the account
--    // information in the subpage summary.
+-    if (base::Contains(tailored_verdict.adjustments(),
+-                       TailoredVerdict::ACCOUNT_INFO_STRING)) {
+-      auto* identity_manager = IdentityManagerFactory::GetForProfile(profile());
+-      std::string email =
+-          identity_manager
+-              ? identity_manager
+-                    ->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin)
+-                    .email
+-              : "";
+-      base::UmaHistogramBoolean(
+-          "SBClientDownload.TailoredWarning.HasVaidEmailForAccountInfo",
+-          !email.empty());
+-      if (!email.empty()) {
+-        return DownloadUIModel::BubbleUIInfo(
+-                   l10n_util::GetStringFUTF16(
+-                       IDS_DOWNLOAD_BUBBLE_SUBPAGE_SUMMARY_COOKIE_THEFT_AND_ACCOUNT,
+-                       base::ASCIIToUTF16(email)))
+-            .AddIconAndColor(vector_icons::kNotSecureWarningIcon,
+-                             ui::kColorAlertHighSeverity)
+-            .AddPrimaryButton(DownloadCommands::Command::DISCARD)
+-            .AddSubpageButton(
+-                l10n_util::GetStringUTF16(IDS_DOWNLOAD_BUBBLE_DELETE),
+-                DownloadCommands::Command::DISCARD,
+-                /*is_prominent=*/true);
+-      }
+-    }
 -    return DownloadUIModel::BubbleUIInfo(
 -               l10n_util::GetStringUTF16(
 -                   IDS_DOWNLOAD_BUBBLE_SUBPAGE_SUMMARY_COOKIE_THEFT))
@@ -400,15 +424,15 @@
  
 --- a/chrome/browser/download/download_stats.cc
 +++ b/chrome/browser/download/download_stats.cc
-@@ -9,6 +9,7 @@
- #include "base/notreached.h"
+@@ -10,6 +10,7 @@
  #include "build/build_config.h"
+ #include "components/download/public/common/download_content.h"
  #include "components/profile_metrics/browser_profile_type.h"
 +#include "components/safe_browsing/buildflags.h"
  #include "components/safe_browsing/content/browser/download/download_stats.h"
  
  void RecordDownloadCount(ChromeDownloadCountTypes type) {
-@@ -28,8 +29,10 @@ void RecordDangerousDownloadWarningShown
+@@ -29,8 +30,10 @@ void RecordDangerousDownloadWarningShown
      bool has_user_gesture) {
    base::UmaHistogramEnumeration("Download.ShowedDownloadWarning", danger_type,
                                  download::DOWNLOAD_DANGER_TYPE_MAX);
@@ -421,7 +445,7 @@
  void RecordOpenedDangerousConfirmDialog(
 --- a/chrome/browser/download/download_target_determiner.cc
 +++ b/chrome/browser/download/download_target_determiner.cc
-@@ -953,12 +953,14 @@ void DownloadTargetDeterminer::CheckVisi
+@@ -956,12 +956,14 @@ void DownloadTargetDeterminer::CheckVisi
      bool visited_referrer_before) {
    DCHECK_CURRENTLY_ON(BrowserThread::UI);
    DCHECK_EQ(STATE_DETERMINE_INTERMEDIATE_PATH, next_state_);
@@ -436,7 +460,7 @@
    danger_level_ = GetDangerLevel(
        visited_referrer_before ? VISITED_REFERRER : NO_VISITS_TO_REFERRER);
    if (danger_level_ != DownloadFileType::NOT_DANGEROUS &&
-@@ -1197,6 +1199,7 @@ DownloadFileType::DangerLevel DownloadTa
+@@ -1199,6 +1201,7 @@ DownloadFileType::DangerLevel DownloadTa
  
  absl::optional<base::Time>
  DownloadTargetDeterminer::GetLastDownloadBypassTimestamp() const {
@@ -444,7 +468,7 @@
    safe_browsing::SafeBrowsingMetricsCollector* metrics_collector =
        safe_browsing::SafeBrowsingMetricsCollectorFactory::GetForProfile(
            GetProfile());
-@@ -1205,6 +1208,9 @@ DownloadTargetDeterminer::GetLastDownloa
+@@ -1207,6 +1210,9 @@ DownloadTargetDeterminer::GetLastDownloa
                                   safe_browsing::SafeBrowsingMetricsCollector::
                                       EventType::DANGEROUS_DOWNLOAD_BYPASS)
                             : absl::nullopt;
@@ -456,7 +480,7 @@
  void DownloadTargetDeterminer::OnDownloadDestroyed(
 --- a/chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.cc
 +++ b/chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.cc
-@@ -36,7 +36,6 @@
+@@ -37,7 +37,6 @@
  #include "chrome/browser/safe_browsing/cloud_content_scanning/binary_upload_service.h"
  #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
  #include "chrome/browser/safe_browsing/cloud_content_scanning/file_analysis_request.h"
@@ -479,7 +503,7 @@
  std::u16string ContentAnalysisDownloadsDelegate::GetBypassJustificationLabel()
 --- a/chrome/browser/enterprise/connectors/analysis/files_request_handler.cc
 +++ b/chrome/browser/enterprise/connectors/analysis/files_request_handler.cc
-@@ -228,15 +228,6 @@ void FilesRequestHandler::OnGotFileInfo(
+@@ -233,15 +233,6 @@ void FilesRequestHandler::OnGotFileInfo(
  void FilesRequestHandler::FinishRequestEarly(
      std::unique_ptr<safe_browsing::BinaryUploadService::Request> request,
      safe_browsing::BinaryUploadService::Result result) {
@@ -497,7 +521,7 @@
  }
 --- a/chrome/browser/enterprise/connectors/connectors_service.cc
 +++ b/chrome/browser/enterprise/connectors/connectors_service.cc
-@@ -444,19 +444,6 @@ absl::optional<std::string> ConnectorsSe
+@@ -446,19 +446,6 @@ absl::optional<std::string> ConnectorsSe
    return absl::nullopt;
  }
  
@@ -532,39 +556,54 @@
    // Returns the CBCM domain or profile domain that enables connector policies.
    // If both set Connector policies, the CBCM domain is returned as it has
    // precedence.
---- a/chrome/browser/enterprise/connectors/device_trust/signals/decorators/common/common_signals_decorator.cc
-+++ b/chrome/browser/enterprise/connectors/device_trust/signals/decorators/common/common_signals_decorator.cc
-@@ -44,10 +44,6 @@ void CommonSignalsDecorator::Decorate(ba
-   signals.Set(
-       device_signals::names::kBuiltInDnsClientEnabled,
-       enterprise_signals::utils::GetBuiltInDnsClientEnabled(local_state_));
--  signals.Set(device_signals::names::kSafeBrowsingProtectionLevel,
--              static_cast<int32_t>(
--                  enterprise_signals::utils::GetSafeBrowsingProtectionLevel(
--                      profile_prefs_)));
-   absl::optional<bool> third_party_blocking_enabled =
-       enterprise_signals::utils::GetThirdPartyBlockingEnabled(local_state_);
-   if (third_party_blocking_enabled.has_value()) {
-@@ -62,16 +58,6 @@ void CommonSignalsDecorator::Decorate(ba
-                 chrome_cleanup_enabled.value());
-   }
+--- a/chrome/browser/enterprise/connectors/device_trust/signals/decorators/common/context_signals_decorator.cc
++++ b/chrome/browser/enterprise/connectors/device_trust/signals/decorators/common/context_signals_decorator.cc
+@@ -26,25 +26,6 @@ enum class PasswordProtectionTrigger {
+   kPhisingReuse = 3
+ };
  
--  absl::optional<safe_browsing::PasswordProtectionTrigger>
--      password_protection_warning_trigger =
--          enterprise_signals::utils::GetPasswordProtectionWarningTrigger(
--              profile_prefs_);
--  if (password_protection_warning_trigger.has_value()) {
--    signals.Set(
--        device_signals::names::kPasswordProtectionWarningTrigger,
--        static_cast<int32_t>(password_protection_warning_trigger.value()));
+-PasswordProtectionTrigger ConvertPasswordProtectionTrigger(
+-    const absl::optional<safe_browsing::PasswordProtectionTrigger>&
+-        policy_value) {
+-  if (!policy_value) {
+-    return PasswordProtectionTrigger::kUnset;
 -  }
 -
-   if (cached_device_model_ && cached_device_manufacturer_) {
-     UpdateFromCache(signals);
-     LogSignalsCollectionLatency(kLatencyHistogramWithCacheVariant, start_time);
+-  switch (policy_value.value()) {
+-    case safe_browsing::PASSWORD_PROTECTION_OFF:
+-      return PasswordProtectionTrigger::kOff;
+-    case safe_browsing::PASSWORD_REUSE:
+-      return PasswordProtectionTrigger::kPasswordReuse;
+-    case safe_browsing::PHISHING_REUSE:
+-      return PasswordProtectionTrigger::kPhisingReuse;
+-    case safe_browsing::PASSWORD_PROTECTION_TRIGGER_MAX:
+-      NOTREACHED();
+-      return PasswordProtectionTrigger::kUnset;
+-  }
+-}
+ 
+ }  // namespace
+ 
+@@ -74,16 +55,8 @@ void ContextSignalsDecorator::OnSignalsF
+               ToListValue(context_info.browser_affiliation_ids));
+   signals.Set(device_signals::names::kProfileAffiliationIds,
+               ToListValue(context_info.profile_affiliation_ids));
+-  signals.Set(device_signals::names::kRealtimeUrlCheckMode,
+-              static_cast<int32_t>(context_info.realtime_url_check_mode));
+-  signals.Set(
+-      device_signals::names::kSafeBrowsingProtectionLevel,
+-      static_cast<int32_t>(context_info.safe_browsing_protection_level));
+   signals.Set(device_signals::names::kSiteIsolationEnabled,
+               context_info.site_isolation_enabled);
+-  signals.Set(device_signals::names::kPasswordProtectionWarningTrigger,
+-              static_cast<int32_t>(ConvertPasswordProtectionTrigger(
+-                  context_info.password_protection_warning_trigger)));
+   signals.Set(device_signals::names::kChromeRemoteDesktopAppBlocked,
+               context_info.chrome_remote_desktop_app_blocked);
+   signals.Set(device_signals::names::kBuiltInDnsClientEnabled,
 --- a/chrome/browser/enterprise/connectors/reporting/realtime_reporting_client.cc
 +++ b/chrome/browser/enterprise/connectors/reporting/realtime_reporting_client.cc
-@@ -399,7 +399,7 @@ void RealtimeReportingClient::ReportReal
+@@ -400,7 +400,7 @@ void RealtimeReportingClient::ReportReal
  }
  
  std::string RealtimeReportingClient::GetProfileUserName() const {
@@ -575,7 +614,7 @@
  #if BUILDFLAG(IS_CHROMEOS_ASH)
 --- a/chrome/browser/enterprise/connectors/reporting/reporting_service_settings.cc
 +++ b/chrome/browser/enterprise/connectors/reporting/reporting_service_settings.cc
-@@ -72,16 +72,6 @@ ReportingServiceSettings::ReportingServi
+@@ -74,16 +74,6 @@ ReportingServiceSettings::ReportingServi
        else
          DVLOG(1) << "Enabled event name list contains a non string value!";
      }
@@ -700,7 +739,7 @@
  }  // namespace utils
 --- a/chrome/browser/extensions/BUILD.gn
 +++ b/chrome/browser/extensions/BUILD.gn
-@@ -305,10 +305,6 @@ static_library("extensions") {
+@@ -303,10 +303,6 @@ static_library("extensions") {
      "api/runtime/chrome_runtime_api_delegate.h",
      "api/safe_browsing_private/safe_browsing_private_api.cc",
      "api/safe_browsing_private/safe_browsing_private_api.h",
@@ -711,7 +750,7 @@
      "api/safe_browsing_private/safe_browsing_util.cc",
      "api/safe_browsing_private/safe_browsing_util.h",
      "api/scripting/scripting_api.cc",
-@@ -641,8 +637,6 @@ static_library("extensions") {
+@@ -639,8 +635,6 @@ static_library("extensions") {
      "menu_manager_factory.h",
      "navigation_observer.cc",
      "navigation_observer.h",
@@ -720,9 +759,60 @@
      "pack_extension_job.cc",
      "pack_extension_job.h",
      "pending_extension_info.cc",
+--- a/chrome/browser/extensions/api/cookies/cookies_api.cc
++++ b/chrome/browser/extensions/api/cookies/cookies_api.cc
+@@ -285,21 +285,6 @@ void CookiesGetFunction::GetCookieListCa
+ }
+ 
+ void CookiesGetFunction::NotifyExtensionTelemetry() {
+-  auto* telemetry_service =
+-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+-          Profile::FromBrowserContext(browser_context()));
+-
+-  if (!telemetry_service || !telemetry_service->enabled() ||
+-      !base::FeatureList::IsEnabled(
+-          safe_browsing::kExtensionTelemetryCookiesGetSignal)) {
+-    return;
+-  }
+-
+-  auto cookies_get_signal = std::make_unique<safe_browsing::CookiesGetSignal>(
+-      extension_id(), parsed_args_->details.name,
+-      parsed_args_->details.store_id.value_or(std::string()),
+-      parsed_args_->details.url);
+-  telemetry_service->AddSignal(std::move(cookies_get_signal));
+ }
+ 
+ CookiesGetAllFunction::CookiesGetAllFunction() {
+@@ -383,26 +368,6 @@ void CookiesGetAllFunction::GetCookieLis
+ }
+ 
+ void CookiesGetAllFunction::NotifyExtensionTelemetry() {
+-  auto* telemetry_service =
+-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+-          Profile::FromBrowserContext(browser_context()));
+-
+-  if (!telemetry_service || !telemetry_service->enabled() ||
+-      !base::FeatureList::IsEnabled(
+-          safe_browsing::kExtensionTelemetryCookiesGetAllSignal)) {
+-    return;
+-  }
+-
+-  auto cookies_get_all_signal =
+-      std::make_unique<safe_browsing::CookiesGetAllSignal>(
+-          extension_id(), parsed_args_->details.domain.value_or(std::string()),
+-          parsed_args_->details.name.value_or(std::string()),
+-          parsed_args_->details.path.value_or(std::string()),
+-          parsed_args_->details.secure.value_or(false),
+-          parsed_args_->details.store_id.value_or(std::string()),
+-          parsed_args_->details.url.value_or(std::string()),
+-          parsed_args_->details.session.value_or(false));
+-  telemetry_service->AddSignal(std::move(cookies_get_all_signal));
+ }
+ 
+ CookiesSetFunction::CookiesSetFunction()
 --- a/chrome/browser/extensions/api/enterprise_reporting_private/enterprise_reporting_private_api.cc
 +++ b/chrome/browser/extensions/api/enterprise_reporting_private/enterprise_reporting_private_api.cc
-@@ -94,17 +94,8 @@ api::enterprise_reporting_private::Conte
+@@ -92,17 +92,8 @@ api::enterprise_reporting_private::Conte
    info.third_party_blocking_enabled = signals.third_party_blocking_enabled;
    info.os_firewall = ToInfoSettingValue(signals.os_firewall);
    info.system_dns_servers = std::move(signals.system_dns_servers);
@@ -1052,7 +1142,7 @@
  #include "chrome/browser/ui/file_system_access_dialogs.h"
  #include "chrome/common/chrome_paths.h"
  #include "chrome/common/pdf_util.h"
-@@ -344,83 +342,6 @@ BindResultCallbackToCurrentSequence(
+@@ -344,85 +342,6 @@ BindResultCallbackToCurrentSequence(
        base::SequencedTaskRunnerHandle::Get(), std::move(callback));
  }
  
@@ -1092,6 +1182,8 @@
 -
 -  sb_service->download_protection_service()->CheckFileSystemAccessWrite(
 -      std::move(item), std::move(callback));
+-#else
+-  std::move(callback).Run(safe_browsing::DownloadCheckResult::UNKNOWN);
 -#endif
 -}
 -
@@ -1101,7 +1193,7 @@
 -  switch (result) {
 -    // Only allow downloads that are marked as SAFE or UNKNOWN by SafeBrowsing.
 -    // All other types are going to be blocked. UNKNOWN could be the result of a
--    // failed safe browsing ping.
+-    // failed safe browsing ping or if Safe Browsing is not enabled.
 -    case Result::UNKNOWN:
 -    case Result::SAFE:
 -    case Result::ALLOWLISTED_BY_POLICY:
@@ -1136,7 +1228,7 @@
  std::string GenerateLastPickedDirectoryKey(const std::string& id) {
    return id.empty() ? kDefaultLastPickedDirectoryKey
                      : base::StrCat({kCustomLastPickedDirectoryKey, "-", id});
-@@ -1202,28 +1123,6 @@ void ChromeFileSystemAccessPermissionCon
+@@ -1204,28 +1123,6 @@ void ChromeFileSystemAccessPermissionCon
                       frame_id, std::move(callback)));
  }
  
@@ -1165,13 +1257,13 @@
  void ChromeFileSystemAccessPermissionContext::
      DidConfirmSensitiveDirectoryAccess(
          const url::Origin& origin,
-@@ -1235,27 +1134,6 @@ void ChromeFileSystemAccessPermissionCon
+@@ -1237,27 +1134,6 @@ void ChromeFileSystemAccessPermissionCon
          bool should_block) {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
    if (!should_block) {
 -    // If attempting to save a file with a dangerous extension, prompt the user
 -    // to make them confirm they actually want to save the file.
--    if (dialog_type == ui::SelectFileDialog::SELECT_SAVEAS_FILE) {
+-    if (user_action == UserAction::kSave) {
 -      safe_browsing::DownloadFileType::DangerLevel danger_level =
 -          safe_browsing::FileTypePolicies::GetInstance()->GetFileDangerLevel(
 -              path, origin.GetURL(),
@@ -1196,7 +1288,7 @@
 --- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.h
 +++ b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.h
 @@ -88,10 +88,6 @@ class ChromeFileSystemAccessPermissionCo
-       ui::SelectFileDialog::Type dialog_type,
+       UserAction user_action,
        content::GlobalRenderFrameHostId frame_id,
        base::OnceCallback<void(SensitiveEntryResult)> callback) override;
 -  void PerformAfterWriteChecks(
@@ -1216,7 +1308,7 @@
  #include "components/url_formatter/elide_url.h"
  #include "content/public/browser/browser_thread.h"
  #include "content/public/browser/desktop_capture.h"
-@@ -118,6 +119,7 @@ void DisplayMediaAccessHandler::HandleRe
+@@ -112,6 +113,7 @@ void DisplayMediaAccessHandler::HandleRe
      return;
    }
  
@@ -1224,7 +1316,7 @@
    // SafeBrowsing Delayed Warnings experiment can delay some SafeBrowsing
    // warnings until user interaction. If the current page has a delayed warning,
    // it'll have a user interaction observer attached. Show the warning
-@@ -133,6 +135,7 @@ void DisplayMediaAccessHandler::HandleRe
+@@ -127,6 +129,7 @@ void DisplayMediaAccessHandler::HandleRe
      observer->OnDesktopCaptureRequest();
      return;
    }
@@ -1255,10 +1347,10 @@
  #include "chrome/browser/password_manager/password_store_factory.h"
  #include "chrome/browser/profiles/profile.h"
 -#include "chrome/browser/safe_browsing/chrome_password_protection_service.h"
- #include "chrome/browser/safe_browsing/user_interaction_observer.h"
- #include "chrome/browser/signin/identity_manager_factory.h"
- #include "chrome/browser/sync/sync_service_factory.h"
-@@ -920,6 +919,7 @@ autofill::LanguageCode ChromePasswordMan
+ #include "chrome/browser/safe_browsing/extension_telemetry/extension_telemetry_service.h"
+ #include "chrome/browser/safe_browsing/extension_telemetry/extension_telemetry_service_factory.h"
+ #include "chrome/browser/safe_browsing/extension_telemetry/password_reuse_signal.h"
+@@ -961,6 +960,7 @@ autofill::LanguageCode ChromePasswordMan
    return autofill::LanguageCode();
  }
  
@@ -1266,8 +1358,8 @@
  safe_browsing::PasswordProtectionService*
  ChromePasswordManagerClient::GetPasswordProtectionService() const {
    return safe_browsing::ChromePasswordProtectionService::
-@@ -961,13 +961,9 @@ void ChromePasswordManagerClient::CheckP
-   // TODO(crbug.com/1351484): Hook this to the extension service in the next CL.
+@@ -1034,13 +1034,9 @@ void ChromePasswordManagerClient::CheckP
+   telemetry_service->AddSignal(std::move(password_reuse_signal));
  #endif  // !BUILDFLAG(IS_ANDROID)
  }
 +#endif // BUILDFLAG(FULL_SAFE_BROWSING)
@@ -1281,7 +1373,7 @@
  }
  
  #if !BUILDFLAG(IS_ANDROID)
-@@ -976,36 +972,10 @@ void ChromePasswordManagerClient::MaybeR
+@@ -1049,36 +1045,10 @@ void ChromePasswordManagerClient::MaybeR
      bool is_federated,
      const url::Origin& federated_origin,
      const std::u16string& login_user_name) const {
@@ -1318,7 +1410,7 @@
  }
  #endif
  
-@@ -1517,7 +1487,9 @@ void ChromePasswordManagerClient::OnPast
+@@ -1596,7 +1566,9 @@ void ChromePasswordManagerClient::OnPast
    }
  
    was_on_paste_called_ = true;
@@ -1328,7 +1420,7 @@
  }
  
  void ChromePasswordManagerClient::RenderFrameCreated(
-@@ -1553,7 +1525,9 @@ void ChromePasswordManagerClient::OnInpu
+@@ -1632,7 +1604,9 @@ void ChromePasswordManagerClient::OnInpu
    if (key_event.windows_key_code == (ui::VKEY_V & 0x1f)) {
      OnPaste();
    } else {
@@ -1338,7 +1430,7 @@
    }
  #endif  // BUILDFLAG(IS_ANDROID)
  }
-@@ -1592,6 +1566,7 @@ bool ChromePasswordManagerClient::IsPass
+@@ -1671,6 +1645,7 @@ bool ChromePasswordManagerClient::IsPass
      is_enabled = false;
    }
  
@@ -1346,7 +1438,7 @@
    // SafeBrowsing Delayed Warnings experiment can delay some SafeBrowsing
    // warnings until user interaction. If the current page has a delayed warning,
    // it'll have a user interaction observer attached. Disable password
-@@ -1602,6 +1577,7 @@ bool ChromePasswordManagerClient::IsPass
+@@ -1681,6 +1656,7 @@ bool ChromePasswordManagerClient::IsPass
      observer->OnPasswordSaveOrAutofillDenied();
      is_enabled = false;
    }
@@ -1356,7 +1448,7 @@
      password_manager::BrowserSavePasswordProgressLogger logger(
 --- a/chrome/browser/password_manager/chrome_password_manager_client.h
 +++ b/chrome/browser/password_manager/chrome_password_manager_client.h
-@@ -229,13 +229,14 @@ class ChromePasswordManagerClient
+@@ -233,13 +233,14 @@ class ChromePasswordManagerClient
    void AnnotateNavigationEntry(bool has_password_field) override;
    autofill::LanguageCode GetPageLanguage() const override;
  
@@ -1372,7 +1464,7 @@
  
    void CheckProtectedPasswordEntry(
        password_manager::metrics_util::PasswordType reused_password_type,
-@@ -245,6 +246,7 @@ class ChromePasswordManagerClient
+@@ -249,6 +250,7 @@ class ChromePasswordManagerClient
        bool password_field_exists,
        uint64_t reused_password_hash,
        const std::string& domain) override;
@@ -1460,20 +1552,28 @@
  }
  
  void PermissionRevocationRequest::OnSiteReputationReady(
-@@ -165,25 +145,6 @@ void PermissionRevocationRequest::OnSite
+@@ -165,33 +145,6 @@ void PermissionRevocationRequest::OnSite
          base::TimeTicks::Now() - crowd_deny_request_start_time_.value();
    }
  
--  if (site_reputation && !site_reputation->warning_only() &&
--      (site_reputation->notification_ux_quality() ==
--           CrowdDenyPreloadData::SiteReputation::ABUSIVE_PROMPTS ||
--       site_reputation->notification_ux_quality() ==
--           CrowdDenyPreloadData::SiteReputation::ABUSIVE_CONTENT ||
--       site_reputation->notification_ux_quality() ==
--           CrowdDenyPreloadData::SiteReputation::DISRUPTIVE_BEHAVIOR)) {
+-  if (site_reputation && !site_reputation->warning_only()) {
+-    bool should_revoke_permission = false;
+-    switch (site_reputation->notification_ux_quality()) {
+-      case CrowdDenyPreloadData::SiteReputation::ABUSIVE_PROMPTS:
+-      case CrowdDenyPreloadData::SiteReputation::ABUSIVE_CONTENT:
+-        should_revoke_permission = NotificationsPermissionRevocationConfig::
+-            IsAbusiveOriginPermissionRevocationEnabled();
+-        break;
+-      case CrowdDenyPreloadData::SiteReputation::DISRUPTIVE_BEHAVIOR:
+-        should_revoke_permission = NotificationsPermissionRevocationConfig::
+-            IsDisruptiveOriginPermissionRevocationEnabled();
+-        break;
+-      default:
+-        should_revoke_permission = false;
+-    }
 -    DCHECK(g_browser_process->safe_browsing_service());
--
--    if (g_browser_process->safe_browsing_service()) {
+-    if (should_revoke_permission &&
+-        g_browser_process->safe_browsing_service()) {
 -      safe_browsing_request_.emplace(
 -          g_browser_process->safe_browsing_service()->database_manager(),
 -          base::DefaultClock::GetInstance(), url::Origin::Create(origin_),
@@ -1488,7 +1588,7 @@
  
 --- a/chrome/browser/permissions/prediction_based_permission_ui_selector.cc
 +++ b/chrome/browser/permissions/prediction_based_permission_ui_selector.cc
-@@ -332,52 +332,5 @@ bool PredictionBasedPermissionUiSelector
+@@ -341,52 +341,5 @@ bool PredictionBasedPermissionUiSelector
  
  PredictionSource PredictionBasedPermissionUiSelector::GetPredictionTypeToUse(
      permissions::RequestType request_type) {
@@ -1543,15 +1643,15 @@
  }
 --- a/chrome/browser/policy/configuration_policy_handler_list_factory.cc
 +++ b/chrome/browser/policy/configuration_policy_handler_list_factory.cc
-@@ -94,6 +94,7 @@
- #include "components/policy/core/common/schema.h"
+@@ -95,6 +95,7 @@
  #include "components/policy/policy_constants.h"
+ #include "components/privacy_sandbox/privacy_sandbox_prefs.h"
  #include "components/proxy_config/proxy_policy_handler.h"
 +#include "components/safe_browsing/buildflags.h"
  #include "components/safe_browsing/content/common/file_type_policies_prefs.h"
  #include "components/safe_browsing/core/common/safe_browsing_policy_handler.h"
  #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
-@@ -1821,8 +1822,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -1847,8 +1848,6 @@ std::unique_ptr<ConfigurationPolicyHandl
    handlers->AddHandler(
        std::make_unique<bookmarks::ManagedBookmarksPolicyHandler>(
            chrome_schema));
@@ -1560,7 +1660,7 @@
    handlers->AddHandler(std::make_unique<syncer::SyncPolicyHandler>());
    handlers->AddHandler(
        std::make_unique<URLBlocklistPolicyHandler>(key::kURLBlocklist));
-@@ -1880,13 +1879,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -1906,13 +1905,6 @@ std::unique_ptr<ConfigurationPolicyHandl
            prefs::kSafeBrowsingEnterpriseRealTimeUrlCheckMode,
            prefs::kSafeBrowsingEnterpriseRealTimeUrlCheckScope, chrome_schema));
  
@@ -1576,7 +1676,7 @@
  
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -254,7 +254,6 @@
+@@ -259,7 +259,6 @@
  #include "chrome/browser/new_tab_page/modules/drive/drive_service.h"
  #include "chrome/browser/new_tab_page/modules/photos/photos_service.h"
  #include "chrome/browser/new_tab_page/modules/recipes/recipes_service.h"
@@ -1584,7 +1684,7 @@
  #include "chrome/browser/new_tab_page/promos/promo_service.h"
  #include "chrome/browser/policy/developer_tools_policy_handler.h"
  #include "chrome/browser/search/background/ntp_custom_background_service.h"
-@@ -1435,7 +1434,6 @@ void RegisterProfilePrefs(user_prefs::Pr
+@@ -1408,7 +1407,6 @@ void RegisterProfilePrefs(user_prefs::Pr
    NewTabPageHandler::RegisterProfilePrefs(registry);
    NewTabPageUI::RegisterProfilePrefs(registry);
    NewTabUI::RegisterProfilePrefs(registry);
@@ -1594,7 +1694,7 @@
    PinnedTabCodec::RegisterProfilePrefs(registry);
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -587,7 +587,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -589,7 +589,6 @@ void ChromeBrowserMainExtraPartsProfiles
    }
  #endif
    TabRestoreServiceFactory::GetInstance();
@@ -1604,7 +1704,7 @@
  #if !BUILDFLAG(IS_ANDROID)
 --- a/chrome/browser/reputation/reputation_service.cc
 +++ b/chrome/browser/reputation/reputation_service.cc
-@@ -114,9 +114,7 @@ void ReputationService::GetReputationSta
+@@ -116,9 +116,7 @@ void ReputationService::GetReputationSta
                                              ReputationCheckCallback callback) {
    DCHECK(url.SchemeIsHTTPOrHTTPS());
  
@@ -1780,7 +1880,7 @@
  }  // namespace
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -546,7 +546,6 @@ static_library("ui") {
+@@ -553,7 +553,6 @@ static_library("ui") {
      "//components/renderer_context_menu",
      "//components/resources",
      "//components/safe_browsing/content/browser",
@@ -1788,10 +1888,10 @@
      "//components/safe_browsing/content/browser/password_protection",
      "//components/safe_browsing/content/browser/web_ui",
      "//components/safe_browsing/core/browser/db:database_manager",
-@@ -4884,8 +4883,6 @@ static_library("ui") {
+@@ -4918,8 +4917,6 @@ static_library("ui") {
        "views/safe_browsing/prompt_for_scanning_modal_dialog.h",
-       "views/safe_browsing/tailored_security_desktop_dialog.cc",
-       "views/safe_browsing/tailored_security_desktop_dialog.h",
+       "views/safe_browsing/tailored_security_desktop_dialog_manager.cc",
+       "views/safe_browsing/tailored_security_desktop_dialog_manager.h",
 -      "views/safe_browsing/tailored_security_unconsented_modal.cc",
 -      "views/safe_browsing/tailored_security_unconsented_modal.h",
        "views/send_tab_to_self/manage_account_devices_link_view.cc",
@@ -1836,31 +1936,31 @@
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
  #include "content/public/browser/web_contents.h"
-@@ -21,6 +24,7 @@
+@@ -22,6 +25,7 @@
  
  namespace {
  
 +#if BUILDFLAG(FULL_SAFE_BROWSING)
- void CompletionCallback(
-     content::WebContentsViewDelegate::DropCompletionCallback callback,
-     const enterprise_connectors::ContentAnalysisDelegate::Data& data,
-@@ -59,6 +63,7 @@ enterprise_connectors::ContentAnalysisDe
-   }
-   return data;
+ // Helper to keep a mapping of files to the index of their corresponding parent
+ // entry in content::DropData::filenames. For instance, this means that for a
+ // DropData with filenames = [ "a.txt", "dir/"], `PathsAndIndexes` might be
+@@ -113,6 +117,7 @@ ContentAnalysisDropData GetPathsToScan(
+ 
+   return content_analysis_drop_data;
  }
 +#endif // BUILDFLAG(FULL_SAFE_BROWSING)
  
  // Helper class to handle WebContents being destroyed while files are opened in
  // the threadpool. This class deletes itself either when it's no longer needed
-@@ -72,6 +77,7 @@ class HandleDropScanData : public conten
-       : content::WebContentsObserver(web_contents),
+@@ -128,6 +133,7 @@ class HandleDropScanData : public conten
+         drop_data_(std::move(drop_data)),
          callback_(std::move(callback)) {}
  
 +#if BUILDFLAG(FULL_SAFE_BROWSING)
-   void ScanData(
-       enterprise_connectors::ContentAnalysisDelegate::Data analysis_data) {
+   void ScanData(ContentAnalysisDropData content_analysis_drop_data) {
      DCHECK(web_contents());
-@@ -83,6 +89,7 @@ class HandleDropScanData : public conten
+ 
+@@ -140,6 +146,7 @@ class HandleDropScanData : public conten
  
      delete this;
    }
@@ -1868,9 +1968,9 @@
  
    void WebContentsDestroyed() override { delete this; }
  
-@@ -102,13 +109,16 @@ void HandleOnPerformDrop(
+@@ -160,13 +167,16 @@ void HandleOnPerformDrop(
      content::WebContents* web_contents,
-     const content::DropData& drop_data,
+     content::DropData drop_data,
      content::WebContentsViewDelegate::DropCompletionCallback callback) {
 +#if BUILDFLAG(FULL_SAFE_BROWSING)
    enterprise_connectors::ContentAnalysisDelegate::Data data;
@@ -1884,19 +1984,18 @@
 +#if BUILDFLAG(FULL_SAFE_BROWSING)
    if (!enterprise_connectors::ContentAnalysisDelegate::IsEnabled(
            profile, web_contents->GetLastCommittedURL(), &data, connector)) {
-     std::move(callback).Run(
-@@ -148,4 +158,8 @@ void HandleOnPerformDrop(
-     std::move(callback).Run(
-         content::WebContentsViewDelegate::DropCompletionResult::kContinue);
+     std::move(callback).Run(std::move(drop_data));
+@@ -203,6 +213,7 @@ void HandleOnPerformDrop(
+         base::BindOnce(&HandleDropScanData::ScanData,
+                        handle_drop_scan_data->GetWeakPtr()));
    }
-+#else
-+  std::move(callback).Run(
-+      content::WebContentsViewDelegate::DropCompletionResult::kContinue);
 +#endif // BUILDFLAG(FULL_SAFE_BROWSING)
- }
+ 
+   if (!callback.is_null()) {
+     std::move(callback).Run(std::move(drop_data));
 --- a/chrome/browser/ui/views/download/download_item_view.cc
 +++ b/chrome/browser/ui/views/download/download_item_view.cc
-@@ -838,9 +838,7 @@ void DownloadItemView::UpdateLabels() {
+@@ -840,9 +840,7 @@ void DownloadItemView::UpdateLabels() {
    deep_scanning_label_->SetVisible(mode_ ==
                                     download::DownloadItemMode::kDeepScanning);
    if (deep_scanning_label_->GetVisible()) {
@@ -1907,7 +2006,7 @@
                         ? IDS_PROMPT_DEEP_SCANNING_DOWNLOAD
                         : IDS_PROMPT_DEEP_SCANNING_APP_DOWNLOAD;
      const std::u16string filename = ElidedFilename(*deep_scanning_label_);
-@@ -866,11 +864,15 @@ void DownloadItemView::UpdateButtons() {
+@@ -868,11 +866,15 @@ void DownloadItemView::UpdateButtons() {
    }
  
    const bool allow_open_during_deep_scan =
@@ -1923,7 +2022,7 @@
    open_button_->SetEnabled((mode_ == download::DownloadItemMode::kNormal) ||
                             prompt_to_scan || allow_open_during_deep_scan);
  
-@@ -1366,7 +1368,9 @@ void DownloadItemView::ShowContextMenuIm
+@@ -1369,7 +1371,9 @@ void DownloadItemView::ShowContextMenuIm
  }
  
  void DownloadItemView::OpenDownloadDuringAsyncScanning() {
@@ -2007,7 +2106,7 @@
                                 std::move(callback),
 --- a/chrome/test/BUILD.gn
 +++ b/chrome/test/BUILD.gn
-@@ -1379,7 +1379,6 @@ if (!is_android) {
+@@ -1406,7 +1406,6 @@ if (!is_android) {
        "//components/resources",
        "//components/safe_browsing:buildflags",
        "//components/safe_browsing/content/browser",
@@ -2015,7 +2114,7 @@
        "//components/safe_browsing/content/browser:safe_browsing_service",
        "//components/safe_browsing/content/browser/password_protection",
        "//components/safe_browsing/content/browser/password_protection:test_support",
-@@ -5891,7 +5890,6 @@ test("unit_tests") {
+@@ -5951,7 +5950,6 @@ test("unit_tests") {
      "//components/resources",
      "//components/safe_browsing:buildflags",
      "//components/safe_browsing/content/browser",
@@ -2025,7 +2124,7 @@
      "//components/safe_browsing/content/browser/web_ui",
 --- a/components/password_manager/content/browser/content_password_manager_driver.cc
 +++ b/components/password_manager/content/browser/content_password_manager_driver.cc
-@@ -438,7 +438,7 @@ void ContentPasswordManagerDriver::Check
+@@ -430,7 +430,7 @@ void ContentPasswordManagerDriver::Check
    if (!password_manager::bad_message::CheckFrameNotPrerendering(
            render_frame_host_))
      return;
@@ -2036,7 +2135,7 @@
  }
 --- a/components/password_manager/core/browser/password_manager_client.h
 +++ b/components/password_manager/core/browser/password_manager_client.h
-@@ -392,11 +392,14 @@ class PasswordManagerClient {
+@@ -394,11 +394,14 @@ class PasswordManagerClient {
    // Returns the current best guess as to the page's display language.
    virtual autofill::LanguageCode GetPageLanguage() const;
  
@@ -2052,7 +2151,7 @@
    // Checks the safe browsing reputation of the webpage when the
    // user focuses on a username/password field. This is used for reporting
    // only, and won't trigger a warning.
-@@ -404,6 +407,7 @@ class PasswordManagerClient {
+@@ -406,6 +409,7 @@ class PasswordManagerClient {
                                             const GURL& frame_url) = 0;
  #endif
  
@@ -2060,7 +2159,7 @@
    // Checks the safe browsing reputation of the webpage where password reuse
    // happens. This is called by the PasswordReuseDetectionManager when a
    // protected password is typed on the wrong domain. This may trigger a
-@@ -420,6 +424,7 @@ class PasswordManagerClient {
+@@ -422,6 +426,7 @@ class PasswordManagerClient {
        bool password_field_exists,
        uint64_t reused_password_hash,
        const std::string& domain) = 0;
@@ -2101,7 +2200,7 @@
 +# }
 --- a/components/safe_browsing/content/common/safe_browsing.mojom
 +++ b/components/safe_browsing/content/common/safe_browsing.mojom
-@@ -133,7 +133,6 @@ interface PhishingDetector {
+@@ -138,7 +138,6 @@ interface PhishingDetector {
      => (PhishingDetectorResult result, string request_proto);
  };
  
@@ -2217,7 +2316,7 @@
    void DidFileSkipQuarantine(base::File::Error result);
 --- a/content/public/browser/file_system_access_permission_context.h
 +++ b/content/public/browser/file_system_access_permission_context.h
-@@ -113,12 +113,6 @@ class FileSystemAccessPermissionContext
+@@ -112,12 +112,6 @@ class FileSystemAccessPermissionContext
        base::OnceCallback<void(SensitiveEntryResult)> callback) = 0;
  
    enum class AfterWriteCheckResult { kAllow, kBlock };
@@ -2259,7 +2358,7 @@
  declare_args() {
 --- a/weblayer/BUILD.gn
 +++ b/weblayer/BUILD.gn
-@@ -473,7 +473,6 @@ source_set("weblayer_lib_base") {
+@@ -477,7 +477,6 @@ source_set("weblayer_lib_base") {
      "//components/profile_metrics",
      "//components/reduce_accept_language/browser",
      "//components/safe_browsing/content/browser",
