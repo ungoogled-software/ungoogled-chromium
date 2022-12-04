@@ -115,7 +115,7 @@ If your GNU/Linux distribution is not listed, there are distro-independent build
 
 ### Third-party binaries
 
-If your operating system is not listed above, you can also try to [**Download binaries from here**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+If your operating system is not listed above, you can also try to [**Download binaries from here**](https://ungoogled-software.github.io/ungoogled-chromium-binaries/)
 
 *NOTE: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).*
 
