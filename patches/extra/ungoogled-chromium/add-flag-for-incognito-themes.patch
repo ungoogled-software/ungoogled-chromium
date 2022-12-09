@@ -1,16 +1,14 @@
 --- a/chrome/browser/ui/views/frame/browser_frame.cc
 +++ b/chrome/browser/ui/views/frame/browser_frame.cc
-@@ -250,6 +250,9 @@ const ui::ThemeProvider* BrowserFrame::G
- ui::ColorProviderManager::ThemeInitializerSupplier*
- BrowserFrame::GetCustomTheme() const {
+@@ -252,6 +252,7 @@ BrowserFrame::GetCustomTheme() const {
    Browser* browser = browser_view_->browser();
-+  if (browser->profile()->IsIncognitoProfile() &&
-+      base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes"))
-+    return ThemeService::GetThemeSupplierForProfile(browser->profile()->GetPrimaryOTRProfile(true));
    // If this is an incognito profile, there should never be a custom theme.
    if (browser->profile()->IsIncognitoProfile())
++   if (!base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes"))
      return nullptr;
-@@ -385,7 +388,8 @@ void BrowserFrame::SelectNativeTheme() {
+   auto* app_controller = browser->app_controller();
+   // Ignore the system theme for web apps with window-controls-overlay as the
+@@ -385,7 +386,8 @@ void BrowserFrame::SelectNativeTheme() {
    // Select between regular, dark and Linux toolkit themes.
    ui::NativeTheme* native_theme = ui::NativeTheme::GetInstanceForNativeUi();
  
@@ -20,6 +18,19 @@
      // No matter if we are using the default theme or not we always use the dark
      // ui instance.
      SetNativeTheme(ui::NativeTheme::GetInstanceForDarkUI());
+--- a/chrome/browser/ui/webui/ntp/ntp_resource_cache.cc
++++ b/chrome/browser/ui/webui/ntp/ntp_resource_cache.cc
+@@ -432,7 +432,9 @@ void NTPResourceCache::CreateNewTabIncog
+       profile_->GetPrefs()->GetString(prefs::kCurrentThemeID);
+ 
+   // Colors.
+-  const ui::ColorProvider& cp = web_contents->GetColorProvider();
++  auto key = native_theme->GetColorProviderKey(nullptr);
++  key.color_mode = ui::ColorProviderManager::ColorMode::kDark;
++  const ui::ColorProvider& cp = *ui::ColorProviderManager::Get().GetColorProviderFor(key);
+   substitutions["colorBackground"] = color_utils::SkColorToRgbaString(
+       GetThemeColor(native_theme, cp, kColorNewTabPageBackground));
+   substitutions["backgroundPosition"] = GetNewTabBackgroundPositionCSS(tp);
 --- a/chrome/browser/ungoogled_flag_entries.h
 +++ b/chrome/browser/ungoogled_flag_entries.h
 @@ -120,4 +120,8 @@
