@@ -84,7 +84,6 @@ Contents of this section:
 In addition to the features introduced by ungoogled-chromium, ungoogled-chromium selectively borrows many features from the following projects (in approximate order of significance):
 
 * [Inox patchset](//github.com/gcarq/inox-patchset)
-* [Bromite](//github.com/bromite/bromite)
 * [Debian](//tracker.debian.org/pkg/chromium-browser)
 * [Iridium Browser](//iridiumbrowser.de/)
 
