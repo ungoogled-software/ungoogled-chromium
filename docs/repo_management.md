@@ -4,7 +4,7 @@
 
 ungoogled-chromium is comprised of anonymous developers who volunteer their efforts. Some of these developers may choose to provide long-term support for [an officially-supported platform](platforms.md), or bring support to a new platform. For such developers, this document consists of standards and management guidelines for platform repos.
 
-We will refer to this git repository as "the main repo", and refer to repositories that add platform-specific code to build ungoogled-chromium as "platform repos". An "officially-supported platform" is a platform with a platform repo in [the ungoogled-software organization](//github.com/ungoogled-software) and noted in [docs/platforms.md](platforms.md).
+We will refer to this git repository as "the main repo", and refer to repositories that add platform-specific code to build ungoogled-chromium as "platform repos". An "officially-supported platform" is a platform with a platform repo in [the ungoogled-software organization](https://github.com/ungoogled-software) and noted in [docs/platforms.md](platforms.md).
 
 ## Standards
 
