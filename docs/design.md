@@ -89,13 +89,13 @@ Within each category, patches are grouped by the following:
 * `inox-patchset/` - Contains a modified subset of patches from Inox patchset.
     * Some patches such as those that change branding are omitted
     * Patches are not modified unless they do not apply cleanly onto the version of Chromium being built
-    * Patches are from [inox-patchset's GitHub](//github.com/gcarq/inox-patchset)
-    * [Inox patchset's license](//github.com/gcarq/inox-patchset/blob/master/LICENSE)
-* `bromite/` - Patches from [Bromite](//github.com/bromite/bromite)
+    * Patches are from [inox-patchset's GitHub](https://github.com/gcarq/inox-patchset)
+    * [Inox patchset's license](https://github.com/gcarq/inox-patchset/blob/master/LICENSE)
+* `bromite/` - Patches from [Bromite](https://github.com/bromite/bromite)
 * `iridium-browser/` - Contains a modified subset of patches from Iridium Browser.
     * Some patches such as those that change branding or URLs to point to Iridium's own servers are omitted
     * Patches are not modified unless they conflict with Debian's or Inox's patches
-    * Patches are from the `patchview` branch of Iridium's Git repository. [Git webview of the patchview branch](//git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
+    * Patches are from the `patchview` branch of Iridium's Git repository. [Git webview of the patchview branch](https://git.iridiumbrowser.de/cgit.cgi/iridium-browser/?h=patchview)
 * `opensuse/` - Patches from openSUSE's Chromium
 * `ubuntu/` -  Patches from Ubuntu's Chromium
 * `ungoogled-chromium/` - Patches by ungoogled-chromium developers
@@ -104,7 +104,7 @@ Within each category, patches are grouped by the following:
 
 Packaging is the process of downloading, building, and producing a distributable package of ungoogled-chromium.
 
-Packaging files use the code from this repository to build ungoogled-chromium. Each platform and configuration has an associated packaging repository under the [ungoogled-software](//github.com/ungoogled-software) organization. For more information about each packaging repository, see the [building documentation](building.md).
+Packaging files use the code from this repository to build ungoogled-chromium. Each platform and configuration has an associated packaging repository under the [ungoogled-software](https://github.com/ungoogled-software) organization. For more information about each packaging repository, see the [building documentation](building.md).
 
 Packaging generally consists of the major steps:
 

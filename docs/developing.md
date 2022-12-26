@@ -2,7 +2,7 @@
 
 This document contains an assortment of information for those who want to develop ungoogled-chromium.
 
-Information targeted towards developers *and* other users live in [the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/).
+Information targeted towards developers *and* other users live in [the Wiki](https://ungoogled-software.github.io/ungoogled-chromium-wiki/).
 
 Contents:
 
