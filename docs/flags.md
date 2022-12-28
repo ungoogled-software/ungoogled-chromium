@@ -38,7 +38,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--disable-sharing-hub` | Disables the sharing hub button.
   `--enable-incognito-themes` | Allows themes to change the appearance of Incognito windows.
   `--hide-extensions-menu` | Hides the extensions container. This includes the puzzle piece icon as well as any pinned extensions.
-  `--hide-fullscreen-exit-ui` | Hides the "X" that appears when the mouse cursor is moved towards the top of the window in fullscreen mode.
+  `--hide-fullscreen-exit-ui` | Hides the "X" that appears when the mouse cursor is moved towards the top of the window in fullscreen mode. Additionally, this hides the "Press F11 to exit full screen" popup.
   `--hide-sidepanel-button` | Hides the SidePanel Button.
   `--hide-tab-close-buttons` | Hides the close buttons on tabs.
   `--remove-grab-handle` | Removes the reserved empty space in the tabstrip for moving the window.
