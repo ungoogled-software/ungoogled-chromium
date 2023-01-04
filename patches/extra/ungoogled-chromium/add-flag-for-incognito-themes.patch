@@ -1,23 +1,15 @@
 --- a/chrome/browser/ui/views/frame/browser_frame.cc
 +++ b/chrome/browser/ui/views/frame/browser_frame.cc
-@@ -252,6 +252,7 @@ BrowserFrame::GetCustomTheme() const {
-   Browser* browser = browser_view_->browser();
-   // If this is an incognito profile, there should never be a custom theme.
-   if (browser->profile()->IsIncognitoProfile())
-+   if (!base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes"))
-     return nullptr;
-   auto* app_controller = browser->app_controller();
-   // Ignore the system theme for web apps with window-controls-overlay as the
-@@ -385,7 +386,8 @@ void BrowserFrame::SelectNativeTheme() {
-   // Select between regular, dark and Linux toolkit themes.
-   ui::NativeTheme* native_theme = ui::NativeTheme::GetInstanceForNativeUi();
+@@ -440,6 +440,9 @@ bool BrowserFrame::RegenerateFrameOnThem
+ }
  
--  if (browser_view_->browser()->profile()->IsIncognitoProfile()) {
-+  if (browser_view_->browser()->profile()->IsIncognitoProfile() &&
-+      !base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes")) {
-     // No matter if we are using the default theme or not we always use the dark
-     // ui instance.
-     SetNativeTheme(ui::NativeTheme::GetInstanceForDarkUI());
+ bool BrowserFrame::ShouldUseDarkTheme() const {
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("enable-incognito-themes") &&
++      !browser_view_->GetIsPictureInPictureType())
++    return false;
+   return browser_view_->browser()->profile()->IsIncognitoProfile() ||
+          browser_view_->GetIsPictureInPictureType();
+ }
 --- a/chrome/browser/ui/webui/ntp/ntp_resource_cache.cc
 +++ b/chrome/browser/ui/webui/ntp/ntp_resource_cache.cc
 @@ -432,7 +432,9 @@ void NTPResourceCache::CreateNewTabIncog
