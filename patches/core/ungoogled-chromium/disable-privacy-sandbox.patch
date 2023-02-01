@@ -1,30 +1,35 @@
---- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
-+++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
-@@ -69,21 +69,6 @@
-             sub-label="$i18n{permissionsPageDescription}"
-             on-click="onPermissionsPageClick_"
-             role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
--        <template is="dom-if" if="[[!isPrivacySandboxRestricted_]]">
--          <cr-link-row id="privacySandboxLinkRow"
--              start-icon="settings20:experiment"
--              class="hr"
--              label="$i18n{privacySandboxTitle}"
--              sub-label="[[computePrivacySandboxSublabel_(
--                  prefs.privacy_sandbox.*)]]"
--              on-click="onPrivacySandboxClick_"
--              external
--              role-description="$i18n{subpageArrowRoleDescription}">
--          </cr-link-row>
--          <a id="privacySandboxLink" href="privacySandbox"
--              target="_blank" tabindex="-1" aria-disabled="true"
--              role="none"></a>
--        </template>
-       </div>
+--- a/chrome/browser/privacy_sandbox/privacy_sandbox_settings_delegate.cc
++++ b/chrome/browser/privacy_sandbox/privacy_sandbox_settings_delegate.cc
+@@ -14,25 +14,7 @@
+ namespace {
  
- <if expr="use_nss_certs">
+ bool PrivacySandboxRestrictedByAcccountCapability(Profile* profile) {
+-  auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
+-
+-  if (!identity_manager ||
+-      !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+-    // The user isn't signed in so we can't apply any capabilties-based
+-    // restrictions.
+-    return false;
+-  }
+-
+-  const auto core_account_info =
+-      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+-  const AccountInfo account_info =
+-      identity_manager->FindExtendedAccountInfo(core_account_info);
+-  auto capability =
+-      account_info.capabilities.can_run_chrome_privacy_sandbox_trials();
+-
+-  // The Privacy Sandbox is not considered restricted unless the capability
+-  // has a definitive false signal.
+-  return capability == signin::Tribool::kFalse;
++  return true;
+ }
+ 
+ }  // namespace
 --- a/components/privacy_sandbox/privacy_sandbox_prefs.cc
 +++ b/components/privacy_sandbox/privacy_sandbox_prefs.cc
-@@ -66,7 +66,7 @@ namespace privacy_sandbox {
+@@ -87,7 +87,7 @@ namespace privacy_sandbox {
  
  void RegisterProfilePrefs(PrefRegistrySimple* registry) {
    registry->RegisterBooleanPref(
@@ -32,10 +37,10 @@
 +      prefs::kPrivacySandboxApisEnabled, false,
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
    registry->RegisterBooleanPref(prefs::kPrivacySandboxApisEnabledV2, false);
-   registry->RegisterBooleanPref(
+   registry->RegisterBooleanPref(prefs::kPrivacySandboxM1ConsentDecisionMade,
 --- a/components/privacy_sandbox/privacy_sandbox_settings.cc
 +++ b/components/privacy_sandbox/privacy_sandbox_settings.cc
-@@ -335,45 +335,10 @@ bool PrivacySandboxSettings::IsPrivateAg
+@@ -354,26 +354,10 @@ bool PrivacySandboxSettings::IsPrivateAg
  }
  
  bool PrivacySandboxSettings::IsPrivacySandboxEnabled() const {
@@ -43,42 +48,23 @@
 -  if (delegate_->IsPrivacySandboxRestricted())
 -    return false;
 -
+-  if (delegate_->IsIncognitoProfile())
+-    return false;
+-
 -  // For Measurement and Relevance APIs, we explicitly do not require the
 -  // underlying pref to be enabled if there is a local flag enabling the APIs to
 -  // allow for local testing.
--  bool should_override_setting_for_local_testing = base::FeatureList::IsEnabled(
--      privacy_sandbox::kOverridePrivacySandboxSettingsLocalTesting);
--
--  // Which preference is consulted is dependent on whether release 3 of the
--  // settings is available.
--  if (base::FeatureList::IsEnabled(privacy_sandbox::kPrivacySandboxSettings3)) {
--    // For Privacy Sandbox Settings 3, APIs are disabled in incognito.
--    if (incognito_profile_)
--      return false;
--
--    if (should_override_setting_for_local_testing) {
--      return true;
--    }
--
--    // For Privacy Sandbox Settings 3, APIs may be restricted via the delegate.
--    // The V2 pref was introduced with the 3rd Privacy Sandbox release.
--    return pref_service_->GetBoolean(prefs::kPrivacySandboxApisEnabledV2);
+-  if (base::FeatureList::IsEnabled(
+-          privacy_sandbox::kOverridePrivacySandboxSettingsLocalTesting)) {
+-    return true;
 -  }
 -
--  if (should_override_setting_for_local_testing)
--    return true;
--
--  return pref_service_->GetBoolean(prefs::kPrivacySandboxApisEnabled);
+-  return pref_service_->GetBoolean(prefs::kPrivacySandboxApisEnabledV2);
 +  return false;
  }
  
  void PrivacySandboxSettings::SetPrivacySandboxEnabled(bool enabled) {
--  // Only apply the decision to the appropriate preference.
--  if (base::FeatureList::IsEnabled(privacy_sandbox::kPrivacySandboxSettings3)) {
--    pref_service_->SetBoolean(prefs::kPrivacySandboxApisEnabledV2, enabled);
--  } else {
--    pref_service_->SetBoolean(prefs::kPrivacySandboxApisEnabled, enabled);
--  }
+-  pref_service_->SetBoolean(prefs::kPrivacySandboxApisEnabledV2, enabled);
  }
  
  bool PrivacySandboxSettings::IsTrustTokensAllowed() {
@@ -92,7 +78,7 @@
 +             base::FEATURE_DISABLED_BY_DEFAULT);
  
  const base::FeatureParam<std::string>
-     kPrivacySandboxAggregationServiceTrustedServerUrlParam{
+     kPrivacySandboxAggregationServiceTrustedServerUrlAwsParam{
 --- a/third_party/blink/common/features.cc
 +++ b/third_party/blink/common/features.cc
 @@ -122,7 +122,7 @@ BASE_FEATURE(kBlockingDownloadsInAdFrame
