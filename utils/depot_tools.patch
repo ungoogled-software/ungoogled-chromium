@@ -1,0 +1,81 @@
+# Changes to gclient that:
+#   move dotfiles into the staging directory
+#   skip cipd binary downloads
+#   replace 'src' in checkout paths with the output directory
+#   ensure shallow fetches
+--- a/gclient.py
++++ b/gclient.py
+@@ -130,8 +130,8 @@
+ # one, e.g. if a spec explicitly says `cache_dir = None`.)
+ UNSET_CACHE_DIR = object()
+ 
+-PREVIOUS_CUSTOM_VARS_FILE = '.gclient_previous_custom_vars'
+-PREVIOUS_SYNC_COMMITS_FILE = '.gclient_previous_sync_commits'
++PREVIOUS_CUSTOM_VARS_FILE = 'UC_STAGING'+os.sep+'.gclient_previous_custom_vars'
++PREVIOUS_SYNC_COMMITS_FILE = 'UC_STAGING'+os.sep+'.gclient_previous_sync_commits'
+ 
+ PREVIOUS_SYNC_COMMITS = 'GCLIENT_PREVIOUS_SYNC_COMMITS'
+ 
+@@ -405,6 +405,7 @@
+                custom_vars, custom_hooks, deps_file, should_process,
+                should_recurse, relative, condition, protocol='https',
+                print_outbuf=False):
++    if name and name[0:3] == "src": name = "UC_OUT"+name[3:]
+     gclient_utils.WorkItem.__init__(self, name)
+     DependencySettings.__init__(
+         self, parent, url, managed, custom_deps, custom_vars,
+@@ -700,6 +701,7 @@
+ 
+       condition = dep_value.get('condition')
+       dep_type = dep_value.get('dep_type')
++      if dep_type == 'cipd': continue
+ 
+ 
+       if condition and not self._get_option('process_all_deps', False):
+@@ -799,6 +801,8 @@
+ 
+     self._gn_args_from = local_scope.get('gclient_gn_args_from')
+     self._gn_args_file = local_scope.get('gclient_gn_args_file')
++    if self._gn_args_file and self._gn_args_file[0:3] == "src":
++        self._gn_args_file = "UC_OUT"+self._gn_args_file[3:]
+     self._gn_args = local_scope.get('gclient_gn_args', [])
+     # It doesn't make sense to set all of these, since setting gn_args_from to
+     # another DEPS will make gclient ignore any other local gn_args* settings.
+--- a/gclient_scm.py
++++ b/gclient_scm.py
+@@ -770,7 +770,7 @@
+     self._SetFetchConfig(options)
+ 
+     # Fetch upstream if we don't already have |revision|.
+-    if not scm.GIT.IsValidRevision(self.checkout_path, revision, sha_only=True):
++    if False:
+       self._Fetch(options, prune=options.force)
+ 
+       if not scm.GIT.IsValidRevision(self.checkout_path, revision,
+@@ -785,7 +785,7 @@
+ 
+     # This is a big hammer, debatable if it should even be here...
+     if options.force or options.reset:
+-      target = 'HEAD'
++      target = 'FETCH_HEAD'
+       if options.upstream and upstream_branch:
+         target = upstream_branch
+       self._Scrub(target, options)
+@@ -799,7 +799,6 @@
+       # system. The best we can do is carry forward to the checkout step.
+       if not (options.force or options.reset):
+         self._CheckClean(revision)
+-      self._CheckDetachedHead(revision, options)
+       if self._Capture(['rev-list', '-n', '1', 'HEAD']) == revision:
+         self.Print('Up-to-date; skipping checkout.')
+       else:
+@@ -1465,8 +1464,7 @@
+       fetch_cmd.append('--no-tags')
+     elif quiet:
+       fetch_cmd.append('--quiet')
+-    if depth:
+-      fetch_cmd.append('--depth=' + str(depth))
++    fetch_cmd.append('--depth=1')
+     self._Run(fetch_cmd, options, show_header=options.verbose, retry=True)
+ 
+   def _SetFetchConfig(self, options):

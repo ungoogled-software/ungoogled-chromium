@@ -3,12 +3,9 @@ container:
 
 code_check_task:
     pip_cache:
-        folder: ~/.cache/pip
+        folder: /usr/local/lib/python3.6/site-packages
         fingerprint_script: cat .cirrus_requirements.txt
         populate_script: pip install -r .cirrus_requirements.txt
-    pip_install_script:
-        # Needed in order for yapf to be fully installed
-        - pip install -r .cirrus_requirements.txt
     utils_script:
         - python3 -m yapf --style '.style.yapf' -e '*/third_party/*' -rpd utils
         - ./devutils/run_utils_pylint.py --hide-fixme
@@ -22,17 +19,32 @@ validate_config_task:
     validate_config_script: ./devutils/validate_config.py
 
 validate_with_source_task:
+    pip_cache:
+        folder: /usr/local/lib/python3.6/site-packages
+        fingerprint_script: cat .cirrus_requirements.txt
+        populate_script: pip install -r .cirrus_requirements.txt
     chromium_download_cache:
         folder: chromium_download_cache
         fingerprint_script: cat chromium_version.txt
-        populate_script:
-            # This directory will not exist when this is called, unless cach retrieval
+        populate_script: |
+            # These directories will not exist when this is called, unless cache retrieval
             # fails and leaves partially-complete files around.
-            - rm -rf chromium_download_cache || true
-            - mkdir chromium_download_cache
-            - ./utils/downloads.py retrieve -i downloads.ini -c chromium_download_cache
-    unpack_source_script:
-        - ./utils/downloads.py unpack -i downloads.ini -c chromium_download_cache chromium_src
+            rm -rf chromium_src
+            rm -rf chromium_download_cache
+            mkdir chromium_download_cache
+            # Attempt to download tarball
+            if ! ./utils/downloads.py retrieve -i downloads.ini -c chromium_download_cache ; then
+              # If tarball is not available, attempt a clone
+              ./utils/clone.py -o chromium_src
+              rm -rf chromium_src/uc_staging
+              find chromium_src -type d -name '.git' -exec rm -rf "{}" \; -prune
+              tar cf chromium_download_cache/chromium-$(cat chromium_version.txt).tar.xz \
+                --transform s/chromium_src/chromium-$(cat chromium_version.txt)/ chromium_src
+            fi
+    unpack_source_script: |
+        if [ ! -d chromium_src ]; then
+          ./utils/downloads.py unpack -i downloads.ini -c chromium_download_cache chromium_src
+        fi
     validate_patches_script:
         - ./devutils/validate_patches.py -l chromium_src
     validate_lists_script:

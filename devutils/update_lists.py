@@ -22,6 +22,7 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from _common import get_logger
 from domain_substitution import DomainRegexList, TREE_ENCODINGS
+from prune_binaries import CONTINGENT_PATHS
 sys.path.pop(0)
 
 # Encoding for output files
@@ -74,6 +75,7 @@ PRUNING_EXCLUDE_PATTERNS = [
     '*.woff',
     '*.woff2',
     '*makefile',
+    '*.profdata',
     '*.xcf',
     '*.cur',
     '*.pdf',
@@ -253,22 +255,23 @@ def compute_lists_proc(path, source_tree, search_regex):
     symlink_set = set()
     if path.is_file():
         relative_path = path.relative_to(source_tree)
-        if path.is_symlink():
-            try:
-                resolved_relative_posix = path.resolve().relative_to(source_tree).as_posix()
-                symlink_set.add((resolved_relative_posix, relative_path.as_posix()))
-            except ValueError:
-                # Symlink leads out of the source tree
-                pass
-        else:
-            try:
-                if should_prune(path, relative_path, used_pep_set, used_pip_set):
-                    pruning_set.add(relative_path.as_posix())
-                elif should_domain_substitute(path, relative_path, search_regex, used_dep_set,
-                                              used_dip_set):
-                    domain_substitution_set.add(relative_path.as_posix())
-            except: #pylint: disable=bare-except
-                get_logger().exception('Unhandled exception while processing %s', relative_path)
+        if not any(cpath in str(relative_path.as_posix()) for cpath in CONTINGENT_PATHS):
+            if path.is_symlink():
+                try:
+                    resolved_relative_posix = path.resolve().relative_to(source_tree).as_posix()
+                    symlink_set.add((resolved_relative_posix, relative_path.as_posix()))
+                except ValueError:
+                    # Symlink leads out of the source tree
+                    pass
+            elif not any(skip in ('.git', '__pycache__', 'uc_staging') for skip in path.parts):
+                try:
+                    if should_prune(path, relative_path, used_pep_set, used_pip_set):
+                        pruning_set.add(relative_path.as_posix())
+                    elif should_domain_substitute(path, relative_path, search_regex, used_dep_set,
+                                                  used_dip_set):
+                        domain_substitution_set.add(relative_path.as_posix())
+                except: #pylint: disable=bare-except
+                    get_logger().exception('Unhandled exception while processing %s', relative_path)
     return (used_pep_set, used_pip_set, used_dep_set, used_dip_set, pruning_set,
             domain_substitution_set, symlink_set)
 
