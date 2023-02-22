@@ -223,7 +223,7 @@ def _download_if_needed(file_path, url, show_progress, disable_ssl_verification)
     if shutil.which('curl'):
         get_logger().debug('Using curl')
         try:
-            subprocess.run(['curl', '-L', '-o', str(tmp_file_path), '-C', '-', url], check=True)
+            subprocess.run(['curl', '-fL', '-o', str(tmp_file_path), '-C', '-', url], check=True)
         except subprocess.CalledProcessError as exc:
             get_logger().error('curl failed. Re-run the download command to resume downloading.')
             raise exc
