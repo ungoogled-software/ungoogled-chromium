@@ -102,6 +102,7 @@ PRUNING_EXCLUDE_PATTERNS = [
 DOMAIN_EXCLUDE_PREFIXES = [
     'components/test/',
     'net/http/transport_security_state_static.json',
+    'net/http/transport_security_state_static_pins.json',
     # Exclusions for Visual Studio Project generation with GN (PR #445)
     'tools/gn/src/gn/visual_studio_writer.cc',
     # Exclusions for files covered with other patches/unnecessary
