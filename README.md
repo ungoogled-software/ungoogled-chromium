@@ -85,7 +85,7 @@ In addition to the features introduced by ungoogled-chromium, ungoogled-chromium
 
 * [Inox patchset](https://github.com/gcarq/inox-patchset)
 * [Bromite](https://github.com/bromite/bromite)
-* [Debian](https://tracker.debian.org/pkg/chromium-browser)
+* [Debian](https://tracker.debian.org/pkg/chromium)
 * [Iridium Browser](https://iridiumbrowser.de/)
 
 ### Supported Platforms and Distributions
