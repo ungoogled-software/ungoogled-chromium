@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2442,6 +2442,7 @@ static_library("browser") {
+@@ -2457,6 +2457,7 @@ static_library("browser") {
      "//third_party/libyuv",
      "//third_party/metrics_proto",
      "//third_party/re2",
@@ -19,7 +19,7 @@
      "//third_party/widevine/cdm:headers",
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -158,6 +158,7 @@
+@@ -155,6 +155,7 @@
  #include "components/translate/core/browser/translate_ranker_impl.h"
  #include "components/translate/core/common/translate_util.h"
  #include "components/ui_devtools/switches.h"
@@ -62,7 +62,7 @@
  #include "components/viz/common/switches.h"
  #include "components/viz/host/gpu_client.h"
  #include "content/browser/attribution_reporting/attribution_manager.h"
-@@ -3379,6 +3380,8 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3361,6 +3362,8 @@ void RenderProcessHostImpl::PropagateBro
      switches::kEnableWebGLImageChromium,
      switches::kEnableWebGPUDeveloperFeatures,
      switches::kFileUrlPathAlias,
@@ -91,17 +91,17 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/events/blink/blink_features.h"
-@@ -408,6 +409,10 @@ void SetRuntimeFeaturesFromCommandLine(c
-       {wrf::EnableWebGPUDeveloperFeatures,
+@@ -432,6 +433,10 @@ void SetRuntimeFeaturesFromCommandLine(c
         switches::kEnableWebGPUDeveloperFeatures, true},
-       {wrf::EnableDirectSockets, switches::kIsolatedAppOrigins, true},
+       {wrf::EnableDirectSockets, switches::kEnableIsolatedWebAppsInRenderer,
+        true},
 +      {wrf::EnableFingerprintingClientRectsNoise,
 +       switches::kFingerprintingClientRectsNoise, true},
 +      {wrf::EnableFingerprintingCanvasMeasureTextNoise,
 +       switches::kFingerprintingCanvasMeasureTextNoise, true},
    };
+ 
    for (const auto& mapping : switchToFeatureMapping) {
-     if (command_line.HasSwitch(mapping.switch_name)) {
 --- a/third_party/blink/public/platform/web_runtime_features.h
 +++ b/third_party/blink/public/platform/web_runtime_features.h
 @@ -68,6 +68,9 @@ class BLINK_PLATFORM_EXPORT WebRuntimeFe
@@ -124,7 +124,7 @@
  #include "base/ranges/algorithm.h"
  #include "base/task/single_thread_task_runner.h"
  #include "base/time/time.h"
-@@ -927,6 +928,14 @@ Range* Document::CreateRangeAdjustedToTr
+@@ -925,6 +926,14 @@ Range* Document::CreateRangeAdjustedToTr
                                       Position::BeforeNode(*shadow_host));
  }
  
@@ -139,7 +139,7 @@
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
-@@ -2255,6 +2264,15 @@ void Document::UpdateStyleAndLayoutTreeF
+@@ -2261,6 +2270,15 @@ void Document::UpdateStyleAndLayoutTreeF
  #if DCHECK_IS_ON()
    AssertLayoutTreeUpdated(*this, true /* allow_dirty_container_subtrees */);
  #endif
@@ -157,7 +157,7 @@
  void Document::InvalidateStyleAndLayoutForFontUpdates() {
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -514,6 +514,10 @@ class CORE_EXPORT Document : public Cont
+@@ -517,6 +517,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -168,7 +168,7 @@
    AtomicString visibilityState() const;
    bool IsPageVisible() const;
    bool hidden() const;
-@@ -2329,6 +2333,9 @@ class CORE_EXPORT Document : public Cont
+@@ -2359,6 +2363,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -180,7 +180,7 @@
  
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -2134,6 +2134,11 @@ DOMRectList* Element::getClientRects() {
+@@ -2126,6 +2126,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustQuadsForScrollAndAbsoluteZoom(quads,
                                                      *element_layout_object);
@@ -192,7 +192,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -2161,6 +2166,9 @@ gfx::RectF Element::GetBoundingClientRec
+@@ -2153,6 +2158,9 @@ gfx::RectF Element::GetBoundingClientRec
    DCHECK(element_layout_object);
    GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
                                                     *element_layout_object);
@@ -204,7 +204,7 @@
  
 --- a/third_party/blink/renderer/core/dom/range.cc
 +++ b/third_party/blink/renderer/core/dom/range.cc
-@@ -1612,11 +1612,21 @@ DOMRectList* Range::getClientRects() con
+@@ -1607,11 +1607,21 @@ DOMRectList* Range::getClientRects() con
    Vector<gfx::QuadF> quads;
    GetBorderAndTextQuads(quads);
  
@@ -267,7 +267,7 @@
                const TextDirection&,
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
-@@ -953,9 +953,15 @@ TextMetrics* CanvasRenderingContext2D::m
+@@ -948,9 +948,15 @@ TextMetrics* CanvasRenderingContext2D::m
    TextDirection direction =
        ToTextDirection(GetState().GetDirection(), canvas());
  
@@ -286,7 +286,7 @@
  void CanvasRenderingContext2D::drawFormattedText(
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1690,6 +1690,7 @@ component("platform") {
+@@ -1695,6 +1695,7 @@ component("platform") {
      "//components/paint_preview/common",
      "//components/power_scheduler",
      "//components/search_engines:search_engine_utils",
@@ -311,7 +311,7 @@
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -1413,6 +1413,12 @@
+@@ -1600,6 +1600,12 @@
        origin_trial_feature_name: "Focusgroup",
      },
      {
@@ -322,5 +322,5 @@
 +    },
 +    {
        name: "FocuslessSpatialNavigation",
+       base_feature: "none",
        settable_from_internals: true,
-     },

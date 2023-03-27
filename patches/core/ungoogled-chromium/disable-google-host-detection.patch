@@ -1,5 +1,17 @@
 # Disables various detections of Google hosts and functionality specific to them
 
+--- a/chrome/browser/ui/webui/suggest_internals/suggest_internals_handler.cc
++++ b/chrome/browser/ui/webui/suggest_internals/suggest_internals_handler.cc
+@@ -55,9 +55,6 @@ void SuggestInternalsHandler::OnSuggestR
+       suggest_internals::mojom::Request::New();
+   mojom_request->id = request_id;
+   mojom_request->url = request->url;
+-  std::string variations_header;
+-  variations::GetVariationsHeader(*request, &variations_header);
+-  mojom_request->data[variations::kClientDataHeader] = variations_header;
+   mojom_request->data[request->method] = request->url.spec();
+   mojom_request->status = suggest_internals::mojom::RequestStatus::kSent;
+   mojom_request->start_time = base::Time::Now();
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
 @@ -15,10 +15,6 @@
@@ -470,7 +482,7 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -536,11 +536,7 @@ std::u16string TemplateURLRef::SearchTer
+@@ -556,11 +556,7 @@ std::u16string TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -496,7 +508,24 @@
  namespace {
  
  // The result of checking whether a request to a URL should have variations
-@@ -250,30 +246,7 @@ class VariationsHeaderHelper {
+@@ -114,16 +110,6 @@ URLValidationResult GetUrlValidationResu
+   return URLValidationResult::kShouldAppend;
+ }
+ 
+-// Returns true if the request to |url| should include a variations header.
+-// Also, logs the result of validating |url| in histograms, one of which ends in
+-// |suffix|.
+-bool ShouldAppendVariationsHeader(const GURL& url, const std::string& suffix) {
+-  URLValidationResult result = GetUrlValidationResult(url);
+-  base::UmaHistogramEnumeration(
+-      "Variations.Headers.URLValidationResult." + suffix, result);
+-  return result == URLValidationResult::kShouldAppend;
+-}
+-
+ // Returns true if the request is sent from a Google web property, i.e. from a
+ // first-party context.
+ //
+@@ -250,30 +236,7 @@ class VariationsHeaderHelper {
    VariationsHeaderHelper& operator=(const VariationsHeaderHelper&) = delete;
  
    bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
@@ -528,7 +557,7 @@
    }
  
   private:
-@@ -338,8 +311,6 @@ void RemoveVariationsHeaderIfNeeded(
+@@ -338,8 +301,6 @@ void RemoveVariationsHeaderIfNeeded(
      const net::RedirectInfo& redirect_info,
      const network::mojom::URLResponseHead& response_head,
      std::vector<std::string>* to_be_removed_headers) {
@@ -537,18 +566,27 @@
  }
  
  std::unique_ptr<network::SimpleURLLoader>
-@@ -369,9 +340,7 @@ CreateSimpleURLLoaderWithVariationsHeade
+@@ -375,29 +336,22 @@ CreateSimpleURLLoaderWithVariationsHeade
  }
  
  bool HasVariationsHeader(const network::ResourceRequest& request) {
--  // Note: kOmniboxOnDeviceSuggestionsHeader is not listed because this function
--  // is only used for testing.
--  return request.cors_exempt_headers.HasHeader(kClientDataHeader);
+-  std::string unused_header;
+-  return GetVariationsHeader(request, &unused_header);
++  return false;
+ }
+ 
+ bool GetVariationsHeader(const network::ResourceRequest& request,
+                          std::string* out) {
+-  return request.cors_exempt_headers.GetHeader(kClientDataHeader, out);
 +  return false;
  }
  
  bool ShouldAppendVariationsHeaderForTesting(
-@@ -382,12 +351,6 @@ bool ShouldAppendVariationsHeaderForTest
+     const GURL& url,
+     const std::string& histogram_suffix) {
+-  return ShouldAppendVariationsHeader(url, histogram_suffix);
++  return false;
+ }
  
  void UpdateCorsExemptHeaderForVariations(
      network::mojom::NetworkContextParams* params) {

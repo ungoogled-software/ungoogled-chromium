@@ -41,10 +41,6 @@ PRUNING_INCLUDE_PATTERNS = [
 # pathlib.Path.match() paths to exclude from binary pruning
 PRUNING_EXCLUDE_PATTERNS = [
     'chrome/common/win/eventlog_messages.mc', # TODO: False positive textfile
-    # TabRanker example preprocessor config
-    # Details in chrome/browser/resource_coordinator/tab_ranker/README.md
-    'chrome/browser/resource_coordinator/tab_ranker/example_preprocessor_config.pb',
-    'chrome/browser/resource_coordinator/tab_ranker/pairwise_preprocessor_config.pb',
     # Exclusions for DOM distiller (contains model data only)
     'components/dom_distiller/core/data/distillable_page_model_new.bin',
     'components/dom_distiller/core/data/long_page_model.bin',
@@ -367,7 +363,8 @@ def main(args_list=None):
         dest='error_unused',
         help='Do not treat unused patterns/prefixes as an error.')
     args = parser.parse_args(args_list)
-    DOMAIN_EXCLUDE_PREFIXES.extend(args.domain_exclude_prefix)
+    if args.domain_exclude_prefix is not None:
+        DOMAIN_EXCLUDE_PREFIXES.extend(args.domain_exclude_prefix)
     if args.tree.exists() and not _dir_empty(args.tree):
         get_logger().info('Using existing source tree at %s', args.tree)
     else:
