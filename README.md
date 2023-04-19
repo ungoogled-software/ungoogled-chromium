@@ -100,7 +100,6 @@ Other platforms are discussed and tracked in this repository's Issue Tracker. Le
 
 ungoogled-chromium is available in the following **software repositories**:
 
-* Android: Available via a custom [F-Droid](https://f-droid.org/) repo. [See instructions in ungoogled-chromium-android](https://github.com/ungoogled-software/ungoogled-chromium-android#f-droid-repository)
 * Arch: Available in AUR & OBS, [see instructions in ungoogled-chromium-archlinux](https://github.com/ungoogled-software/ungoogled-chromium-archlinux)
 * Debian & Ubuntu: Available in OBS, find your [distribution specific instructions](https://github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
 * Fedora: Available in OBS, by following [instructions](https://github.com/ungoogled-software/ungoogled-chromium-fedora) in the downloads section. Also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy` (outdated).
