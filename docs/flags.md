@@ -25,7 +25,6 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--max-connections-per-host` | (from Bromite) Configure the maximum allowed connections per host. Valid values are `6` and `15`
   `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages. Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
-  `--referrer-directive` | Allows setting a custom directive for referrer headers. Accepts `nocrossorigin`, `minimal`, and `noreferrers`. The no cross-origin referrer option removes all cross-origin referrers, the minimal option removes all cross-origin referrers and strips same-origin referrers down to the origin, and the no referrers option removes all referrers.
 
 - ### Available only on desktop
 
@@ -64,6 +63,9 @@ These are also available on the `chrome://flags` page.
 
   Feature | Description
   -- | --
+  `MinimalReferrers` | Removes all cross-origin referrers and strips same-origin referrers down to the origin. Has lower precedence than `NoCrossOriginReferrers`.
+  `NoCrossOriginReferrers` | Removes all cross-origin referrers. Has lower precedence than `NoReferrers`.
+  `NoReferrers` | Removes all referrers.
   `SetIpv6ProbeFalse` | Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
 
 - ### Available only on desktop
