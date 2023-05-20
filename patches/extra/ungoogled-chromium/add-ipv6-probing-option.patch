@@ -35,7 +35,7 @@
  // https://vasilvv.github.io/httpbis-alps/draft-vvv-httpbis-alps.html.
 --- a/net/dns/host_resolver_manager.cc
 +++ b/net/dns/host_resolver_manager.cc
-@@ -155,11 +155,6 @@ const unsigned kMinimumTTLSeconds = kCac
+@@ -156,11 +156,6 @@ const unsigned kMinimumTTLSeconds = kCac
  // cached.
  const int kIPv6ProbePeriodMs = 1000;
  
@@ -47,12 +47,41 @@
  // ICANN uses this localhost address to indicate a name collision.
  //
  // The policy in Chromium is to fail host resolving if it resolves to
-@@ -3759,7 +3754,7 @@ bool HostResolverManager::IsIPv6Reachabl
-       (tick_clock_->NowTicks() - last_ipv6_probe_time_).InMilliseconds() >
-           kIPv6ProbePeriodMs) {
-     SetLastIPv6ProbeResult(
--        IsGloballyReachable(IPAddress(kIPv6ProbeAddress), net_log));
-+        !base::FeatureList::IsEnabled(features::kSetIpv6ProbeFalse));
-     cached = false;
+@@ -3945,33 +3940,10 @@ int HostResolverManager::StartIPv6Reacha
+     return OK;
    }
-   net_log.AddEvent(
+ 
+-  if (probing_ipv6_) {
+-    ipv6_request_callbacks_.push_back(std::move(callback));
+-    return ERR_IO_PENDING;
+-  }
+-  // Cache the result for kIPv6ProbePeriodMs (measured from after
+-  // StartGloballyReachableCheck() completes).
+-  int rv = OK;
+-  bool cached = true;
+-  if (last_ipv6_probe_time_.is_null() ||
+-      (tick_clock_->NowTicks() - last_ipv6_probe_time_).InMilliseconds() >
+-          kIPv6ProbePeriodMs) {
+-    probing_ipv6_ = true;
+-    rv = StartGloballyReachableCheck(
+-        IPAddress(kIPv6ProbeAddress), net_log,
+-        base::BindOnce(&HostResolverManager::FinishIPv6ReachabilityCheck,
+-                       weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+-    if (rv != ERR_IO_PENDING) {
+-      SetLastIPv6ProbeResult((rv == OK) ? true : false);
+-      rv = OK;
+-    }
+-    cached = false;
+-  }
+-  net_log.AddEvent(
+-      NetLogEventType::HOST_RESOLVER_MANAGER_IPV6_REACHABILITY_CHECK, [&] {
+-        return NetLogIPv6AvailableParams(last_ipv6_probe_result_, cached);
+-      });
+-  return rv;
++  probing_ipv6_ = false;
++  last_ipv6_probe_result_ = !base::FeatureList::IsEnabled(features::kSetIpv6ProbeFalse);
++  last_ipv6_probe_time_ = base::TimeTicks();
++  return OK;
+ }
+ 
+ void HostResolverManager::SetLastIPv6ProbeResult(bool last_ipv6_probe_result) {
