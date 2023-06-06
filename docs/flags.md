@@ -33,7 +33,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--bookmark-bar-ntp` | Sets the visibility of the bookmark bar on the New Tab Page. Only takes the value `never`.
   `--close-confirmation` | Show a warning prompt when closing the browser window. Accepts `last` (prompt when closing the last window with several tabs) and `multiple` (prompt only if more than one window is open). 
   `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed. Only takes the value `never`.
-  `--custom-ntp` | Allows setting a custom URL for the new tab page. Value can be internal (e.g. `about:blank`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`). This applies for incognito windows as well when not set to a `chrome://` internal page.
+  `--custom-ntp` | Allows setting a custom URL for the new tab page. Value can be internal (e.g. `about:blank` or `chrome://new-tab-page`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`). This applies for incognito windows as well when not set to a `chrome://` internal page.
   `--disable-sharing-hub` | Disables the sharing hub button.
   `--enable-incognito-themes` | Allows themes to change the appearance of Incognito windows.
   `--hide-extensions-menu` | Hides the extensions container. This includes the puzzle piece icon as well as any pinned extensions.
