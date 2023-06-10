@@ -25,7 +25,6 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--max-connections-per-host` | (from Bromite) Configure the maximum allowed connections per host. Valid values are `6` and `15`
   `--omnibox-autocomplete-filtering` | Restrict omnibox autocomplete results to a combination of search suggestions (if enabled), bookmarks, and internal chrome pages. Accepts `search`, `search-bookmarks`, `search-chrome`, and `search-bookmarks-chrome`.
   `--popups-to-tabs` | Makes popups open in new tabs.
-  `--referrer-directive` | Allows setting a custom directive for referrer headers. Accepts `nocrossorigin`, `minimal`, and `noreferrers`. The no cross-origin referrer option removes all cross-origin referrers, the minimal option removes all cross-origin referrers and strips same-origin referrers down to the origin, and the no referrers option removes all referrers.
 
 - ### Available only on desktop
 
@@ -34,9 +33,11 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--bookmark-bar-ntp` | Sets the visibility of the bookmark bar on the New Tab Page. Only takes the value `never`.
   `--close-confirmation` | Show a warning prompt when closing the browser window. Accepts `last` (prompt when closing the last window with several tabs) and `multiple` (prompt only if more than one window is open). 
   `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed. Only takes the value `never`.
-  `--custom-ntp` | Allows setting a custom URL for the new tab page. Value can be internal (e.g. `about:blank`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`). This applies for incognito windows as well when not set to a `chrome://` internal page.
+  `--custom-ntp` | Allows setting a custom URL for the new tab page. Value can be internal (e.g. `about:blank` or `chrome://new-tab-page`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`). This applies for incognito windows as well when not set to a `chrome://` internal page.
   `--disable-sharing-hub` | Disables the sharing hub button.
-  `--hide-extensions-menu` | Hides the extensions menu (the puzzle piece icon).
+  `--enable-incognito-themes` | Allows themes to change the appearance of Incognito windows.
+  `--hide-extensions-menu` | Hides the extensions container. This includes the puzzle piece icon as well as any pinned extensions.
+  `--hide-fullscreen-exit-ui` | Hides the "X" that appears when the mouse cursor is moved towards the top of the window in fullscreen mode. Additionally, this hides the "Press F11 to exit full screen" popup.
   `--hide-sidepanel-button` | Hides the SidePanel Button.
   `--hide-tab-close-buttons` | Hides the close buttons on tabs.
   `--remove-grab-handle` | Removes the reserved empty space in the tabstrip for moving the window.
@@ -62,6 +63,9 @@ These are also available on the `chrome://flags` page.
 
   Feature | Description
   -- | --
+  `MinimalReferrers` | Removes all cross-origin referrers and strips same-origin referrers down to the origin. Has lower precedence than `NoCrossOriginReferrers`.
+  `NoCrossOriginReferrers` | Removes all cross-origin referrers. Has lower precedence than `NoReferrers`.
+  `NoReferrers` | Removes all referrers.
   `SetIpv6ProbeFalse` | Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
 
 - ### Available only on desktop

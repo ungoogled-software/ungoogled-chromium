@@ -33,18 +33,18 @@
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
 --- a/components/omnibox/browser/autocomplete_controller.cc
 +++ b/components/omnibox/browser/autocomplete_controller.cc
-@@ -15,6 +15,8 @@
+@@ -16,6 +16,8 @@
  
- #include "base/bind.h"
+ #include "base/barrier_callback.h"
  #include "base/check_op.h"
 +#include "base/containers/contains.h"
 +#include "base/command_line.h"
  #include "base/feature_list.h"
  #include "base/format_macros.h"
- #include "base/metrics/histogram_functions.h"
-@@ -328,6 +330,15 @@ AutocompleteController::AutocompleteCont
-       search_service_worker_signal_sent_(false),
-       template_url_service_(provider_client_->GetTemplateURLService()) {
+ #include "base/functional/bind.h"
+@@ -355,6 +357,15 @@ AutocompleteController::AutocompleteCont
+       triggered_feature_service_(
+           provider_client_->GetOmniboxTriggeredFeatureService()) {
    provider_types &= ~OmniboxFieldTrial::GetDisabledProviderTypes();
 +  if (base::CommandLine::ForCurrentProcess()->HasSwitch("omnibox-autocomplete-filtering")) {
 +    const std::string flag_value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("omnibox-autocomplete-filtering");
@@ -56,11 +56,11 @@
 +      provider_types &= ~AutocompleteProvider::TYPE_BUILTIN;
 +  }
  
-   if (OmniboxFieldTrial::kAutocompleteStabilityAsyncProvidersFirst.Get()) {
-     // Providers run in the order they're added. Run these async providers 1st
+   // Providers run in the order they're added. Async providers should run first
+   // so their async requests can be kicked off before waiting a few milliseconds
 --- a/components/omnibox/browser/history_url_provider.cc
 +++ b/components/omnibox/browser/history_url_provider.cc
-@@ -475,6 +475,9 @@ void HistoryURLProvider::Start(const Aut
+@@ -478,6 +478,9 @@ void HistoryURLProvider::Start(const Aut
    if (fixed_up_input.type() != metrics::OmniboxInputType::QUERY)
      matches_.push_back(what_you_typed_match);
  
@@ -72,15 +72,15 @@
        client()->GetHistoryService();
 --- a/components/omnibox/browser/search_provider.cc
 +++ b/components/omnibox/browser/search_provider.cc
-@@ -12,6 +12,7 @@
+@@ -10,6 +10,7 @@
+ #include <utility>
+ 
  #include "base/base64.h"
- #include "base/bind.h"
- #include "base/callback.h"
 +#include "base/command_line.h"
  #include "base/feature_list.h"
- #include "base/i18n/break_iterator.h"
- #include "base/i18n/case_conversion.h"
-@@ -681,6 +682,9 @@ void SearchProvider::Run(bool query_is_p
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
+@@ -649,6 +650,9 @@ void SearchProvider::Run(bool query_is_p
  }
  
  void SearchProvider::DoHistoryQuery(bool minimal_changes) {

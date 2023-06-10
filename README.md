@@ -58,7 +58,7 @@ Contents of this section:
 *These are the core features introduced by ungoogled-chromium.*
 
 * Disable functionality specific to Google domains (e.g. Google Host Detector, Google URL Tracker, Google Cloud Messaging, Google Hotwording, etc.)
-    * This includes disabling [Safe Browsing](//en.wikipedia.org/wiki/Google_Safe_Browsing). Consult [the FAQ for the rationale](//ungoogled-software.github.io/ungoogled-chromium-wiki/faq#why-is-safe-browsing-disabled).
+    * This includes disabling [Safe Browsing](https://en.wikipedia.org/wiki/Google_Safe_Browsing). Consult [the FAQ for the rationale](https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq#why-is-safe-browsing-disabled).
 * Block internal requests to Google at runtime. This feature is a fail-safe measure for the above, in case Google changes or introduces new components that our patches do not disable. This feature is implemented by replacing many Google web domains in the source code with non-existent alternatives ending in `qjz9zk` (known as domain substitution; [see docs/design.md](docs/design.md#source-file-processors) for details), then [modifying Chromium to block its own requests with such domains](patches/core/ungoogled-chromium/block-trk-and-subdomains.patch). In other words, no connections are attempted to the `qjz9zk` domain.
 * Strip binaries from the source code (known as binary pruning; [see docs/design.md](docs/design.md#source-file-processors) for details)
 
@@ -83,10 +83,10 @@ Contents of this section:
 
 In addition to the features introduced by ungoogled-chromium, ungoogled-chromium selectively borrows many features from the following projects (in approximate order of significance):
 
-* [Inox patchset](//github.com/gcarq/inox-patchset)
-* [Bromite](//github.com/bromite/bromite)
-* [Debian](//tracker.debian.org/pkg/chromium-browser)
-* [Iridium Browser](//iridiumbrowser.de/)
+* [Inox patchset](https://github.com/gcarq/inox-patchset)
+* [Bromite](https://github.com/bromite/bromite)
+* [Debian](https://tracker.debian.org/pkg/chromium)
+* [Iridium Browser](https://iridiumbrowser.de/)
 
 ### Supported Platforms and Distributions
 
@@ -100,10 +100,9 @@ Other platforms are discussed and tracked in this repository's Issue Tracker. Le
 
 ungoogled-chromium is available in the following **software repositories**:
 
-* Android: Available via a custom [F-Droid](https://f-droid.org/) repo. [See instructions in ungoogled-chromium-android](https://github.com/ungoogled-software/ungoogled-chromium-android#f-droid-repository)
-* Arch: Available in AUR & OBS, [see instructions in ungoogled-chromium-archlinux](//github.com/ungoogled-software/ungoogled-chromium-archlinux)
-* Debian & Ubuntu: Available in OBS, find your [distribution specific instructions](//github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
-* Fedora: Available in OBS, by following [instructions](//github.com/ungoogled-software/ungoogled-chromium-fedora) in the downloads section. Also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy` (outdated).
+* Arch: Available in AUR & OBS, [see instructions in ungoogled-chromium-archlinux](https://github.com/ungoogled-software/ungoogled-chromium-archlinux)
+* Debian & Ubuntu: Available in OBS, find your [distribution specific instructions](https://github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
+* Fedora: Available in OBS, by following [instructions](https://github.com/ungoogled-software/ungoogled-chromium-fedora) in the downloads section. Also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy` (outdated).
 * Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) and [`ungoogled-chromium-bin`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium-bin) ebuilds
 * macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
 
@@ -115,7 +114,7 @@ If your GNU/Linux distribution is not listed, there are distro-independent build
 
 ### Third-party binaries
 
-If your operating system is not listed above, you can also try to [**Download binaries from here**](//ungoogled-software.github.io/ungoogled-chromium-binaries/)
+If your operating system is not listed above, you can also try to [**Download binaries from here**](https://ungoogled-software.github.io/ungoogled-chromium-binaries/)
 
 *NOTE: These binaries are provided by anyone who are willing to build and submit them. Because these binaries are not necessarily [reproducible](https://reproducible-builds.org/), authenticity cannot be guaranteed; In other words, there is always a non-zero probability that these binaries may have been tampered with. In the unlikely event that this has happened to you, please [report it in a new issue](#contributing-reporting-contacting).*
 
@@ -127,7 +126,7 @@ This repository only contains the common code for all platforms; it does not con
 
 [**Find the repo for a specific platform here**](docs/platforms.md).
 
-If you wish to include ungoogled-chromium code in your own build process, consider using [the tags in this repo](//github.com/ungoogled-software/ungoogled-chromium/tags). These tags follow the format `{chromium_version}-{revision}` where
+If you wish to include ungoogled-chromium code in your own build process, consider using [the tags in this repo](https://github.com/ungoogled-software/ungoogled-chromium/tags). These tags follow the format `{chromium_version}-{revision}` where
 
 * `chromium_version` is the version of Chromium used in `x.x.x.x` format, and
 * `revision` is a number indicating the version of ungoogled-chromium for the corresponding Chromium version.
@@ -144,7 +143,7 @@ List of mirrors:
 
 ## FAQ
 
-[See the frequently-asked questions (FAQ) on the Wiki](//ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
+[See the frequently-asked questions (FAQ) on the Wiki](https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq)
 
 ## Building Instructions
 
@@ -157,25 +156,25 @@ List of mirrors:
 ## Contributing, Reporting, Contacting
 
 * For reporting and contacting, see [SUPPORT.md](SUPPORT.md)
-* If you're willing to help, check out the [Issue Tracker](//github.com/ungoogled-software/ungoogled-chromium/issues) and especially issues, which [need help](//github.com/ungoogled-software/ungoogled-chromium/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22)
+* If you're willing to help, check out the [Issue Tracker](https://github.com/ungoogled-software/ungoogled-chromium/issues) and especially issues, which [need help](https://github.com/ungoogled-software/ungoogled-chromium/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22)
 * For contributing (e.g. how to help, submitting changes, criteria for new features), see [docs/contributing.md](docs/contributing.md)
 * If you have some small contributions that don't fit our criteria, consider adding them to [ungoogled-software/contrib](https://github.com/ungoogled-software/contrib) or [our Wiki](https://github.com/ungoogled-software/ungoogled-chromium-wiki) instead.
 
 ## Credits
 
-* [The Chromium Project](//www.chromium.org/)
-* [Inox patchset](//github.com/gcarq/inox-patchset)
-* [Debian](//tracker.debian.org/pkg/chromium-browser)
-* [Bromite](//github.com/bromite/bromite)
-* [Iridium Browser](//iridiumbrowser.de/)
-* The users for testing and debugging, [contributing code](//github.com/ungoogled-software/ungoogled-chromium/graphs/contributors), providing feedback, or simply using ungoogled-chromium in some capacity.
+* [The Chromium Project](https://www.chromium.org/)
+* [Inox patchset](https://github.com/gcarq/inox-patchset)
+* [Debian](https://tracker.debian.org/pkg/chromium-browser)
+* [Bromite](https://github.com/bromite/bromite)
+* [Iridium Browser](https://iridiumbrowser.de/)
+* The users for testing and debugging, [contributing code](https://github.com/ungoogled-software/ungoogled-chromium/graphs/contributors), providing feedback, or simply using ungoogled-chromium in some capacity.
 
 ## Related Projects
 
 List of known projects that fork or use changes from ungoogled-chromium:
 
-* [Bromite](//github.com/bromite/bromite) (Borrows some patches. Features builds for Android)
-* [ppc64le fork](//github.com/leo-lb/ungoogled-chromium) (Fork with changes to build for ppc64le CPUs)
+* [Bromite](https://github.com/bromite/bromite) (Borrows some patches. Features builds for Android)
+* [ppc64le fork](https://github.com/leo-lb/ungoogled-chromium) (Fork with changes to build for ppc64le CPUs)
 
 ## License
 

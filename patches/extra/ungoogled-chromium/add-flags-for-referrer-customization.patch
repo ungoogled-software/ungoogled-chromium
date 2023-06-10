@@ -1,0 +1,302 @@
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -120,4 +120,16 @@
+      "Enable themes in Incognito mode",
+      "Allows themes to override Google's built-in Incognito theming. ungoogled-chromium flag.",
+      kOsDesktop, SINGLE_VALUE_TYPE("enable-incognito-themes")},
++    {"remove-referrers",
++     "Remove Referrers",
++     "Removes all referrers. ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(features::kNoReferrers)},
++    {"remove-cross-origin-referrers",
++     "Remove Cross-Origin Referrers",
++     "Removes all cross-origin referrers. Has lower precedence than remove-referrers. ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(features::kNoCrossOriginReferrers)},
++    {"minimal-referrers",
++     "Minimal Referrers",
++     "Removes all cross-origin referrers and strips same-origin referrers down to the origin. Has lower precedence than remove-cross-origin-referrers. ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(features::kMinimalReferrers)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/chrome/common/BUILD.gn
++++ b/chrome/common/BUILD.gn
+@@ -143,6 +143,8 @@ static_library("common_lib") {
+     "pref_names_util.cc",
+     "pref_names_util.h",
+     "ref_counted_util.h",
++    "referrer_sanitizer.cc",
++    "referrer_sanitizer.h",
+     "search/instant_mojom_traits.h",
+     "search/instant_types.cc",
+     "search/instant_types.h",
+@@ -267,6 +269,7 @@ static_library("common_lib") {
+     "//components/no_state_prefetch/common:mojo_bindings",
+     "//components/page_load_metrics/common:common",
+     "//components/password_manager/content/common",
++    "//services/network/public/mojom",
+   ]
+ 
+   if (enable_pdf) {
+--- a/chrome/common/chrome_features.cc
++++ b/chrome/common/chrome_features.cc
+@@ -850,6 +850,14 @@ BASE_FEATURE(kNewMacNotificationAPI,
+ // referrers instead of their ordinary behavior.
+ BASE_FEATURE(kNoReferrers, "NoReferrers", base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kMinimalReferrers,
++             "MinimalReferrers",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++BASE_FEATURE(kNoCrossOriginReferrers,
++             "NoCrossOriginReferrers",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ #if BUILDFLAG(IS_WIN)
+ // Changes behavior of requireInteraction for notifications. Instead of staying
+ // on-screen until dismissed, they are instead shown for a very long time.
+--- a/chrome/common/chrome_features.h
++++ b/chrome/common/chrome_features.h
+@@ -501,6 +501,10 @@ COMPONENT_EXPORT(CHROME_FEATURES) BASE_D
+ 
+ COMPONENT_EXPORT(CHROME_FEATURES) BASE_DECLARE_FEATURE(kNoReferrers);
+ 
++COMPONENT_EXPORT(CHROME_FEATURES) BASE_DECLARE_FEATURE(kMinimalReferrers);
++
++COMPONENT_EXPORT(CHROME_FEATURES) BASE_DECLARE_FEATURE(kNoCrossOriginReferrers);
++
+ #if BUILDFLAG(IS_WIN)
+ COMPONENT_EXPORT(CHROME_FEATURES)
+ BASE_DECLARE_FEATURE(kNotificationDurationLongForRequireInteraction);
+--- /dev/null
++++ b/chrome/common/referrer_sanitizer.cc
+@@ -0,0 +1,48 @@
++// Copyright 2023 The ungoogled-chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "referrer_sanitizer.h"
++#include "base/feature_list.h"
++#include "chrome/common/chrome_features.h"
++#include "url/origin.h"
++
++namespace referrer_sanitizer {
++
++static GURL sanitize_referrer_internal(const GURL& origin,
++                                       const GURL& destination) {
++  if ((base::FeatureList::IsEnabled(features::kNoCrossOriginReferrers) ||
++       base::FeatureList::IsEnabled(features::kMinimalReferrers)) &&
++      !url::IsSameOriginWith(origin, destination)) {
++    return GURL();
++  } else if (base::FeatureList::IsEnabled(features::kMinimalReferrers)) {
++    return url::Origin::Create(origin).GetURL();
++  }
++  return origin;
++}
++
++std::pair<GURL, net::ReferrerPolicy> sanitize_referrer(
++    const GURL& origin,
++    const GURL& destination,
++    const net::ReferrerPolicy& referrer_policy,
++    bool enable_referrers) {
++  if (!enable_referrers) {
++    return {GURL(), net::ReferrerPolicy::NO_REFERRER};
++  }
++  return {sanitize_referrer_internal(std::move(origin), std::move(destination)),
++          referrer_policy};
++}
++
++std::pair<GURL, network::mojom::ReferrerPolicy> sanitize_referrer(
++    const GURL& origin,
++    const GURL& destination,
++    const network::mojom::ReferrerPolicy& referrer_policy,
++    bool enable_referrers) {
++  if (!enable_referrers) {
++    return {GURL(), network::mojom::ReferrerPolicy::kNever};
++  }
++  return {sanitize_referrer_internal(std::move(origin), std::move(destination)),
++          referrer_policy};
++}
++
++}  // namespace referrer_sanitizer
+--- /dev/null
++++ b/chrome/common/referrer_sanitizer.h
+@@ -0,0 +1,30 @@
++// Copyright 2023 The ungoogled-chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_COMMON_REFERRER_SANITIZER_H_
++#define CHROME_COMMON_REFERRER_SANITIZER_H_
++
++#include <string>
++#include <utility>
++#include "net/url_request/referrer_policy.h"
++#include "services/network/public/mojom/referrer_policy.mojom-shared.h"
++#include "url/gurl.h"
++
++namespace referrer_sanitizer {
++
++std::pair<GURL, net::ReferrerPolicy> sanitize_referrer(
++    const GURL& origin,
++    const GURL& destination,
++    const net::ReferrerPolicy& referrer_policy,
++    bool enable_referrers);
++
++std::pair<GURL, network::mojom::ReferrerPolicy> sanitize_referrer(
++    const GURL& origin,
++    const GURL& destination,
++    const network::mojom::ReferrerPolicy& referrer_policy,
++    bool enable_referrers);
++
++}  // namespace referrer_sanitizer
++
++#endif  // CHROME_COMMON_REFERRER_SANITIZER_H_
+--- a/content/browser/renderer_host/navigation_request.cc
++++ b/content/browser/renderer_host/navigation_request.cc
+@@ -41,6 +41,7 @@
+ #include "build/build_config.h"
+ #include "build/buildflag.h"
+ #include "build/chromeos_buildflags.h"
++#include "chrome/common/referrer_sanitizer.h"
+ #include "content/browser/blob_storage/chrome_blob_storage_context.h"
+ #include "content/browser/browsing_topics/header_util.h"
+ #include "content/browser/child_process_security_policy_impl.h"
+@@ -407,10 +408,10 @@ void AddAdditionalRequestHeaders(
+       net::HttpRequestHeaders::kUserAgent,
+       ComputeUserAgentValue(*headers, user_agent_override, browser_context));
+ 
+-  if (!render_prefs.enable_referrers) {
+-    *referrer =
+-        blink::mojom::Referrer(GURL(), network::mojom::ReferrerPolicy::kNever);
+-  }
++  auto sanitized_referrer = referrer_sanitizer::sanitize_referrer(
++      referrer->url, url, referrer->policy, render_prefs.enable_referrers);
++  *referrer = blink::mojom::Referrer(std::move(sanitized_referrer.first),
++                                     std::move(sanitized_referrer.second));
+ 
+   // Next, set the HTTP Origin if needed.
+   if (NeedsHTTPOrigin(headers, method)) {
+--- a/content/renderer/render_frame_impl.cc
++++ b/content/renderer/render_frame_impl.cc
+@@ -51,6 +51,7 @@
+ #include "build/chromeos_buildflags.h"
+ #include "cc/base/switches.h"
+ #include "cc/trees/ukm_manager.h"
++#include "chrome/common/referrer_sanitizer.h"
+ #include "content/common/associated_interfaces.mojom.h"
+ #include "content/common/content_navigation_policy.h"
+ #include "content/common/content_switches_internal.h"
+@@ -4291,10 +4292,13 @@ void RenderFrameImpl::WillSendRequestInt
+ 
+   request.SetHasUserGesture(frame_->HasTransientUserActivation());
+ 
+-  if (!GetWebView()->GetRendererPreferences().enable_referrers) {
+-    request.SetReferrerString(WebString());
+-    request.SetReferrerPolicy(network::mojom::ReferrerPolicy::kNever);
+-  }
++  auto sanitized_referrer = referrer_sanitizer::sanitize_referrer(
++      WebStringToGURL(request.ReferrerString()),
++      WebStringToGURL(request.Url().GetString()), request.GetReferrerPolicy(),
++      GetWebView()->GetRendererPreferences().enable_referrers);
++  request.SetReferrerString(
++      WebString::FromUTF8(sanitized_referrer.first.spec()));
++  request.SetReferrerPolicy(std::move(sanitized_referrer.second));
+ }
+ 
+ void RenderFrameImpl::DidLoadResourceFromMemoryCache(
+--- a/services/network/network_service_network_delegate.cc
++++ b/services/network/network_service_network_delegate.cc
+@@ -12,6 +12,7 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/types/optional_util.h"
+ #include "build/build_config.h"
++#include "chrome/common/referrer_sanitizer.h"
+ #include "components/domain_reliability/monitor.h"
+ #include "net/base/features.h"
+ #include "net/base/isolation_info.h"
+@@ -59,9 +60,14 @@ NetworkServiceNetworkDelegate::~NetworkS
+ void NetworkServiceNetworkDelegate::MaybeTruncateReferrer(
+     net::URLRequest* const request,
+     const GURL& effective_url) {
+-  if (!enable_referrers_) {
+-    request->SetReferrer(std::string());
+-    request->set_referrer_policy(net::ReferrerPolicy::NO_REFERRER);
++
++  auto sanitized_referrer = referrer_sanitizer::sanitize_referrer(
++      GURL(request->referrer()), effective_url,
++      request->referrer_policy(), enable_referrers_);
++  if (sanitized_referrer.first != effective_url.spec() ||
++      sanitized_referrer.second != request->referrer_policy()) {
++    request->SetReferrer(sanitized_referrer.first.spec());
++    request->set_referrer_policy(std::move(sanitized_referrer.second));
+     return;
+   }
+ 
+--- a/third_party/blink/renderer/modules/service_worker/web_service_worker_fetch_context_impl.cc
++++ b/third_party/blink/renderer/modules/service_worker/web_service_worker_fetch_context_impl.cc
+@@ -7,10 +7,12 @@
+ #include "base/ranges/algorithm.h"
+ #include "base/synchronization/waitable_event.h"
+ #include "base/task/single_thread_task_runner.h"
++#include "chrome/common/referrer_sanitizer.h"
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "services/network/public/cpp/wrapper_shared_url_loader_factory.h"
+ #include "third_party/blink/public/common/loader/loader_constants.h"
+ #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
++#include "third_party/blink/public/platform/url_conversion.h"
+ #include "third_party/blink/public/platform/url_loader_throttle_provider.h"
+ #include "third_party/blink/public/platform/web_url_request_extra_data.h"
+ #include "third_party/blink/public/platform/websocket_handshake_throttle_provider.h"
+@@ -168,10 +170,13 @@ void WebServiceWorkerFetchContextImpl::W
+ 
+   request.SetURLRequestExtraData(std::move(url_request_extra_data));
+ 
+-  if (!renderer_preferences_.enable_referrers) {
+-    request.SetReferrerString(WebString());
+-    request.SetReferrerPolicy(network::mojom::ReferrerPolicy::kNever);
+-  }
++  auto sanitized_referrer = referrer_sanitizer::sanitize_referrer(
++      WebStringToGURL(request.ReferrerString()),
++      WebStringToGURL(request.Url().GetString()), request.GetReferrerPolicy(),
++      renderer_preferences_.enable_referrers);
++  request.SetReferrerString(
++      WebString::FromUTF8(sanitized_referrer.first.spec()));
++  request.SetReferrerPolicy(std::move(sanitized_referrer.second));
+ }
+ 
+ mojom::ControllerServiceWorkerMode
+--- a/third_party/blink/renderer/platform/loader/fetch/url_loader/dedicated_or_shared_worker_fetch_context_impl.cc
++++ b/third_party/blink/renderer/platform/loader/fetch/url_loader/dedicated_or_shared_worker_fetch_context_impl.cc
+@@ -12,6 +12,7 @@
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/task/thread_pool.h"
++#include "chrome/common/referrer_sanitizer.h"
+ #include "services/network/public/cpp/wrapper_shared_url_loader_factory.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/common/loader/loader_constants.h"
+@@ -22,6 +23,7 @@
+ #include "third_party/blink/public/platform/modules/service_worker/web_service_worker_provider_context.h"
+ #include "third_party/blink/public/platform/platform.h"
+ #include "third_party/blink/public/platform/resource_load_info_notifier_wrapper.h"
++#include "third_party/blink/public/platform/url_conversion.h"
+ #include "third_party/blink/public/platform/url_loader_throttle_provider.h"
+ #include "third_party/blink/public/platform/weak_wrapper_resource_load_info_notifier.h"
+ #include "third_party/blink/public/platform/web_code_cache_loader.h"
+@@ -402,10 +404,13 @@ void DedicatedOrSharedWorkerFetchContext
+   if (g_rewrite_url)
+     request.SetUrl(g_rewrite_url(request.Url().GetString().Utf8(), false));
+ 
+-  if (!renderer_preferences_.enable_referrers) {
+-    request.SetReferrerString(WebString());
+-    request.SetReferrerPolicy(network::mojom::ReferrerPolicy::kNever);
+-  }
++  auto sanitized_referrer = referrer_sanitizer::sanitize_referrer(
++      WebStringToGURL(request.ReferrerString()),
++      WebStringToGURL(request.Url().GetString()), request.GetReferrerPolicy(),
++      renderer_preferences_.enable_referrers);
++  request.SetReferrerString(
++      WebString::FromUTF8(sanitized_referrer.first.spec()));
++  request.SetReferrerPolicy(std::move(sanitized_referrer.second));
+ }
+ 
+ mojom::ControllerServiceWorkerMode

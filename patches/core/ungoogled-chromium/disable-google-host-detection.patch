@@ -1,46 +1,59 @@
 # Disables various detections of Google hosts and functionality specific to them
 
+--- a/chrome/browser/ui/webui/suggest_internals/suggest_internals_handler.cc
++++ b/chrome/browser/ui/webui/suggest_internals/suggest_internals_handler.cc
+@@ -55,9 +55,6 @@ void SuggestInternalsHandler::OnSuggestR
+       suggest_internals::mojom::Request::New();
+   mojom_request->id = request_id;
+   mojom_request->url = request->url;
+-  std::string variations_header;
+-  variations::GetVariationsHeader(*request, &variations_header);
+-  mojom_request->data[variations::kClientDataHeader] = variations_header;
+   mojom_request->data[request->method] = request->url.spec();
+   mojom_request->status = suggest_internals::mojom::RequestStatus::kSent;
+   mojom_request->start_time = base::Time::Now();
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -19,10 +19,6 @@
- #include "ui/base/device_form_factor.h"
- #endif
+@@ -18,10 +18,6 @@
+ #include "services/network/public/mojom/url_response_head.mojom.h"
+ #include "services/network/public/mojom/x_frame_options.mojom.h"
  
 -#if BUILDFLAG(ENABLE_EXTENSIONS)
 -#include "extensions/common/extension_urls.h"
 -#endif
 -
- namespace {
- 
- #if BUILDFLAG(IS_ANDROID)
-@@ -65,52 +61,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+ #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+ #include "chrome/common/bound_session_request_throttled_listener.h"
+ #include "net/cookies/cookie_util.h"
+@@ -73,55 +69,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
--  if (dynamic_params_.force_safe_search) {
+-  if (dynamic_params_->force_safe_search) {
 -    GURL new_url;
--    safe_search_util::ForceGoogleSafeSearch(request->url, &new_url);
--    if (!new_url.is_empty())
+-    safe_search_api::ForceGoogleSafeSearch(request->url, &new_url);
+-    if (!new_url.is_empty()) {
 -      request->url = new_url;
+-    }
 -  }
 -
--  static_assert(safe_search_util::YOUTUBE_RESTRICT_OFF == 0,
+-  static_assert(safe_search_api::YOUTUBE_RESTRICT_OFF == 0,
 -                "OFF must be first");
--  if (dynamic_params_.youtube_restrict >
--          safe_search_util::YOUTUBE_RESTRICT_OFF &&
--      dynamic_params_.youtube_restrict <
--          safe_search_util::YOUTUBE_RESTRICT_COUNT) {
--    safe_search_util::ForceYouTubeRestrict(
+-  if (dynamic_params_->youtube_restrict >
+-          safe_search_api::YOUTUBE_RESTRICT_OFF &&
+-      dynamic_params_->youtube_restrict <
+-          safe_search_api::YOUTUBE_RESTRICT_COUNT) {
+-    safe_search_api::ForceYouTubeRestrict(
 -        request->url, &request->cors_exempt_headers,
--        static_cast<safe_search_util::YouTubeRestrictMode>(
--            dynamic_params_.youtube_restrict));
+-        static_cast<safe_search_api::YouTubeRestrictMode>(
+-            dynamic_params_->youtube_restrict));
 -  }
 -
--  if (!dynamic_params_.allowed_domains_for_apps.empty() &&
+-  if (!dynamic_params_->allowed_domains_for_apps.empty() &&
 -      request->url.DomainIs("google.com")) {
 -    request->cors_exempt_headers.SetHeader(
--        safe_search_util::kGoogleAppsAllowedDomains,
--        dynamic_params_.allowed_domains_for_apps);
+-        safe_search_api::kGoogleAppsAllowedDomains,
+-        dynamic_params_->allowed_domains_for_apps);
 -  }
 -
 -#if BUILDFLAG(IS_ANDROID)
@@ -49,50 +62,52 @@
 -    request->cors_exempt_headers.SetHeader(kCCTClientDataHeader,
 -                                           client_data_header_);
 -  }
--
--  bool is_google_homepage_or_search =
--      google_util::IsGoogleHomePageUrl(request->url) ||
--      google_util::IsGoogleSearchUrl(request->url);
--  if (is_google_homepage_or_search) {
--    if (base::FeatureList::IsEnabled(features::kRequestDesktopSiteForTablets) &&
--        ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
--      request->headers.SetHeader(kRequestDesktopDataHeader,
--                                 is_tab_large_enough_ ? "1" : "0");
--      base::UmaHistogramBoolean("Android.RequestDesktopSite.TabletEligible",
--                                is_tab_large_enough_);
+-#endif
+-#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+-  if (request->SendsCookies() &&
+-      ShouldDeferRequestForBoundSession(request->url)) {
+-    // TODO(b/263264391): `bound_session_request_throttled_listener_` should
+-    // always be set if `BoundSessionParams` are set. Switch to a check once the
+-    // renderer `BoundSessionRequestThrottledListener` is set.
+-    if (bound_session_request_throttled_listener_) {
+-      *defer = true;
+-      bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
+-          base::BindOnce(
+-              &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
+-              weak_factory_.GetWeakPtr()));
 -    }
 -  }
 -#endif
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -120,37 +70,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -131,51 +78,6 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
 -  // URLLoaderThrottles can only change the redirect URL when the network
 -  // service is enabled. The non-network service path handles this in
 -  // ChromeNetworkDelegate.
--  if (dynamic_params_.force_safe_search) {
--    safe_search_util::ForceGoogleSafeSearch(redirect_info->new_url,
--                                            &redirect_info->new_url);
+-  if (dynamic_params_->force_safe_search) {
+-    safe_search_api::ForceGoogleSafeSearch(redirect_info->new_url,
+-                                           &redirect_info->new_url);
 -  }
 -
--  if (dynamic_params_.youtube_restrict >
--          safe_search_util::YOUTUBE_RESTRICT_OFF &&
--      dynamic_params_.youtube_restrict <
--          safe_search_util::YOUTUBE_RESTRICT_COUNT) {
--    safe_search_util::ForceYouTubeRestrict(
+-  if (dynamic_params_->youtube_restrict >
+-          safe_search_api::YOUTUBE_RESTRICT_OFF &&
+-      dynamic_params_->youtube_restrict <
+-          safe_search_api::YOUTUBE_RESTRICT_COUNT) {
+-    safe_search_api::ForceYouTubeRestrict(
 -        redirect_info->new_url, modified_cors_exempt_headers,
--        static_cast<safe_search_util::YouTubeRestrictMode>(
--            dynamic_params_.youtube_restrict));
+-        static_cast<safe_search_api::YouTubeRestrictMode>(
+-            dynamic_params_->youtube_restrict));
 -  }
 -
--  if (!dynamic_params_.allowed_domains_for_apps.empty() &&
+-  if (!dynamic_params_->allowed_domains_for_apps.empty() &&
 -      redirect_info->new_url.DomainIs("google.com")) {
 -    modified_cors_exempt_headers->SetHeader(
--        safe_search_util::kGoogleAppsAllowedDomains,
--        dynamic_params_.allowed_domains_for_apps);
+-        safe_search_api::kGoogleAppsAllowedDomains,
+-        dynamic_params_->allowed_domains_for_apps);
 -  }
 -
 -#if BUILDFLAG(IS_ANDROID)
@@ -101,10 +116,24 @@
 -    to_be_removed_headers->push_back(kCCTClientDataHeader);
 -  }
 -#endif
+-#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+-  if (ShouldDeferRequestForBoundSession(redirect_info->new_url)) {
+-    // TODO(b/263264391): `bound_session_request_throttled_listener_` should
+-    // always be set if `BoundSessionParams` are set. Switch to a check once the
+-    // renderer `BoundSessionRequestThrottledListener` is set.
+-    if (bound_session_request_throttled_listener_) {
+-      *defer = true;
+-      bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
+-          base::BindOnce(
+-              &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
+-              weak_factory_.GetWeakPtr()));
+-    }
+-  }
+-#endif
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -158,22 +77,5 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -183,23 +85,6 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
@@ -127,9 +156,10 @@
 -  }
  }
  #endif
+ 
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
-@@ -31,112 +31,6 @@ namespace google_util {
+@@ -31,110 +31,6 @@ namespace google_util {
  
  namespace {
  
@@ -217,8 +247,6 @@
 -      base::MakeFixedFlatSet<base::StringPiece>({YOUTUBE_TLD_LIST});
 -
 -  return IsValidHostName(canonical_host, "youtube", subdomain_permission,
--                         youtube_tlds) ||
--         IsValidHostName(canonical_host, "youtubekids", subdomain_permission,
 -                         youtube_tlds);
 -}
 -
@@ -242,7 +270,7 @@
  }  // namespace
  
  // Global functions -----------------------------------------------------------
-@@ -144,12 +38,6 @@ bool IsGoogleSearchSubdomainUrl(const GU
+@@ -142,12 +38,6 @@ bool IsGoogleSearchSubdomainUrl(const GU
  const char kGoogleHomepageURL[] = "trk:113:https://www.google.com/";
  
  bool HasGoogleSearchQueryParam(base::StringPiece str) {
@@ -255,7 +283,7 @@
    return false;
  }
  
-@@ -160,161 +48,53 @@ std::string GetGoogleLocale(const std::s
+@@ -158,162 +48,53 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -405,6 +433,7 @@
 -      ".googlevideo.com",
 -      ".gstatic.com",
 -      ".litepages.googlezip.net",
+-      ".youtubekids.com",
 -      ".ytimg.com",
 -  };
 -  const std::string host = url.host();
@@ -429,7 +458,7 @@
  
 --- a/components/page_load_metrics/browser/page_load_metrics_util.cc
 +++ b/components/page_load_metrics/browser/page_load_metrics_util.cc
-@@ -280,9 +280,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
+@@ -282,9 +282,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
  }
  
  bool IsGoogleSearchHostname(const GURL& url) {
@@ -484,7 +513,7 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -535,11 +535,7 @@ std::u16string TemplateURLRef::SearchTer
+@@ -558,11 +558,7 @@ std::u16string TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -510,7 +539,24 @@
  namespace {
  
  // The result of checking whether a request to a URL should have variations
-@@ -257,30 +253,7 @@ class VariationsHeaderHelper {
+@@ -114,16 +110,6 @@ URLValidationResult GetUrlValidationResu
+   return URLValidationResult::kShouldAppend;
+ }
+ 
+-// Returns true if the request to |url| should include a variations header.
+-// Also, logs the result of validating |url| in histograms, one of which ends in
+-// |suffix|.
+-bool ShouldAppendVariationsHeader(const GURL& url, const std::string& suffix) {
+-  URLValidationResult result = GetUrlValidationResult(url);
+-  base::UmaHistogramEnumeration(
+-      "Variations.Headers.URLValidationResult." + suffix, result);
+-  return result == URLValidationResult::kShouldAppend;
+-}
+-
+ // Returns true if the request is sent from a Google web property, i.e. from a
+ // first-party context.
+ //
+@@ -250,30 +236,7 @@ class VariationsHeaderHelper {
    VariationsHeaderHelper& operator=(const VariationsHeaderHelper&) = delete;
  
    bool AppendHeaderIfNeeded(const GURL& url, InIncognito incognito) {
@@ -542,7 +588,7 @@
    }
  
   private:
-@@ -348,8 +321,6 @@ void RemoveVariationsHeaderIfNeeded(
+@@ -338,8 +301,6 @@ void RemoveVariationsHeaderIfNeeded(
      const net::RedirectInfo& redirect_info,
      const network::mojom::URLResponseHead& response_head,
      std::vector<std::string>* to_be_removed_headers) {
@@ -551,18 +597,27 @@
  }
  
  std::unique_ptr<network::SimpleURLLoader>
-@@ -379,9 +350,7 @@ CreateSimpleURLLoaderWithVariationsHeade
+@@ -375,29 +336,22 @@ CreateSimpleURLLoaderWithVariationsHeade
  }
  
  bool HasVariationsHeader(const network::ResourceRequest& request) {
--  // Note: kOmniboxOnDeviceSuggestionsHeader is not listed because this function
--  // is only used for testing.
--  return request.cors_exempt_headers.HasHeader(kClientDataHeader);
+-  std::string unused_header;
+-  return GetVariationsHeader(request, &unused_header);
++  return false;
+ }
+ 
+ bool GetVariationsHeader(const network::ResourceRequest& request,
+                          std::string* out) {
+-  return request.cors_exempt_headers.GetHeader(kClientDataHeader, out);
 +  return false;
  }
  
  bool ShouldAppendVariationsHeaderForTesting(
-@@ -392,12 +361,6 @@ bool ShouldAppendVariationsHeaderForTest
+     const GURL& url,
+     const std::string& histogram_suffix) {
+-  return ShouldAppendVariationsHeader(url, histogram_suffix);
++  return false;
+ }
  
  void UpdateCorsExemptHeaderForVariations(
      network::mojom::NetworkContextParams* params) {
@@ -577,7 +632,7 @@
  }  // namespace variations
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -455,27 +455,6 @@ bool HasGoogleHost(const GURL& url) {
+@@ -486,27 +486,6 @@ bool HasGoogleHost(const GURL& url) {
  }
  
  bool IsGoogleHost(base::StringPiece host) {

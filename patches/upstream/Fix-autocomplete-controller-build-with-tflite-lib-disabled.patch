@@ -1,0 +1,90 @@
+From 09b6bd844888122d774492264cc65c318bee9d97 Mon Sep 17 00:00:00 2001
+From: Jun Zou <junzou@chromium.org>
+Date: Tue, 16 May 2023 00:37:50 +0000
+Subject: [PATCH] [Omnibox][ML] Fix autocomplete controller build with tflite lib disabled.
+
+Bug: 1444831
+Change-Id: If2a2a3f5a76f9c65cab6374b31db58a2d01d733f
+Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/4534915
+Reviewed-by: Moe Ahmadi <mahmadi@chromium.org>
+Commit-Queue: Jun Zou <junzou@chromium.org>
+Cr-Commit-Position: refs/heads/main@{#1144491}
+---
+
+--- a/components/omnibox/browser/autocomplete_controller.cc
++++ b/components/omnibox/browser/autocomplete_controller.cc
+@@ -1044,11 +1044,14 @@ void AutocompleteController::UpdateResul
+       }
+     }
+ 
++#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+     RunUrlScoringModel(base::BindOnce(
+         &AutocompleteController::SortCullAndAnnotateResult,
+         weak_ptr_factory_.GetWeakPtr(), last_default_match,
+         last_default_associated_keyword, force_notify_default_match_changed,
+         default_match_to_preserve));
++#endif  // BUILDFLAG(BUILD_WITH_TFLITE_LIB)
++
+     return;
+   }
+ 
+@@ -1546,6 +1549,7 @@ bool AutocompleteController::ShouldRunPr
+   return true;
+ }
+ 
++#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+ void AutocompleteController::RunUrlScoringModel(
+     base::OnceClosure completion_callback) {
+   TRACE_EVENT0("omnibox", "AutocompleteController::RunUrlScoringModel");
+@@ -1573,6 +1577,7 @@ void AutocompleteController::RunUrlScori
+     }
+   }
+ }
++#endif  // BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+ 
+ void AutocompleteController::CancelUrlScoringModel() {
+   // Try to cancel any pending requests to the scoring model and invalidate the
+@@ -1581,6 +1586,7 @@ void AutocompleteController::CancelUrlSc
+   weak_ptr_factory_.InvalidateWeakPtrs();
+ }
+ 
++#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+ void AutocompleteController::OnUrlScoringModelDone(
+     const base::ElapsedTimer elapsed_timer,
+     base::OnceClosure completion_callback,
+@@ -1648,3 +1654,4 @@ void AutocompleteController::OnUrlScorin
+   }
+   std::move(completion_callback).Run();
+ }
++#endif  // BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+--- a/components/omnibox/browser/autocomplete_controller.h
++++ b/components/omnibox/browser/autocomplete_controller.h
+@@ -365,17 +365,20 @@ class AutocompleteController : public Au
+   // only runs on Lacros and the @tabs scope.
+   bool ShouldRunProvider(AutocompleteProvider* provider) const;
+ 
++#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+   // Runs the async scoring model for all the eligible matches in
+   // `results_.matches_` and bypasses the ineligible matches. Passes
+   // `completion_callback` to `OnUrlScoringModelDone()` callback which is called
+   // once the model is done for all the eligible matches, whether successfully
+   // or not, and all the ineligible matches are bypassed.
+   void RunUrlScoringModel(base::OnceClosure completion_callback);
++#endif  // BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+ 
+   // Tries to cancel any pending requests to the scoring model and prevents
+   // `OnUrlScoringModelDone()` and its completion callback from being called.
+   void CancelUrlScoringModel();
+ 
++#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+   // Called when the async scoring model is done running for all the eligible
+   // matches in `results_.matches_` and all the ineligible matches are bypassed.
+   // Redistributes the existing relevance scores to the matches based on the
+@@ -387,6 +390,7 @@ class AutocompleteController : public Au
+       base::OnceClosure completion_callback,
+       std::vector<std::tuple<absl::optional<float>, size_t, GURL>>
+           outputs_and_match_info);
++#endif  // BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+ 
+   base::ObserverList<Observer> observers_;
+ 

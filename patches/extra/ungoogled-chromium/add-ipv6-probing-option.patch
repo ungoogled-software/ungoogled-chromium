@@ -13,29 +13,29 @@
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
 --- a/net/base/features.cc
 +++ b/net/base/features.cc
-@@ -11,6 +11,8 @@
+@@ -12,6 +12,8 @@
  
  namespace net::features {
  
-+const base::Feature kSetIpv6ProbeFalse{"SetIpv6ProbeFalse", base::FEATURE_DISABLED_BY_DEFAULT};
++BASE_FEATURE(kSetIpv6ProbeFalse, "SetIpv6ProbeFalse", base::FEATURE_DISABLED_BY_DEFAULT);
 +
- const base::Feature kAlpsForHttp2{"AlpsForHttp2",
-                                   base::FEATURE_ENABLED_BY_DEFAULT};
+ BASE_FEATURE(kAlpsForHttp2, "AlpsForHttp2", base::FEATURE_ENABLED_BY_DEFAULT);
  
+ BASE_FEATURE(kAvoidH2Reprioritization,
 --- a/net/base/features.h
 +++ b/net/base/features.h
-@@ -17,6 +17,8 @@
+@@ -18,6 +18,8 @@
  
  namespace net::features {
  
-+NET_EXPORT extern const base::Feature kSetIpv6ProbeFalse;
++NET_EXPORT BASE_DECLARE_FEATURE(kSetIpv6ProbeFalse);
 +
  // Enables ALPS extension of TLS 1.3 for HTTP/2, see
  // https://vasilvv.github.io/tls-alps/draft-vvv-tls-alps.html and
  // https://vasilvv.github.io/httpbis-alps/draft-vvv-httpbis-alps.html.
 --- a/net/dns/host_resolver_manager.cc
 +++ b/net/dns/host_resolver_manager.cc
-@@ -153,11 +153,6 @@ const unsigned kMinimumTTLSeconds = kCac
+@@ -156,11 +156,6 @@ const unsigned kMinimumTTLSeconds = kCac
  // cached.
  const int kIPv6ProbePeriodMs = 1000;
  
@@ -44,15 +44,44 @@
 -                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 -                                     0x00, 0x00, 0x00, 0x01};
 -
- enum DnsResolveStatus {
-   RESOLVE_STATUS_DNS_SUCCESS = 0,
-   RESOLVE_STATUS_PROC_SUCCESS,
-@@ -4085,7 +4080,7 @@ bool HostResolverManager::IsIPv6Reachabl
-       (tick_clock_->NowTicks() - last_ipv6_probe_time_).InMilliseconds() >
-           kIPv6ProbePeriodMs) {
-     SetLastIPv6ProbeResult(
--        IsGloballyReachable(IPAddress(kIPv6ProbeAddress), net_log));
-+        !base::FeatureList::IsEnabled(features::kSetIpv6ProbeFalse));
-     cached = false;
+ // ICANN uses this localhost address to indicate a name collision.
+ //
+ // The policy in Chromium is to fail host resolving if it resolves to
+@@ -3945,33 +3940,10 @@ int HostResolverManager::StartIPv6Reacha
+     return OK;
    }
-   net_log.AddEvent(
+ 
+-  if (probing_ipv6_) {
+-    ipv6_request_callbacks_.push_back(std::move(callback));
+-    return ERR_IO_PENDING;
+-  }
+-  // Cache the result for kIPv6ProbePeriodMs (measured from after
+-  // StartGloballyReachableCheck() completes).
+-  int rv = OK;
+-  bool cached = true;
+-  if (last_ipv6_probe_time_.is_null() ||
+-      (tick_clock_->NowTicks() - last_ipv6_probe_time_).InMilliseconds() >
+-          kIPv6ProbePeriodMs) {
+-    probing_ipv6_ = true;
+-    rv = StartGloballyReachableCheck(
+-        IPAddress(kIPv6ProbeAddress), net_log,
+-        base::BindOnce(&HostResolverManager::FinishIPv6ReachabilityCheck,
+-                       weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+-    if (rv != ERR_IO_PENDING) {
+-      SetLastIPv6ProbeResult((rv == OK) ? true : false);
+-      rv = OK;
+-    }
+-    cached = false;
+-  }
+-  net_log.AddEvent(
+-      NetLogEventType::HOST_RESOLVER_MANAGER_IPV6_REACHABILITY_CHECK, [&] {
+-        return NetLogIPv6AvailableParams(last_ipv6_probe_result_, cached);
+-      });
+-  return rv;
++  probing_ipv6_ = false;
++  last_ipv6_probe_result_ = !base::FeatureList::IsEnabled(features::kSetIpv6ProbeFalse);
++  last_ipv6_probe_time_ = base::TimeTicks();
++  return OK;
+ }
+ 
+ void HostResolverManager::SetLastIPv6ProbeResult(bool last_ipv6_probe_result) {

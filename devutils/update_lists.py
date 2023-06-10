@@ -41,10 +41,6 @@ PRUNING_INCLUDE_PATTERNS = [
 # pathlib.Path.match() paths to exclude from binary pruning
 PRUNING_EXCLUDE_PATTERNS = [
     'chrome/common/win/eventlog_messages.mc', # TODO: False positive textfile
-    # TabRanker example preprocessor config
-    # Details in chrome/browser/resource_coordinator/tab_ranker/README.md
-    'chrome/browser/resource_coordinator/tab_ranker/example_preprocessor_config.pb',
-    'chrome/browser/resource_coordinator/tab_ranker/pairwise_preprocessor_config.pb',
     # Exclusions for DOM distiller (contains model data only)
     'components/dom_distiller/core/data/distillable_page_model_new.bin',
     'components/dom_distiller/core/data/long_page_model.bin',
@@ -102,6 +98,7 @@ PRUNING_EXCLUDE_PATTERNS = [
 DOMAIN_EXCLUDE_PREFIXES = [
     'components/test/',
     'net/http/transport_security_state_static.json',
+    'net/http/transport_security_state_static_pins.json',
     # Exclusions for Visual Studio Project generation with GN (PR #445)
     'tools/gn/src/gn/visual_studio_writer.cc',
     # Exclusions for files covered with other patches/unnecessary
@@ -132,17 +129,18 @@ class UnusedPatterns: #pylint: disable=too-few-public-methods
         for name in self._all_names:
             setattr(self, name, set(globals()[name.upper()]))
 
-    def log_unused(self):
+    def log_unused(self, error=True):
         """
         Logs unused patterns and prefixes
 
         Returns True if there are unused patterns or prefixes; False otherwise
         """
         have_unused = False
+        log = get_logger().error if error else get_logger().info
         for name in self._all_names:
             current_set = getattr(self, name, None)
             if current_set:
-                get_logger().error('Unused from %s: %s', name.upper(), current_set)
+                log('Unused from %s: %s', name.upper(), current_set)
                 have_unused = True
         return have_unused
 
@@ -353,7 +351,20 @@ def main(args_list=None):
         default=None,
         help=
         'The maximum number of worker processes to create. Defaults to the number of system CPUs.')
+    parser.add_argument(
+        '--domain-exclude-prefix',
+        metavar='PREFIX',
+        type=str,
+        action='append',
+        help='Additional exclusion for domain_substitution.list.')
+    parser.add_argument(
+        '--no-error-unused',
+        action='store_false',
+        dest='error_unused',
+        help='Do not treat unused patterns/prefixes as an error.')
     args = parser.parse_args(args_list)
+    if args.domain_exclude_prefix is not None:
+        DOMAIN_EXCLUDE_PREFIXES.extend(args.domain_exclude_prefix)
     if args.tree.exists() and not _dir_empty(args.tree):
         get_logger().info('Using existing source tree at %s', args.tree)
     else:
@@ -367,7 +378,7 @@ def main(args_list=None):
         file_obj.writelines('%s\n' % line for line in pruning_set)
     with args.domain_substitution.open('w', encoding=_ENCODING) as file_obj:
         file_obj.writelines('%s\n' % line for line in domain_substitution_set)
-    if unused_patterns.log_unused():
+    if unused_patterns.log_unused(args.error_unused) and args.error_unused:
         get_logger().error('Please update or remove unused patterns and/or prefixes. '
                            'The lists have still been updated with the remaining valid entries.')
         exit(1)

@@ -1,41 +1,32 @@
 # Disables translation and removes the "Translate to" context menu when --translate-script-url flag is not set
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -140,6 +140,7 @@
- #include "components/spellcheck/common/spellcheck_common.h"
+@@ -150,6 +150,7 @@
  #include "components/spellcheck/spellcheck_buildflags.h"
  #include "components/strings/grit/components_strings.h"
+ #include "components/supervised_user/core/common/buildflags.h"
 +#include "components/translate/core/common/translate_switches.h"
  #include "components/translate/core/browser/translate_download_manager.h"
  #include "components/translate/core/browser/translate_manager.h"
  #include "components/translate/core/browser/translate_prefs.h"
-@@ -1815,6 +1816,8 @@ void RenderViewContextMenu::AppendPageIt
-   if (has_sharing_menu_items)
+@@ -1902,6 +1903,7 @@ void RenderViewContextMenu::AppendPageIt
      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
  
-+  const base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
-+  if (command_line.HasSwitch(translate::switches::kTranslateScriptURL)) {
-   ChromeTranslateClient* chrome_translate_client =
-       ChromeTranslateClient::FromWebContents(embedder_web_contents_);
-   const bool canTranslate =
-@@ -1827,6 +1830,7 @@ void RenderViewContextMenu::AppendPageIt
-         l10n_util::GetStringFUTF16(IDS_CONTENT_CONTEXT_TRANSLATE,
-                                    GetTargetLanguageDisplayName()));
-   }
-+  } // if (command_line.HasSwitch(translate::switches::kTranslateScriptURL))
- }
- 
- void RenderViewContextMenu::AppendExitFullscreenItem() {
+   if (CanTranslate(/*menu_logging=*/true)) {
++   if (base::CommandLine::ForCurrentProcess()->HasSwitch(translate::switches::kTranslateScriptURL))
+     menu_model_.AddItem(
+         IDC_CONTENT_CONTEXT_TRANSLATE,
+         l10n_util::GetStringFUTF16(
 --- a/components/translate/core/browser/translate_language_list.cc
 +++ b/components/translate/core/browser/translate_language_list.cc
-@@ -11,6 +11,7 @@
+@@ -9,6 +9,7 @@
+ #include <iterator>
  
- #include "base/bind.h"
  #include "base/check.h"
 +#include "base/command_line.h"
+ #include "base/debug/dump_without_crashing.h"
+ #include "base/functional/bind.h"
  #include "base/json/json_reader.h"
- #include "base/lazy_instance.h"
- #include "base/notreached.h"
 @@ -23,6 +24,7 @@
  #include "components/translate/core/browser/translate_event_details.h"
  #include "components/translate/core/browser/translate_url_fetcher.h"
@@ -44,7 +35,7 @@
  #include "components/translate/core/common/translate_util.h"
  #include "net/base/url_util.h"
  #include "third_party/abseil-cpp/absl/types/optional.h"
-@@ -219,6 +221,9 @@ GURL TranslateLanguageList::TranslateLan
+@@ -229,6 +231,9 @@ GURL TranslateLanguageList::TranslateLan
  }
  
  void TranslateLanguageList::RequestLanguageList() {
@@ -56,8 +47,8 @@
      request_pending_ = true;
 --- a/components/translate/core/browser/translate_manager.cc
 +++ b/components/translate/core/browser/translate_manager.cc
-@@ -872,8 +872,9 @@ void TranslateManager::FilterIsTranslate
-         ->LogAutofillAssistantDeferredTriggerDecision();
+@@ -838,8 +838,9 @@ void TranslateManager::FilterIsTranslate
+         TriggerDecision::kDisabledOffline);
    }
  
 -  if (!ignore_missing_key_for_testing_ &&
@@ -70,7 +61,7 @@
      // settings syncs and we don't want to turn off translate everywhere else.
 --- a/components/translate/core/browser/translate_ranker_impl.cc
 +++ b/components/translate/core/browser/translate_ranker_impl.cc
-@@ -156,12 +156,9 @@ TranslateRankerImpl::TranslateRankerImpl
+@@ -157,12 +157,9 @@ TranslateRankerImpl::TranslateRankerImpl
                                           ukm::UkmRecorder* ukm_recorder)
      : ukm_recorder_(ukm_recorder),
        is_uma_logging_enabled_(false),
@@ -86,7 +77,7 @@
    if (is_query_enabled_ || is_enforcement_enabled_) {
      model_loader_ = std::make_unique<assist_ranker::RankerModelLoaderImpl>(
          base::BindRepeating(&ValidateModel),
-@@ -235,6 +232,8 @@ bool TranslateRankerImpl::ShouldOfferTra
+@@ -236,6 +233,8 @@ bool TranslateRankerImpl::ShouldOfferTra
    // (or become False).
    const bool kDefaultResponse = true;
  
@@ -97,7 +88,7 @@
    translate_event->set_ranker_version(GetModelVersion());
 --- a/components/translate/core/browser/translate_script.cc
 +++ b/components/translate/core/browser/translate_script.cc
-@@ -137,8 +137,13 @@ void TranslateScript::OnScriptFetchCompl
+@@ -136,8 +136,13 @@ void TranslateScript::OnScriptFetchCompl
                          server_params.c_str());
  
      GURL security_origin = translate::GetTranslateSecurityOrigin();

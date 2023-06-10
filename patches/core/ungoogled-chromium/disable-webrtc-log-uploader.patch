@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/media/webrtc/webrtc_log_uploader.cc
 +++ b/chrome/browser/media/webrtc/webrtc_log_uploader.cc
-@@ -126,28 +126,11 @@ void WebRtcLogUploader::LoggingStoppedDo
+@@ -127,30 +127,13 @@ void WebRtcLogUploader::OnLoggingStopped
    DCHECK(meta_data.get());
    DCHECK(!upload_done_data.paths.directory.empty());
  
@@ -26,13 +26,15 @@
    }
  
 -  upload_done_data.local_log_id = local_log_id;
--  PrepareMultipartPostData(compressed_log, std::move(meta_data),
--                           std::move(upload_done_data));
-+  NotifyUploadDoneAndLogStats(net::HTTP_OK, net::OK, "", std::move(upload_done_data));
- }
  
- void WebRtcLogUploader::PrepareMultipartPostData(
-@@ -158,28 +141,7 @@ void WebRtcLogUploader::PrepareMultipart
+   if (is_text_log_upload_allowed) {
+-    PrepareMultipartPostData(compressed_log, std::move(meta_data),
+-                             std::move(upload_done_data));
++    NotifyUploadDoneAndLogStats(net::HTTP_OK, net::OK, "", std::move(upload_done_data));
+   } else {
+     main_task_runner_->PostTask(
+         FROM_HERE,
+@@ -167,28 +150,7 @@ void WebRtcLogUploader::PrepareMultipart
    DCHECK(!compressed_log.empty());
    DCHECK(meta_data.get());
  
@@ -62,7 +64,7 @@
  }
  
  void WebRtcLogUploader::UploadStoredLog(
-@@ -245,49 +207,6 @@ void WebRtcLogUploader::LoggingStoppedDo
+@@ -254,50 +216,6 @@ void WebRtcLogUploader::LoggingStoppedDo
    DCHECK(log_buffer.get());
    DCHECK(!log_paths.directory.empty());
  
@@ -105,10 +107,22 @@
 -    base::FilePath meta_path =
 -        log_paths.directory.AppendASCII(log_id).AddExtension(
 -            FILE_PATH_LITERAL(".meta"));
--    base::WriteFile(meta_path, static_cast<const char*>(pickle.data()),
--                    pickle.size());
+-    base::WriteFile(meta_path,
+-                    base::make_span(static_cast<const uint8_t*>(pickle.data()),
+-                                    pickle.size()));
 -  }
 -
    main_task_runner_->PostTask(
        FROM_HERE, base::BindOnce(std::move(done_callback), true, ""));
  
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -96,7 +96,7 @@ void RegisterBrowserUserPrefs(user_prefs
+   registry->RegisterBooleanPref(prefs::kWebRtcEventLogCollectionAllowed, false);
+   registry->RegisterListPref(prefs::kWebRtcLocalIpsAllowedUrls);
+   registry->RegisterBooleanPref(prefs::kWebRTCAllowLegacyTLSProtocols, false);
+-  registry->RegisterBooleanPref(prefs::kWebRtcTextLogCollectionAllowed, true);
++  registry->RegisterBooleanPref(prefs::kWebRtcTextLogCollectionAllowed, false);
+ 
+   // Dictionaries to keep track of default tasks in the file browser.
+   registry->RegisterDictionaryPref(
