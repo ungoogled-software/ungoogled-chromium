@@ -141,6 +141,14 @@ def clone(args):
             '--gs-url-base=chromium-optimization-profiles/pgo_profiles'
         ],
             check=True)
+        # https://chromium-review.googlesource.com/c/chromium/tools/build/+/4380399
+        run([
+            sys.executable,
+            str(args.output / 'v8' / 'tools' / 'builtins-pgo' / 'download_profiles.py'), 'download',
+            '--depot-tools',
+            str(dtpath)
+        ],
+            check=True)
 
         get_logger().info('Generating: DAWN_VERSION')
         run([
