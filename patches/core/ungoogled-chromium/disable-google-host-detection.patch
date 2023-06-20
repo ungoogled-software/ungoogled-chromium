@@ -24,8 +24,8 @@
 -
  #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
  #include "chrome/common/bound_session_request_throttled_listener.h"
- #include "net/cookies/cookie_util.h"
-@@ -73,55 +69,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+ #include "components/signin/public/base/signin_switches.h"
+@@ -74,51 +70,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -64,24 +64,20 @@
 -  }
 -#endif
 -#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
--  if (request->SendsCookies() &&
+-  if (switches::IsBoundSessionCredentialsEnabled() && request->SendsCookies() &&
 -      ShouldDeferRequestForBoundSession(request->url)) {
--    // TODO(b/263264391): `bound_session_request_throttled_listener_` should
--    // always be set if `BoundSessionParams` are set. Switch to a check once the
--    // renderer `BoundSessionRequestThrottledListener` is set.
--    if (bound_session_request_throttled_listener_) {
--      *defer = true;
--      bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
--          base::BindOnce(
--              &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
--              weak_factory_.GetWeakPtr()));
--    }
+-    CHECK(bound_session_request_throttled_listener_);
+-    *defer = true;
+-    bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
+-        base::BindOnce(
+-            &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
+-            weak_factory_.GetWeakPtr()));
 -  }
 -#endif
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -131,51 +78,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -128,48 +79,6 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
@@ -117,23 +113,20 @@
 -  }
 -#endif
 -#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
--  if (ShouldDeferRequestForBoundSession(redirect_info->new_url)) {
--    // TODO(b/263264391): `bound_session_request_throttled_listener_` should
--    // always be set if `BoundSessionParams` are set. Switch to a check once the
--    // renderer `BoundSessionRequestThrottledListener` is set.
--    if (bound_session_request_throttled_listener_) {
--      *defer = true;
--      bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
--          base::BindOnce(
--              &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
--              weak_factory_.GetWeakPtr()));
--    }
+-  if (switches::IsBoundSessionCredentialsEnabled() &&
+-      ShouldDeferRequestForBoundSession(redirect_info->new_url)) {
+-    CHECK(bound_session_request_throttled_listener_);
+-    *defer = true;
+-    bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
+-        base::BindOnce(
+-            &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
+-            weak_factory_.GetWeakPtr()));
 -  }
 -#endif
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -183,23 +85,6 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -177,23 +86,6 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {

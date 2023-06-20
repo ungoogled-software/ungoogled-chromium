@@ -1,14 +1,14 @@
 --- a/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager.cc
-@@ -25,6 +25,7 @@
- #include "chrome/browser/profiles/profile.h"
+@@ -27,6 +27,7 @@
  #include "chrome/browser/sync/sync_service_factory.h"
+ #include "chrome/common/pref_names.h"
  #include "components/browsing_data/core/browsing_data_policies_utils.h"
 +#include "components/browsing_data/core/features.h"
  #include "components/browsing_data/core/pref_names.h"
  #include "components/keep_alive_registry/keep_alive_types.h"
  #include "components/keep_alive_registry/scoped_keep_alive.h"
-@@ -157,6 +158,21 @@ class BrowsingDataRemoverObserver
+@@ -161,6 +162,21 @@ class BrowsingDataRemoverObserver
  #endif
  };
  
@@ -30,17 +30,17 @@
  uint64_t GetOriginTypeMask(const base::Value::List& data_types) {
    uint64_t result = 0;
    for (const auto& data_type : data_types) {
-@@ -288,7 +304,8 @@ void ChromeBrowsingDataLifetimeManager::
-     bool keep_browser_alive) {
+@@ -328,7 +344,8 @@ void ChromeBrowsingDataLifetimeManager::
    const base::Value::List& data_types = profile_->GetPrefs()->GetList(
        browsing_data::prefs::kClearBrowsingDataOnExitList);
--  if (!data_types.empty() && !SyncServiceFactory::IsSyncAllowed(profile_)) {
+ 
+-  if (IsConditionSatisfiedForBrowsingDataRemoval(GetSyncTypesForPolicyPref(
 +  bool cdoe = base::FeatureList::IsEnabled(browsing_data::features::kClearDataOnExit);
-+  if (cdoe || (!data_types.empty() && !SyncServiceFactory::IsSyncAllowed(profile_))) {
++  if (cdoe || IsConditionSatisfiedForBrowsingDataRemoval(GetSyncTypesForPolicyPref(
+           profile_, browsing_data::prefs::kClearBrowsingDataOnExitList))) {
      profile_->GetPrefs()->SetBoolean(
          browsing_data::prefs::kClearBrowsingDataOnExitDeletionPending, true);
-     auto* remover = profile_->GetBrowsingDataRemover();
-@@ -299,8 +316,8 @@ void ChromeBrowsingDataLifetimeManager::
+@@ -340,8 +357,8 @@ void ChromeBrowsingDataLifetimeManager::
        DCHECK(keep_browser_alive);
  #endif
      remover->RemoveAndReply(base::Time(), base::Time::Max(),
@@ -53,7 +53,7 @@
                                  keep_browser_alive));
 --- a/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager_factory.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager_factory.cc
-@@ -43,6 +43,8 @@ ChromeBrowsingDataLifetimeManagerFactory
+@@ -44,6 +44,8 @@ ChromeBrowsingDataLifetimeManagerFactory
  KeyedService* ChromeBrowsingDataLifetimeManagerFactory::BuildServiceInstanceFor(
      content::BrowserContext* context) const {
    if (!base::FeatureList::IsEnabled(

@@ -1,39 +1,6 @@
---- a/chrome/browser/privacy_sandbox/privacy_sandbox_settings_delegate.cc
-+++ b/chrome/browser/privacy_sandbox/privacy_sandbox_settings_delegate.cc
-@@ -16,29 +16,7 @@
- namespace {
- 
- bool PrivacySandboxRestrictedByAccountCapability(Profile* profile) {
--  if (privacy_sandbox::kPrivacySandboxSettings4ForceRestrictedUserForTesting
--          .Get()) {
--    return true;
--  }
--  auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
--
--  if (!identity_manager ||
--      !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
--    // The user isn't signed in so we can't apply any capabilties-based
--    // restrictions.
--    return false;
--  }
--
--  const auto core_account_info =
--      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
--  const AccountInfo account_info =
--      identity_manager->FindExtendedAccountInfo(core_account_info);
--  auto capability =
--      account_info.capabilities.can_run_chrome_privacy_sandbox_trials();
--
--  // The Privacy Sandbox is not considered restricted unless the capability
--  // has a definitive false signal.
--  return capability == signin::Tribool::kFalse;
-+  return true;
- }
- 
- bool PrivacySandboxRestrictedNoticeRequired(Profile* profile) {
 --- a/components/privacy_sandbox/privacy_sandbox_prefs.cc
 +++ b/components/privacy_sandbox/privacy_sandbox_prefs.cc
-@@ -103,7 +103,7 @@ namespace privacy_sandbox {
+@@ -108,7 +108,7 @@ namespace privacy_sandbox {
  
  void RegisterProfilePrefs(PrefRegistrySimple* registry) {
    registry->RegisterBooleanPref(
@@ -44,7 +11,7 @@
    registry->RegisterBooleanPref(prefs::kPrivacySandboxM1ConsentDecisionMade,
 --- a/components/privacy_sandbox/privacy_sandbox_settings_impl.cc
 +++ b/components/privacy_sandbox/privacy_sandbox_settings_impl.cc
-@@ -72,7 +72,7 @@ base::Value CreateBlockedTopicEntry(cons
+@@ -70,7 +70,7 @@ base::Value::Dict CreateBlockedTopicEntr
  
  // static
  bool PrivacySandboxSettingsImpl::IsAllowed(Status status) {
@@ -53,7 +20,7 @@
  }
  
  PrivacySandboxSettingsImpl::PrivacySandboxSettingsImpl(
-@@ -504,20 +504,7 @@ bool PrivacySandboxSettingsImpl::IsPriva
+@@ -512,20 +512,7 @@ bool PrivacySandboxSettingsImpl::IsPriva
  }
  
  bool PrivacySandboxSettingsImpl::IsPrivacySandboxEnabled() const {
@@ -75,7 +42,7 @@
  }
  
  void PrivacySandboxSettingsImpl::SetAllPrivacySandboxAllowedForTesting() {
-@@ -542,7 +529,6 @@ void PrivacySandboxSettingsImpl::SetTopi
+@@ -550,11 +537,10 @@ void PrivacySandboxSettingsImpl::SetTopi
  }
  
  void PrivacySandboxSettingsImpl::SetPrivacySandboxEnabled(bool enabled) {
@@ -83,6 +50,23 @@
  }
  
  bool PrivacySandboxSettingsImpl::IsPrivacySandboxRestricted() const {
+-  return delegate_->IsPrivacySandboxRestricted();
++  return true;
+ }
+ 
+ bool PrivacySandboxSettingsImpl::IsPrivacySandboxCurrentlyUnrestricted() const {
+@@ -657,11 +643,7 @@ PrivacySandboxSettingsImpl::GetPrivacySa
+     return Status::kIncognitoProfile;
+   }
+ 
+-  if (IsPrivacySandboxRestricted() && !should_ignore_restriction) {
+     return Status::kRestricted;
+-  }
+-
+-  return Status::kAllowed;
+ }
+ 
+ PrivacySandboxSettingsImpl::Status
 --- a/content/browser/aggregation_service/aggregation_service_features.cc
 +++ b/content/browser/aggregation_service/aggregation_service_features.cc
 @@ -9,7 +9,7 @@ namespace content {
