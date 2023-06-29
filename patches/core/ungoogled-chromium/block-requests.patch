@@ -1,5 +1,11 @@
 ## Prevent request attempts
 # chrome://discards/ attempts to use d3 to display the graph
+# New tab page tries to download background images
+# New tab page attempts to download the 'One Google' bar
+# New tab page attempts to load promos
+# Password manager attempts to get credential affiliation
+# Attempts to check for updates even with autoupdate disabled
+# Dev tools attempts to download css data
 --- a/chrome/browser/new_tab_page/one_google_bar/one_google_bar_loader_impl.cc
 +++ b/chrome/browser/new_tab_page/one_google_bar/one_google_bar_loader_impl.cc
 @@ -287,6 +287,7 @@ OneGoogleBarLoaderImpl::OneGoogleBarLoad
@@ -63,6 +69,28 @@
    // This function is not supposed to be called if the previous operation is not
    // finished.
    if (state_ == REQUESTING) {
+--- a/components/password_manager/core/browser/affiliation/hash_affiliation_fetcher.cc
++++ b/components/password_manager/core/browser/affiliation/hash_affiliation_fetcher.cc
+@@ -52,6 +52,9 @@ HashAffiliationFetcher::HashAffiliationF
+ HashAffiliationFetcher::~HashAffiliationFetcher() = default;
+ 
+ void HashAffiliationFetcher::StartRequest(
++    const std::vector<FacetURI>& a, RequestInfo b) {}
++[[maybe_unused]]
++void HashAffiliationFetcher::DeadStartRequest(
+     const std::vector<FacetURI>& facet_uris,
+     RequestInfo request_info) {
+   requested_facet_uris_ = facet_uris;
+--- a/components/password_manager/core/browser/affiliation/hash_affiliation_fetcher.h
++++ b/components/password_manager/core/browser/affiliation/hash_affiliation_fetcher.h
+@@ -22,6 +22,7 @@ class HashAffiliationFetcher : public Af
+ 
+   void StartRequest(const std::vector<FacetURI>& facet_uris,
+                     RequestInfo request_info) override;
++  void DeadStartRequest(const std::vector<FacetURI>& a, RequestInfo b);
+ 
+   // AffiliationFetcherInterface
+   const std::vector<FacetURI>& GetRequestedFacetURIs() const override;
 --- a/components/update_client/update_checker.cc
 +++ b/components/update_client/update_checker.cc
 @@ -100,6 +100,7 @@ void UpdateCheckerImpl::CheckForUpdates(
@@ -73,3 +101,24 @@
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
  
    update_check_callback_ = std::move(update_check_callback);
+--- a/third_party/devtools-frontend/src/front_end/panels/elements/WebCustomData.ts
++++ b/third_party/devtools-frontend/src/front_end/panels/elements/WebCustomData.ts
+@@ -19,18 +19,7 @@ export class WebCustomData {
+   readonly fetchPromiseForTest: Promise<unknown>;
+ 
+   constructor(remoteBase: string) {
+-    if (!remoteBase) {
+       this.fetchPromiseForTest = Promise.resolve();
+-      return;
+-    }
+-    this.fetchPromiseForTest = fetch(`${remoteBase}third_party/vscode.web-custom-data/browsers.css-data.json`)
+-                                   .then(response => response.json())
+-                                   .then((json: CSSBrowserData) => {
+-                                     for (const property of json.properties) {
+-                                       this.#data.set(property.name, property);
+-                                     }
+-                                   })
+-                                   .catch();
+   }
+ 
+   /**
