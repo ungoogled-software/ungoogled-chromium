@@ -4,10 +4,10 @@
       "Minimal Referrers",
       "Removes all cross-origin referrers and strips same-origin referrers down to the origin. Has lower precedence than remove-cross-origin-referrers. ungoogled-chromium flag.",
       kOsAll, FEATURE_VALUE_TYPE(features::kMinimalReferrers)},
-+    {"disable-mdns",
-+     "Disable mDNS",
-+     "Disables mDNS and Service Discovery. ungoogled-chromium flag.",
-+     kOsAll, FEATURE_VALUE_TYPE(network::features::kDisableMdns)},
++    {"enable-mdns",
++     "Enable mDNS",
++     "Enables mDNS and Service Discovery. ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(network::features::kMdns)},
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
 --- a/net/dns/host_resolver_manager.cc
 +++ b/net/dns/host_resolver_manager.cc
@@ -23,7 +23,7 @@
  
  // True if |hostname| ends with either ".local" or ".local.".
  bool ResemblesMulticastDNSName(base::StringPiece hostname) {
-+  if (base::FeatureList::IsEnabled(network::features::kDisableMdns))
++  if (!base::FeatureList::IsEnabled(network::features::kMdns))
 +    return false;
    return base::EndsWith(hostname, ".local") ||
           base::EndsWith(hostname, ".local.");
@@ -42,7 +42,7 @@
  }
  
  int MDnsClientImpl::StartListening(MDnsSocketFactory* socket_factory) {
-+  if (base::FeatureList::IsEnabled(network::features::kDisableMdns))
++  if (!base::FeatureList::IsEnabled(network::features::kMdns))
 +    return ERR_ABORTED;
    DCHECK(!core_.get());
    core_ = std::make_unique<Core>(clock_, cleanup_timer_.get());
@@ -70,7 +70,7 @@
  
      net::HostResolver::ResolveHostParameters parameters;
 -    if (enable_mdns_ && HasLocalTld(host_name_)) {
-+    if (enable_mdns_ && HasLocalTld(host_name_) && !base::FeatureList::IsEnabled(features::kDisableMdns)) {
++    if (enable_mdns_ && HasLocalTld(host_name_) && base::FeatureList::IsEnabled(features::kMdns)) {
  #if BUILDFLAG(ENABLE_MDNS)
        // HostResolver/MDnsClient expects a key without a trailing dot.
        host.set_host(host_name_.substr(0, host_name_.size() - 1));
@@ -80,8 +80,8 @@
  
  namespace network::features {
  
-+BASE_FEATURE(kDisableMdns,
-+             "DisableMdns",
++BASE_FEATURE(kMdns,
++             "Mdns",
 +             base::FEATURE_DISABLED_BY_DEFAULT);
 +
  BASE_FEATURE(kNetworkErrorLogging,
@@ -93,7 +93,7 @@
  namespace network {
  namespace features {
  
-+COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kDisableMdns);
++COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kMdns);
  COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kNetworkErrorLogging);
  COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kReporting);
  COMPONENT_EXPORT(NETWORK_CPP) BASE_DECLARE_FEATURE(kThrottleDelayable);
