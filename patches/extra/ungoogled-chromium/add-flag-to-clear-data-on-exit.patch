@@ -30,17 +30,20 @@
  uint64_t GetOriginTypeMask(const base::Value::List& data_types) {
    uint64_t result = 0;
    for (const auto& data_type : data_types) {
-@@ -328,7 +344,8 @@ void ChromeBrowsingDataLifetimeManager::
+@@ -328,9 +344,10 @@ void ChromeBrowsingDataLifetimeManager::
    const base::Value::List& data_types = profile_->GetPrefs()->GetList(
        browsing_data::prefs::kClearBrowsingDataOnExitList);
  
--  if (IsConditionSatisfiedForBrowsingDataRemoval(GetSyncTypesForPolicyPref(
+-  if (!data_types.empty() &&
 +  bool cdoe = base::FeatureList::IsEnabled(browsing_data::features::kClearDataOnExit);
-+  if (cdoe || IsConditionSatisfiedForBrowsingDataRemoval(GetSyncTypesForPolicyPref(
-           profile_, browsing_data::prefs::kClearBrowsingDataOnExitList))) {
++  if (!data_types.empty() && (cdoe ||
+       IsConditionSatisfiedForBrowsingDataRemoval(GetSyncTypesForPolicyPref(
+-          profile_, browsing_data::prefs::kClearBrowsingDataOnExitList))) {
++          profile_, browsing_data::prefs::kClearBrowsingDataOnExitList)))) {
      profile_->GetPrefs()->SetBoolean(
          browsing_data::prefs::kClearBrowsingDataOnExitDeletionPending, true);
-@@ -340,8 +357,8 @@ void ChromeBrowsingDataLifetimeManager::
+     auto* remover = profile_->GetBrowsingDataRemover();
+@@ -341,8 +358,8 @@ void ChromeBrowsingDataLifetimeManager::
        DCHECK(keep_browser_alive);
  #endif
      remover->RemoveAndReply(base::Time(), base::Time::Max(),
@@ -53,7 +56,7 @@
                                  keep_browser_alive));
 --- a/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager_factory.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager_factory.cc
-@@ -44,6 +44,8 @@ ChromeBrowsingDataLifetimeManagerFactory
+@@ -45,6 +45,8 @@ ChromeBrowsingDataLifetimeManagerFactory
  KeyedService* ChromeBrowsingDataLifetimeManagerFactory::BuildServiceInstanceFor(
      content::BrowserContext* context) const {
    if (!base::FeatureList::IsEnabled(

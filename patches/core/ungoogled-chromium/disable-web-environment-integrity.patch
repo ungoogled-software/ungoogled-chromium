@@ -1,0 +1,168 @@
+--- a/chrome/android/chrome_test_java_sources.gni
++++ b/chrome/android/chrome_test_java_sources.gni
+@@ -193,7 +193,6 @@ chrome_test_java_sources = [
+   "javatests/src/org/chromium/chrome/browser/download/OMADownloadHandlerTest.java",
+   "javatests/src/org/chromium/chrome/browser/download/ServicificationDownloadTest.java",
+   "javatests/src/org/chromium/chrome/browser/download/dialogs/DownloadDialogIncognitoTest.java",
+-  "javatests/src/org/chromium/chrome/browser/environment_integrity/EnvironmentIntegrityTest.java",
+   "javatests/src/org/chromium/chrome/browser/externalnav/UrlOverridingTest.java",
+   "javatests/src/org/chromium/chrome/browser/feature_engagement/ScreenshotTabObserverTest.java",
+   "javatests/src/org/chromium/chrome/browser/feedback/ChromeFeedbackCollectorTest.java",
+--- a/content/browser/BUILD.gn
++++ b/content/browser/BUILD.gn
+@@ -906,8 +906,6 @@ source_set("browser") {
+     "download/save_package_serialization_handler.h",
+     "download/save_types.cc",
+     "download/save_types.h",
+-    "environment_integrity/environment_integrity_service_impl.cc",
+-    "environment_integrity/environment_integrity_service_impl.h",
+     "eye_dropper_chooser_impl.cc",
+     "eye_dropper_chooser_impl.h",
+     "feature_observer.cc",
+--- a/content/browser/browser_interface_binders.cc
++++ b/content/browser/browser_interface_binders.cc
+@@ -125,7 +125,6 @@
+ #include "third_party/blink/public/mojom/cookie_store/cookie_store.mojom.h"
+ #include "third_party/blink/public/mojom/credentialmanagement/credential_manager.mojom.h"
+ #include "third_party/blink/public/mojom/device/device.mojom.h"
+-#include "third_party/blink/public/mojom/environment_integrity/environment_integrity_service.mojom.h"
+ #include "third_party/blink/public/mojom/feature_observer/feature_observer.mojom.h"
+ #include "third_party/blink/public/mojom/file/file_utilities.mojom.h"
+ #include "third_party/blink/public/mojom/file_system_access/file_system_access_manager.mojom.h"
+@@ -181,7 +180,6 @@
+ #if BUILDFLAG(IS_ANDROID)
+ #include "content/browser/android/date_time_chooser_android.h"
+ #include "content/browser/android/text_suggestion_host_android.h"
+-#include "content/browser/environment_integrity/environment_integrity_service_impl.h"
+ #include "content/browser/renderer_host/render_widget_host_view_android.h"
+ #include "services/device/public/mojom/nfc.mojom.h"
+ #include "third_party/blink/public/mojom/hid/hid.mojom.h"
+@@ -1199,17 +1197,9 @@ void PopulateBinderMapWithContext(
+       base::BindRepeating(&BindDateTimeChooserForFrame));
+   map->Add<blink::mojom::TextSuggestionHost>(
+       base::BindRepeating(&BindTextSuggestionHostForFrame));
+-  if (base::FeatureList::IsEnabled(features::kWebEnvironmentIntegrity)) {
+-    map->Add<blink::mojom::EnvironmentIntegrityService>(
+-        base::BindRepeating(&EnvironmentIntegrityServiceImpl::Create));
+-  }
+ #else
+   map->Add<blink::mojom::TextSuggestionHost>(base::BindRepeating(
+       &EmptyBinderForFrame<blink::mojom::TextSuggestionHost>));
+-  if (base::FeatureList::IsEnabled(features::kWebEnvironmentIntegrity)) {
+-    map->Add<blink::mojom::EnvironmentIntegrityService>(base::BindRepeating(
+-        &EmptyBinderForFrame<blink::mojom::EnvironmentIntegrityService>));
+-  }
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
+   map->Add<blink::mojom::ClipboardHost>(
+--- a/content/browser/environment_integrity/environment_integrity_service_impl.cc
++++ b/content/browser/environment_integrity/environment_integrity_service_impl.cc
+@@ -20,17 +20,10 @@ EnvironmentIntegrityServiceImpl::~Enviro
+ void EnvironmentIntegrityServiceImpl::Create(
+     content::RenderFrameHost* render_frame_host,
+     mojo::PendingReceiver<blink::mojom::EnvironmentIntegrityService> receiver) {
+-  CHECK(render_frame_host);
+-
+-  // The object is bound to the lifetime of `render_frame_host` and the mojo
+-  // connection. See DocumentService for details.
+-  new EnvironmentIntegrityServiceImpl(*render_frame_host, std::move(receiver));
+ }
+ 
+ void EnvironmentIntegrityServiceImpl::GetEnvironmentIntegrity(
+     GetEnvironmentIntegrityCallback callback) {
+-  // TODO(crbug.com/1439945) Get integrity token from PIA Crystal API.
+-  std::move(callback).Run();
+ }
+ 
+ }  // namespace content
+--- a/content/child/runtime_features.cc
++++ b/content/child/runtime_features.cc
+@@ -396,8 +396,6 @@ void SetRuntimeFeaturesFromChromiumFeatu
+           {"WebAppTabStrip", raw_ref(features::kDesktopPWAsTabStrip)},
+           {"WebAppTabStripCustomizations",
+            raw_ref(blink::features::kDesktopPWAsTabStripCustomizations)},
+-          {"WebEnvironmentIntegrity",
+-           raw_ref(features::kWebEnvironmentIntegrity)},
+           {"WebSerialBluetooth",
+            raw_ref(features::kEnableBluetoothSerialPortProfileInSerialApi)},
+           {"WGIGamepadTriggerRumble",
+--- a/content/public/common/content_features.cc
++++ b/content/public/common/content_features.cc
+@@ -1433,10 +1433,6 @@ BASE_FEATURE(kWebBluetoothNewPermissions
+              "WebBluetoothNewPermissionsBackend",
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+-// Enables the Web Environment Integrity API.
+-BASE_FEATURE(kWebEnvironmentIntegrity,
+-             "WebEnvironmentIntegrity",
+-             base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // If WebGL Image Chromium is allowed, this feature controls whether it is
+ // enabled.
+--- a/content/public/common/content_features.h
++++ b/content/public/common/content_features.h
+@@ -318,7 +318,6 @@ CONTENT_EXPORT BASE_DECLARE_FEATURE(kWeb
+ CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebAuthnTouchToFillCredentialSelection);
+ CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebBluetooth);
+ CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebBluetoothNewPermissionsBackend);
+-CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebEnvironmentIntegrity);
+ CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebGLImageChromium);
+ CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebMidi);
+ CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebOtpBackendAuto);
+--- a/third_party/blink/public/mojom/BUILD.gn
++++ b/third_party/blink/public/mojom/BUILD.gn
+@@ -65,7 +65,6 @@ mojom("mojom_platform") {
+     "dom_storage/session_storage_namespace.mojom",
+     "dom_storage/storage_area.mojom",
+     "drag/drag.mojom",
+-    "environment_integrity/environment_integrity_service.mojom",
+     "favicon/favicon_url.mojom",
+     "feature_observer/feature_observer.mojom",
+     "fenced_frame/fenced_frame_config.mojom",
+--- a/third_party/blink/renderer/bindings/generated_in_modules.gni
++++ b/third_party/blink/renderer/bindings/generated_in_modules.gni
+@@ -1883,8 +1883,6 @@ generated_interface_sources_in_modules =
+   "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_encoded_audio_chunk.h",
+   "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_encoded_video_chunk.cc",
+   "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_encoded_video_chunk.h",
+-  "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_environment_integrity.cc",
+-  "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_environment_integrity.h",
+   "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_entry.cc",
+   "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_entry.h",
+   "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_entry_sync.cc",
+--- a/third_party/blink/renderer/bindings/idl_in_modules.gni
++++ b/third_party/blink/renderer/bindings/idl_in_modules.gni
+@@ -242,8 +242,6 @@ static_idl_files_in_modules = get_path_i
+           "//third_party/blink/renderer/modules/encryptedmedia/media_keys_get_status_for_policy.idl",
+           "//third_party/blink/renderer/modules/encryptedmedia/media_keys_policy.idl",
+           "//third_party/blink/renderer/modules/encryptedmedia/navigator_request_media_key_system_access.idl",
+-          "//third_party/blink/renderer/modules/environment_integrity/environment_integrity.idl",
+-          "//third_party/blink/renderer/modules/environment_integrity/navigator_environment_integrity.idl",
+           "//third_party/blink/renderer/modules/eventsource/event_source.idl",
+           "//third_party/blink/renderer/modules/eventsource/event_source_init.idl",
+           "//third_party/blink/renderer/modules/eyedropper/color_selection_options.idl",
+--- a/third_party/blink/renderer/modules/BUILD.gn
++++ b/third_party/blink/renderer/modules/BUILD.gn
+@@ -90,7 +90,6 @@ component("modules") {
+     "//third_party/blink/renderer/modules/donottrack",
+     "//third_party/blink/renderer/modules/encoding",
+     "//third_party/blink/renderer/modules/encryptedmedia",
+-    "//third_party/blink/renderer/modules/environment_integrity",
+     "//third_party/blink/renderer/modules/eventsource",
+     "//third_party/blink/renderer/modules/exported",
+     "//third_party/blink/renderer/modules/eyedropper",
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -3918,12 +3918,6 @@
+       base_feature: "none",
+     },
+     {
+-      name: "WebEnvironmentIntegrity",
+-      status: "experimental",
+-      base_feature: "none",
+-      origin_trial_feature_name: "WebEnvironmentIntegrity",
+-    },
+-    {
+       name: "WebFontResizeLCP",
+       status: "experimental",
+     },

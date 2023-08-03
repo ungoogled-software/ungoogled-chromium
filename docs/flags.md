@@ -89,7 +89,6 @@ Chromium contains switches that do no have corresponding entries in `chrome://fl
   `--enable-low-end-device-mode` | Force low-end device mode when set.
   `--force-dark-mode` | Forces dark mode in UI for platforms that support it.
   `--no-pings` | Don't send hyperlink auditing pings.
-  `--web-ui-dark-mode` | Whether to enable 'dark mode' enhancements for UIs implemented with web technologies.
   `--webrtc-ip-handling-policy` | Restrict which IP addresses and interfaces WebRTC uses.
 - ### Available only on desktop
   <code>Switch&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code> | Description
