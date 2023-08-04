@@ -63,6 +63,7 @@ These are also available on the `chrome://flags` page.
 
   Feature | Description
   -- | --
+  `Mdns` | Enables mDNS and Service Discovery.
   `MinimalReferrers` | Removes all cross-origin referrers and strips same-origin referrers down to the origin. Has lower precedence than `NoCrossOriginReferrers`.
   `NoCrossOriginReferrers` | Removes all cross-origin referrers. Has lower precedence than `NoReferrers`.
   `NoReferrers` | Removes all referrers.
