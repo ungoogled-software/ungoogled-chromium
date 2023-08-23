@@ -3972,24 +3972,27 @@
  
 --- a/components/safe_browsing/core/browser/db/v4_local_database_manager.cc
 +++ b/components/safe_browsing/core/browser/db/v4_local_database_manager.cc
-@@ -346,10 +346,9 @@ const V4LocalDatabaseManager*
+@@ -346,12 +346,9 @@ const V4LocalDatabaseManager*
  scoped_refptr<V4LocalDatabaseManager> V4LocalDatabaseManager::Create(
      const base::FilePath& base_path,
      scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
 -    scoped_refptr<base::SequencedTaskRunner> io_task_runner,
--    ExtendedReportingLevelCallback extended_reporting_level_callback) {
+-    ExtendedReportingLevelCallback extended_reporting_level_callback,
+-    RecordMigrationMetricsCallback record_migration_metrics_callback) {
 +    scoped_refptr<base::SequencedTaskRunner> io_task_runner) {
    return base::WrapRefCounted(new V4LocalDatabaseManager(
--      base_path, extended_reporting_level_callback, std::move(ui_task_runner),
+-      base_path, extended_reporting_level_callback,
+-      std::move(record_migration_metrics_callback), std::move(ui_task_runner),
 +      base_path, std::move(ui_task_runner),
        std::move(io_task_runner), nullptr));
  }
  
-@@ -372,14 +371,12 @@ void V4LocalDatabaseManager::CollectData
+@@ -374,17 +371,12 @@ void V4LocalDatabaseManager::CollectData
  
  V4LocalDatabaseManager::V4LocalDatabaseManager(
      const base::FilePath& base_path,
 -    ExtendedReportingLevelCallback extended_reporting_level_callback,
+-    RecordMigrationMetricsCallback record_migration_metrics_callback,
      scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
      scoped_refptr<base::SequencedTaskRunner> io_task_runner,
      scoped_refptr<base::SequencedTaskRunner> task_runner_for_tests)
@@ -3997,10 +4000,25 @@
                                    std::move(io_task_runner)),
        base_path_(base_path),
 -      extended_reporting_level_callback_(extended_reporting_level_callback),
+-      record_migration_metrics_callback_(
+-          std::move(record_migration_metrics_callback)),
        list_infos_(GetListInfos()),
        task_runner_(task_runner_for_tests
                         ? task_runner_for_tests
-@@ -1277,8 +1274,7 @@ void V4LocalDatabaseManager::SetupUpdate
+@@ -709,12 +701,6 @@ void V4LocalDatabaseManager::DatabaseRea
+     v4_database_ = std::move(v4_database);
+ 
+     v4_database_->RecordFileSizeHistograms();
+-    if (record_migration_metrics_callback_) {
+-      ui_task_runner()->PostTask(
+-          FROM_HERE,
+-          base::BindOnce(std::move(record_migration_metrics_callback_),
+-                         v4_database_->GetMigrateResult()));
+-    }
+ 
+     PopulateArtificialDatabase();
+ 
+@@ -1288,8 +1274,7 @@ void V4LocalDatabaseManager::SetupUpdate
                            weak_factory_.GetWeakPtr());
  
    v4_update_protocol_manager_ = V4UpdateProtocolManager::Create(
@@ -4012,31 +4030,36 @@
  void V4LocalDatabaseManager::UpdateRequestCompleted(
 --- a/components/safe_browsing/core/browser/db/v4_local_database_manager.h
 +++ b/components/safe_browsing/core/browser/db/v4_local_database_manager.h
-@@ -39,8 +39,7 @@ class V4LocalDatabaseManager : public Sa
+@@ -42,9 +42,7 @@ class V4LocalDatabaseManager : public Sa
    static scoped_refptr<V4LocalDatabaseManager> Create(
        const base::FilePath& base_path,
        scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
 -      scoped_refptr<base::SequencedTaskRunner> io_task_runner,
--      ExtendedReportingLevelCallback extended_reporting_level_callback);
+-      ExtendedReportingLevelCallback extended_reporting_level_callback,
+-      RecordMigrationMetricsCallback record_migration_metrics_callback);
 +      scoped_refptr<base::SequencedTaskRunner> io_task_runner);
  
    V4LocalDatabaseManager(const V4LocalDatabaseManager&) = delete;
    V4LocalDatabaseManager& operator=(const V4LocalDatabaseManager&) = delete;
-@@ -112,7 +111,6 @@ class V4LocalDatabaseManager : public Sa
+@@ -116,8 +114,6 @@ class V4LocalDatabaseManager : public Sa
    // Must be initialized by calling StartOnSBThread() before using.
    V4LocalDatabaseManager(
        const base::FilePath& base_path,
 -      ExtendedReportingLevelCallback extended_reporting_level_callback,
+-      RecordMigrationMetricsCallback record_migration_metrics_callback,
        scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
        scoped_refptr<base::SequencedTaskRunner> io_task_runner,
        scoped_refptr<base::SequencedTaskRunner> task_runner_for_tests);
-@@ -430,10 +428,6 @@ class V4LocalDatabaseManager : public Sa
+@@ -435,13 +431,6 @@ class V4LocalDatabaseManager : public Sa
    // ready to process next update.
    DatabaseUpdatedCallback db_updated_callback_;
  
 -  // Callback to get the current extended reporting level. Needed by the update
 -  // manager.
 -  ExtendedReportingLevelCallback extended_reporting_level_callback_;
+-
+-  // Callback to record metrics on database migration after initialization.
+-  RecordMigrationMetricsCallback record_migration_metrics_callback_;
 -
    // The client_state of each list currently being synced. This is updated each
    // time a database update completes, and used to send list client_state
@@ -5976,7 +5999,7 @@
  #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 --- a/tools/metrics/histograms/enums.xml
 +++ b/tools/metrics/histograms/enums.xml
-@@ -106134,7 +106134,6 @@ Full version information for the fingerp
+@@ -106139,7 +106139,6 @@ Full version information for the fingerp
    <int value="3" label="kRestoreOnStartup"/>
    <int value="4" label="kURLsToRestoreOnStartup"/>
    <int value="5" label="extensions::pref_names::kExtensions"/>
@@ -5984,7 +6007,7 @@
    <int value="7" label="kSearchProviderOverrides"/>
    <int value="8" label="kDefaultSearchProviderSearchURL (Obsolete 12/2016)"/>
    <int value="9" label="kDefaultSearchProviderKeyword (Obsolete 12/2016)"/>
-@@ -106149,10 +106148,7 @@ Full version information for the fingerp
+@@ -106154,10 +106153,7 @@ Full version information for the fingerp
    <int value="18" label="kSafeBrowsingIncidentsSent"/>
    <int value="19" label="kSwReporterPromptVersion"/>
    <int value="20" label="kSwReporterPromptReason"/>
