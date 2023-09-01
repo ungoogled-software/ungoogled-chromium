@@ -20,6 +20,7 @@ CONTINGENT_PATHS = (
     # Sources
     'third_party/angle/third_party/VK-GL-CTS/src/',
     'third_party/llvm/',
+    'third_party/rust-src/',
     # Binaries
     'buildtools/linux64/',
     'buildtools/reclient/',
@@ -31,7 +32,9 @@ CONTINGENT_PATHS = (
     'third_party/depot_tools/external_bin/',
     'third_party/devtools-frontend/src/third_party/esbuild/',
     'third_party/libei/',
+    'third_party/llvm-build-tools/',
     'third_party/ninja/',
+    'third_party/siso/',
     'third_party/updater/chrome_linux64/',
     'third_party/updater/chromium_linux64/',
     'tools/luci-go/',

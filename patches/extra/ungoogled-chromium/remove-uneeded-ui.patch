@@ -8,7 +8,6 @@
 # link to Google's help site on the About page
 # external link for theme entry on settings page
 # webstore text for theme entry on settings page
-# Check passwords and managed passwords sections from the passwords page
 # the Google account line from the Payment methods page
 # Safety check section on the settings page
 # Privacy guide promo on the privacy page
@@ -24,8 +23,8 @@
 
 --- a/chrome/browser/resources/extensions/item_list.html
 +++ b/chrome/browser/resources/extensions/item_list.html
-@@ -90,13 +90,6 @@
-         </extensions-review-panel>
+@@ -107,13 +107,6 @@
+         <h2 class="extension-title-container">$i18n{safetyCheckAllExtensions}</h2>
        </template>
      </div>
 -    <div id="no-items" class="empty-list-message"
@@ -40,18 +39,20 @@
              shownAppsCount_, shownExtensionsCount_, apps, extensions)]]">
 --- a/chrome/browser/resources/extensions/sidebar.html
 +++ b/chrome/browser/resources/extensions/sidebar.html
-@@ -76,12 +76,3 @@
+@@ -71,14 +71,3 @@
      <paper-ripple></paper-ripple>
    </a>
  </iron-selector>
 -<div>
 -  <div class="separator"></div>
--  <a class="section-item" id="moreExtensions" target="_blank"
--      href="$i18n{getMoreExtensionsUrl}" on-click="onMoreExtensionsClick_">
--    <span>$i18n{openChromeWebStore}</span>
--    <div class="cr-icon icon-external"></div>
+-  <div class="cr-nav-menu-item" id="moreExtensions">
+-    <iron-icon id="web-store-icon" icon="extensions-icons:web_store">
+-    </iron-icon>
+-    <span id="discover-more-text" class="cr-secondary-text"
+-        on-click="onMoreExtensionsClick_"
+-        inner-h-t-m-l="[[discoverMoreText_]]"></span>
 -    <paper-ripple></paper-ripple>
--  </a>
+-  </div>
 -</div>
 --- a/chrome/browser/resources/history/side_bar.html
 +++ b/chrome/browser/resources/history/side_bar.html
@@ -136,7 +137,7 @@
              <div class="separator"></div>
 --- a/chrome/browser/resources/settings/appearance_page/appearance_page.ts
 +++ b/chrome/browser/resources/settings/appearance_page/appearance_page.ts
-@@ -362,8 +362,8 @@ export class SettingsAppearancePageEleme
+@@ -426,8 +426,8 @@ export class SettingsAppearancePageEleme
        return;
      }
  
@@ -146,7 +147,7 @@
      switch (this.systemTheme_) {
        case SystemTheme.GTK:
          i18nId = 'gtkTheme';
-@@ -375,11 +375,8 @@ export class SettingsAppearancePageEleme
+@@ -439,11 +439,8 @@ export class SettingsAppearancePageEleme
          i18nId = 'classicTheme';
          break;
      }
@@ -159,27 +160,9 @@
    }
  
    /** @return Whether applied theme is set by policy. */
---- a/chrome/browser/resources/settings/autofill_page/passwords_section.html
-+++ b/chrome/browser/resources/settings/autofill_page/passwords_section.html
-@@ -125,6 +125,7 @@
-         </settings-toggle-button>
-       </template>
-     </if>
-+<if expr="False">
-     <div id="checkPasswordsBannerContainer" class="cr-row"
-         hidden$="[[!shouldShowBanner_]]">
-       <picture>
-@@ -186,6 +187,7 @@
-       </cr-icon-button>
-     </div>
- </if>
-+</if>
-     <div class="cr-row first">
-       <h2 id="savedPasswordsHeading" class="flex">
-         $i18n{savedPasswordsHeading}
 --- a/chrome/browser/resources/settings/autofill_page/payments_section.html
 +++ b/chrome/browser/resources/settings/autofill_page/payments_section.html
-@@ -74,11 +74,6 @@
+@@ -85,11 +85,6 @@
    </div>
  </template>
  
@@ -193,15 +176,15 @@
    <template is="dom-if"
 --- a/chrome/browser/resources/settings/basic_page/basic_page.html
 +++ b/chrome/browser/resources/settings/basic_page/basic_page.html
-@@ -38,7 +38,7 @@
-               prefs="{{prefs}}">
-           </settings-privacy-guide-promo>
+@@ -40,7 +40,7 @@
          </settings-section>
--        <template is="dom-if" if="[[showPage_(pageVisibility.safetyCheck)]]"
-+        <template is="dom-if" if="[[false]]"
-             restamp>
+         <!-- TODO(crbug/1469277): Remove after SafetyHub launched. -->
+         <template is="dom-if"
+-              if="[[showSafetyCheckPage_(pageVisibility.safetyCheck)]]" restamp>
++              if="[[false]]" restamp>
            <settings-section page-title="$i18n{safetyCheckSectionTitle}"
                section="safetyCheck" nest-under-section="privacy"
+               id="safetyCheckSettingsSection">
 --- a/chrome/browser/resources/settings/basic_page/basic_page.ts
 +++ b/chrome/browser/resources/settings/basic_page/basic_page.ts
 @@ -11,7 +11,6 @@ import 'chrome://resources/cr_elements/c
@@ -211,7 +194,7 @@
 -import '../privacy_page/privacy_guide/privacy_guide_promo.js';
  import '../privacy_page/privacy_page.js';
  import '../safety_check_page/safety_check_page.js';
- import '../autofill_page/autofill_page.js';
+ import '../safety_hub/safety_hub_entry_point.js';
 --- a/chrome/browser/resources/settings/privacy_page/personalization_options.html
 +++ b/chrome/browser/resources/settings/privacy_page/personalization_options.html
 @@ -13,7 +13,7 @@
@@ -256,7 +239,7 @@
                start-icon="settings:cookie"
 --- a/chrome/browser/resources/settings/privacy_page/security_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/security_page.html
-@@ -141,10 +141,3 @@
+@@ -138,10 +138,3 @@
      </template>
  </if>
  
@@ -314,27 +297,42 @@
          ui::ImageModel::FromImage(
 --- a/chrome/browser/ui/views/sad_tab_view.cc
 +++ b/chrome/browser/ui/views/sad_tab_view.cc
-@@ -549,17 +549,6 @@ SadTabView::SadTabView(content::WebConte
+@@ -552,9 +552,6 @@ SadTabView::SadTabView(content::WebConte
    auto* actions_container =
        container->AddChildView(std::make_unique<views::FlexLayoutView>());
    actions_container->SetCrossAxisAlignment(views::LayoutAlignment::kCenter);
--  // Do not show the help link in the kiosk session to prevent escape from a
--  // kiosk app.
--  if (!chromeos::IsKioskSession()) {
--    auto* help_link =
--        actions_container->AddChildView(std::make_unique<views::Link>(
--            l10n_util::GetStringUTF16(GetHelpLinkTitle())));
--    help_link->SetCallback(base::BindRepeating(
--        &SadTab::PerformAction, base::Unretained(this), Action::HELP_LINK));
--    help_link->SetProperty(views::kTableVertAlignKey,
--                           views::LayoutAlignment::kCenter);
--  }
+-
+-  EnableHelpLink(actions_container);
+-
    action_button_ =
        actions_container->AddChildView(std::make_unique<views::MdTextButton>(
            base::BindRepeating(&SadTabView::PerformAction,
+@@ -627,22 +624,6 @@ void SadTabView::AttachToWebView() {
+   }
+ }
+ 
+-void SadTabView::EnableHelpLink(views::FlexLayoutView* actions_container) {
+-#if BUILDFLAG(IS_CHROMEOS)
+-  // Do not show the help link in the kiosk session to prevent escape from a
+-  // kiosk app.
+-  if (chromeos::IsKioskSession()) {
+-    return;
+-  }
+-#endif
+-  auto* help_link =
+-      actions_container->AddChildView(std::make_unique<views::Link>(
+-          l10n_util::GetStringUTF16(GetHelpLinkTitle())));
+-  help_link->SetCallback(base::BindRepeating(
+-      &SadTab::PerformAction, base::Unretained(this), Action::HELP_LINK));
+-  help_link->SetProperty(views::kTableVertAlignKey,
+-                         views::LayoutAlignment::kCenter);
+-}
+ 
+ void SadTabView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
+   // Specify the maximum message and title width explicitly.
 --- a/media/base/media_switches.cc
 +++ b/media/base/media_switches.cc
-@@ -869,7 +869,7 @@ const base::FeatureParam<std::string> kM
+@@ -873,7 +873,7 @@ const base::FeatureParam<std::string> kM
  #endif  // BUILDFLAG(IS_WIN)
  
  // Enables the Live Caption feature on supported devices.

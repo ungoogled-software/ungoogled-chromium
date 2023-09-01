@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/ui/webui/suggest_internals/suggest_internals_handler.cc
 +++ b/chrome/browser/ui/webui/suggest_internals/suggest_internals_handler.cc
-@@ -55,9 +55,6 @@ void SuggestInternalsHandler::OnSuggestR
+@@ -56,9 +56,6 @@ void SuggestInternalsHandler::OnSuggestR
        suggest_internals::mojom::Request::New();
    mojom_request->id = request_id;
    mojom_request->url = request->url;
@@ -10,13 +10,13 @@
 -  variations::GetVariationsHeader(*request, &variations_header);
 -  mojom_request->data[variations::kClientDataHeader] = variations_header;
    mojom_request->data[request->method] = request->url.spec();
-   mojom_request->status = suggest_internals::mojom::RequestStatus::kSent;
-   mojom_request->start_time = base::Time::Now();
+   mojom_request->status = suggest_internals::mojom::RequestStatus::kCreated;
+   page_->OnSuggestRequestCreated(std::move(mojom_request));
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -18,10 +18,6 @@
- #include "services/network/public/mojom/url_response_head.mojom.h"
+@@ -20,10 +20,6 @@
  #include "services/network/public/mojom/x_frame_options.mojom.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
  
 -#if BUILDFLAG(ENABLE_EXTENSIONS)
 -#include "extensions/common/extension_urls.h"
@@ -25,7 +25,7 @@
  #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
  #include "chrome/common/bound_session_request_throttled_listener.h"
  #include "components/signin/public/base/signin_switches.h"
-@@ -74,51 +70,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -76,53 +72,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -68,6 +68,8 @@
 -      ShouldDeferRequestForBoundSession(request->url)) {
 -    CHECK(bound_session_request_throttled_listener_);
 -    *defer = true;
+-    CHECK(!bound_session_request_throttled_start_time_.has_value());
+-    bound_session_request_throttled_start_time_ = base::TimeTicks::Now();
 -    bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
 -        base::BindOnce(
 -            &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
@@ -77,7 +79,7 @@
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -128,48 +79,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -132,50 +81,6 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
@@ -117,6 +119,8 @@
 -      ShouldDeferRequestForBoundSession(redirect_info->new_url)) {
 -    CHECK(bound_session_request_throttled_listener_);
 -    *defer = true;
+-    CHECK(!bound_session_request_throttled_start_time_.has_value());
+-    bound_session_request_throttled_start_time_ = base::TimeTicks::Now();
 -    bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
 -        base::BindOnce(
 -            &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
@@ -126,7 +130,7 @@
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -177,23 +86,6 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -183,23 +88,6 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
@@ -506,7 +510,7 @@
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -558,11 +558,7 @@ std::u16string TemplateURLRef::SearchTer
+@@ -561,11 +561,7 @@ std::u16string TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -625,7 +629,7 @@
  }  // namespace variations
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -486,27 +486,6 @@ bool HasGoogleHost(const GURL& url) {
+@@ -489,27 +489,6 @@ bool HasGoogleHost(const GURL& url) {
  }
  
  bool IsGoogleHost(base::StringPiece host) {

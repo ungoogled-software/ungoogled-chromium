@@ -1,14 +1,14 @@
 --- a/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager.cc
-@@ -27,6 +27,7 @@
- #include "chrome/browser/sync/sync_service_factory.h"
+@@ -29,6 +29,7 @@
+ #include "chrome/common/chrome_switches.h"
  #include "chrome/common/pref_names.h"
  #include "components/browsing_data/core/browsing_data_policies_utils.h"
 +#include "components/browsing_data/core/features.h"
  #include "components/browsing_data/core/pref_names.h"
  #include "components/keep_alive_registry/keep_alive_types.h"
  #include "components/keep_alive_registry/scoped_keep_alive.h"
-@@ -161,6 +162,21 @@ class BrowsingDataRemoverObserver
+@@ -164,6 +165,21 @@ class BrowsingDataRemoverObserver
  #endif
  };
  
@@ -30,20 +30,20 @@
  uint64_t GetOriginTypeMask(const base::Value::List& data_types) {
    uint64_t result = 0;
    for (const auto& data_type : data_types) {
-@@ -328,9 +344,10 @@ void ChromeBrowsingDataLifetimeManager::
+@@ -331,9 +347,10 @@ void ChromeBrowsingDataLifetimeManager::
    const base::Value::List& data_types = profile_->GetPrefs()->GetList(
        browsing_data::prefs::kClearBrowsingDataOnExitList);
  
 -  if (!data_types.empty() &&
 +  bool cdoe = base::FeatureList::IsEnabled(browsing_data::features::kClearDataOnExit);
-+  if (!data_types.empty() && (cdoe ||
++  if (cdoe || (!data_types.empty() &&
        IsConditionSatisfiedForBrowsingDataRemoval(GetSyncTypesForPolicyPref(
 -          profile_, browsing_data::prefs::kClearBrowsingDataOnExitList))) {
 +          profile_, browsing_data::prefs::kClearBrowsingDataOnExitList)))) {
      profile_->GetPrefs()->SetBoolean(
          browsing_data::prefs::kClearBrowsingDataOnExitDeletionPending, true);
      auto* remover = profile_->GetBrowsingDataRemover();
-@@ -341,8 +358,8 @@ void ChromeBrowsingDataLifetimeManager::
+@@ -344,8 +361,8 @@ void ChromeBrowsingDataLifetimeManager::
        DCHECK(keep_browser_alive);
  #endif
      remover->RemoveAndReply(base::Time(), base::Time::Max(),

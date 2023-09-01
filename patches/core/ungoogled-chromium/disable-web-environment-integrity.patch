@@ -1,24 +1,71 @@
+--- a/android_webview/browser/BUILD.gn
++++ b/android_webview/browser/BUILD.gn
+@@ -225,7 +225,6 @@ source_set("browser") {
+     "//components/embedder_support:embedder_support",
+     "//components/embedder_support/android:util",
+     "//components/embedder_support/origin_trials",
+-    "//components/environment_integrity/android",
+     "//components/favicon_base:favicon_base",
+     "//components/flags_ui",
+     "//components/keyed_service/content",
 --- a/chrome/android/chrome_test_java_sources.gni
 +++ b/chrome/android/chrome_test_java_sources.gni
-@@ -193,7 +193,6 @@ chrome_test_java_sources = [
+@@ -194,7 +194,6 @@ chrome_test_java_sources = [
    "javatests/src/org/chromium/chrome/browser/download/OMADownloadHandlerTest.java",
    "javatests/src/org/chromium/chrome/browser/download/ServicificationDownloadTest.java",
    "javatests/src/org/chromium/chrome/browser/download/dialogs/DownloadDialogIncognitoTest.java",
 -  "javatests/src/org/chromium/chrome/browser/environment_integrity/EnvironmentIntegrityTest.java",
    "javatests/src/org/chromium/chrome/browser/externalnav/UrlOverridingTest.java",
-   "javatests/src/org/chromium/chrome/browser/feature_engagement/ScreenshotTabObserverTest.java",
    "javatests/src/org/chromium/chrome/browser/feedback/ChromeFeedbackCollectorTest.java",
---- a/content/browser/BUILD.gn
-+++ b/content/browser/BUILD.gn
-@@ -906,8 +906,6 @@ source_set("browser") {
-     "download/save_package_serialization_handler.h",
-     "download/save_types.cc",
-     "download/save_types.h",
--    "environment_integrity/environment_integrity_service_impl.cc",
--    "environment_integrity/environment_integrity_service_impl.h",
-     "eye_dropper_chooser_impl.cc",
-     "eye_dropper_chooser_impl.h",
-     "feature_observer.cc",
+   "javatests/src/org/chromium/chrome/browser/feedback/ConnectivityCheckerTest.java",
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -3398,7 +3398,6 @@ static_library("browser") {
+       "//components/embedder_support/android:util",
+       "//components/embedder_support/android:web_contents_delegate",
+       "//components/endpoint_fetcher:endpoint_fetcher",
+-      "//components/environment_integrity/android",
+       "//components/external_intents/android",
+       "//components/favicon/android",
+       "//components/favicon/core:database",
+--- a/components/BUILD.gn
++++ b/components/BUILD.gn
+@@ -528,7 +528,6 @@ test("components_unittests") {
+       "//components/embedder_support/android:native_java_unittests_java",
+       "//components/embedder_support/android/metrics:test_support_java",
+       "//components/embedder_support/android/metrics:unit_tests",
+-      "//components/environment_integrity/android:unit_tests",
+       "//components/gcm_driver/instance_id:test_support",
+       "//components/gcm_driver/instance_id/android:instance_id_driver_java",
+       "//components/gcm_driver/instance_id/android:instance_id_driver_test_support_java",
+--- a/components/environment_integrity/android/android_environment_integrity_service.cc
++++ b/components/environment_integrity/android/android_environment_integrity_service.cc
+@@ -83,25 +83,8 @@ AndroidEnvironmentIntegrityService::GetD
+ void AndroidEnvironmentIntegrityService::GetEnvironmentIntegrity(
+     const std::vector<uint8_t>& content_binding,
+     GetEnvironmentIntegrityCallback callback) {
+-  if (!base::FeatureList::IsEnabled(
+-          blink::features::kWebEnvironmentIntegrity)) {
+     ReportBadMessageAndDeleteThis(
+         "Feature not enabled. IPC call not expected.");
+-    return;
+-  }
+-  if (!integrity_service_->IsIntegrityAvailable()) {
+-    std::move(callback).Run(EnvironmentIntegrityResponseCode::kInternalError,
+-                            std::vector<uint8_t>());
+-    return;
+-  }
+-
+-  const url::Origin& origin =
+-      render_frame_host().GetOutermostMainFrame()->GetLastCommittedOrigin();
+-  GetDataManager()->GetHandle(
+-      origin, base::BindOnce(&AndroidEnvironmentIntegrityService::OnGetHandle,
+-                             weak_factory_.GetWeakPtr(),
+-                             EnvironmentIntegrityRequest(std::move(callback),
+-                                                         content_binding)));
+ }
+ 
+ void AndroidEnvironmentIntegrityService::OnGetHandle(
 --- a/content/browser/browser_interface_binders.cc
 +++ b/content/browser/browser_interface_binders.cc
 @@ -125,7 +125,6 @@
@@ -29,86 +76,17 @@
  #include "third_party/blink/public/mojom/feature_observer/feature_observer.mojom.h"
  #include "third_party/blink/public/mojom/file/file_utilities.mojom.h"
  #include "third_party/blink/public/mojom/file_system_access/file_system_access_manager.mojom.h"
-@@ -181,7 +180,6 @@
- #if BUILDFLAG(IS_ANDROID)
- #include "content/browser/android/date_time_chooser_android.h"
- #include "content/browser/android/text_suggestion_host_android.h"
--#include "content/browser/environment_integrity/environment_integrity_service_impl.h"
- #include "content/browser/renderer_host/render_widget_host_view_android.h"
- #include "services/device/public/mojom/nfc.mojom.h"
- #include "third_party/blink/public/mojom/hid/hid.mojom.h"
-@@ -1199,17 +1197,9 @@ void PopulateBinderMapWithContext(
-       base::BindRepeating(&BindDateTimeChooserForFrame));
-   map->Add<blink::mojom::TextSuggestionHost>(
-       base::BindRepeating(&BindTextSuggestionHostForFrame));
--  if (base::FeatureList::IsEnabled(features::kWebEnvironmentIntegrity)) {
--    map->Add<blink::mojom::EnvironmentIntegrityService>(
--        base::BindRepeating(&EnvironmentIntegrityServiceImpl::Create));
--  }
- #else
-   map->Add<blink::mojom::TextSuggestionHost>(base::BindRepeating(
-       &EmptyBinderForFrame<blink::mojom::TextSuggestionHost>));
--  if (base::FeatureList::IsEnabled(features::kWebEnvironmentIntegrity)) {
+@@ -1144,10 +1143,6 @@ void PopulateBinderMapWithContext(
+     map->Add<blink::mojom::BrowsingTopicsDocumentService>(
+         base::BindRepeating(&BrowsingTopicsDocumentHost::CreateMojoService));
+   }
+-  if (base::FeatureList::IsEnabled(blink::features::kWebEnvironmentIntegrity)) {
 -    map->Add<blink::mojom::EnvironmentIntegrityService>(base::BindRepeating(
 -        &EmptyBinderForFrame<blink::mojom::EnvironmentIntegrityService>));
 -  }
- #endif  // BUILDFLAG(IS_ANDROID)
- 
-   map->Add<blink::mojom::ClipboardHost>(
---- a/content/browser/environment_integrity/environment_integrity_service_impl.cc
-+++ b/content/browser/environment_integrity/environment_integrity_service_impl.cc
-@@ -20,17 +20,10 @@ EnvironmentIntegrityServiceImpl::~Enviro
- void EnvironmentIntegrityServiceImpl::Create(
-     content::RenderFrameHost* render_frame_host,
-     mojo::PendingReceiver<blink::mojom::EnvironmentIntegrityService> receiver) {
--  CHECK(render_frame_host);
--
--  // The object is bound to the lifetime of `render_frame_host` and the mojo
--  // connection. See DocumentService for details.
--  new EnvironmentIntegrityServiceImpl(*render_frame_host, std::move(receiver));
- }
- 
- void EnvironmentIntegrityServiceImpl::GetEnvironmentIntegrity(
-     GetEnvironmentIntegrityCallback callback) {
--  // TODO(crbug.com/1439945) Get integrity token from PIA Crystal API.
--  std::move(callback).Run();
- }
- 
- }  // namespace content
---- a/content/child/runtime_features.cc
-+++ b/content/child/runtime_features.cc
-@@ -396,8 +396,6 @@ void SetRuntimeFeaturesFromChromiumFeatu
-           {"WebAppTabStrip", raw_ref(features::kDesktopPWAsTabStrip)},
-           {"WebAppTabStripCustomizations",
-            raw_ref(blink::features::kDesktopPWAsTabStripCustomizations)},
--          {"WebEnvironmentIntegrity",
--           raw_ref(features::kWebEnvironmentIntegrity)},
-           {"WebSerialBluetooth",
-            raw_ref(features::kEnableBluetoothSerialPortProfileInSerialApi)},
-           {"WGIGamepadTriggerRumble",
---- a/content/public/common/content_features.cc
-+++ b/content/public/common/content_features.cc
-@@ -1433,10 +1433,6 @@ BASE_FEATURE(kWebBluetoothNewPermissions
-              "WebBluetoothNewPermissionsBackend",
-              base::FEATURE_DISABLED_BY_DEFAULT);
- 
--// Enables the Web Environment Integrity API.
--BASE_FEATURE(kWebEnvironmentIntegrity,
--             "WebEnvironmentIntegrity",
--             base::FEATURE_DISABLED_BY_DEFAULT);
- 
- // If WebGL Image Chromium is allowed, this feature controls whether it is
- // enabled.
---- a/content/public/common/content_features.h
-+++ b/content/public/common/content_features.h
-@@ -318,7 +318,6 @@ CONTENT_EXPORT BASE_DECLARE_FEATURE(kWeb
- CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebAuthnTouchToFillCredentialSelection);
- CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebBluetooth);
- CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebBluetoothNewPermissionsBackend);
--CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebEnvironmentIntegrity);
- CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebGLImageChromium);
- CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebMidi);
- CONTENT_EXPORT BASE_DECLARE_FEATURE(kWebOtpBackendAuto);
+ #if !BUILDFLAG(IS_ANDROID)
+   map->Add<blink::mojom::DirectSocketsService>(
+       base::BindRepeating(&DirectSocketsServiceImpl::CreateForFrame));
 --- a/third_party/blink/public/mojom/BUILD.gn
 +++ b/third_party/blink/public/mojom/BUILD.gn
 @@ -65,7 +65,6 @@ mojom("mojom_platform") {
@@ -121,7 +99,7 @@
      "fenced_frame/fenced_frame_config.mojom",
 --- a/third_party/blink/renderer/bindings/generated_in_modules.gni
 +++ b/third_party/blink/renderer/bindings/generated_in_modules.gni
-@@ -1883,8 +1883,6 @@ generated_interface_sources_in_modules =
+@@ -1905,8 +1905,6 @@ generated_interface_sources_in_modules =
    "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_encoded_audio_chunk.h",
    "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_encoded_video_chunk.cc",
    "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_encoded_video_chunk.h",
@@ -132,15 +110,28 @@
    "$root_gen_dir/third_party/blink/renderer/bindings/modules/v8/v8_entry_sync.cc",
 --- a/third_party/blink/renderer/bindings/idl_in_modules.gni
 +++ b/third_party/blink/renderer/bindings/idl_in_modules.gni
-@@ -242,8 +242,6 @@ static_idl_files_in_modules = get_path_i
-           "//third_party/blink/renderer/modules/encryptedmedia/media_keys_get_status_for_policy.idl",
-           "//third_party/blink/renderer/modules/encryptedmedia/media_keys_policy.idl",
-           "//third_party/blink/renderer/modules/encryptedmedia/navigator_request_media_key_system_access.idl",
--          "//third_party/blink/renderer/modules/environment_integrity/environment_integrity.idl",
--          "//third_party/blink/renderer/modules/environment_integrity/navigator_environment_integrity.idl",
-           "//third_party/blink/renderer/modules/eventsource/event_source.idl",
-           "//third_party/blink/renderer/modules/eventsource/event_source_init.idl",
-           "//third_party/blink/renderer/modules/eyedropper/color_selection_options.idl",
+@@ -241,8 +241,6 @@ static_idl_files_in_modules = [
+   "//third_party/blink/renderer/modules/encryptedmedia/media_keys_get_status_for_policy.idl",
+   "//third_party/blink/renderer/modules/encryptedmedia/media_keys_policy.idl",
+   "//third_party/blink/renderer/modules/encryptedmedia/navigator_request_media_key_system_access.idl",
+-  "//third_party/blink/renderer/modules/environment_integrity/environment_integrity.idl",
+-  "//third_party/blink/renderer/modules/environment_integrity/navigator_environment_integrity.idl",
+   "//third_party/blink/renderer/modules/eventsource/event_source.idl",
+   "//third_party/blink/renderer/modules/eventsource/event_source_init.idl",
+   "//third_party/blink/renderer/modules/eyedropper/color_selection_options.idl",
+--- a/third_party/blink/renderer/core/origin_trials/origin_trial_context.cc
++++ b/third_party/blink/renderer/core/origin_trials/origin_trial_context.cc
+@@ -548,10 +548,6 @@ bool OriginTrialContext::CanEnableTrialF
+     return base::FeatureList::IsEnabled(features::kComputePressure);
+   }
+ 
+-  if (trial_name == "WebEnvironmentIntegrity") {
+-    return base::FeatureList::IsEnabled(features::kWebEnvironmentIntegrity);
+-  }
+-
+   return true;
+ }
+ 
 --- a/third_party/blink/renderer/modules/BUILD.gn
 +++ b/third_party/blink/renderer/modules/BUILD.gn
 @@ -90,7 +90,6 @@ component("modules") {
@@ -153,14 +144,19 @@
      "//third_party/blink/renderer/modules/eyedropper",
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -3920,12 +3920,6 @@
+@@ -3954,17 +3954,6 @@
        base_feature: "none",
      },
      {
 -      name: "WebEnvironmentIntegrity",
 -      status: "experimental",
--      base_feature: "none",
 -      origin_trial_feature_name: "WebEnvironmentIntegrity",
+-      // base_feature is meant as kill-switch. The RuntimeFeature should follow
+-      // the `status` field or Origin Trial unless explicitly overriden by
+-      // Finch / command line flags.
+-      base_feature_status: "enabled",
+-      copied_from_base_feature_if: "overridden",
+-      origin_trial_allows_third_party: true,
 -    },
 -    {
        name: "WebFontResizeLCP",

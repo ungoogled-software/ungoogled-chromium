@@ -5,7 +5,7 @@
 #   ensure shallow fetches
 --- a/gclient.py
 +++ b/gclient.py
-@@ -130,8 +130,8 @@ DEPOT_TOOLS_DIR = os.path.dirname(os.pat
+@@ -119,8 +119,8 @@ DEPOT_TOOLS_DIR = os.path.dirname(os.pat
  # one, e.g. if a spec explicitly says `cache_dir = None`.)
  UNSET_CACHE_DIR = object()
  
@@ -16,66 +16,67 @@
  
  PREVIOUS_SYNC_COMMITS = 'GCLIENT_PREVIOUS_SYNC_COMMITS'
  
-@@ -417,6 +417,7 @@ class Dependency(gclient_utils.WorkItem,
-                protocol='https',
-                git_dependencies_state=gclient_eval.DEPS,
-                print_outbuf=False):
-+    if name and name[0:3] == "src": name = "UC_OUT"+name[3:]
-     gclient_utils.WorkItem.__init__(self, name)
-     DependencySettings.__init__(
-         self, parent, url, managed, custom_deps, custom_vars,
-@@ -718,6 +719,7 @@ class Dependency(gclient_utils.WorkItem,
+@@ -413,6 +413,7 @@ class Dependency(gclient_utils.WorkItem,
+                  protocol='https',
+                  git_dependencies_state=gclient_eval.DEPS,
+                  print_outbuf=False):
++        if name and name[0:3] == "src": name = "UC_OUT"+name[3:]
+         gclient_utils.WorkItem.__init__(self, name)
+         DependencySettings.__init__(self, parent, url, managed, custom_deps,
+                                     custom_vars, custom_hooks, deps_file,
+@@ -721,6 +722,7 @@ class Dependency(gclient_utils.WorkItem,
  
-       condition = dep_value.get('condition')
-       dep_type = dep_value.get('dep_type')
-+      if dep_type == 'cipd': continue
+             condition = dep_value.get('condition')
+             dep_type = dep_value.get('dep_type')
++            if dep_type == 'cipd': continue
  
+             if condition and not self._get_option('process_all_deps', False):
+                 if condition not in cached_conditions:
+@@ -824,6 +826,8 @@ class Dependency(gclient_utils.WorkItem,
  
-       if condition and not self._get_option('process_all_deps', False):
-@@ -821,6 +823,8 @@ class Dependency(gclient_utils.WorkItem,
- 
-     self._gn_args_from = local_scope.get('gclient_gn_args_from')
-     self._gn_args_file = local_scope.get('gclient_gn_args_file')
-+    if self._gn_args_file and self._gn_args_file[0:3] == "src":
-+        self._gn_args_file = "UC_OUT"+self._gn_args_file[3:]
-     self._gn_args = local_scope.get('gclient_gn_args', [])
-     # It doesn't make sense to set all of these, since setting gn_args_from to
-     # another DEPS will make gclient ignore any other local gn_args* settings.
+         self._gn_args_from = local_scope.get('gclient_gn_args_from')
+         self._gn_args_file = local_scope.get('gclient_gn_args_file')
++        if self._gn_args_file and self._gn_args_file[0:3] == "src":
++            self._gn_args_file = "UC_OUT"+self._gn_args_file[3:]
+         self._gn_args = local_scope.get('gclient_gn_args', [])
+         # It doesn't make sense to set all of these, since setting gn_args_from
+         # to another DEPS will make gclient ignore any other local gn_args*
 --- a/gclient_scm.py
 +++ b/gclient_scm.py
-@@ -786,7 +786,7 @@ class GitWrapper(SCMWrapper):
-     self._SetFetchConfig(options)
+@@ -840,8 +840,7 @@ class GitWrapper(SCMWrapper):
+         self._SetFetchConfig(options)
  
-     # Fetch upstream if we don't already have |revision|.
--    if not scm.GIT.IsValidRevision(self.checkout_path, revision, sha_only=True):
-+    if False:
-       self._Fetch(options, prune=options.force)
+         # Fetch upstream if we don't already have |revision|.
+-        if not scm.GIT.IsValidRevision(
+-                self.checkout_path, revision, sha_only=True):
++        if False:
+             self._Fetch(options, prune=options.force)
  
-       if not scm.GIT.IsValidRevision(self.checkout_path, revision,
-@@ -801,7 +801,7 @@ class GitWrapper(SCMWrapper):
+             if not scm.GIT.IsValidRevision(
+@@ -857,7 +856,7 @@ class GitWrapper(SCMWrapper):
  
-     # This is a big hammer, debatable if it should even be here...
-     if options.force or options.reset:
--      target = 'HEAD'
-+      target = 'FETCH_HEAD'
-       if options.upstream and upstream_branch:
-         target = upstream_branch
-       self._Scrub(target, options)
-@@ -815,7 +815,6 @@ class GitWrapper(SCMWrapper):
-       # system. The best we can do is carry forward to the checkout step.
-       if not (options.force or options.reset):
-         self._CheckClean(revision)
--      self._CheckDetachedHead(revision, options)
-       if self._Capture(['rev-list', '-n', '1', 'HEAD']) == revision:
-         self.Print('Up-to-date; skipping checkout.')
-       else:
-@@ -1482,8 +1481,7 @@ class GitWrapper(SCMWrapper):
-       fetch_cmd.append('--no-tags')
-     elif quiet:
-       fetch_cmd.append('--quiet')
--    if depth:
--      fetch_cmd.append('--depth=' + str(depth))
-+    fetch_cmd.append('--depth=1')
-     self._Run(fetch_cmd, options, show_header=options.verbose, retry=True)
+         # This is a big hammer, debatable if it should even be here...
+         if options.force or options.reset:
+-            target = 'HEAD'
++            target = 'FETCH_HEAD'
+             if options.upstream and upstream_branch:
+                 target = upstream_branch
+             self._Scrub(target, options)
+@@ -872,7 +871,6 @@ class GitWrapper(SCMWrapper):
+             # to the checkout step.
+             if not (options.force or options.reset):
+                 self._CheckClean(revision)
+-            self._CheckDetachedHead(revision, options)
+             if self._Capture(['rev-list', '-n', '1', 'HEAD']) == revision:
+                 self.Print('Up-to-date; skipping checkout.')
+             else:
+@@ -1587,8 +1585,7 @@ class GitWrapper(SCMWrapper):
+             fetch_cmd.append('--no-tags')
+         elif quiet:
+             fetch_cmd.append('--quiet')
+-        if depth:
+-            fetch_cmd.append('--depth=' + str(depth))
++        fetch_cmd.append('--depth=1')
+         self._Run(fetch_cmd, options, show_header=options.verbose, retry=True)
  
-   def _SetFetchConfig(self, options):
+     def _SetFetchConfig(self, options):
