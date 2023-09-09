@@ -14,6 +14,7 @@ import tarfile
 from pathlib import Path, PurePosixPath
 
 from _common import (USE_REGISTRY, PlatformEnum, ExtractorEnum, get_logger, get_running_platform)
+from prune_binaries import CONTINGENT_PATHS
 
 DEFAULT_EXTRACTORS = {
     ExtractorEnum.SEVENZIP: USE_REGISTRY,
@@ -95,7 +96,7 @@ def _process_relative_to(unpack_root, relative_to):
     relative_root.rmdir()
 
 
-def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
+def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to, skip_unused):
     get_logger().debug('Using 7-zip extractor')
     if not relative_to is None and (output_dir / relative_to).exists():
         get_logger().error('Temporary unpacking directory already exists: %s',
@@ -103,6 +104,9 @@ def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
         raise ExtractionError()
     cmd1 = (binary, 'x', str(archive_path), '-so')
     cmd2 = (binary, 'x', '-si', '-aoa', '-ttar', '-o{}'.format(str(output_dir)))
+    if skip_unused:
+        for cpath in CONTINGENT_PATHS:
+            cmd2 += ('-x!%s/%s' % (str(relative_to), cpath[:-1]), )
     get_logger().debug('7z command line: %s | %s', ' '.join(cmd1), ' '.join(cmd2))
 
     proc1 = subprocess.Popen(cmd1, stdout=subprocess.PIPE)
@@ -118,10 +122,13 @@ def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
     _process_relative_to(output_dir, relative_to)
 
 
-def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
+def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to, skip_unused):
     get_logger().debug('Using BSD or GNU tar extractor')
     output_dir.mkdir(exist_ok=True)
     cmd = (binary, '-xf', str(archive_path), '-C', str(output_dir))
+    if skip_unused:
+        for cpath in CONTINGENT_PATHS:
+            cmd += ('--exclude=%s/%s' % (str(relative_to), cpath[:-1]), )
     get_logger().debug('tar command line: %s', ' '.join(cmd))
     result = subprocess.run(cmd)
     if result.returncode != 0:
@@ -133,10 +140,13 @@ def _extract_tar_with_tar(binary, archive_path, output_dir, relative_to):
     _process_relative_to(output_dir, relative_to)
 
 
-def _extract_tar_with_winrar(binary, archive_path, output_dir, relative_to):
+def _extract_tar_with_winrar(binary, archive_path, output_dir, relative_to, skip_unused):
     get_logger().debug('Using WinRAR extractor')
     output_dir.mkdir(exist_ok=True)
     cmd = (binary, 'x', '-o+', str(archive_path), str(output_dir))
+    if skip_unused:
+        for cpath in CONTINGENT_PATHS:
+            cmd += ('-x%s%s%s' % (str(relative_to), os.sep, cpath[:-1].replace('/'), os.sep), )
     get_logger().debug('WinRAR command line: %s', ' '.join(cmd))
     result = subprocess.run(cmd)
     if result.returncode != 0:
@@ -146,7 +156,7 @@ def _extract_tar_with_winrar(binary, archive_path, output_dir, relative_to):
     _process_relative_to(output_dir, relative_to)
 
 
-def _extract_tar_with_python(archive_path, output_dir, relative_to):
+def _extract_tar_with_python(archive_path, output_dir, relative_to, skip_unused):
     get_logger().debug('Using pure Python tar extractor')
 
     class NoAppendList(list):
@@ -174,6 +184,11 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to):
         tar_file_obj.members = NoAppendList()
         for tarinfo in tar_file_obj:
             try:
+                if skip_unused and [
+                        cpath for cpath in CONTINGENT_PATHS
+                        if tarinfo.name.startswith(str(relative_to) + '/' + cpath)
+                ]:
+                    continue
                 if relative_to is None:
                     destination = output_dir / PurePosixPath(tarinfo.name)
                 else:
@@ -197,7 +212,7 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to):
                 raise ExtractionError()
 
 
-def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
+def extract_tar_file(archive_path, output_dir, relative_to, skip_unused, extractors=None):
     """
     Extract regular or compressed tar archive into the output directory.
 
@@ -222,7 +237,7 @@ def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
             sevenzip_cmd = str(_find_7z_by_registry())
         sevenzip_bin = _find_extractor_by_cmd(sevenzip_cmd)
         if sevenzip_bin is not None:
-            _extract_tar_with_7z(sevenzip_bin, archive_path, output_dir, relative_to)
+            _extract_tar_with_7z(sevenzip_bin, archive_path, output_dir, relative_to, skip_unused)
             return
 
         # Use WinRAR if 7-zip is not found
@@ -231,7 +246,7 @@ def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
             winrar_cmd = str(_find_winrar_by_registry())
         winrar_bin = _find_extractor_by_cmd(winrar_cmd)
         if winrar_bin is not None:
-            _extract_tar_with_winrar(winrar_bin, archive_path, output_dir, relative_to)
+            _extract_tar_with_winrar(winrar_bin, archive_path, output_dir, relative_to, skip_unused)
             return
         get_logger().warning(
             'Neither 7-zip nor WinRAR were found. Falling back to Python extractor...')
@@ -239,19 +254,20 @@ def extract_tar_file(archive_path, output_dir, relative_to, extractors=None):
         # NOTE: 7-zip isn't an option because it doesn't preserve file permissions
         tar_bin = _find_extractor_by_cmd(extractors.get(ExtractorEnum.TAR))
         if not tar_bin is None:
-            _extract_tar_with_tar(tar_bin, archive_path, output_dir, relative_to)
+            _extract_tar_with_tar(tar_bin, archive_path, output_dir, relative_to, skip_unused)
             return
     else:
         # This is not a normal code path, so make it clear.
         raise NotImplementedError(current_platform)
     # Fallback to Python-based extractor on all platforms
-    _extract_tar_with_python(archive_path, output_dir, relative_to)
+    _extract_tar_with_python(archive_path, output_dir, relative_to, skip_unused)
 
 
 def extract_with_7z(
         archive_path,
         output_dir,
         relative_to, #pylint: disable=too-many-arguments
+        skip_unused,
         extractors=None):
     """
     Extract archives with 7-zip into the output directory.
@@ -284,6 +300,9 @@ def extract_with_7z(
                            output_dir / relative_to)
         raise ExtractionError()
     cmd = (sevenzip_bin, 'x', str(archive_path), '-aoa', '-o{}'.format(str(output_dir)))
+    if skip_unused:
+        for cpath in CONTINGENT_PATHS:
+            cmd += ('-x!%s/%s' % (str(relative_to), cpath[:-1]), )
     get_logger().debug('7z command line: %s', ' '.join(cmd))
 
     result = subprocess.run(cmd)
@@ -298,6 +317,7 @@ def extract_with_winrar(
         archive_path,
         output_dir,
         relative_to, #pylint: disable=too-many-arguments
+        skip_unused,
         extractors=None):
     """
     Extract archives with WinRAR into the output directory.
@@ -328,6 +348,9 @@ def extract_with_winrar(
                            output_dir / relative_to)
         raise ExtractionError()
     cmd = (winrar_bin, 'x', '-o+', str(archive_path), str(output_dir))
+    if skip_unused:
+        for cpath in CONTINGENT_PATHS:
+            cmd += ('-x%s%s%s' % (str(relative_to), os.sep, cpath[:-1].replace('/', os.sep)), )
     get_logger().debug('WinRAR command line: %s', ' '.join(cmd))
 
     result = subprocess.run(cmd)

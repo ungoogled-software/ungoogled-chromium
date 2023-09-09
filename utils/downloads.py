@@ -309,7 +309,7 @@ def check_downloads(download_info, cache_dir):
                 raise HashMismatchError(download_path)
 
 
-def unpack_downloads(download_info, cache_dir, output_dir, extractors=None):
+def unpack_downloads(download_info, cache_dir, output_dir, skip_unused, extractors=None):
     """
     Unpack downloads in the downloads cache to output_dir. Assumes all downloads are retrieved.
 
@@ -344,6 +344,7 @@ def unpack_downloads(download_info, cache_dir, output_dir, extractors=None):
             archive_path=download_path,
             output_dir=output_dir / Path(download_properties.output_path),
             relative_to=strip_leading_dirs_path,
+            skip_unused=skip_unused,
             extractors=extractors)
 
 
@@ -374,7 +375,7 @@ def _unpack_callback(args):
         ExtractorEnum.WINRAR: args.winrar_path,
         ExtractorEnum.TAR: args.tar_path,
     }
-    unpack_downloads(DownloadInfo(args.ini), args.cache, args.output, extractors)
+    unpack_downloads(DownloadInfo(args.ini), args.cache, args.output, args.skip_unused, extractors)
 
 
 def main():
@@ -427,6 +428,10 @@ def main():
         help=('Command or path to WinRAR\'s "winrar" binary. If "_use_registry" is '
               'specified, determine the path from the registry. Default: %(default)s'))
     unpack_parser.add_argument('output', type=Path, help='The directory to unpack to.')
+    unpack_parser.add_argument(
+        '--skip-unused',
+        action='store_true',
+        help='Skip extraction of unused directories (CONTINGENT_PATHS).')
     unpack_parser.set_defaults(callback=_unpack_callback)
 
     args = parser.parse_args()
