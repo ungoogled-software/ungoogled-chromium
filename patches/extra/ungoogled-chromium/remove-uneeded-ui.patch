@@ -17,6 +17,7 @@
 # the 'Learn more' link from the search engine entry on the settings page
 # Safety Check entry on the side menu on the settings page
 # the (?) learn more button on many settings pages
+# the 'Vist Chrome Web Store' entry in the extensions section of the main menu
 # unneeded elements from the profile menu
 # the 'Learn more' link on crashed tabs
 # disable LiveCaption flag by default, this also removes non-functional Live Caption checkbox from media controls
@@ -54,6 +55,44 @@
 -    <paper-ripple></paper-ripple>
 -  </div>
 -</div>
+--- a/chrome/browser/resources/extensions/sidebar.ts
++++ b/chrome/browser/resources/extensions/sidebar.ts
+@@ -51,21 +51,11 @@ export class ExtensionsSidebarElement ex
+        * displayed.
+        */
+       selectedPath_: String,
+-
+-      /**
+-       * The text displayed in the sidebar containing the link to open the
+-       * Chrome Web Store to get more extensions.
+-       */
+-      discoverMoreText_: {
+-        type: String,
+-        computed: 'computeDiscoverMoreText_()',
+-      },
+     };
+   }
+ 
+   enableEnhancedSiteControls: boolean;
+   private selectedPath_: Page;
+-  private discoverMoreText_: TrustedHTML;
+ 
+   /**
+    * The ID of the listener on |navigation|. Stored so that the
+@@ -121,13 +111,6 @@ export class ExtensionsSidebarElement ex
+     }
+   }
+ 
+-  private computeDiscoverMoreText_(): TrustedHTML {
+-    return this.i18nAdvanced('sidebarDiscoverMore', {
+-      tags: ['a'],
+-      attrs: ['target', 'on-click'],
+-      substitutions: [loadTimeData.getString('getMoreExtensionsUrl')],
+-    });
+-  }
+ }
+ 
+ declare global {
 --- a/chrome/browser/resources/history/side_bar.html
 +++ b/chrome/browser/resources/history/side_bar.html
 @@ -87,13 +87,6 @@
@@ -93,9 +132,9 @@
            <cr-link-row id="captions"
                class="hr"
                label="$i18n{captionsTitle}"
-@@ -67,11 +67,6 @@
-             sub-label="$i18n{pdfOcrSubtitle}">
-         </settings-toggle-button>
+@@ -87,11 +87,6 @@
+             external>
+         </cr-link-row>
  </if>
 -        <cr-link-row class="hr" label="$i18n{moreFeaturesLink}"
 -            on-click="onMoreFeaturesLinkClick_" sub-label="$i18n{a11yWebStore}"
@@ -187,10 +226,10 @@
                id="safetyCheckSettingsSection">
 --- a/chrome/browser/resources/settings/basic_page/basic_page.ts
 +++ b/chrome/browser/resources/settings/basic_page/basic_page.ts
-@@ -11,7 +11,6 @@ import 'chrome://resources/cr_elements/c
- import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
+@@ -12,7 +12,6 @@ import 'chrome://resources/cr_elements/c
  import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
  import '../appearance_page/appearance_page.js';
+ import '../privacy_page/preloading_page.js';
 -import '../privacy_page/privacy_guide/privacy_guide_promo.js';
  import '../privacy_page/privacy_page.js';
  import '../safety_check_page/safety_check_page.js';
@@ -239,7 +278,7 @@
                start-icon="settings:cookie"
 --- a/chrome/browser/resources/settings/privacy_page/security_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/security_page.html
-@@ -138,10 +138,3 @@
+@@ -156,10 +156,3 @@
      </template>
  </if>
  
@@ -275,9 +314,31 @@
          <cr-icon-button iron-icon="cr:help-outline" dir="ltr"
              aria-label="[[getLearnMoreAriaLabel_(pageTitle)]]" on-click="onHelpClick_">
          </cr-icon-button>
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -708,19 +708,9 @@ void ExtensionsMenuModel::Build(Browser*
+   SetElementIdentifierAt(
+       GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU_MANAGE_EXTENSIONS).value(),
+       kManageExtensionsMenuItem);
+-  AddItemWithStringId(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
+-                      IDS_EXTENSIONS_SUBMENU_CHROME_WEBSTORE_ITEM);
+-  SetElementIdentifierAt(
+-      GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE)
+-          .value(),
+-      kVisitChromeWebStoreMenuItem);
+   if (features::IsChromeRefresh2023()) {
+     SetCommandIcon(this, IDC_EXTENSIONS_SUBMENU_MANAGE_EXTENSIONS,
+                    vector_icons::kExtensionChromeRefreshIcon);
+-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-    SetCommandIcon(this, IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
+-                   vector_icons::kGoogleChromeWebstoreIcon);
+-#endif
+   }
+ }
+ 
 --- a/chrome/browser/ui/views/profiles/profile_menu_view.cc
 +++ b/chrome/browser/ui/views/profiles/profile_menu_view.cc
-@@ -167,6 +167,7 @@ void ProfileMenuView::BuildMenu() {
+@@ -166,6 +166,7 @@ void ProfileMenuView::BuildMenu() {
  }
  
  gfx::ImageSkia ProfileMenuView::GetSyncIcon() const {
@@ -285,7 +346,7 @@
    Profile* profile = browser()->profile();
    if (profile->IsOffTheRecord() || profile->IsGuestSession())
      return gfx::ImageSkia();
-@@ -504,8 +505,7 @@ void ProfileMenuView::BuildIdentity() {
+@@ -503,8 +504,7 @@ void ProfileMenuView::BuildIdentity() {
          menu_subtitle_);
    } else {
      menu_title_ = std::u16string();
@@ -307,7 +368,7 @@
    action_button_ =
        actions_container->AddChildView(std::make_unique<views::MdTextButton>(
            base::BindRepeating(&SadTabView::PerformAction,
-@@ -627,22 +624,6 @@ void SadTabView::AttachToWebView() {
+@@ -642,22 +639,6 @@ void SadTabView::AttachToWebView() {
    }
  }
  
@@ -332,7 +393,7 @@
    // Specify the maximum message and title width explicitly.
 --- a/media/base/media_switches.cc
 +++ b/media/base/media_switches.cc
-@@ -873,7 +873,7 @@ const base::FeatureParam<std::string> kM
+@@ -894,7 +894,7 @@ const base::FeatureParam<std::string> kM
  #endif  // BUILDFLAG(IS_WIN)
  
  // Enables the Live Caption feature on supported devices.

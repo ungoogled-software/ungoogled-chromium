@@ -3,7 +3,7 @@
 
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -953,8 +953,6 @@ if (is_win) {
+@@ -948,8 +948,6 @@ if (is_win) {
  
    bundle_data("chrome_framework_resources") {
      sources = [
@@ -12,6 +12,158 @@
        # This image is used to badge the lock icon in the
        # authentication dialogs, such as those used for installation
        # from disk image and Keystone promotion (if so enabled).  It
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -867,14 +867,6 @@ static_library("browser") {
+     "navigation_predictor/navigation_predictor_metrics_document_data.h",
+     "navigation_predictor/navigation_predictor_preconnect_client.cc",
+     "navigation_predictor/navigation_predictor_preconnect_client.h",
+-    "navigation_predictor/preloading_model_executor.cc",
+-    "navigation_predictor/preloading_model_executor.h",
+-    "navigation_predictor/preloading_model_handler.cc",
+-    "navigation_predictor/preloading_model_handler.h",
+-    "navigation_predictor/preloading_model_keyed_service.cc",
+-    "navigation_predictor/preloading_model_keyed_service.h",
+-    "navigation_predictor/preloading_model_keyed_service_factory.cc",
+-    "navigation_predictor/preloading_model_keyed_service_factory.h",
+     "navigation_predictor/search_engine_preconnector.cc",
+     "navigation_predictor/search_engine_preconnector.h",
+     "net/chrome_mojo_proxy_resolver_factory.cc",
+--- a/chrome/browser/navigation_predictor/navigation_predictor.cc
++++ b/chrome/browser/navigation_predictor/navigation_predictor.cc
+@@ -16,8 +16,6 @@
+ #include "base/time/default_tick_clock.h"
+ #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service.h"
+ #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
+-#include "chrome/browser/navigation_predictor/preloading_model_keyed_service.h"
+-#include "chrome/browser/navigation_predictor/preloading_model_keyed_service_factory.h"
+ #include "chrome/browser/prefetch/prefetch_prefs.h"
+ #include "chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+@@ -88,11 +86,6 @@ base::TimeDelta MLModelExecutionTimerSta
+   return base::Milliseconds(timer_start_delay);
+ }
+ 
+-base::TimeDelta MLModelExecutionTimerInterval() {
+-  static int timer_interval = base::GetFieldTrialParamByFeatureAsInt(
+-      blink::features::kPreloadingHeuristicsMLModel, "timer_interval", 100);
+-  return base::Milliseconds(timer_interval);
+-}
+ 
+ bool IsTargetURLTheSameAsDocument(
+     const blink::mojom::AnchorElementMetricsPtr& anchor) {
+@@ -308,73 +301,6 @@ void NavigationPredictor::ProcessPointer
+ }
+ 
+ void NavigationPredictor::OnMLModelExecutionTimerFired() {
+-  // Check whether preloading is enabled or not.
+-  Profile* profile =
+-      Profile::FromBrowserContext(render_frame_host().GetBrowserContext());
+-  if (prefetch::IsSomePreloadingEnabled(*profile->GetPrefs()) !=
+-      content::PreloadingEligibility::kEligible) {
+-    return;
+-  }
+-
+-  // Execute the model.
+-  PreloadingModelKeyedService* model_service =
+-      PreloadingModelKeyedServiceFactory::GetForProfile(profile);
+-  if (!model_service) {
+-    return;
+-  }
+-
+-  if (!ml_model_candidate_.has_value()) {
+-    return;
+-  }
+-  auto it = anchors_.find(ml_model_candidate_.value());
+-  if (it == anchors_.end()) {
+-    return;
+-  }
+-
+-  AnchorElementData& anchor = it->second;
+-
+-  PreloadingModelKeyedService::Inputs inputs;
+-  inputs.contains_image = anchor.metrics->contains_image;
+-  inputs.font_size = GetFontSizeFromPx(anchor.metrics->font_size_px);
+-  inputs.has_text_sibling = anchor.metrics->has_text_sibling;
+-  inputs.is_bold = IsBoldFont(anchor.metrics->font_weight);
+-  inputs.is_in_iframe = anchor.metrics->is_in_iframe;
+-  inputs.is_url_incremented_by_one = anchor.metrics->is_url_incremented_by_one;
+-  inputs.navigation_start_to_link_logged =
+-      anchor.first_report_timestamp - navigation_start_;
+-  auto path_info = GetUrlPathLengthDepthAndHash(anchor.metrics->target_url);
+-  inputs.path_length = path_info.path_length;
+-  inputs.path_depth = path_info.path_depth;
+-  // Convert the ratio area and ratio distance from [0,1] to [0,100].
+-  inputs.percent_clickable_area =
+-      static_cast<int>(anchor.metrics->ratio_area * 100);
+-
+-  inputs.percent_vertical_distance =
+-      static_cast<int>(anchor.metrics->ratio_distance_root_top * 100);
+-
+-  inputs.is_same_origin = anchor.metrics->is_same_host;
+-  auto to_timedelta = [this](absl::optional<base::TimeTicks> ts) {
+-    return ts.has_value() ? NowTicks() - ts.value() : base::TimeDelta();
+-  };
+-  inputs.entered_viewport_to_left_viewport =
+-      to_timedelta(anchor.entered_viewport_timestamp);
+-  inputs.hover_dwell_time = to_timedelta(anchor.pointer_over_timestamp);
+-  inputs.pointer_hovering_over_count = anchor.pointer_hovering_over_count;
+-  if (model_score_callback_) {
+-    std::move(model_score_callback_).Run(inputs);
+-  }
+-  model_service->Score(
+-      &scoring_model_task_tracker_, inputs,
+-      base::BindOnce(&NavigationPredictor::OnPreloadingHeuristicsModelDone,
+-                     weak_ptr_factory_.GetWeakPtr(),
+-                     anchor.metrics->target_url));
+-
+-  if (!ml_model_execution_timer_.IsRunning()) {
+-    ml_model_execution_timer_.Start(
+-        FROM_HERE, MLModelExecutionTimerInterval(),
+-        base::BindOnce(&NavigationPredictor::OnMLModelExecutionTimerFired,
+-                       base::Unretained(this)));
+-  }
+ }
+ 
+ void NavigationPredictor::SetModelScoreCallbackForTesting(
+--- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
++++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
+@@ -89,7 +89,6 @@
+ #include "chrome/browser/media_galleries/media_galleries_preferences_factory.h"
+ #include "chrome/browser/metrics/variations/google_groups_updater_service_factory.h"
+ #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
+-#include "chrome/browser/navigation_predictor/preloading_model_keyed_service_factory.h"
+ #include "chrome/browser/net/dns_probe_service_factory.h"
+ #include "chrome/browser/net/profile_network_context_service_factory.h"
+ #include "chrome/browser/notifications/metrics/notification_metrics_logger_factory.h"
+@@ -823,7 +822,6 @@ void ChromeBrowserMainExtraPartsProfiles
+ #endif
+   ModelTypeStoreServiceFactory::GetInstance();
+   NavigationPredictorKeyedServiceFactory::GetInstance();
+-  PreloadingModelKeyedServiceFactory::GetInstance();
+ #if BUILDFLAG(IS_CHROMEOS_ASH)
+   NearbySharingServiceFactory::GetInstance();
+ #endif
+--- a/chrome/browser/profiles/profile_manager.cc
++++ b/chrome/browser/profiles/profile_manager.cc
+@@ -47,7 +47,6 @@
+ #include "chrome/browser/extensions/chrome_content_browser_client_extensions_part.h"
+ #include "chrome/browser/lifetime/application_lifetime.h"
+ #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
+-#include "chrome/browser/navigation_predictor/preloading_model_keyed_service_factory.h"
+ #include "chrome/browser/permissions/adaptive_quiet_notification_permission_ui_enabler.h"
+ #include "chrome/browser/prefs/incognito_mode_prefs.h"
+ #include "chrome/browser/profiles/delete_profile_helper.h"
+@@ -1554,9 +1553,6 @@ void ProfileManager::DoFinalInitForServi
+   // Ensure NavigationPredictorKeyedService is started.
+   NavigationPredictorKeyedServiceFactory::GetForProfile(profile);
+ 
+-  // Ensure PreloadingModelKeyedService is started.
+-  PreloadingModelKeyedServiceFactory::GetForProfile(profile);
+-
+   IdentityManagerFactory::GetForProfile(profile)->OnNetworkInitialized();
+   AccountReconcilorFactory::GetForProfile(profile);
+ 
 --- a/chrome/test/chromedriver/BUILD.gn
 +++ b/chrome/test/chromedriver/BUILD.gn
 @@ -389,7 +389,7 @@ source_set("lib") {
@@ -25,7 +177,7 @@
      testonly = true
 --- a/chrome/test/variations/BUILD.gn
 +++ b/chrome/test/variations/BUILD.gn
-@@ -7,7 +7,6 @@ python_library("test_utils") {
+@@ -18,7 +18,6 @@ python_library("test_utils") {
  
    data = [ "//chrome/test/variations/test_utils/" ]
  
@@ -46,7 +198,7 @@
  fuzzer_test("update_client_protocol_serializer_fuzzer") {
 --- a/content/shell/BUILD.gn
 +++ b/content/shell/BUILD.gn
-@@ -733,10 +733,6 @@ if (is_apple) {
+@@ -736,10 +736,6 @@ if (is_apple) {
        deps = [ "//third_party/icu:icudata" ]
      }
  
