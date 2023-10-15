@@ -23,10 +23,14 @@ jobs:
       - name: Get the latest Chromium version
         id: latest-version
         run: |
-          set -e
-          echo "linux_version=$( curl -s 'https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions/all/releases?filter=endtime=none,fraction>=0.5&order_by=version%20desc'  | jq -re '.releases | first | .version' )" >> $GITHUB_OUTPUT
-          echo "win_version=$( curl -s 'https://versionhistory.googleapis.com/v1/chrome/platforms/win/channels/stable/versions/all/releases?filter=endtime=none,fraction>=0.5&order_by=version%20desc'  | jq -re '.releases | first | .version' )" >> $GITHUB_OUTPUT
-          echo "mac_version=$( curl -s 'https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions/all/releases?filter=endtime=none,fraction>=0.5&order_by=version%20desc'  | jq -re '.releases | first | .version' )" >> $GITHUB_OUTPUT
+          set -eo pipefail
+          BASE_URL="https://versionhistory.googleapis.com/v1/chrome/platforms"
+          END_URL="channels/stable/versions/all/releases?filter=endtime=none,fraction>=0.5&order_by=version%20desc"
+          JQ_FILTER='.releases | first | .version | select (.!=null)'
+          for platform in linux win mac; do
+            printf %s "${platform}_version=" >> $GITHUB_OUTPUT
+            curl -s "$BASE_URL/$platform/$END_URL" | jq -re "$JQ_FILTER" >> $GITHUB_OUTPUT
+          done
       - uses: actions/checkout@v3
       - name: Create Issue for all platforms
         if: |
