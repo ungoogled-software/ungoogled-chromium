@@ -267,7 +267,17 @@
                const TextDirection&,
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
-@@ -2865,9 +2865,15 @@ TextMetrics* BaseRenderingContext2D::mea
+@@ -53,6 +53,9 @@
+ #include "ui/gfx/geometry/quad_f.h"
+ #include "ui/gfx/geometry/skia_conversions.h"
+ 
++#include "third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.h"
++#include "third_party/blink/renderer/core/frame/local_dom_window.h"
++
+ namespace blink {
+ 
+ BASE_FEATURE(kDisableCanvasOverdrawOptimization,
+@@ -2865,9 +2868,22 @@ TextMetrics* BaseRenderingContext2D::mea
  
    TextDirection direction = ToTextDirection(GetState().GetDirection(), canvas);
  
@@ -278,7 +288,14 @@
 +
 +  // Scale text metrics if enabled
 +  if (RuntimeEnabledFeatures::FingerprintingCanvasMeasureTextNoiseEnabled()) {
-+    text_metrics->Shuffle(canvas->GetDocument().GetNoiseFactorX());
++    if (HostAsOffscreenCanvas()) {
++      if (auto* window = DynamicTo<LocalDOMWindow>(GetTopExecutionContext())) {
++        if (window->GetFrame() && window->GetFrame()->GetDocument())
++          text_metrics->Shuffle(window->GetFrame()->GetDocument()->GetNoiseFactorX());
++      }
++    } else if (canvas) {
++      text_metrics->Shuffle(canvas->GetDocument().GetNoiseFactorX());
++    }
 +  }
 +  return text_metrics;
  }
