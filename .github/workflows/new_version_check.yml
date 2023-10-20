@@ -23,15 +23,20 @@ jobs:
       - name: Get the latest Chromium version
         id: latest-version
         run: |
-          set -e
-          echo "linux_version=$( curl -s 'https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions/all/releases?filter=endtime=none,fraction>=0.5&order_by=version%20desc'  | jq -re '.releases | first | .version' )" >> $GITHUB_OUTPUT
-          echo "win_version=$( curl -s 'https://versionhistory.googleapis.com/v1/chrome/platforms/win/channels/stable/versions/all/releases?filter=endtime=none,fraction>=0.5&order_by=version%20desc'  | jq -re '.releases | first | .version' )" >> $GITHUB_OUTPUT
-          echo "mac_version=$( curl -s 'https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions/all/releases?filter=endtime=none,fraction>=0.5&order_by=version%20desc'  | jq -re '.releases | first | .version' )" >> $GITHUB_OUTPUT
+          set -eo pipefail
+          BASE_URL="https://versionhistory.googleapis.com/v1/chrome/platforms"
+          END_URL="channels/stable/versions/all/releases?filter=endtime=none,fraction>=0.5&order_by=version%20desc"
+          JQ_FILTER='if .releases | select(type=="array") | length > 0 then .releases | first | .version else "null" end'
+          for platform in linux win mac; do
+            printf %s "${platform}_version=" >> $GITHUB_OUTPUT
+            curl -sf "${BASE_URL}/${platform}/${END_URL}" | jq -re "${JQ_FILTER}" >> $GITHUB_OUTPUT
+          done
       - uses: actions/checkout@v3
       - name: Create Issue for all platforms
         if: |
-          contains( steps.latest-version.outputs.win_version, steps.latest-version.outputs.mac_version ) &&
-          contains( steps.latest-version.outputs.mac_version, steps.latest-version.outputs.linux_version )   
+          contains(steps.latest-version.outputs.win_version, steps.latest-version.outputs.mac_version) &&
+          contains(steps.latest-version.outputs.mac_version, steps.latest-version.outputs.linux_version) &&
+          !contains(steps.latest-version.outputs.linux_version, 'null')
         uses: dblock/create-a-github-issue@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -44,8 +49,10 @@ jobs:
           filename:  .github/ISSUE_TEMPLATE/create-an--updating-to-chromium-x-x-x-x-.md
       - name: Create Issue for Linux
         if: |
-          ! contains( steps.latest-version.outputs.win_version, steps.latest-version.outputs.mac_version ) ||
-          ! contains( steps.latest-version.outputs.mac_version, steps.latest-version.outputs.linux_version )
+          (
+            !contains(steps.latest-version.outputs.win_version, steps.latest-version.outputs.mac_version) ||
+            !contains(steps.latest-version.outputs.mac_version, steps.latest-version.outputs.linux_version)
+          ) && !contains(steps.latest-version.outputs.linux_version, 'null')
         uses: dblock/create-a-github-issue@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -58,8 +65,10 @@ jobs:
           filename:  .github/ISSUE_TEMPLATE/create-an--updating-to-chromium-x-x-x-x-.md
       - name: Create Issue for macOS
         if: |
-          ! contains( steps.latest-version.outputs.win_version, steps.latest-version.outputs.mac_version ) ||
-          ! contains( steps.latest-version.outputs.mac_version, steps.latest-version.outputs.linux_version )
+          (
+            !contains(steps.latest-version.outputs.win_version, steps.latest-version.outputs.mac_version) ||
+            !contains(steps.latest-version.outputs.mac_version, steps.latest-version.outputs.linux_version)
+          ) && !contains(steps.latest-version.outputs.mac_version, 'null')
         uses: dblock/create-a-github-issue@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -72,8 +81,10 @@ jobs:
           filename:  .github/ISSUE_TEMPLATE/create-an--updating-to-chromium-x-x-x-x-.md
       - name: Create Issue for Windows
         if: |
-          ! contains( steps.latest-version.outputs.win_version, steps.latest-version.outputs.mac_version ) ||
-          ! contains( steps.latest-version.outputs.mac_version, steps.latest-version.outputs.linux_version )
+          (
+            !contains(steps.latest-version.outputs.win_version, steps.latest-version.outputs.mac_version) ||
+            !contains(steps.latest-version.outputs.mac_version, steps.latest-version.outputs.linux_version)
+          ) && !contains(steps.latest-version.outputs.win_version, 'null')
         uses: dblock/create-a-github-issue@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
