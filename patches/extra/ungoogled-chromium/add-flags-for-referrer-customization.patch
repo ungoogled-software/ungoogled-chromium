@@ -19,7 +19,7 @@
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
 --- a/chrome/common/BUILD.gn
 +++ b/chrome/common/BUILD.gn
-@@ -151,6 +151,8 @@ static_library("common_lib") {
+@@ -153,6 +153,8 @@ static_library("common_lib") {
      "pref_names_util.cc",
      "pref_names_util.h",
      "ref_counted_util.h",
@@ -28,7 +28,7 @@
      "search/instant_mojom_traits.h",
      "search/instant_types.cc",
      "search/instant_types.h",
-@@ -259,6 +261,7 @@ static_library("common_lib") {
+@@ -261,6 +263,7 @@ static_library("common_lib") {
      "//components/no_state_prefetch/common",
      "//components/no_state_prefetch/common:mojo_bindings",
      "//components/page_load_metrics/common:common",
@@ -38,7 +38,7 @@
    if (enable_supervised_users) {
 --- a/chrome/common/chrome_features.cc
 +++ b/chrome/common/chrome_features.cc
-@@ -950,6 +950,14 @@ BASE_FEATURE(kNewFilesPolicyUX,
+@@ -981,6 +981,14 @@ BASE_FEATURE(kNewFilesPolicyUX,
  // referrers instead of their ordinary behavior.
  BASE_FEATURE(kNoReferrers, "NoReferrers", base::FEATURE_DISABLED_BY_DEFAULT);
  
@@ -55,7 +55,7 @@
  // on-screen until dismissed, they are instead shown for a very long time.
 --- a/chrome/common/chrome_features.h
 +++ b/chrome/common/chrome_features.h
-@@ -552,6 +552,10 @@ BASE_DECLARE_FEATURE(kNewFilesPolicyUX);
+@@ -561,6 +561,10 @@ BASE_DECLARE_FEATURE(kNewFilesPolicyUX);
  
  COMPONENT_EXPORT(CHROME_FEATURES) BASE_DECLARE_FEATURE(kNoReferrers);
  
@@ -173,7 +173,7 @@
    disallowed_extension_deps_ = [
      # Components should largely not depend on //extensions. Since // extensions
      # is not a component target and is linked with //chrome, depending on most
-@@ -740,7 +740,7 @@ test("components_unittests") {
+@@ -804,7 +804,7 @@ test("components_unittests") {
    # On other platforms, no components should depend on Chrome.
    # Since //chrome depends on //extensions, we also only assert_no_deps on
    # extensions targets for non-lacros builds.
@@ -182,7 +182,7 @@
      assert_no_deps = [ "//chrome/*" ]
      assert_no_deps += disallowed_extension_deps_
    }
-@@ -1029,7 +1029,7 @@ if (use_blink) {
+@@ -1090,7 +1090,7 @@ if (use_blink) {
      # dependency. On other platforms, no components should depend on Chrome.
      # Since //chrome depends on //extensions, we also only assert_no_deps on
      # extensions targets for non-lacros builds.
@@ -201,7 +201,7 @@
  #include "content/browser/blob_storage/chrome_blob_storage_context.h"
  #include "content/browser/browsing_topics/header_util.h"
  #include "content/browser/child_process_security_policy_impl.h"
-@@ -389,10 +390,10 @@ void AddAdditionalRequestHeaders(
+@@ -388,10 +389,10 @@ void AddAdditionalRequestHeaders(
        net::HttpRequestHeaders::kUserAgent,
        ComputeUserAgentValue(*headers, user_agent_override, browser_context));
  
@@ -218,7 +218,7 @@
    if (NeedsHTTPOrigin(headers, method)) {
 --- a/content/renderer/render_frame_impl.cc
 +++ b/content/renderer/render_frame_impl.cc
-@@ -52,6 +52,7 @@
+@@ -54,6 +54,7 @@
  #include "build/chromeos_buildflags.h"
  #include "cc/base/switches.h"
  #include "cc/trees/ukm_manager.h"
@@ -226,7 +226,7 @@
  #include "content/common/associated_interfaces.mojom.h"
  #include "content/common/content_navigation_policy.h"
  #include "content/common/content_switches_internal.h"
-@@ -4338,10 +4339,13 @@ void RenderFrameImpl::WillSendRequestInt
+@@ -4305,10 +4306,13 @@ void RenderFrameImpl::WillSendRequestInt
  
    request.SetHasUserGesture(frame_->HasTransientUserActivation());
  
@@ -284,12 +284,13 @@
  
 --- a/third_party/blink/renderer/modules/service_worker/web_service_worker_fetch_context_impl.cc
 +++ b/third_party/blink/renderer/modules/service_worker/web_service_worker_fetch_context_impl.cc
-@@ -7,10 +7,12 @@
+@@ -7,11 +7,13 @@
  #include "base/ranges/algorithm.h"
  #include "base/synchronization/waitable_event.h"
  #include "base/task/single_thread_task_runner.h"
 +#include "chrome/common/referrer_sanitizer.h"
  #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "net/cookies/site_for_cookies.h"
  #include "services/network/public/cpp/wrapper_shared_url_loader_factory.h"
  #include "third_party/blink/public/common/loader/loader_constants.h"
  #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
@@ -297,7 +298,7 @@
  #include "third_party/blink/public/platform/url_loader_throttle_provider.h"
  #include "third_party/blink/public/platform/web_url_request_extra_data.h"
  #include "third_party/blink/public/platform/websocket_handshake_throttle_provider.h"
-@@ -148,10 +150,13 @@ void WebServiceWorkerFetchContextImpl::W
+@@ -152,10 +154,13 @@ void WebServiceWorkerFetchContextImpl::W
  
    request.SetURLRequestExtraData(std::move(url_request_extra_data));
  
@@ -332,8 +333,8 @@
 +#include "third_party/blink/public/platform/url_conversion.h"
  #include "third_party/blink/public/platform/url_loader_throttle_provider.h"
  #include "third_party/blink/public/platform/weak_wrapper_resource_load_info_notifier.h"
- #include "third_party/blink/public/platform/web_code_cache_loader.h"
-@@ -387,10 +389,13 @@ void DedicatedOrSharedWorkerFetchContext
+ #include "third_party/blink/public/platform/web_security_origin.h"
+@@ -380,10 +382,13 @@ void DedicatedOrSharedWorkerFetchContext
    if (g_rewrite_url)
      request.SetUrl(g_rewrite_url(request.Url().GetString().Utf8(), false));
  
