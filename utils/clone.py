@@ -226,17 +226,22 @@ def clone(args):
             (args.output / 'v8' / 'test' / 'torque' / 'test-torque.tq'),
         )
         keep_suffix = ('.gn', '.gni', '.grd', '.gyp', '.isolate', '.pydeps')
-        for path in remove_dirs:
-            for file in path.rglob('*'):
-                if file.is_file():
-                    if file not in keep_files and file.suffix not in keep_suffix:
-                        try:
-                            file.unlink()
-                        # read-only files can't be deleted on Windows
-                        # so remove the flag and try again.
-                        except PermissionError:
-                            file.chmod(S_IWRITE)
-                            file.unlink()
+        for remove_dir in remove_dirs:
+            for path in sorted(remove_dir.rglob('*'), key=lambda l: len(str(l)), reverse=True):
+                if path.is_file() and path not in keep_files and path.suffix not in keep_suffix:
+                    try:
+                        path.unlink()
+                    # read-only files can't be deleted on Windows
+                    # so remove the flag and try again.
+                    except PermissionError:
+                        path.chmod(S_IWRITE)
+                        path.unlink()
+                elif path.is_dir() and not any(path.iterdir()):
+                    try:
+                        path.rmdir()
+                    except PermissionError:
+                        path.chmod(S_IWRITE)
+                        path.rmdir()
         for path in sorted(args.output.rglob('*'), key=lambda l: len(str(l)), reverse=True):
             if not path.is_symlink() and '.git' not in path.parts:
                 if path.is_file() and ('out' in path.parts or path.name.startswith('ChangeLog')):

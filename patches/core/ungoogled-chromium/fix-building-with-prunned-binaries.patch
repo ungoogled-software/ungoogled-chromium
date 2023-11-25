@@ -3,7 +3,7 @@
 
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -944,8 +944,6 @@ if (is_win) {
+@@ -946,8 +946,6 @@ if (is_win) {
  
    bundle_data("chrome_framework_resources") {
      sources = [
@@ -14,14 +14,10 @@
        # from disk image and Keystone promotion (if so enabled).  It
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -868,14 +868,6 @@ static_library("browser") {
+@@ -879,10 +879,6 @@ static_library("browser") {
      "navigation_predictor/navigation_predictor_metrics_document_data.h",
      "navigation_predictor/navigation_predictor_preconnect_client.cc",
      "navigation_predictor/navigation_predictor_preconnect_client.h",
--    "navigation_predictor/preloading_model_executor.cc",
--    "navigation_predictor/preloading_model_executor.h",
--    "navigation_predictor/preloading_model_handler.cc",
--    "navigation_predictor/preloading_model_handler.h",
 -    "navigation_predictor/preloading_model_keyed_service.cc",
 -    "navigation_predictor/preloading_model_keyed_service.h",
 -    "navigation_predictor/preloading_model_keyed_service_factory.cc",
@@ -128,7 +124,7 @@
  void NavigationPredictor::SetModelScoreCallbackForTesting(
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -91,7 +91,6 @@
+@@ -92,7 +92,6 @@
  #include "chrome/browser/media_galleries/media_galleries_preferences_factory.h"
  #include "chrome/browser/metrics/variations/google_groups_updater_service_factory.h"
  #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
@@ -136,7 +132,7 @@
  #include "chrome/browser/net/dns_probe_service_factory.h"
  #include "chrome/browser/net/profile_network_context_service_factory.h"
  #include "chrome/browser/notifications/metrics/notification_metrics_logger_factory.h"
-@@ -850,7 +849,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -871,7 +870,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #endif
    ModelTypeStoreServiceFactory::GetInstance();
    NavigationPredictorKeyedServiceFactory::GetInstance();
@@ -154,7 +150,7 @@
  #include "chrome/browser/permissions/adaptive_quiet_notification_permission_ui_enabler.h"
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
  #include "chrome/browser/profiles/delete_profile_helper.h"
-@@ -1554,9 +1553,6 @@ void ProfileManager::DoFinalInitForServi
+@@ -1553,9 +1552,6 @@ void ProfileManager::DoFinalInitForServi
    // Ensure NavigationPredictorKeyedService is started.
    NavigationPredictorKeyedServiceFactory::GetForProfile(profile);
  
@@ -164,9 +160,61 @@
    IdentityManagerFactory::GetForProfile(profile)->OnNetworkInitialized();
    AccountReconcilorFactory::GetForProfile(profile);
  
+--- a/chrome/browser/ui/webui/omnibox/omnibox_page_handler.cc
++++ b/chrome/browser/ui/webui/omnibox/omnibox_page_handler.cc
+@@ -39,7 +39,6 @@
+ #include "components/omnibox/browser/autocomplete_match.h"
+ #include "components/omnibox/browser/autocomplete_provider.h"
+ #include "components/omnibox/browser/autocomplete_result.h"
+-#include "components/omnibox/browser/autocomplete_scoring_model_service.h"
+ #include "components/omnibox/browser/omnibox_field_trial.h"
+ #include "components/search_engines/template_url.h"
+ #include "content/public/browser/web_ui.h"
+@@ -500,31 +499,12 @@ void OmniboxPageHandler::StartOmniboxQue
+ }
+ 
+ void OmniboxPageHandler::GetMlModelVersion(GetMlModelVersionCallback callback) {
+-  if (auto* service = GetMlService()) {
+-    auto version = service->GetModelVersion();
+-    if (version == -1) {
+-      service->AddOnModelUpdatedCallback(
+-          base::BindOnce(&OmniboxPageHandler::GetMlModelVersion,
+-                         weak_factory_.GetWeakPtr(), std::move(callback)));
+-    } else {
+-      std::move(callback).Run(version);
+-    }
+-  } else {
+     std::move(callback).Run(-1);
+-  }
+ }
+ 
+ void OmniboxPageHandler::StartMl(mojom::SignalsPtr mojom_signals,
+                                  StartMlCallback callback) {
+-  if (auto* service = GetMlService()) {
+-    AutocompleteMatch::ScoringSignals signals =
+-        mojo::ConvertTo<AutocompleteMatch::ScoringSignals>(mojom_signals);
+-    std::vector<AutocompleteScoringModelService::Result> result =
+-        service->BatchScoreAutocompleteUrlMatchesSync({&signals}, {""});
+-    std::move(callback).Run(result.size() ? *std::get<0>(result[0]) : -1);
+-  } else {
+     std::move(callback).Run(-1);
+-  }
+ }
+ 
+ std::unique_ptr<AutocompleteController> OmniboxPageHandler::CreateController(
+@@ -549,8 +529,5 @@ OmniboxPageHandler::GetAutocompleteContr
+ }
+ 
+ AutocompleteScoringModelService* OmniboxPageHandler::GetMlService() {
+-  return OmniboxFieldTrial::IsMlSyncBatchUrlScoringEnabled()
+-             ? AutocompleteScoringModelServiceFactory::GetInstance()
+-                   ->GetForProfile(profile_)
+-             : nullptr;
++  return nullptr;
+ }
 --- a/chrome/test/chromedriver/BUILD.gn
 +++ b/chrome/test/chromedriver/BUILD.gn
-@@ -389,7 +389,7 @@ source_set("lib") {
+@@ -399,7 +399,7 @@ source_set("lib") {
    }
  }
  
@@ -185,9 +233,30 @@
  }
  
  python_library("fixtures") {
+--- a/components/omnibox/browser/autocomplete_classifier.cc
++++ b/components/omnibox/browser/autocomplete_classifier.cc
+@@ -95,8 +95,6 @@ void AutocompleteClassifier::Classify(
+     metrics::OmniboxEventProto::PageClassification page_classification,
+     AutocompleteMatch* match,
+     GURL* alternate_nav_url) {
+-  TRACE_EVENT1("omnibox", "AutocompleteClassifier::Classify", "text",
+-               base::UTF16ToUTF8(text));
+   DCHECK(!inside_classify_);
+   base::AutoReset<bool> reset(&inside_classify_, true);
+   AutocompleteInput input(text, page_classification, *scheme_classifier_);
+--- a/components/omnibox/browser/autocomplete_controller.cc
++++ b/components/omnibox/browser/autocomplete_controller.cc
+@@ -45,7 +45,6 @@
+ #include "components/omnibox/browser/autocomplete_input.h"
+ #include "components/omnibox/browser/autocomplete_match_type.h"
+ #include "components/omnibox/browser/autocomplete_provider.h"
+-#include "components/omnibox/browser/autocomplete_scoring_model_service.h"
+ #include "components/omnibox/browser/autocomplete_scoring_signals_annotator.h"
+ #include "components/omnibox/browser/bookmark_provider.h"
+ #include "components/omnibox/browser/bookmark_scoring_signals_annotator.h"
 --- a/components/update_client/BUILD.gn
 +++ b/components/update_client/BUILD.gn
-@@ -312,8 +312,6 @@ source_set("unit_tests") {
+@@ -326,8 +326,6 @@ source_set("unit_tests") {
      "//third_party/puffin:libpuffpatch",
      "//third_party/re2",
    ]
@@ -198,7 +267,7 @@
  fuzzer_test("update_client_protocol_serializer_fuzzer") {
 --- a/content/shell/BUILD.gn
 +++ b/content/shell/BUILD.gn
-@@ -737,10 +737,6 @@ if (is_apple) {
+@@ -735,10 +735,6 @@ if (is_apple) {
        deps = [ "//third_party/icu:icudata" ]
      }
  
