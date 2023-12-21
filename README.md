@@ -107,15 +107,17 @@ ungoogled-chromium is available in the following **software repositories**:
 * macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
 * openSUSE: Available in [openSUSE Tumbleweed](https://get.opensuse.org/tumbleweed/), run `zypper in ungoogled-chromium`. See [package site](https://software.opensuse.org/package/ungoogled-chromium) for additional options.
 * Slackware: Available as `chromium-ungoogled` in [a third party repository.](http://www.slackware.com/~alien/) run `upgradepkg --install-new chromium-ungoogled-120.0.6099.109-x86_64-1alien.txz`.
-* NixOS: Available as `ungoogled-chromium`, run `nix-shell -p ungoogled-chromium`.
-* GNU Guix: Available as `ungoogled-chromium`, run `guix install ungoogled-chromium`.
+* APK (Alpine Linux, FreeBSD): Available as `ungoogled-chromium`, run `pkg install ungoogled-chromium`.
+* APT-RPM (PCLinuxOS, Vine Linux, ALT Linux): Available as `chromium-ungoogled-browser`, run `apt-get install chromium-ungoogled-browser`.
+* Chocolatey: Available as `ungoogled-chromium`, run `choco install ungoogled-chromium`.
+* Winget: Available as `eloston.ungoogled-chromium`, run `winget install -e --id eloston.ungoogled-chromium`.
 
 If your GNU/Linux distribution is not listed, there are distro-independent builds available via the following **package managers**:
 
 * Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/com.github.Eloston.UngoogledChromium) as `com.github.Eloston.UngoogledChromium`
-* APK (Alpine Linux, FreeBSD): Available as `ungoogled-chromium`
-* APT-RPM (PCLinuxOS, Vine Linux, ALT Linux): Available as `chromium-ungoogled-browser`
-
+* NixOS: Available as `ungoogled-chromium`, run `nix-shell -p ungoogled-chromium`.
+* GNU Guix: Available as `ungoogled-chromium`, run `guix install ungoogled-chromium`.
+  
 ### Third-party binaries
 
 If your operating system is not listed above, you can also try to [**Download binaries from here**](https://ungoogled-software.github.io/ungoogled-chromium-binaries/)
