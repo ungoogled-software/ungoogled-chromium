@@ -110,7 +110,7 @@ ungoogled-chromium is available in the following **software repositories**:
 * APK (Alpine Linux, FreeBSD): Available as `ungoogled-chromium`, run `pkg install ungoogled-chromium`.
 * APT-RPM (PCLinuxOS, Vine Linux, ALT Linux): Available as `chromium-ungoogled-browser`, run `apt-get install chromium-ungoogled-browser`.
 * Chocolatey: Available as `ungoogled-chromium`, run `choco install ungoogled-chromium`.
-* Winget: Available as `eloston.ungoogled-chromium`, run `winget install -e --id eloston.ungoogled-chromium`.
+* WinGet: Available as `eloston.ungoogled-chromium`, run `winget install -e --id eloston.ungoogled-chromium`.
 
 If your GNU/Linux distribution is not listed, there are distro-independent builds available via the following **package managers**:
 
