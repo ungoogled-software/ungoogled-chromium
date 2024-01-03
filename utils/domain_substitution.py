@@ -285,7 +285,7 @@ def revert_substitution(domainsub_cache, source_tree):
             prefix='domsubcache_files', dir=str(resolved_tree)) as tmp_extract_name:
         extract_path = Path(tmp_extract_name)
         get_logger().debug('Extracting domain substitution cache...')
-        extract_tar_file(domainsub_cache, extract_path, None)
+        extract_tar_file(domainsub_cache, extract_path, None, False)
 
         # Validate source tree file hashes match
         get_logger().debug('Validating substituted files in source tree...')
