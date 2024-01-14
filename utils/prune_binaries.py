@@ -31,6 +31,7 @@ CONTINGENT_PATHS = (
     'third_party/dawn/tools/golang/',
     'third_party/depot_tools/external_bin/',
     'third_party/devtools-frontend/src/third_party/esbuild/',
+    'third_party/google-java-format/'
     'third_party/libei/',
     'third_party/llvm-build-tools/',
     'third_party/ninja/',

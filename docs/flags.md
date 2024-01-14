@@ -88,6 +88,7 @@ Chromium contains switches that do no have corresponding entries in `chrome://fl
   `--disable-webgl` | Disable all versions of WebGL.
   `--enable-low-end-device-mode` | Force low-end device mode when set.
   `--force-dark-mode` | Forces dark mode in UI for platforms that support it.
+  `--no-default-browser-check` | Disables the default browser check.
   `--no-pings` | Don't send hyperlink auditing pings.
   `--webrtc-ip-handling-policy` | Restrict which IP addresses and interfaces WebRTC uses.
 - ### Available only on desktop

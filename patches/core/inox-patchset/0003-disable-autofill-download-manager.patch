@@ -1,9 +1,9 @@
---- a/components/autofill/core/browser/autofill_download_manager.cc
-+++ b/components/autofill/core/browser/autofill_download_manager.cc
-@@ -758,95 +758,6 @@ std::tuple<GURL, std::string> AutofillDo
+--- a/components/autofill/core/browser/crowdsourcing/autofill_crowdsourcing_manager.cc
++++ b/components/autofill/core/browser/crowdsourcing/autofill_crowdsourcing_manager.cc
+@@ -760,95 +760,6 @@ std::tuple<GURL, std::string> AutofillCr
  }
  
- bool AutofillDownloadManager::StartRequest(FormRequestData request_data) {
+ bool AutofillCrowdsourcingManager::StartRequest(FormRequestData request_data) {
 -  // REQUEST_UPLOADs take no IsolationInfo because Password Manager uploads when
 -  // RenderFrameHostImpl::DidCommitNavigation() is called, in which case
 -  // AutofillDriver::IsolationInfo() may crash because there is no committing
@@ -11,7 +11,7 @@
 -  // information about the response is passed to the renderer, or is otherwise
 -  // visible to a page. See crbug/1176635#c22.
 -  DCHECK(
--      (request_data.request_type == AutofillDownloadManager::REQUEST_UPLOAD) ==
+-      (request_data.request_type == AutofillCrowdsourcingManager::REQUEST_UPLOAD) ==
 -      !request_data.isolation_info);
 -
 -  // Get the URL and method to use for this request.
@@ -19,9 +19,9 @@
 -
 -  // Track the URL length for GET queries because the URL length can be in the
 -  // thousands when rich metadata is enabled.
--  if (request_data.request_type == AutofillDownloadManager::REQUEST_QUERY &&
+-  if (request_data.request_type == AutofillCrowdsourcingManager::REQUEST_QUERY &&
 -      method == "GET") {
--    base::UmaHistogramCounts100000("Autofill.Query.GetUrlLength",
+-    base::UmaHistogramCounts100000(kUmaGetUrlLength,
 -                                   request_url.spec().length());
 -  }
 -
@@ -72,7 +72,7 @@
 -
 -  if (method == "POST") {
 -    static constexpr char content_type[] = "application/x-protobuf";
--    absl::optional<std::string> payload = GetAPIBodyPayload(
+-    std::optional<std::string> payload = GetAPIBodyPayload(
 -        std::move(request_data.payload), request_data.request_type);
 -    if (!payload) {
 -      return false;
@@ -84,13 +84,13 @@
 -
 -  // Transfer ownership of the loader into url_loaders_. Temporarily hang
 -  // onto the raw pointer to use it as a key and to kick off the request;
--  // transferring ownership (std::move) invalidates the |simple_loader|
+-  // transferring ownership (std::move) invalidates the `simple_loader`
 -  // variable.
 -  auto* raw_simple_loader = simple_loader.get();
 -  url_loaders_.push_back(std::move(simple_loader));
 -  raw_simple_loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
 -      client_->GetURLLoaderFactory().get(),
--      base::BindOnce(&AutofillDownloadManager::OnSimpleLoaderComplete,
+-      base::BindOnce(&AutofillCrowdsourcingManager::OnSimpleLoaderComplete,
 -                     base::Unretained(this), std::move(--url_loaders_.end()),
 -                     std::move(request_data), AutofillTickClock::NowTicks()));
    return true;

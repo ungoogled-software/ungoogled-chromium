@@ -14,7 +14,7 @@
    page_->OnSuggestRequestCreated(std::move(mojom_request));
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -20,10 +20,6 @@
+@@ -21,10 +21,6 @@
  #include "services/network/public/mojom/x_frame_options.mojom.h"
  #include "third_party/abseil-cpp/absl/types/optional.h"
  
@@ -23,9 +23,9 @@
 -#endif
 -
  #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
- #include "chrome/common/bound_session_request_throttled_listener.h"
+ #include "chrome/common/bound_session_request_throttled_handler.h"
  #include "components/signin/public/base/signin_switches.h"
-@@ -76,53 +72,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -114,60 +110,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -64,13 +64,20 @@
 -  }
 -#endif
 -#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+-  // `network::mojom::RequestDestination::kDocument` means that this is a
+-  // navigation request.
+-  is_main_frame_navigation_ =
+-      request->is_outermost_main_frame &&
+-      request->destination == network::mojom::RequestDestination::kDocument;
 -  if (switches::IsBoundSessionCredentialsEnabled() && request->SendsCookies() &&
--      ShouldDeferRequestForBoundSession(request->url)) {
--    CHECK(bound_session_request_throttled_listener_);
+-      ShouldDeferRequestForBoundSession(
+-          request->url,
+-          dynamic_params_->bound_session_throttler_params.get())) {
+-    CHECK(bound_session_request_throttled_handler_);
 -    *defer = true;
 -    CHECK(!bound_session_request_throttled_start_time_.has_value());
 -    bound_session_request_throttled_start_time_ = base::TimeTicks::Now();
--    bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
+-    bound_session_request_throttled_handler_->HandleRequestBlockedOnCookie(
 -        base::BindOnce(
 -            &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
 -            weak_factory_.GetWeakPtr()));
@@ -79,7 +86,7 @@
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -132,50 +81,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -177,52 +119,6 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
@@ -116,12 +123,14 @@
 -#endif
 -#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 -  if (switches::IsBoundSessionCredentialsEnabled() &&
--      ShouldDeferRequestForBoundSession(redirect_info->new_url)) {
--    CHECK(bound_session_request_throttled_listener_);
+-      ShouldDeferRequestForBoundSession(
+-          redirect_info->new_url,
+-          dynamic_params_->bound_session_throttler_params.get())) {
+-    CHECK(bound_session_request_throttled_handler_);
 -    *defer = true;
 -    CHECK(!bound_session_request_throttled_start_time_.has_value());
 -    bound_session_request_throttled_start_time_ = base::TimeTicks::Now();
--    bound_session_request_throttled_listener_->OnRequestBlockedOnCookie(
+-    bound_session_request_throttled_handler_->HandleRequestBlockedOnCookie(
 -        base::BindOnce(
 -            &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
 -            weak_factory_.GetWeakPtr()));
@@ -130,7 +139,7 @@
  }
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -183,23 +88,6 @@ void GoogleURLLoaderThrottle::WillProces
+@@ -230,23 +126,6 @@ void GoogleURLLoaderThrottle::WillProces
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
@@ -455,7 +464,7 @@
  
 --- a/components/page_load_metrics/browser/page_load_metrics_util.cc
 +++ b/components/page_load_metrics/browser/page_load_metrics_util.cc
-@@ -281,9 +281,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
+@@ -283,9 +283,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
  }
  
  bool IsGoogleSearchHostname(const GURL& url) {
@@ -629,10 +638,10 @@
  }  // namespace variations
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -489,27 +489,6 @@ bool HasGoogleHost(const GURL& url) {
+@@ -491,28 +491,6 @@ bool HasGoogleHost(const GURL& url) {
  }
  
- bool IsGoogleHost(base::StringPiece host) {
+ bool IsGoogleHost(std::string_view host) {
 -  static const char* kGoogleHostSuffixes[] = {
 -      ".google.com",
 -      ".youtube.com",
@@ -651,8 +660,9 @@
 -    // Here it's possible to get away with faster case-sensitive comparisons
 -    // because the list above is all lowercase, and a GURL's host name will
 -    // always be canonicalized to lowercase as well.
--    if (base::EndsWith(host, suffix))
+-    if (host.ends_with(suffix)) {
 -      return true;
+-    }
 -  }
    return false;
  }
