@@ -3,7 +3,7 @@
 
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -942,8 +942,6 @@ if (is_win) {
+@@ -938,8 +938,6 @@ if (is_win) {
  
    bundle_data("chrome_framework_resources") {
      sources = [
@@ -14,7 +14,7 @@
        # from disk image and Keystone promotion (if so enabled).  It
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -840,10 +840,6 @@ static_library("browser") {
+@@ -845,10 +845,6 @@ static_library("browser") {
      "navigation_predictor/navigation_predictor_metrics_document_data.h",
      "navigation_predictor/navigation_predictor_preconnect_client.cc",
      "navigation_predictor/navigation_predictor_preconnect_client.h",
@@ -27,7 +27,7 @@
      "net/chrome_mojo_proxy_resolver_factory.cc",
 --- a/chrome/browser/navigation_predictor/navigation_predictor.cc
 +++ b/chrome/browser/navigation_predictor/navigation_predictor.cc
-@@ -16,8 +16,6 @@
+@@ -17,8 +17,6 @@
  #include "base/time/default_tick_clock.h"
  #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service.h"
  #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
@@ -46,9 +46,9 @@
 -  return base::Milliseconds(timer_interval);
 -}
  
- bool IsTargetURLTheSameAsDocument(
-     const blink::mojom::AnchorElementMetricsPtr& anchor) {
-@@ -310,73 +303,6 @@ void NavigationPredictor::ProcessPointer
+ }  // namespace
+ 
+@@ -309,69 +302,6 @@ void NavigationPredictor::ProcessPointer
  }
  
  void NavigationPredictor::OnMLModelExecutionTimerFired() {
@@ -78,26 +78,23 @@
 -  AnchorElementData& anchor = it->second;
 -
 -  PreloadingModelKeyedService::Inputs inputs;
--  inputs.contains_image = anchor.metrics->contains_image;
--  inputs.font_size = GetFontSizeFromPx(anchor.metrics->font_size_px);
--  inputs.has_text_sibling = anchor.metrics->has_text_sibling;
--  inputs.is_bold = IsBoldFont(anchor.metrics->font_weight);
--  inputs.is_in_iframe = anchor.metrics->is_in_iframe;
--  inputs.is_url_incremented_by_one = anchor.metrics->is_url_incremented_by_one;
+-  inputs.contains_image = anchor.contains_image;
+-  inputs.font_size = anchor.font_size;
+-  inputs.has_text_sibling = anchor.has_text_sibling;
+-  inputs.is_bold = anchor.is_bold_font;
+-  inputs.is_in_iframe = anchor.is_in_iframe;
+-  inputs.is_url_incremented_by_one = anchor.is_url_incremented_by_one;
 -  inputs.navigation_start_to_link_logged =
 -      anchor.first_report_timestamp - navigation_start_;
--  auto path_info = GetUrlPathLengthDepthAndHash(anchor.metrics->target_url);
+-  auto path_info = GetUrlPathLengthDepthAndHash(anchor.target_url);
 -  inputs.path_length = path_info.path_length;
 -  inputs.path_depth = path_info.path_depth;
--  // Convert the ratio area and ratio distance from [0,1] to [0,100].
--  inputs.percent_clickable_area =
--      static_cast<int>(anchor.metrics->ratio_area * 100);
--
+-  inputs.percent_clickable_area = anchor.ratio_area;
 -  inputs.percent_vertical_distance =
--      static_cast<int>(anchor.metrics->ratio_distance_root_top * 100);
+-      static_cast<int>(anchor.ratio_distance_root_top * 100);
 -
--  inputs.is_same_origin = anchor.metrics->is_same_host;
--  auto to_timedelta = [this](absl::optional<base::TimeTicks> ts) {
+-  inputs.is_same_origin = anchor.is_same_host;
+-  auto to_timedelta = [this](std::optional<base::TimeTicks> ts) {
 -    return ts.has_value() ? NowTicks() - ts.value() : base::TimeDelta();
 -  };
 -  inputs.entered_viewport_to_left_viewport =
@@ -110,8 +107,7 @@
 -  model_service->Score(
 -      &scoring_model_task_tracker_, inputs,
 -      base::BindOnce(&NavigationPredictor::OnPreloadingHeuristicsModelDone,
--                     weak_ptr_factory_.GetWeakPtr(),
--                     anchor.metrics->target_url));
+-                     weak_ptr_factory_.GetWeakPtr(), anchor.target_url));
 -
 -  if (!ml_model_execution_timer_.IsRunning()) {
 -    ml_model_execution_timer_.Start(
@@ -122,9 +118,76 @@
  }
  
  void NavigationPredictor::SetModelScoreCallbackForTesting(
+--- a/chrome/browser/optimization_guide/model_validator_keyed_service.cc
++++ b/chrome/browser/optimization_guide/model_validator_keyed_service.cc
+@@ -33,39 +33,6 @@ namespace optimization_guide {
+ 
+ ModelValidatorKeyedService::ModelValidatorKeyedService(Profile* profile)
+     : profile_(profile) {
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  DCHECK(ShouldStartModelValidator());
+-  auto* opt_guide_service =
+-      OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
+-  if (!opt_guide_service) {
+-    return;
+-  }
+-#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+-  if (switches::ShouldValidateModel()) {
+-    // Create the validator object which will get destroyed when the model
+-    // load is complete.
+-    new ModelValidatorHandler(
+-        opt_guide_service,
+-        base::ThreadPool::CreateSequencedTaskRunner(
+-            {base::MayBlock(), base::TaskPriority::BEST_EFFORT}));
+-  }
+-#endif  // BUILD_WITH_TFLITE_LIB
+-  if (switches::ShouldValidateModelExecution()) {
+-    auto* identity_manager = IdentityManagerFactory::GetForProfile(profile_);
+-    if (!identity_manager) {
+-      return;
+-    }
+-    if (!identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+-      identity_manager_observation_.Observe(identity_manager);
+-      return;
+-    }
+-    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+-        FROM_HERE,
+-        base::BindOnce(
+-            &ModelValidatorKeyedService::StartModelExecutionValidation,
+-            weak_ptr_factory_.GetWeakPtr()),
+-        kModelExecutionValidationStartupDelay);
+-  }
+ }
+ 
+ ModelValidatorKeyedService::~ModelValidatorKeyedService() = default;
+@@ -92,24 +59,6 @@ void ModelValidatorKeyedService::OnPrima
+ }
+ 
+ void ModelValidatorKeyedService::StartModelExecutionValidation() {
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  auto* opt_guide_service =
+-      OptimizationGuideKeyedServiceFactory::GetForProfile(profile_);
+-  if (!opt_guide_service) {
+-    return;
+-  }
+-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+-  std::string model_execution_input =
+-      command_line->GetSwitchValueASCII(switches::kModelExecutionValidate);
+-  if (model_execution_input.empty()) {
+-    return;
+-  }
+-  proto::StringValue request;
+-  request.set_value(model_execution_input);
+-  opt_guide_service->ExecuteModel(
+-      proto::ModelExecutionFeature::MODEL_EXECUTION_FEATURE_TEST, request,
+-      base::BindOnce(&ModelValidatorKeyedService::OnModelExecuteResponse,
+-                     weak_ptr_factory_.GetWeakPtr()));
+ }
+ 
+ void ModelValidatorKeyedService::OnModelExecuteResponse(
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -91,7 +91,6 @@
+@@ -92,7 +92,6 @@
  #include "chrome/browser/media_galleries/media_galleries_preferences_factory.h"
  #include "chrome/browser/metrics/variations/google_groups_updater_service_factory.h"
  #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
@@ -132,17 +195,17 @@
  #include "chrome/browser/net/dns_probe_service_factory.h"
  #include "chrome/browser/net/profile_network_context_service_factory.h"
  #include "chrome/browser/notifications/metrics/notification_metrics_logger_factory.h"
-@@ -910,7 +909,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -917,7 +916,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #endif
    ModelTypeStoreServiceFactory::GetInstance();
    NavigationPredictorKeyedServiceFactory::GetInstance();
 -  PreloadingModelKeyedServiceFactory::GetInstance();
  #if BUILDFLAG(IS_CHROMEOS_ASH)
    NearbySharingServiceFactory::GetInstance();
- #endif
+   if (base::FeatureList::IsEnabled(ash::features::kNearbyPresence)) {
 --- a/chrome/browser/profiles/profile_manager.cc
 +++ b/chrome/browser/profiles/profile_manager.cc
-@@ -47,7 +47,6 @@
+@@ -48,7 +48,6 @@
  #include "chrome/browser/extensions/chrome_content_browser_client_extensions_part.h"
  #include "chrome/browser/lifetime/application_lifetime.h"
  #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
@@ -150,7 +213,7 @@
  #include "chrome/browser/permissions/adaptive_quiet_notification_permission_ui_enabler.h"
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
  #include "chrome/browser/profiles/delete_profile_helper.h"
-@@ -1565,9 +1564,6 @@ void ProfileManager::DoFinalInitForServi
+@@ -1566,9 +1565,6 @@ void ProfileManager::DoFinalInitForServi
    }
  #endif  // !BUILDFLAG(IS_ANDROID)
  
@@ -170,7 +233,7 @@
  #include "components/omnibox/browser/omnibox_field_trial.h"
  #include "components/search_engines/template_url.h"
  #include "content/public/browser/web_ui.h"
-@@ -500,32 +499,12 @@ void OmniboxPageHandler::StartOmniboxQue
+@@ -500,31 +499,12 @@ void OmniboxPageHandler::StartOmniboxQue
  }
  
  void OmniboxPageHandler::GetMlModelVersion(GetMlModelVersionCallback callback) {
@@ -194,28 +257,43 @@
 -    AutocompleteMatch::ScoringSignals signals =
 -        mojo::ConvertTo<AutocompleteMatch::ScoringSignals>(mojom_signals);
 -    std::vector<AutocompleteScoringModelService::Result> result =
--        service->BatchScoreAutocompleteUrlMatchesSync({&signals}, {""});
--    std::move(callback).Run(result.size() ? std::get<0>(result[0]).value_or(-1)
--                                          : -1);
+-        service->BatchScoreAutocompleteUrlMatchesSync({&signals});
+-    std::move(callback).Run(result.size() ? result[0].value_or(-1) : -1);
 -  } else {
      std::move(callback).Run(-1);
 -  }
  }
  
  std::unique_ptr<AutocompleteController> OmniboxPageHandler::CreateController(
-@@ -550,8 +529,5 @@ OmniboxPageHandler::GetAutocompleteContr
+@@ -549,8 +529,5 @@ OmniboxPageHandler::GetAutocompleteContr
  }
  
  AutocompleteScoringModelService* OmniboxPageHandler::GetMlService() {
--  return OmniboxFieldTrial::IsMlSyncBatchUrlScoringEnabled()
+-  return OmniboxFieldTrial::IsMlUrlScoringEnabled()
 -             ? AutocompleteScoringModelServiceFactory::GetInstance()
 -                   ->GetForProfile(profile_)
 -             : nullptr;
 +  return nullptr;
  }
+--- a/chrome/test/BUILD.gn
++++ b/chrome/test/BUILD.gn
+@@ -3114,13 +3114,6 @@ if (!is_android && !is_fuchsia) {
+         "//pdf/loader",
+       ]
+ 
+-      if (is_linux) {
+-        # Add a data dependency for pdf_extension_accessibility_test.cc to
+-        # notify testing builders that this test needs this library, which will
+-        # need to be downloaded from CIPD as defined in //DEPS.
+-        data_deps += [ "//third_party/screen-ai:screen_ai_linux" ]
+-      }
+-
+       if (enable_printing) {
+         sources += [ "../browser/pdf/pdf_extension_printing_test.cc" ]
+ 
 --- a/chrome/test/chromedriver/BUILD.gn
 +++ b/chrome/test/chromedriver/BUILD.gn
-@@ -399,7 +399,7 @@ source_set("lib") {
+@@ -397,7 +397,7 @@ source_set("lib") {
    }
  }
  
@@ -236,7 +314,7 @@
  python_library("fixtures") {
 --- a/components/omnibox/browser/autocomplete_classifier.cc
 +++ b/components/omnibox/browser/autocomplete_classifier.cc
-@@ -95,8 +95,6 @@ void AutocompleteClassifier::Classify(
+@@ -97,8 +97,6 @@ void AutocompleteClassifier::Classify(
      metrics::OmniboxEventProto::PageClassification page_classification,
      AutocompleteMatch* match,
      GURL* alternate_nav_url) {
@@ -247,7 +325,7 @@
    AutocompleteInput input(text, page_classification, *scheme_classifier_);
 --- a/components/omnibox/browser/autocomplete_controller.cc
 +++ b/components/omnibox/browser/autocomplete_controller.cc
-@@ -45,7 +45,6 @@
+@@ -43,7 +43,6 @@
  #include "components/omnibox/browser/autocomplete_input.h"
  #include "components/omnibox/browser/autocomplete_match_type.h"
  #include "components/omnibox/browser/autocomplete_provider.h"
@@ -257,7 +335,7 @@
  #include "components/omnibox/browser/bookmark_scoring_signals_annotator.h"
 --- a/components/update_client/BUILD.gn
 +++ b/components/update_client/BUILD.gn
-@@ -326,8 +326,6 @@ source_set("unit_tests") {
+@@ -312,8 +312,6 @@ source_set("unit_tests") {
      "//third_party/puffin:libpuffpatch",
      "//third_party/re2",
    ]

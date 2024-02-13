@@ -1,25 +1,24 @@
 --- a/components/autofill/core/browser/crowdsourcing/autofill_crowdsourcing_manager.cc
 +++ b/components/autofill/core/browser/crowdsourcing/autofill_crowdsourcing_manager.cc
-@@ -760,95 +760,6 @@ std::tuple<GURL, std::string> AutofillCr
+@@ -800,94 +800,6 @@ std::tuple<GURL, std::string> AutofillCr
  }
  
  bool AutofillCrowdsourcingManager::StartRequest(FormRequestData request_data) {
--  // REQUEST_UPLOADs take no IsolationInfo because Password Manager uploads when
+-  // kRequestUploads take no IsolationInfo because Password Manager uploads when
 -  // RenderFrameHostImpl::DidCommitNavigation() is called, in which case
 -  // AutofillDriver::IsolationInfo() may crash because there is no committing
 -  // NavigationRequest. Not setting an IsolationInfo is safe because no
 -  // information about the response is passed to the renderer, or is otherwise
 -  // visible to a page. See crbug/1176635#c22.
--  DCHECK(
--      (request_data.request_type == AutofillCrowdsourcingManager::REQUEST_UPLOAD) ==
--      !request_data.isolation_info);
+-  DCHECK((request_data.request_type == RequestType::kRequestUpload) ==
+-         !request_data.isolation_info);
 -
 -  // Get the URL and method to use for this request.
 -  auto [request_url, method] = GetRequestURLAndMethod(request_data);
 -
 -  // Track the URL length for GET queries because the URL length can be in the
 -  // thousands when rich metadata is enabled.
--  if (request_data.request_type == AutofillCrowdsourcingManager::REQUEST_QUERY &&
+-  if (request_data.request_type == RequestType::kRequestQuery &&
 -      method == "GET") {
 -    base::UmaHistogramCounts100000(kUmaGetUrlLength,
 -                                   request_url.spec().length());
@@ -72,8 +71,8 @@
 -
 -  if (method == "POST") {
 -    static constexpr char content_type[] = "application/x-protobuf";
--    std::optional<std::string> payload = GetAPIBodyPayload(
--        std::move(request_data.payload), request_data.request_type);
+-    std::optional<std::string> payload =
+-        GetAPIBodyPayload(request_data.payload, request_data.request_type);
 -    if (!payload) {
 -      return false;
 -    }
@@ -92,7 +91,7 @@
 -      client_->GetURLLoaderFactory().get(),
 -      base::BindOnce(&AutofillCrowdsourcingManager::OnSimpleLoaderComplete,
 -                     base::Unretained(this), std::move(--url_loaders_.end()),
--                     std::move(request_data), AutofillTickClock::NowTicks()));
+-                     std::move(request_data), base::TimeTicks::Now()));
    return true;
  }
  

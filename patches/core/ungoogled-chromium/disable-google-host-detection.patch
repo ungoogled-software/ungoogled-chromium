@@ -14,9 +14,9 @@
    page_->OnSuggestRequestCreated(std::move(mojom_request));
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
-@@ -21,10 +21,6 @@
+@@ -22,10 +22,6 @@
+ #include "services/network/public/mojom/url_response_head.mojom.h"
  #include "services/network/public/mojom/x_frame_options.mojom.h"
- #include "third_party/abseil-cpp/absl/types/optional.h"
  
 -#if BUILDFLAG(ENABLE_EXTENSIONS)
 -#include "extensions/common/extension_urls.h"
@@ -25,7 +25,7 @@
  #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
  #include "chrome/common/bound_session_request_throttled_handler.h"
  #include "components/signin/public/base/signin_switches.h"
-@@ -114,60 +110,6 @@ void GoogleURLLoaderThrottle::DetachFrom
+@@ -152,65 +148,6 @@ void GoogleURLLoaderThrottle::DetachFrom
  void GoogleURLLoaderThrottle::WillStartRequest(
      network::ResourceRequest* request,
      bool* defer) {
@@ -69,24 +69,29 @@
 -  is_main_frame_navigation_ =
 -      request->is_outermost_main_frame &&
 -      request->destination == network::mojom::RequestDestination::kDocument;
--  if (switches::IsBoundSessionCredentialsEnabled() && request->SendsCookies() &&
--      ShouldDeferRequestForBoundSession(
--          request->url,
--          dynamic_params_->bound_session_throttler_params.get())) {
--    CHECK(bound_session_request_throttled_handler_);
--    *defer = true;
--    CHECK(!bound_session_request_throttled_start_time_.has_value());
--    bound_session_request_throttled_start_time_ = base::TimeTicks::Now();
--    bound_session_request_throttled_handler_->HandleRequestBlockedOnCookie(
--        base::BindOnce(
--            &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
--            weak_factory_.GetWeakPtr()));
+-  if (switches::IsBoundSessionCredentialsEnabled() && request->SendsCookies()) {
+-    RequestBoundSessionStatus status = GetRequestBoundSessionStatus(
+-        request->url, dynamic_params_->bound_session_throttler_params.get());
+-    if (IsCoveredRequestBoundSessionStatus(status)) {
+-      is_covered_by_bound_session_ = true;
+-    }
+-    if (status == RequestBoundSessionStatus::kCoveredWithMissingCookie) {
+-      CHECK(bound_session_request_throttled_handler_);
+-      *defer = true;
+-      is_deferred_for_bound_session_ = true;
+-      CHECK(!bound_session_request_throttled_start_time_.has_value());
+-      bound_session_request_throttled_start_time_ = base::TimeTicks::Now();
+-      bound_session_request_throttled_handler_->HandleRequestBlockedOnCookie(
+-          base::BindOnce(
+-              &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
+-              weak_factory_.GetWeakPtr()));
+-    }
 -  }
 -#endif
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -177,52 +119,6 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -220,90 +157,12 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
@@ -122,30 +127,43 @@
 -  }
 -#endif
 -#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
--  if (switches::IsBoundSessionCredentialsEnabled() &&
--      ShouldDeferRequestForBoundSession(
--          redirect_info->new_url,
--          dynamic_params_->bound_session_throttler_params.get())) {
--    CHECK(bound_session_request_throttled_handler_);
--    *defer = true;
--    CHECK(!bound_session_request_throttled_start_time_.has_value());
--    bound_session_request_throttled_start_time_ = base::TimeTicks::Now();
--    bound_session_request_throttled_handler_->HandleRequestBlockedOnCookie(
--        base::BindOnce(
--            &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
--            weak_factory_.GetWeakPtr()));
+-  if (switches::IsBoundSessionCredentialsEnabled()) {
+-    RequestBoundSessionStatus status = GetRequestBoundSessionStatus(
+-        redirect_info->new_url,
+-        dynamic_params_->bound_session_throttler_params.get());
+-    if (IsCoveredRequestBoundSessionStatus(status)) {
+-      is_covered_by_bound_session_ = true;
+-    }
+-    if (status == RequestBoundSessionStatus::kCoveredWithMissingCookie) {
+-      CHECK(bound_session_request_throttled_handler_);
+-      *defer = true;
+-      is_deferred_for_bound_session_ = true;
+-      CHECK(!bound_session_request_throttled_start_time_.has_value());
+-      bound_session_request_throttled_start_time_ = base::TimeTicks::Now();
+-      bound_session_request_throttled_handler_->HandleRequestBlockedOnCookie(
+-          base::BindOnce(
+-              &GoogleURLLoaderThrottle::OnDeferRequestForBoundSessionCompleted,
+-              weak_factory_.GetWeakPtr()));
+-    }
 -  }
 -#endif
  }
  
- #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -230,23 +126,6 @@ void GoogleURLLoaderThrottle::WillProces
+ void GoogleURLLoaderThrottle::WillProcessResponse(
      const GURL& response_url,
      network::mojom::URLResponseHead* response_head,
      bool* defer) {
--  // Built-in additional protection for the chrome web store origin by ensuring
--  // that the X-Frame-Options protection mechanism is set to either DENY or
--  // SAMEORIGIN.
+-#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+-  if (is_covered_by_bound_session_) {
+-    RecordBoundSessionStatusMetrics(is_deferred_for_bound_session_,
+-                                    is_main_frame_navigation_);
+-  }
+-#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+-
+-#if BUILDFLAG(ENABLE_EXTENSIONS)
+-  // Built-in additional protection for the chrome web store origin by
+-  // ensuring that the X-Frame-Options protection mechanism is set to either
+-  // DENY or SAMEORIGIN.
 -  if (response_url.SchemeIsHTTPOrHTTPS() &&
 -      extension_urls::IsWebstoreDomain(response_url)) {
 -    // TODO(mkwst): Consider shifting this to a NavigationThrottle rather than
@@ -160,9 +178,10 @@
 -          network::mojom::XFrameOptionsValue::kSameOrigin;
 -    }
 -  }
+-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
  }
- #endif
  
+ #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
 @@ -31,110 +31,6 @@ namespace google_util {
@@ -513,13 +532,13 @@
 -
 -  return std::string(hostname_minus_registry.substr(
 -      0, hostname_minus_registry.length() - strlen(".google")));
-+  return absl::optional<std::string>();
++  return std::optional<std::string>();
  }
  
  bool IsGoogleHostname(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -562,11 +562,7 @@ std::u16string TemplateURLRef::SearchTer
+@@ -586,11 +586,7 @@ std::u16string TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
