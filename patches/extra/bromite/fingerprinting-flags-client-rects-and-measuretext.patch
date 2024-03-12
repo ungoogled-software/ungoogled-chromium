@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2541,6 +2541,7 @@ static_library("browser") {
+@@ -2552,6 +2552,7 @@ static_library("browser") {
      "//third_party/libyuv",
      "//third_party/metrics_proto",
      "//third_party/re2",
@@ -44,7 +44,7 @@
  #endif  // CHROME_BROWSER_BROMITE_FLAG_ENTRIES_H_
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -248,6 +248,7 @@ source_set("browser") {
+@@ -250,6 +250,7 @@ source_set("browser") {
      "//third_party/libyuv",
      "//third_party/re2",
      "//third_party/sqlite",
@@ -62,7 +62,7 @@
  #include "components/viz/common/switches.h"
  #include "components/viz/host/gpu_client.h"
  #include "content/browser/bad_message.h"
-@@ -3466,6 +3467,8 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3441,6 +3442,8 @@ void RenderProcessHostImpl::PropagateBro
      switches::kEnableWebGLImageChromium,
      switches::kEnableWebGPUDeveloperFeatures,
      switches::kFileUrlPathAlias,
@@ -91,8 +91,8 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/events/blink/blink_features.h"
-@@ -509,6 +510,10 @@ void SetRuntimeFeaturesFromCommandLine(c
-        switches::kEnableWebGPUDeveloperFeatures, true},
+@@ -506,6 +507,10 @@ void SetRuntimeFeaturesFromCommandLine(c
+        true},
        {wrf::EnableDirectSockets, switches::kEnableIsolatedWebAppsInRenderer,
         true},
 +      {wrf::EnableFingerprintingClientRectsNoise,
@@ -116,7 +116,7 @@
  
 --- a/third_party/blink/renderer/core/dom/document.cc
 +++ b/third_party/blink/renderer/core/dom/document.cc
-@@ -39,6 +39,7 @@
+@@ -40,6 +40,7 @@
  #include "base/i18n/time_formatting.h"
  #include "base/metrics/histogram_functions.h"
  #include "base/notreached.h"
@@ -124,8 +124,8 @@
  #include "base/ranges/algorithm.h"
  #include "base/task/single_thread_task_runner.h"
  #include "base/time/time.h"
-@@ -954,6 +955,14 @@ Range* Document::CreateRangeAdjustedToTr
-                                      Position::BeforeNode(*shadow_host));
+@@ -1041,6 +1042,14 @@ const Position Document::PositionAdjuste
+   return Position::BeforeNode(*shadow_host);
  }
  
 +double Document::GetNoiseFactorX() {
@@ -139,7 +139,7 @@
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
-@@ -2357,6 +2366,15 @@ void Document::UpdateStyleAndLayoutTreeF
+@@ -2474,6 +2483,15 @@ void Document::UpdateStyleAndLayoutTreeF
  #if DCHECK_IS_ON()
    AssertLayoutTreeUpdated(*this, true /* allow_dirty_container_subtrees */);
  #endif
@@ -157,7 +157,7 @@
  void Document::InvalidateStyleAndLayoutForFontUpdates() {
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -529,6 +529,10 @@ class CORE_EXPORT Document : public Cont
+@@ -531,6 +531,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -168,7 +168,7 @@
    AtomicString visibilityState() const;
    bool IsPageVisible() const;
    bool hidden() const;
-@@ -2462,6 +2466,9 @@ class CORE_EXPORT Document : public Cont
+@@ -2507,6 +2511,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -180,7 +180,7 @@
  
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -2409,6 +2409,11 @@ DOMRectList* Element::getClientRects() {
+@@ -2342,6 +2342,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustQuadsForScrollAndAbsoluteZoom(quads,
                                                      *element_layout_object);
@@ -192,7 +192,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -2436,6 +2441,9 @@ gfx::RectF Element::GetBoundingClientRec
+@@ -2369,6 +2374,9 @@ gfx::RectF Element::GetBoundingClientRec
    DCHECK(element_layout_object);
    GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
                                                     *element_layout_object);
@@ -204,7 +204,7 @@
  
 --- a/third_party/blink/renderer/core/dom/range.cc
 +++ b/third_party/blink/renderer/core/dom/range.cc
-@@ -1622,6 +1622,12 @@ DOMRectList* Range::getClientRects() con
+@@ -1624,6 +1624,12 @@ DOMRectList* Range::getClientRects() con
    Vector<gfx::QuadF> quads;
    GetBorderAndTextQuads(quads);
  
@@ -217,7 +217,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -1629,7 +1635,11 @@ DOMRect* Range::getBoundingClientRect()
+@@ -1631,7 +1637,11 @@ DOMRect* Range::getBoundingClientRect()
    // TODO(crbug.com/1499981): This should be removed once synchronized scrolling
    // impact is understood.
    SyncScrollAttemptHeuristic::DidAccessScrollOffset();
@@ -270,7 +270,7 @@
                const TextDirection&,
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
-@@ -69,6 +69,9 @@
+@@ -75,6 +75,9 @@
  #include "ui/gfx/geometry/quad_f.h"
  #include "ui/gfx/geometry/skia_conversions.h"
  
@@ -280,7 +280,7 @@
  namespace blink {
  
  BASE_FEATURE(kDisableCanvasOverdrawOptimization,
-@@ -3031,8 +3034,22 @@ TextMetrics* BaseRenderingContext2D::mea
+@@ -3163,8 +3166,22 @@ TextMetrics* BaseRenderingContext2D::mea
    const CanvasRenderingContext2DState& state = GetState();
    TextDirection direction = ToTextDirection(state.GetDirection(), canvas);
  
@@ -307,7 +307,7 @@
  void BaseRenderingContext2D::SnapshotStateForFilter() {
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1705,6 +1705,7 @@ component("platform") {
+@@ -1708,6 +1708,7 @@ component("platform") {
      "//cc/mojo_embedder",
      "//components/paint_preview/common",
      "//components/search_engines:search_engine_utils",
@@ -332,7 +332,7 @@
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -1792,6 +1792,12 @@
+@@ -1753,6 +1753,12 @@
        status: "experimental",
      },
      {

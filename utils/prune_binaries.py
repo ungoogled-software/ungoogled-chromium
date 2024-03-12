@@ -96,7 +96,9 @@ def prune_dirs(unpack_root):
     """
     for pycache in unpack_root.rglob('__pycache__'):
         _prune_path(pycache)
+    get_logger().info('Removing Contingent Paths')
     for cpath in CONTINGENT_PATHS:
+        get_logger().info('%s: %s', 'Exists' if Path(cpath).exists() else 'Absent', cpath)
         _prune_path(unpack_root / cpath)
 
 

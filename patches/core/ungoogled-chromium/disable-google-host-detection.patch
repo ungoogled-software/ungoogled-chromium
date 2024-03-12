@@ -91,7 +91,7 @@
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -220,90 +157,12 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -220,95 +157,12 @@ void GoogleURLLoaderThrottle::WillRedire
      std::vector<std::string>* to_be_removed_headers,
      net::HttpRequestHeaders* modified_headers,
      net::HttpRequestHeaders* modified_cors_exempt_headers) {
@@ -157,6 +157,11 @@
 -  if (is_covered_by_bound_session_) {
 -    RecordBoundSessionStatusMetrics(is_deferred_for_bound_session_,
 -                                    is_main_frame_navigation_);
+-  }
+-  if (deferred_request_resume_trigger_) {
+-    UMA_HISTOGRAM_ENUMERATION(
+-        "Signin.BoundSessionCredentials.DeferredRequestUnblockTrigger.Success",
+-        deferred_request_resume_trigger_.value());
 -  }
 -#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 -
@@ -300,7 +305,7 @@
  
  bool HasGoogleSearchQueryParam(base::StringPiece str) {
 -  url::Component query(0, static_cast<int>(str.length())), key, value;
--  while (url::ExtractQueryKeyValue(str.data(), &query, &key, &value)) {
+-  while (url::ExtractQueryKeyValue(str, &query, &key, &value)) {
 -    base::StringPiece key_str = str.substr(key.begin, key.len);
 -    if (key_str == "q" || key_str == "as_q" || key_str == "imgurl")
 -      return true;
@@ -487,7 +492,7 @@
  }
  
  bool IsGoogleSearchHostname(const GURL& url) {
--  absl::optional<std::string> result =
+-  std::optional<std::string> result =
 -      page_load_metrics::GetGoogleHostnamePrefix(url);
 -  return result && result.value() == "www";
 +  return false;
@@ -499,7 +504,7 @@
 @@ -24,38 +24,7 @@ const int kExtraBufferTimerDelayMillis =
  }  // namespace
  
- absl::optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
+ std::optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
 -  const size_t registry_length =
 -      net::registry_controlled_domains::GetRegistryLength(
 -          url,
@@ -515,7 +520,7 @@
 -  const base::StringPiece hostname = url.host_piece();
 -  if (registry_length == 0 || registry_length == std::string::npos ||
 -      registry_length >= hostname.length()) {
--    return absl::optional<std::string>();
+-    return std::optional<std::string>();
 -  }
 -
 -  // Removes the tld and the preceding dot.
@@ -527,7 +532,7 @@
 -
 -  if (!base::EndsWith(hostname_minus_registry, ".google",
 -                      base::CompareCase::INSENSITIVE_ASCII)) {
--    return absl::optional<std::string>();
+-    return std::optional<std::string>();
 -  }
 -
 -  return std::string(hostname_minus_registry.substr(
@@ -657,7 +662,7 @@
  }  // namespace variations
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc
-@@ -491,28 +491,6 @@ bool HasGoogleHost(const GURL& url) {
+@@ -489,28 +489,6 @@ bool HasGoogleHost(const GURL& url) {
  }
  
  bool IsGoogleHost(std::string_view host) {

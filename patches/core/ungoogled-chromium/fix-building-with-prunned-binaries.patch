@@ -3,7 +3,7 @@
 
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -938,8 +938,6 @@ if (is_win) {
+@@ -929,8 +929,6 @@ if (is_win) {
  
    bundle_data("chrome_framework_resources") {
      sources = [
@@ -14,7 +14,7 @@
        # from disk image and Keystone promotion (if so enabled).  It
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -845,10 +845,6 @@ static_library("browser") {
+@@ -851,10 +851,6 @@ static_library("browser") {
      "navigation_predictor/navigation_predictor_metrics_document_data.h",
      "navigation_predictor/navigation_predictor_preconnect_client.cc",
      "navigation_predictor/navigation_predictor_preconnect_client.h",
@@ -25,6 +25,17 @@
      "navigation_predictor/search_engine_preconnector.cc",
      "navigation_predictor/search_engine_preconnector.h",
      "net/chrome_mojo_proxy_resolver_factory.cc",
+@@ -965,10 +961,6 @@ static_library("browser") {
+     "optimization_guide/chrome_prediction_model_store.h",
+     "optimization_guide/model_execution/chrome_on_device_model_service_controller.cc",
+     "optimization_guide/model_execution/chrome_on_device_model_service_controller.h",
+-    "optimization_guide/model_validator_keyed_service.cc",
+-    "optimization_guide/model_validator_keyed_service.h",
+-    "optimization_guide/model_validator_keyed_service_factory.cc",
+-    "optimization_guide/model_validator_keyed_service_factory.h",
+     "optimization_guide/optimization_guide_internals_ui.cc",
+     "optimization_guide/optimization_guide_internals_ui.h",
+     "optimization_guide/optimization_guide_keyed_service.cc",
 --- a/chrome/browser/navigation_predictor/navigation_predictor.cc
 +++ b/chrome/browser/navigation_predictor/navigation_predictor.cc
 @@ -17,8 +17,6 @@
@@ -36,7 +47,7 @@
  #include "chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.h"
  #include "chrome/browser/preloading/preloading_prefs.h"
  #include "chrome/browser/profiles/profile.h"
-@@ -88,11 +86,6 @@ base::TimeDelta MLModelExecutionTimerSta
+@@ -93,11 +91,6 @@ base::TimeDelta MLModelExecutionTimerSta
    return base::Milliseconds(timer_start_delay);
  }
  
@@ -48,7 +59,7 @@
  
  }  // namespace
  
-@@ -309,69 +302,6 @@ void NavigationPredictor::ProcessPointer
+@@ -317,69 +310,6 @@ void NavigationPredictor::ProcessPointer
  }
  
  void NavigationPredictor::OnMLModelExecutionTimerFired() {
@@ -118,73 +129,6 @@
  }
  
  void NavigationPredictor::SetModelScoreCallbackForTesting(
---- a/chrome/browser/optimization_guide/model_validator_keyed_service.cc
-+++ b/chrome/browser/optimization_guide/model_validator_keyed_service.cc
-@@ -33,39 +33,6 @@ namespace optimization_guide {
- 
- ModelValidatorKeyedService::ModelValidatorKeyedService(Profile* profile)
-     : profile_(profile) {
--  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
--  DCHECK(ShouldStartModelValidator());
--  auto* opt_guide_service =
--      OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
--  if (!opt_guide_service) {
--    return;
--  }
--#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
--  if (switches::ShouldValidateModel()) {
--    // Create the validator object which will get destroyed when the model
--    // load is complete.
--    new ModelValidatorHandler(
--        opt_guide_service,
--        base::ThreadPool::CreateSequencedTaskRunner(
--            {base::MayBlock(), base::TaskPriority::BEST_EFFORT}));
--  }
--#endif  // BUILD_WITH_TFLITE_LIB
--  if (switches::ShouldValidateModelExecution()) {
--    auto* identity_manager = IdentityManagerFactory::GetForProfile(profile_);
--    if (!identity_manager) {
--      return;
--    }
--    if (!identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
--      identity_manager_observation_.Observe(identity_manager);
--      return;
--    }
--    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
--        FROM_HERE,
--        base::BindOnce(
--            &ModelValidatorKeyedService::StartModelExecutionValidation,
--            weak_ptr_factory_.GetWeakPtr()),
--        kModelExecutionValidationStartupDelay);
--  }
- }
- 
- ModelValidatorKeyedService::~ModelValidatorKeyedService() = default;
-@@ -92,24 +59,6 @@ void ModelValidatorKeyedService::OnPrima
- }
- 
- void ModelValidatorKeyedService::StartModelExecutionValidation() {
--  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
--  auto* opt_guide_service =
--      OptimizationGuideKeyedServiceFactory::GetForProfile(profile_);
--  if (!opt_guide_service) {
--    return;
--  }
--  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
--  std::string model_execution_input =
--      command_line->GetSwitchValueASCII(switches::kModelExecutionValidate);
--  if (model_execution_input.empty()) {
--    return;
--  }
--  proto::StringValue request;
--  request.set_value(model_execution_input);
--  opt_guide_service->ExecuteModel(
--      proto::ModelExecutionFeature::MODEL_EXECUTION_FEATURE_TEST, request,
--      base::BindOnce(&ModelValidatorKeyedService::OnModelExecuteResponse,
--                     weak_ptr_factory_.GetWeakPtr()));
- }
- 
- void ModelValidatorKeyedService::OnModelExecuteResponse(
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 @@ -92,7 +92,6 @@
@@ -195,7 +139,7 @@
  #include "chrome/browser/net/dns_probe_service_factory.h"
  #include "chrome/browser/net/profile_network_context_service_factory.h"
  #include "chrome/browser/notifications/metrics/notification_metrics_logger_factory.h"
-@@ -917,7 +916,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -919,7 +918,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #endif
    ModelTypeStoreServiceFactory::GetInstance();
    NavigationPredictorKeyedServiceFactory::GetInstance();
@@ -203,6 +147,16 @@
  #if BUILDFLAG(IS_CHROMEOS_ASH)
    NearbySharingServiceFactory::GetInstance();
    if (base::FeatureList::IsEnabled(ash::features::kNearbyPresence)) {
+@@ -966,9 +964,6 @@ void ChromeBrowserMainExtraPartsProfiles
+   }
+ #endif
+   OpenerHeuristicServiceFactory::GetInstance();
+-  if (optimization_guide::ShouldStartModelValidator()) {
+-    optimization_guide::ModelValidatorKeyedServiceFactory::GetInstance();
+-  }
+   OptimizationGuideKeyedServiceFactory::GetInstance();
+   OriginKeyedPermissionActionServiceFactory::GetInstance();
+   OriginTrialsFactory::GetInstance();
 --- a/chrome/browser/profiles/profile_manager.cc
 +++ b/chrome/browser/profiles/profile_manager.cc
 @@ -48,7 +48,6 @@
@@ -213,15 +167,26 @@
  #include "chrome/browser/permissions/adaptive_quiet_notification_permission_ui_enabler.h"
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
  #include "chrome/browser/profiles/delete_profile_helper.h"
-@@ -1566,9 +1565,6 @@ void ProfileManager::DoFinalInitForServi
-   }
- #endif  // !BUILDFLAG(IS_ANDROID)
+@@ -1550,9 +1549,6 @@ void ProfileManager::DoFinalInitForServi
+   // Ensure NavigationPredictorKeyedService is started.
+   NavigationPredictorKeyedServiceFactory::GetForProfile(profile);
  
 -  // Ensure PreloadingModelKeyedService is started.
 -  PreloadingModelKeyedServiceFactory::GetForProfile(profile);
 -
    IdentityManagerFactory::GetForProfile(profile)->OnNetworkInitialized();
    AccountReconcilorFactory::GetForProfile(profile);
+ 
+--- a/chrome/browser/resources/settings/a11y_page/a11y_page.ts
++++ b/chrome/browser/resources/settings/a11y_page/a11y_page.ts
+@@ -231,7 +231,7 @@ export class SettingsA11yPageElement ext
+    * page; i.e. Settings > Accessibility > Text-to-Speech.
+    */
+   private computeShowPdfOcrToggle_(): boolean {
+-    return loadTimeData.getBoolean('pdfOcrEnabled') && this.hasScreenReader_;
++    return false;
+   }
+   // </if>
  
 --- a/chrome/browser/ui/webui/omnibox/omnibox_page_handler.cc
 +++ b/chrome/browser/ui/webui/omnibox/omnibox_page_handler.cc
@@ -233,7 +198,7 @@
  #include "components/omnibox/browser/omnibox_field_trial.h"
  #include "components/search_engines/template_url.h"
  #include "content/public/browser/web_ui.h"
-@@ -500,31 +499,12 @@ void OmniboxPageHandler::StartOmniboxQue
+@@ -498,31 +497,12 @@ void OmniboxPageHandler::StartOmniboxQue
  }
  
  void OmniboxPageHandler::GetMlModelVersion(GetMlModelVersionCallback callback) {
@@ -265,7 +230,7 @@
  }
  
  std::unique_ptr<AutocompleteController> OmniboxPageHandler::CreateController(
-@@ -549,8 +529,5 @@ OmniboxPageHandler::GetAutocompleteContr
+@@ -547,8 +527,5 @@ OmniboxPageHandler::GetAutocompleteContr
  }
  
  AutocompleteScoringModelService* OmniboxPageHandler::GetMlService() {
@@ -275,17 +240,163 @@
 -             : nullptr;
 +  return nullptr;
  }
+--- a/chrome/browser/ui/webui/settings/accessibility_main_handler.cc
++++ b/chrome/browser/ui/webui/settings/accessibility_main_handler.cc
+@@ -39,13 +39,6 @@ void AccessibilityMainHandler::RegisterM
+       base::BindRepeating(
+           &AccessibilityMainHandler::HandleCheckAccessibilityImageLabels,
+           base::Unretained(this)));
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  web_ui()->RegisterMessageCallback(
+-      "getScreenAiInstallState",
+-      base::BindRepeating(
+-          &AccessibilityMainHandler::HandleGetScreenAIInstallState,
+-          base::Unretained(this)));
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ }
+ 
+ void AccessibilityMainHandler::OnJavascriptAllowed() {
+@@ -56,13 +49,6 @@ void AccessibilityMainHandler::OnJavascr
+           base::Unretained(this)));
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  if (features::IsPdfOcrEnabled()) {
+-    CHECK(!component_ready_observer_.IsObserving());
+-    component_ready_observer_.Observe(
+-        screen_ai::ScreenAIInstallState::GetInstance());
+-  }
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ }
+ 
+ void AccessibilityMainHandler::OnJavascriptDisallowed() {
+@@ -70,40 +56,7 @@ void AccessibilityMainHandler::OnJavascr
+   accessibility_subscription_ = {};
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  if (features::IsPdfOcrEnabled()) {
+-    component_ready_observer_.Reset();
+-  }
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-}
+-
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-void AccessibilityMainHandler::DownloadProgressChanged(double progress) {
+-  CHECK_GE(progress, 0.0);
+-  CHECK_LE(progress, 1.0);
+-  const int progress_num = progress * 100;
+-  FireWebUIListener("pdf-ocr-downloading-progress-changed",
+-                    base::Value(progress_num));
+-}
+-
+-void AccessibilityMainHandler::StateChanged(
+-    screen_ai::ScreenAIInstallState::State state) {
+-  base::Value state_value = base::Value(static_cast<int>(state));
+-  FireWebUIListener("pdf-ocr-state-changed", state_value);
+-}
+-
+-void AccessibilityMainHandler::HandleGetScreenAIInstallState(
+-    const base::Value::List& args) {
+-  CHECK_EQ(1U, args.size());
+-  const base::Value& callback_id = args[0];
+-  AllowJavascript();
+-  // Get the current install state and send it back to a UI callback.
+-  screen_ai::ScreenAIInstallState::State current_install_state =
+-      screen_ai::ScreenAIInstallState::GetInstance()->get_state();
+-  ResolveJavascriptCallback(
+-      callback_id, base::Value(static_cast<int>(current_install_state)));
+ }
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ 
+ void AccessibilityMainHandler::HandleGetScreenReaderState(
+     const base::Value::List& args) {
+--- a/chrome/browser/ui/webui/settings/accessibility_main_handler.h
++++ b/chrome/browser/ui/webui/settings/accessibility_main_handler.h
+@@ -13,10 +13,6 @@
+ #include "chrome/browser/ash/accessibility/accessibility_manager.h"
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-#include "base/scoped_observation.h"
+-#include "chrome/browser/screen_ai/screen_ai_install_state.h"
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ 
+ namespace settings {
+ 
+@@ -24,10 +20,6 @@ namespace settings {
+ // chrome://settings/accessibility.
+ class AccessibilityMainHandler
+     : public ::settings::SettingsPageUIHandler
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-    ,
+-      public screen_ai::ScreenAIInstallState::Observer
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ {
+  public:
+   AccessibilityMainHandler();
+@@ -40,11 +32,6 @@ class AccessibilityMainHandler
+   void OnJavascriptAllowed() override;
+   void OnJavascriptDisallowed() override;
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  // screen_ai::ScreenAIInstallState::Observer:
+-  void DownloadProgressChanged(double progress) override;
+-  void StateChanged(screen_ai::ScreenAIInstallState::State state) override;
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ 
+  private:
+   void HandleGetScreenReaderState(const base::Value::List& args);
+@@ -63,11 +50,6 @@ class AccessibilityMainHandler
+   base::CallbackListSubscription accessibility_subscription_;
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  base::ScopedObservation<screen_ai::ScreenAIInstallState,
+-                          screen_ai::ScreenAIInstallState::Observer>
+-      component_ready_observer_{this};
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ };
+ 
+ }  // namespace settings
+--- a/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.cc
++++ b/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.cc
+@@ -15,8 +15,6 @@
+ #include "base/values.h"
+ #include "chrome/browser/browser_features.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/screen_ai/screen_ai_service_router.h"
+-#include "chrome/browser/screen_ai/screen_ai_service_router_factory.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_finder.h"
+ #include "chrome/browser/ui/views/side_panel/read_anything/read_anything_controller.h"
+@@ -204,15 +202,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
+         highlightGranularity);
+   }
+ 
+-  if (features::IsReadAnythingWithScreen2xEnabled()) {
+-    screen_ai::ScreenAIServiceRouterFactory::GetForBrowserContext(
+-        browser_->profile())
+-        ->GetServiceStateAsync(
+-            screen_ai::ScreenAIServiceRouter::Service::kMainContentExtraction,
+-            base::BindOnce(
+-                &ReadAnythingUntrustedPageHandler::OnScreenAIServiceInitialized,
+-                weak_factory_.GetWeakPtr()));
+-  }
+ 
+   OnActiveWebContentsChanged();
+ }
 --- a/chrome/test/BUILD.gn
 +++ b/chrome/test/BUILD.gn
-@@ -3114,13 +3114,6 @@ if (!is_android && !is_fuchsia) {
+@@ -3107,13 +3107,6 @@ if (!is_android) {
          "//pdf/loader",
        ]
  
--      if (is_linux) {
--        # Add a data dependency for pdf_extension_accessibility_test.cc to
--        # notify testing builders that this test needs this library, which will
--        # need to be downloaded from CIPD as defined in //DEPS.
--        data_deps += [ "//third_party/screen-ai:screen_ai_linux" ]
+-      # Add a data dependency for pdf_extension_accessibility_test.cc to notify
+-      # testing builders that this test needs this library, which will need to
+-      # be downloaded from CIPD as defined in //DEPS.
+-      if (is_linux || is_mac) {
+-        data_deps += [ "//third_party/screen-ai:screen_ai" ]
 -      }
 -
        if (enable_printing) {
@@ -293,7 +404,7 @@
  
 --- a/chrome/test/chromedriver/BUILD.gn
 +++ b/chrome/test/chromedriver/BUILD.gn
-@@ -397,7 +397,7 @@ source_set("lib") {
+@@ -398,7 +398,7 @@ source_set("lib") {
    }
  }
  
@@ -325,14 +436,32 @@
    AutocompleteInput input(text, page_classification, *scheme_classifier_);
 --- a/components/omnibox/browser/autocomplete_controller.cc
 +++ b/components/omnibox/browser/autocomplete_controller.cc
-@@ -43,7 +43,6 @@
- #include "components/omnibox/browser/autocomplete_input.h"
+@@ -46,7 +46,6 @@
  #include "components/omnibox/browser/autocomplete_match_type.h"
  #include "components/omnibox/browser/autocomplete_provider.h"
+ #include "components/omnibox/browser/autocomplete_provider_client.h"
 -#include "components/omnibox/browser/autocomplete_scoring_model_service.h"
  #include "components/omnibox/browser/autocomplete_scoring_signals_annotator.h"
  #include "components/omnibox/browser/bookmark_provider.h"
  #include "components/omnibox/browser/bookmark_scoring_signals_annotator.h"
+--- a/components/services/screen_ai/buildflags/features.gni
++++ b/components/services/screen_ai/buildflags/features.gni
+@@ -8,12 +8,12 @@ import("//build/config/sanitizers/saniti
+ 
+ declare_args() {
+   # Screen AI service is only supported on desktop platforms.
+-  enable_screen_ai_service = is_linux || is_mac || is_chromeos || is_win
++  enable_screen_ai_service = false
+ 
+   # Screen AI library is not yet available for browser tests on Windows and
+   #  ChromeOS.
+-  enable_screen_ai_browsertests = is_linux || is_mac
++  enable_screen_ai_browsertests = false
+ 
+   # Screen AI library is not available for MSAN and UBSAN.
+-  use_fake_screen_ai = is_msan || is_ubsan || is_ubsan_vptr || is_ubsan_security
++  use_fake_screen_ai = false
+ }
 --- a/components/update_client/BUILD.gn
 +++ b/components/update_client/BUILD.gn
 @@ -312,8 +312,6 @@ source_set("unit_tests") {
@@ -346,7 +475,7 @@
  fuzzer_test("update_client_protocol_serializer_fuzzer") {
 --- a/content/shell/BUILD.gn
 +++ b/content/shell/BUILD.gn
-@@ -739,10 +739,6 @@ if (is_apple) {
+@@ -736,10 +736,6 @@ if (is_apple) {
        deps = [ "//third_party/icu:icudata" ]
      }
  
