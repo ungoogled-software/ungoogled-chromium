@@ -17,6 +17,7 @@ from stat import S_IWRITE
 from subprocess import run
 
 from _common import add_common_params, get_chromium_version, get_logger
+from prune_binaries import CONTINGENT_PATHS
 
 # Config file for gclient
 # Instances of 'src' replaced with UC_OUT, which will be replaced with the output directory
@@ -226,6 +227,9 @@ def clone(args):
             (args.output / 'v8' / 'test' / 'torque' / 'test-torque.tq'),
         )
         keep_suffix = ('.gn', '.gni', '.grd', '.gyp', '.isolate', '.pydeps')
+        # Include Contingent Paths
+        for cpath in CONTINGENT_PATHS:
+            remove_dirs += (args.output / Path(cpath), )
         for remove_dir in remove_dirs:
             for path in sorted(remove_dir.rglob('*'), key=lambda l: len(str(l)), reverse=True):
                 if path.is_file() and path not in keep_files and path.suffix not in keep_suffix:
