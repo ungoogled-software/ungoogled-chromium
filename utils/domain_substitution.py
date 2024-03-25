@@ -107,17 +107,55 @@ def _substitute_path(path, regex_iter):
                 continue
         if not content:
             raise UnicodeDecodeError('Unable to decode with any encoding: %s' % path)
+
+        # list that will contain the comments
+        comments = []
+        replace_comments = (path.suffix == '.java' or path.suffix == '.cc' or path.suffix == '.h'
+                            or path.suffix == '.js' or path.suffix == '.cpp' or path.suffix == '.c')
+        if replace_comments:
+            content = re.sub(
+                r'(\/\*.*?\*/\n|\s\/\/[^\n]+)',
+                lambda match: _replace_comments(comments, match.group(0)),
+                content,
+                flags=re.DOTALL)
+        if path.suffix == '.py' or path.suffix == '.gn':
+            content = re.sub(
+                # docstrings not supported
+                r'\s\#[^\n]+',
+                lambda match: _replace_comments(comments, match.group(0)),
+                content,
+                flags=re.DOTALL)
+            replace_comments = True
+
         file_subs = 0
         for regex_pair in regex_iter:
             content, sub_count = regex_pair.pattern.subn(regex_pair.replacement, content)
             file_subs += sub_count
         if file_subs > 0:
+            if replace_comments:
+                # restore comments
+                content = re.sub(PLACE_HOLDER + r'(\d+):',
+                                 lambda match: _restore_comments(comments, match.group(1)), content)
+
             substituted_content = content.encode(encoding)
             input_file.seek(0)
             input_file.write(content.encode(encoding))
             input_file.truncate()
             return (zlib.crc32(substituted_content), original_content)
         return (None, None)
+
+
+# use a randomized placeholder for comment replacements
+PLACE_HOLDER = ':C7yae7ozv:'
+
+
+def _replace_comments(comments, comment):
+    comments.append(comment)
+    return PLACE_HOLDER + str(len(comments)) + ':'
+
+
+def _restore_comments(comments, index):
+    return comments[int(index) - 1]
 
 
 def _validate_file_index(index_file, resolved_tree, cache_index_files):
