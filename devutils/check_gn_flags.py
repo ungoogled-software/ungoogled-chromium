@@ -63,12 +63,11 @@ def main():
     default_flags_gn = root_dir / 'flags.gn'
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '-f',
-        '--flags-gn',
-        type=Path,
-        default=default_flags_gn,
-        help='Path to the GN flags to use. Default: %(default)s')
+    parser.add_argument('-f',
+                        '--flags-gn',
+                        type=Path,
+                        default=default_flags_gn,
+                        help='Path to the GN flags to use. Default: %(default)s')
     args = parser.parse_args()
 
     if check_gn_flags(args.flags_gn):

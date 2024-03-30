@@ -127,8 +127,8 @@ def unmerge_platform_patches(platform_patches_dir):
         get_logger().error('Unable to find series.merged at: %s',
                            platform_patches_dir / _SERIES_MERGED)
         return False
-    new_series = filter(
-        len, (platform_patches_dir / _SERIES_MERGED).read_text(encoding=ENCODING).splitlines())
+    new_series = filter(len, (platform_patches_dir /
+                              _SERIES_MERGED).read_text(encoding=ENCODING).splitlines())
     new_series = filter((lambda x: x not in prepend_series), new_series)
     new_series = list(new_series)
     series_index = 0
@@ -157,14 +157,12 @@ def unmerge_platform_patches(platform_patches_dir):
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        'command',
-        choices=('merge', 'unmerge'),
-        help='Merge or unmerge ungoogled-chromium patches with platform patches')
-    parser.add_argument(
-        'platform_patches',
-        type=Path,
-        help='The path to the platform patches in GNU Quilt format to merge into')
+    parser.add_argument('command',
+                        choices=('merge', 'unmerge'),
+                        help='Merge or unmerge ungoogled-chromium patches with platform patches')
+    parser.add_argument('platform_patches',
+                        type=Path,
+                        help='The path to the platform patches in GNU Quilt format to merge into')
     args = parser.parse_args()
 
     repo_dir = Path(__file__).resolve().parent.parent

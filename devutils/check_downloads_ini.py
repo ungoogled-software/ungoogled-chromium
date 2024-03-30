@@ -46,13 +46,12 @@ def main():
     default_downloads_ini = [str(root_dir / 'downloads.ini')]
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '-d',
-        '--downloads-ini',
-        type=Path,
-        nargs='*',
-        default=default_downloads_ini,
-        help='List of downloads.ini files to check. Default: %(default)s')
+    parser.add_argument('-d',
+                        '--downloads-ini',
+                        type=Path,
+                        nargs='*',
+                        default=default_downloads_ini,
+                        help='List of downloads.ini files to check. Default: %(default)s')
     args = parser.parse_args()
 
     if check_downloads_ini(args.downloads_ini):

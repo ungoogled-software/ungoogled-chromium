@@ -322,31 +322,27 @@ def compute_lists(source_tree, search_regex, processes):
 def main(args_list=None):
     """CLI entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '--pruning',
-        metavar='PATH',
-        type=Path,
-        default='pruning.list',
-        help='The path to store pruning.list. Default: %(default)s')
-    parser.add_argument(
-        '--domain-substitution',
-        metavar='PATH',
-        type=Path,
-        default='domain_substitution.list',
-        help='The path to store domain_substitution.list. Default: %(default)s')
-    parser.add_argument(
-        '--domain-regex',
-        metavar='PATH',
-        type=Path,
-        default='domain_regex.list',
-        help='The path to domain_regex.list. Default: %(default)s')
-    parser.add_argument(
-        '-t',
-        '--tree',
-        metavar='PATH',
-        type=Path,
-        required=True,
-        help='The path to the source tree to use.')
+    parser.add_argument('--pruning',
+                        metavar='PATH',
+                        type=Path,
+                        default='pruning.list',
+                        help='The path to store pruning.list. Default: %(default)s')
+    parser.add_argument('--domain-substitution',
+                        metavar='PATH',
+                        type=Path,
+                        default='domain_substitution.list',
+                        help='The path to store domain_substitution.list. Default: %(default)s')
+    parser.add_argument('--domain-regex',
+                        metavar='PATH',
+                        type=Path,
+                        default='domain_regex.list',
+                        help='The path to domain_regex.list. Default: %(default)s')
+    parser.add_argument('-t',
+                        '--tree',
+                        metavar='PATH',
+                        type=Path,
+                        required=True,
+                        help='The path to the source tree to use.')
     parser.add_argument(
         '--processes',
         metavar='NUM',
@@ -354,17 +350,15 @@ def main(args_list=None):
         default=None,
         help=
         'The maximum number of worker processes to create. Defaults to the number of system CPUs.')
-    parser.add_argument(
-        '--domain-exclude-prefix',
-        metavar='PREFIX',
-        type=str,
-        action='append',
-        help='Additional exclusion for domain_substitution.list.')
-    parser.add_argument(
-        '--no-error-unused',
-        action='store_false',
-        dest='error_unused',
-        help='Do not treat unused patterns/prefixes as an error.')
+    parser.add_argument('--domain-exclude-prefix',
+                        metavar='PREFIX',
+                        type=str,
+                        action='append',
+                        help='Additional exclusion for domain_substitution.list.')
+    parser.add_argument('--no-error-unused',
+                        action='store_false',
+                        dest='error_unused',
+                        help='Do not treat unused patterns/prefixes as an error.')
     args = parser.parse_args(args_list)
     if args.domain_exclude_prefix is not None:
         DOMAIN_EXCLUDE_PREFIXES.extend(args.domain_exclude_prefix)

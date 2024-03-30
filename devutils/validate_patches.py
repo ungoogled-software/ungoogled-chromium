@@ -38,7 +38,6 @@ try:
 
     class _VerboseRetry(urllib3.util.Retry):
         """A more verbose version of HTTP Adatper about retries"""
-
         def sleep_for_retry(self, response=None):
             """Sleeps for Retry-After, and logs the sleep time"""
             if response:
@@ -61,13 +60,12 @@ try:
     def _get_requests_session():
         session = requests.Session()
         http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=_VerboseRetry(
-                total=10,
-                read=10,
-                connect=10,
-                backoff_factor=8,
-                status_forcelist=urllib3.Retry.RETRY_AFTER_STATUS_CODES,
-                raise_on_status=False))
+            max_retries=_VerboseRetry(total=10,
+                                      read=10,
+                                      connect=10,
+                                      backoff_factor=8,
+                                      status_forcelist=urllib3.Retry.RETRY_AFTER_STATUS_CODES,
+                                      raise_on_status=False))
         session.mount('http://', http_adapter)
         session.mount('https://', http_adapter)
         return session
@@ -126,7 +124,6 @@ def _validate_deps(deps_text):
 
 def _deps_var(deps_globals):
     """Return a function that implements DEPS's Var() function"""
-
     def _var_impl(var_name):
         """Implementation of Var() in DEPS"""
         return deps_globals['vars'][var_name]
@@ -445,8 +442,9 @@ def _retrieve_remote_files(file_iter):
                     last_progress = current_progress
                     logger.info('%d files downloaded', current_progress)
             try:
-                files[file_path] = _download_source_file(
-                    download_session, root_deps_tree, fallback_repo_manager, file_path).split('\n')
+                files[file_path] = _download_source_file(download_session, root_deps_tree,
+                                                         fallback_repo_manager,
+                                                         file_path).split('\n')
             except _NotInRepoError:
                 get_logger().warning('Could not find "%s" remotely. Skipping...', file_path)
     return files
@@ -580,10 +578,9 @@ def _test_patches(series_iter, patch_cache, files_under_test):
                 return True
             except: #pylint: disable=bare-except
                 get_logger().warning('Patch failed validation: %s', patch_path_str)
-                get_logger().debug(
-                    'Specifically, file "%s" caused exception while applying:',
-                    patched_file.path,
-                    exc_info=True)
+                get_logger().debug('Specifically, file "%s" caused exception while applying:',
+                                   patched_file.path,
+                                   exc_info=True)
                 return True
     return False
 
@@ -599,8 +596,9 @@ def _load_all_patches(series_iter, patches_dir):
     for relative_path in series_iter:
         if relative_path in unidiff_dict:
             continue
-        unidiff_dict[relative_path] = unidiff.PatchSet.from_filename(
-            str(patches_dir / relative_path), encoding=ENCODING)
+        unidiff_dict[relative_path] = unidiff.PatchSet.from_filename(str(patches_dir /
+                                                                         relative_path),
+                                                                     encoding=ENCODING)
         if not (patches_dir / relative_path).read_text(encoding=ENCODING).endswith('\n'):
             had_failure = True
             get_logger().warning('Patch file does not end with newline: %s',
@@ -644,20 +642,18 @@ def _get_files_under_test(args, required_files, parser):
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '-s',
-        '--series',
-        type=Path,
-        metavar='FILE',
-        default=str(Path('patches', 'series')),
-        help='The series file listing patches to apply. Default: %(default)s')
-    parser.add_argument(
-        '-p',
-        '--patches',
-        type=Path,
-        metavar='DIRECTORY',
-        default='patches',
-        help='The patches directory to read from. Default: %(default)s')
+    parser.add_argument('-s',
+                        '--series',
+                        type=Path,
+                        metavar='FILE',
+                        default=str(Path('patches', 'series')),
+                        help='The series file listing patches to apply. Default: %(default)s')
+    parser.add_argument('-p',
+                        '--patches',
+                        type=Path,
+                        metavar='DIRECTORY',
+                        default='patches',
+                        help='The patches directory to read from. Default: %(default)s')
     add_common_params(parser)
 
     file_source_group = parser.add_mutually_exclusive_group(required=True)

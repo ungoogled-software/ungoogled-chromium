@@ -118,12 +118,11 @@ def main():
     default_patches_dir = root_dir / 'patches'
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '-p',
-        '--patches',
-        type=Path,
-        default=default_patches_dir,
-        help='Path to the patches directory to use. Default: %(default)s')
+    parser.add_argument('-p',
+                        '--patches',
+                        type=Path,
+                        default=default_patches_dir,
+                        help='Path to the patches directory to use. Default: %(default)s')
     args = parser.parse_args()
 
     warnings = False

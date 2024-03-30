@@ -17,7 +17,6 @@ class ChangeDir:
     """
     Changes directory to path in with statement
     """
-
     def __init__(self, path):
         self._path = path
         self._orig_path = os.getcwd()
@@ -68,10 +67,9 @@ def main():
 
     parser = argparse.ArgumentParser(description='Run Pylint over arbitrary module')
     parser.add_argument('--hide-fixme', action='store_true', help='Hide "fixme" Pylint warnings.')
-    parser.add_argument(
-        '--show-locally-disabled',
-        action='store_true',
-        help='Show "locally-disabled" Pylint warnings.')
+    parser.add_argument('--show-locally-disabled',
+                        action='store_true',
+                        help='Show "locally-disabled" Pylint warnings.')
     parser.add_argument('module_path', type=Path, help='Path to the module to check')
     args = parser.parse_args()
 

@@ -60,8 +60,8 @@ def _get_archive_writer(output_path):
             """Add files to zip archive"""
             if in_path.is_dir():
                 for sub_path in in_path.rglob('*'):
-                    output_archive.write(
-                        str(sub_path), str(arc_path / sub_path.relative_to(in_path)))
+                    output_archive.write(str(sub_path),
+                                         str(arc_path / sub_path.relative_to(in_path)))
             else:
                 output_archive.write(str(in_path), str(arc_path))
     elif '.tar' in output_path.name.lower():
@@ -121,37 +121,33 @@ def _archive_callback(args):
     """
     Create an archive of the build outputs. Supports zip and compressed tar archives.
     """
-    create_archive(
-        filescfg_generator(args.cfg, args.build_outputs, args.cpu_arch), args.include,
-        args.build_outputs, args.output)
+    create_archive(filescfg_generator(args.cfg, args.build_outputs, args.cpu_arch), args.include,
+                   args.build_outputs, args.output)
 
 
 def main():
     """CLI Entrypoint"""
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-c',
-        '--cfg',
-        metavar='PATH',
-        type=Path,
-        required=True,
-        help=('The FILES.cfg to use. They are usually located under a '
-              'directory in chrome/tools/build/ of the source tree.'))
-    parser.add_argument(
-        '--build-outputs',
-        metavar='PATH',
-        type=Path,
-        default='out/Default',
-        help=('The path to the build outputs directory relative to the '
-              'source tree. Default: %(default)s'))
-    parser.add_argument(
-        '--cpu-arch',
-        metavar='ARCH',
-        default=platform.architecture()[0],
-        choices=('64bit', '32bit'),
-        help=('Filter build outputs by a target CPU. '
-              'This is the same as the "arch" key in FILES.cfg. '
-              'Default (from platform.architecture()): %(default)s'))
+    parser.add_argument('-c',
+                        '--cfg',
+                        metavar='PATH',
+                        type=Path,
+                        required=True,
+                        help=('The FILES.cfg to use. They are usually located under a '
+                              'directory in chrome/tools/build/ of the source tree.'))
+    parser.add_argument('--build-outputs',
+                        metavar='PATH',
+                        type=Path,
+                        default='out/Default',
+                        help=('The path to the build outputs directory relative to the '
+                              'source tree. Default: %(default)s'))
+    parser.add_argument('--cpu-arch',
+                        metavar='ARCH',
+                        default=platform.architecture()[0],
+                        choices=('64bit', '32bit'),
+                        help=('Filter build outputs by a target CPU. '
+                              'This is the same as the "arch" key in FILES.cfg. '
+                              'Default (from platform.architecture()): %(default)s'))
     add_common_params(parser)
 
     subparsers = parser.add_subparsers(title='filescfg actions')

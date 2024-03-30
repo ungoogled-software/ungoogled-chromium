@@ -16,10 +16,9 @@ def main():
     """CLI entrypoint"""
     parser = argparse.ArgumentParser(description='Run Pylint over utils')
     parser.add_argument('--hide-fixme', action='store_true', help='Hide "fixme" Pylint warnings.')
-    parser.add_argument(
-        '--show-locally-disabled',
-        action='store_true',
-        help='Show "locally-disabled" Pylint warnings.')
+    parser.add_argument('--show-locally-disabled',
+                        action='store_true',
+                        help='Show "locally-disabled" Pylint warnings.')
     args = parser.parse_args()
 
     disable = ['bad-continuation']

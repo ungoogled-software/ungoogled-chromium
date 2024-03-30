@@ -161,7 +161,6 @@ def _extract_tar_with_python(archive_path, output_dir, relative_to, skip_unused)
 
     class NoAppendList(list):
         """Hack to workaround memory issues with large tar files"""
-
         def append(self, obj):
             pass
 

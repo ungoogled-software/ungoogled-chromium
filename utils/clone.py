@@ -193,9 +193,8 @@ def clone(args):
                 copy(item, args.output / 'tools' / 'gn')
             elif item.name != '.git' and item.name != 'out':
                 copytree(item, args.output / 'tools' / 'gn' / item.name)
-        move(
-            str(gnpath / 'out' / 'last_commit_position.h'),
-            str(args.output / 'tools' / 'gn' / 'bootstrap'))
+        move(str(gnpath / 'out' / 'last_commit_position.h'),
+             str(args.output / 'tools' / 'gn' / 'bootstrap'))
 
         get_logger().info('Removing uneeded files')
         # Match removals for the tarball:
@@ -270,25 +269,22 @@ def clone(args):
 def main():
     """CLI Entrypoint"""
     parser = ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '-o',
-        '--output',
-        type=Path,
-        metavar='DIRECTORY',
-        default='chromium',
-        help='Output directory for the cloned sources. Default: %(default)s')
-    parser.add_argument(
-        '-c',
-        '--custom-config',
-        type=Path,
-        metavar='FILE',
-        help='Supply a replacement for the default gclient config.')
-    parser.add_argument(
-        '-p',
-        '--pgo',
-        default='linux',
-        choices=('linux', 'mac', 'mac-arm', 'win32', 'win64'),
-        help='Specifiy which pgo profile to download.  Default: %(default)s')
+    parser.add_argument('-o',
+                        '--output',
+                        type=Path,
+                        metavar='DIRECTORY',
+                        default='chromium',
+                        help='Output directory for the cloned sources. Default: %(default)s')
+    parser.add_argument('-c',
+                        '--custom-config',
+                        type=Path,
+                        metavar='FILE',
+                        help='Supply a replacement for the default gclient config.')
+    parser.add_argument('-p',
+                        '--pgo',
+                        default='linux',
+                        choices=('linux', 'mac', 'mac-arm', 'win32', 'win64'),
+                        help='Specifiy which pgo profile to download.  Default: %(default)s')
     add_common_params(parser)
     args = parser.parse_args()
     clone(args)
