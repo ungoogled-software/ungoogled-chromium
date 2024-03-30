@@ -41,6 +41,7 @@ def main():
     ]
 
     sys.path.insert(1, str(Path(__file__).resolve().parent.parent / 'utils' / 'third_party'))
+    sys.path.append(Path(__file__).resolve().parent.parent / 'utils')
     with ChangeDir(Path(__file__).resolve().parent.parent / 'utils'):
         result = run_pylint(
             Path(),
@@ -49,8 +50,8 @@ def main():
         )
     sys.path.pop(1)
     if not result:
-        exit(1)
-    exit(0)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':

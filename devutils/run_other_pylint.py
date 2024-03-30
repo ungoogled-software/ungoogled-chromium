@@ -8,6 +8,7 @@
 import argparse
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from pylint import lint
@@ -38,7 +39,7 @@ def run_pylint(module_path, pylint_options, ignore_prefixes=tuple()):
     input_paths = list()
     if not module_path.exists():
         print('ERROR: Cannot find', module_path)
-        exit(1)
+        sys.exit(1)
     if module_path.is_dir():
         for path in module_path.rglob('*.py'):
             ignore_matched = False
@@ -75,7 +76,7 @@ def main():
 
     if not args.module_path.exists():
         print('ERROR: Module path "{}" does not exist'.format(args.module_path))
-        exit(1)
+        sys.exit(1)
 
     disables = [
         'wrong-import-position',
@@ -95,8 +96,8 @@ def main():
     ]
 
     if not run_pylint(args.module_path, pylint_options):
-        exit(1)
-    exit(0)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':

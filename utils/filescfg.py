@@ -11,6 +11,8 @@ Operations with FILES.cfg (for portable packages)
 import argparse
 import platform
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 from _common import get_logger, add_common_params
@@ -52,7 +54,6 @@ def _get_archive_writer(output_path):
     if not output_path.suffixes:
         raise ValueError('Output name has no suffix: %s' % output_path.name)
     if output_path.suffixes[-1].lower() == '.zip':
-        import zipfile
         archive_root = Path(output_path.stem)
         output_archive = zipfile.ZipFile(str(output_path), 'w', zipfile.ZIP_DEFLATED)
 
@@ -65,7 +66,6 @@ def _get_archive_writer(output_path):
             else:
                 output_archive.write(str(in_path), str(arc_path))
     elif '.tar' in output_path.name.lower():
-        import tarfile
         if len(output_path.suffixes) >= 2 and output_path.suffixes[-2].lower() == '.tar':
             tar_mode = 'w:%s' % output_path.suffixes[-1][1:]
             archive_root = Path(output_path.with_suffix('').stem)

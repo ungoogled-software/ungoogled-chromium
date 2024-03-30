@@ -7,12 +7,12 @@
 """Prune binaries from the source tree"""
 
 import argparse
-from pathlib import Path
-
-from _common import ENCODING, get_logger, add_common_params
 import sys
 import os
 import stat
+from pathlib import Path
+
+from _common import ENCODING, get_logger, add_common_params
 
 # List of paths to prune if they exist, excluded from domain_substitution and pruning lists
 # These allow the lists to be compatible between cloned and tarball sources

@@ -71,8 +71,8 @@ def main():
     args = parser.parse_args()
 
     if check_gn_flags(args.flags_gn):
-        exit(1)
-    exit(0)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':

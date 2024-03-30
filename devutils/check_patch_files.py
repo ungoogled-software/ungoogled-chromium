@@ -23,7 +23,7 @@ from pathlib import Path
 from third_party import unidiff
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
-from _common import ENCODING, get_logger, parse_series
+from _common import ENCODING, get_logger, parse_series # pylint: disable=wrong-import-order
 sys.path.pop(0)
 
 # File suffixes to ignore for checking unused patches
@@ -131,8 +131,8 @@ def main():
     warnings |= check_unused_patches(args.patches)
 
     if warnings:
-        exit(1)
-    exit(0)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':

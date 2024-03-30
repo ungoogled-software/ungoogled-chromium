@@ -30,7 +30,7 @@ def main():
                 print('ERROR: Path "{}" from file "{}" does not exist.'.format(
                     file_name, input_name),
                       file=sys.stderr)
-                exit(1)
+                sys.exit(1)
 
 
 if __name__ == "__main__":

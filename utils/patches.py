@@ -67,6 +67,7 @@ def find_and_check_patch(patch_bin_path=None):
     result = subprocess.run(cmd,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
+                            check=False,
                             universal_newlines=True)
     if result.returncode:
         get_logger().error('"%s" returned non-zero exit code', ' '.join(cmd))
@@ -97,6 +98,7 @@ def dry_run_check(patch_path, tree_path, patch_bin_path=None):
     result = subprocess.run(cmd,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
+                            check=False,
                             universal_newlines=True)
     return result.returncode, result.stdout, result.stderr
 

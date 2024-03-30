@@ -13,6 +13,7 @@ import configparser
 import enum
 import hashlib
 import shutil
+import ssl
 import subprocess
 import sys
 import urllib.request
@@ -23,7 +24,7 @@ from _common import ENCODING, USE_REGISTRY, ExtractorEnum, get_logger, \
 from _extraction import extract_tar_file, extract_with_7z, extract_with_winrar
 
 sys.path.insert(0, str(Path(__file__).parent / 'third_party'))
-import schema #pylint: disable=wrong-import-position
+import schema #pylint: disable=wrong-import-position, wrong-import-order
 sys.path.pop(0)
 
 # Constants
@@ -31,7 +32,7 @@ sys.path.pop(0)
 
 class HashesURLEnum(str, enum.Enum):
     """Enum for supported hash URL schemes"""
-    chromium = 'chromium'
+    CHROMIUM = 'chromium'
 
 
 class HashMismatchError(BaseException):
@@ -185,7 +186,6 @@ def _download_via_urllib(url, file_path, show_progress, disable_ssl_verification
     if show_progress:
         reporthook = _UrlRetrieveReportHook()
     if disable_ssl_verification:
-        import ssl
         # TODO: Remove this or properly implement disabling SSL certificate verification
         orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
         ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access

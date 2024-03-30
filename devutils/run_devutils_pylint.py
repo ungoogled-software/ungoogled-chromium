@@ -24,6 +24,7 @@ def main():
     disables = [
         'wrong-import-position',
         'bad-continuation',
+        'duplicate-code',
     ]
 
     if args.hide_fixme:
@@ -53,8 +54,8 @@ def main():
     sys.path.pop(2)
     sys.path.pop(1)
     if not result:
-        exit(1)
-    exit(0)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':

@@ -276,7 +276,7 @@ def compute_lists_proc(path, source_tree, search_regex):
             domain_substitution_set, symlink_set)
 
 
-def compute_lists(source_tree, search_regex, processes):
+def compute_lists(source_tree, search_regex, processes): # pylint: disable=too-many-locals
     """
     Compute the binary pruning and domain substitution lists of the source tree.
     Returns a tuple of three items in the following order:
@@ -303,10 +303,12 @@ def compute_lists(source_tree, search_regex, processes):
     # Handle the returned data
     for (used_pep_set, used_pip_set, used_dep_set, used_dip_set, returned_pruning_set,
          returned_domain_sub_set, returned_symlink_set) in returned_data:
+        # pragma pylint: disable=no-member
         unused_patterns.pruning_exclude_patterns.difference_update(used_pep_set)
         unused_patterns.pruning_include_patterns.difference_update(used_pip_set)
         unused_patterns.domain_exclude_prefixes.difference_update(used_dep_set)
         unused_patterns.domain_include_patterns.difference_update(used_dip_set)
+        # pragma pylint: enable=no-member
         pruning_set.update(returned_pruning_set)
         domain_substitution_set.update(returned_domain_sub_set)
         symlink_set.update(returned_symlink_set)
@@ -366,7 +368,7 @@ def main(args_list=None):
         get_logger().info('Using existing source tree at %s', args.tree)
     else:
         get_logger().error('No source tree found. Aborting.')
-        exit(1)
+        sys.exit(1)
     get_logger().info('Computing lists...')
     pruning_set, domain_substitution_set, unused_patterns = compute_lists(
         args.tree,
@@ -378,7 +380,7 @@ def main(args_list=None):
     if unused_patterns.log_unused(args.error_unused) and args.error_unused:
         get_logger().error('Please update or remove unused patterns and/or prefixes. '
                            'The lists have still been updated with the remaining valid entries.')
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
