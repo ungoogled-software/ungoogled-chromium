@@ -124,7 +124,19 @@
  #include "base/ranges/algorithm.h"
  #include "base/task/single_thread_task_runner.h"
  #include "base/time/time.h"
-@@ -1041,6 +1042,14 @@ const Position Document::PositionAdjuste
+@@ -929,6 +930,11 @@ Document::Document(const DocumentInit& i
+               : nullptr),
+       data_(MakeGarbageCollected<DocumentData>(GetExecutionContext())) {
+   DCHECK(agent_);
++  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
++    // Precompute -0.0003% to 0.0003% noise factor for get*ClientRect*() fingerprinting
++    noise_factor_x_ = 1 + (base::RandDouble() - 0.5) * 0.000003;
++    noise_factor_y_ = 1 + (base::RandDouble() - 0.5) * 0.000003;
++  }
+   if (base::FeatureList::IsEnabled(features::kDelayAsyncScriptExecution) &&
+       features::kDelayAsyncScriptExecutionDelayByDefaultParam.Get()) {
+     script_runner_delayer_->Activate();
+@@ -1041,6 +1047,14 @@ const Position Document::PositionAdjuste
    return Position::BeforeNode(*shadow_host);
  }
  
@@ -139,22 +151,6 @@
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
-@@ -2474,6 +2483,15 @@ void Document::UpdateStyleAndLayoutTreeF
- #if DCHECK_IS_ON()
-   AssertLayoutTreeUpdated(*this, true /* allow_dirty_container_subtrees */);
- #endif
-+
-+  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
-+    // Precompute -0.0003% to 0.0003% noise factor for get*ClientRect*() fingerprinting
-+    noise_factor_x_ = 1 + (base::RandDouble() - 0.5) * 0.000003;
-+    noise_factor_y_ = 1 + (base::RandDouble() - 0.5) * 0.000003;
-+  } else {
-+    noise_factor_x_ = 1;
-+    noise_factor_y_ = 1;
-+  }
- }
- 
- void Document::InvalidateStyleAndLayoutForFontUpdates() {
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
 @@ -531,6 +531,10 @@ class CORE_EXPORT Document : public Cont
@@ -172,8 +168,8 @@
  
    base::ElapsedTimer start_time_;
  
-+  double noise_factor_x_;
-+  double noise_factor_y_;
++  double noise_factor_x_ = 1;
++  double noise_factor_y_ = 1;
 +
    Member<ScriptRunner> script_runner_;
    Member<ScriptRunnerDelayer> script_runner_delayer_;
