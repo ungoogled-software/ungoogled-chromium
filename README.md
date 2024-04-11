@@ -106,13 +106,19 @@ ungoogled-chromium is available in the following **software repositories**:
 * Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) and [`ungoogled-chromium-bin`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium-bin) ebuilds
 * macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
 * openSUSE: Available in [openSUSE Tumbleweed](https://get.opensuse.org/tumbleweed/), run `zypper in ungoogled-chromium`. See [package site](https://software.opensuse.org/package/ungoogled-chromium) for additional options.
+* Slackware: Available as `chromium-ungoogled` in [a third party repository](http://www.slackware.com/~alien/slackbuilds/chromium-ungoogled/), run `upgradepkg --install-new chromium-ungoogled`.
+* PKG (FreeBSD): Available as `ungoogled-chromium`, run `pkg install www/ungoogled-chromium`.
+* APT-RPM (PCLinuxOS, Vine Linux, ALT Linux): Available as `chromium-ungoogled-browser`, run `apt-get install chromium-ungoogled-browser`.
+* Chocolatey: Available as `ungoogled-chromium`, run `choco install ungoogled-chromium`.
+* WinGet: Available as `eloston.ungoogled-chromium`, run `winget install -e --id eloston.ungoogled-chromium`.
+* Scoop: Available as `ungoogled-chromium`, enable the extra repository and run `scoop install extras/ungoogled-chromium`.
 
-If your GNU/Linux distribution is not listed, there are distro-independent builds available via the following **package managers**:
+If your Operating System / Linux Distribution is not listed, there are distro-independent builds available via the following **package managers**:
 
 * Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/com.github.Eloston.UngoogledChromium) as `com.github.Eloston.UngoogledChromium`
-* GNU Guix: Available as `ungoogled-chromium`
-* NixOS/nixpkgs: Available as `ungoogled-chromium`
-
+* Nix: Available as `ungoogled-chromium` in nixpkgs, run `nix-shell -p ungoogled-chromium`.
+* GNU Guix: Available as `ungoogled-chromium`, run `guix install ungoogled-chromium`.
+  
 ### Third-party binaries
 
 If your operating system is not listed above, you can also try to [**Download binaries from here**](https://ungoogled-software.github.io/ungoogled-chromium-binaries/)
