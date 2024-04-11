@@ -65,11 +65,11 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
     # depth=2 since generating LASTCHANGE and gpu_lists_version.h require at least two commits
     get_logger().info('Cloning chromium source: %s', chromium_version)
     if (args.output / '.git').exists():
-        run(['git', 'clean', '-fdx'], cwd=args.output, check=True)
         run(['git', 'fetch', 'origin', 'tag', chromium_version, '--depth=2'],
             cwd=args.output,
             check=True)
         run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=args.output, check=True)
+        run(['git', 'clean', '-ffdx', '-e', 'uc_staging'], cwd=args.output, check=True)
     else:
         run([
             'git', 'clone', '-c', 'advice.detachedHead=false', '-b', chromium_version, '--depth=2',
@@ -83,9 +83,9 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
 
     get_logger().info('Cloning depot_tools')
     if dtpath.exists():
-        run(['git', 'clean', '-fdx'], cwd=dtpath, check=True)
         run(['git', 'fetch', '--depth=1'], cwd=dtpath, check=True)
         run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=dtpath, check=True)
+        run(['git', 'clean', '-ffdx'], cwd=dtpath, check=True)
     else:
         run([
             'git', 'clone', '--depth=1',
@@ -106,9 +106,9 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
     # gn requires full history to be able to generate last_commit_position.h
     get_logger().info('Cloning gn')
     if gnpath.exists():
-        run(['git', 'clean', '-fdx'], cwd=gnpath, check=True)
         run(['git', 'fetch'], cwd=gnpath, check=True)
         run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=gnpath, check=True)
+        run(['git', 'clean', '-ffdx'], cwd=gnpath, check=True)
     else:
         run(['git', 'clone', "https://gn.googlesource.com/gn", str(gnpath)], check=True)
 

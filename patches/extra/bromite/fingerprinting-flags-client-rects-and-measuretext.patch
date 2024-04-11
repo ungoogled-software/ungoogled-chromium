@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2552,6 +2552,7 @@ static_library("browser") {
+@@ -2562,6 +2562,7 @@ static_library("browser") {
      "//third_party/libyuv",
      "//third_party/metrics_proto",
      "//third_party/re2",
@@ -19,7 +19,7 @@
      "//third_party/widevine/cdm:headers",
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -168,6 +168,7 @@
+@@ -169,6 +169,7 @@
  #include "components/translate/core/common/translate_util.h"
  #include "components/trusted_vault/features.h"
  #include "components/ui_devtools/switches.h"
@@ -51,7 +51,7 @@
 +    "//components/ungoogled:ungoogled_switches",
      "//third_party/webrtc_overrides:webrtc_component",
      "//third_party/zlib",
-     "//third_party/zlib/google:zip",
+     "//tools/v8_context_snapshot:buildflags",
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
 @@ -77,6 +77,7 @@
@@ -62,7 +62,7 @@
  #include "components/viz/common/switches.h"
  #include "components/viz/host/gpu_client.h"
  #include "content/browser/bad_message.h"
-@@ -3441,6 +3442,8 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3440,6 +3441,8 @@ void RenderProcessHostImpl::PropagateBro
      switches::kEnableWebGLImageChromium,
      switches::kEnableWebGPUDeveloperFeatures,
      switches::kFileUrlPathAlias,
@@ -83,7 +83,7 @@
      "//ui/events/blink",
 --- a/content/child/runtime_features.cc
 +++ b/content/child/runtime_features.cc
-@@ -40,6 +40,7 @@
+@@ -39,6 +39,7 @@
  #include "third_party/blink/public/common/loader/referrer_utils.h"
  #include "third_party/blink/public/common/switches.h"
  #include "third_party/blink/public/platform/web_runtime_features.h"
@@ -91,9 +91,9 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/events/blink/blink_features.h"
-@@ -506,6 +507,10 @@ void SetRuntimeFeaturesFromCommandLine(c
-        true},
-       {wrf::EnableDirectSockets, switches::kEnableIsolatedWebAppsInRenderer,
+@@ -508,6 +509,10 @@ void SetRuntimeFeaturesFromCommandLine(c
+        switches::kEnableWebGPUDeveloperFeatures, true},
+       {wrf::EnableWebGPUExperimentalFeatures, switches::kEnableUnsafeWebGPU,
         true},
 +      {wrf::EnableFingerprintingClientRectsNoise,
 +       switches::kFingerprintingClientRectsNoise, true},
@@ -124,9 +124,9 @@
  #include "base/ranges/algorithm.h"
  #include "base/task/single_thread_task_runner.h"
  #include "base/time/time.h"
-@@ -929,6 +930,11 @@ Document::Document(const DocumentInit& i
-               : nullptr),
-       data_(MakeGarbageCollected<DocumentData>(GetExecutionContext())) {
+@@ -934,6 +935,11 @@ Document::Document(const DocumentInit& i
+   TRACE_EVENT_WITH_FLOW0("blink", "Document::Document", TRACE_ID_LOCAL(this),
+                          TRACE_EVENT_FLAG_FLOW_OUT);
    DCHECK(agent_);
 +  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
 +    // Precompute -0.0003% to 0.0003% noise factor for get*ClientRect*() fingerprinting
@@ -136,7 +136,7 @@
    if (base::FeatureList::IsEnabled(features::kDelayAsyncScriptExecution) &&
        features::kDelayAsyncScriptExecutionDelayByDefaultParam.Get()) {
      script_runner_delayer_->Activate();
-@@ -1041,6 +1047,14 @@ const Position Document::PositionAdjuste
+@@ -1046,6 +1052,14 @@ const Position Document::PositionAdjuste
    return Position::BeforeNode(*shadow_host);
  }
  
@@ -153,7 +153,7 @@
      selector_query_cache_ = std::make_unique<SelectorQueryCache>();
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -531,6 +531,10 @@ class CORE_EXPORT Document : public Cont
+@@ -532,6 +532,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -164,7 +164,7 @@
    AtomicString visibilityState() const;
    bool IsPageVisible() const;
    bool hidden() const;
-@@ -2507,6 +2511,9 @@ class CORE_EXPORT Document : public Cont
+@@ -2533,6 +2537,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -176,7 +176,7 @@
  
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -2342,6 +2342,11 @@ DOMRectList* Element::getClientRects() {
+@@ -2344,6 +2344,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustQuadsForScrollAndAbsoluteZoom(quads,
                                                      *element_layout_object);
@@ -188,7 +188,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -2369,6 +2374,9 @@ gfx::RectF Element::GetBoundingClientRec
+@@ -2371,6 +2376,9 @@ gfx::RectF Element::GetBoundingClientRec
    DCHECK(element_layout_object);
    GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
                                                     *element_layout_object);
@@ -266,7 +266,7 @@
                const TextDirection&,
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
-@@ -75,6 +75,9 @@
+@@ -78,6 +78,9 @@
  #include "ui/gfx/geometry/quad_f.h"
  #include "ui/gfx/geometry/skia_conversions.h"
  
@@ -276,7 +276,7 @@
  namespace blink {
  
  BASE_FEATURE(kDisableCanvasOverdrawOptimization,
-@@ -3163,8 +3166,22 @@ TextMetrics* BaseRenderingContext2D::mea
+@@ -3166,8 +3169,22 @@ TextMetrics* BaseRenderingContext2D::mea
    const CanvasRenderingContext2DState& state = GetState();
    TextDirection direction = ToTextDirection(state.GetDirection(), canvas);
  
@@ -303,7 +303,7 @@
  void BaseRenderingContext2D::SnapshotStateForFilter() {
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1708,6 +1708,7 @@ component("platform") {
+@@ -1716,6 +1716,7 @@ component("platform") {
      "//cc/mojo_embedder",
      "//components/paint_preview/common",
      "//components/search_engines:search_engine_utils",
@@ -328,7 +328,7 @@
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -1753,6 +1753,12 @@
+@@ -1789,6 +1789,12 @@
        status: "experimental",
      },
      {
