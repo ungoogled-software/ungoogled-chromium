@@ -23,7 +23,7 @@ For officially-supported platforms, **please visit their issue trackers before u
 * Arch Linux and derivatives (e.g. Manjaro): [Issue tracker](https://github.com/ungoogled-software/ungoogled-chromium-archlinux/issues)
 * Debian & Ubuntu: [Issue tracker](https://github.com/ungoogled-software/ungoogled-chromium-debian/issues)
 * Fedora & CentOS: [Issue tracker](https://github.com/ungoogled-software/ungoogled-chromium-fedora/issues)
-* Flatpak: [Issue tracker](https://github.com/flathub/com.github.Eloston.UngoogledChromium)
+* Flatpak: [Issue tracker](https://github.com/flathub/io.github.ungoogled_software.ungoogled_chromium)
 * Gentoo ([@PF4Public](https://github.com/PF4Public)'s overlay): [Issue tracker](https://github.com/PF4Public/gentoo-overlay/issues?q=is%3Aissue++ungoogled-chromium+)
 * macOS: [Issue tracker](https://github.com/ungoogled-software/ungoogled-chromium-macos/issues)
 * Portable Linux: [Issue tracker](https://github.com/ungoogled-software/ungoogled-chromium-portablelinux/issues)
