@@ -8,6 +8,7 @@
 Module for cloning the source tree.
 """
 
+import re
 import sys
 from argparse import ArgumentParser
 from os import environ, pathsep
@@ -82,17 +83,23 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
     ucstaging.mkdir(exist_ok=True)
 
     get_logger().info('Cloning depot_tools')
-    if dtpath.exists():
-        run(['git', 'fetch', '--depth=1'], cwd=dtpath, check=True)
-        run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=dtpath, check=True)
-        run(['git', 'clean', '-ffdx'], cwd=dtpath, check=True)
-    else:
+    dt_commit = re.search(r"depot_tools\.git'\s*\+\s*'@'\s*\+\s*'([^']+)',",
+                          Path(args.output / 'DEPS').read_text()).group(1)
+    if not dt_commit:
+        get_logger().error('Unable to obtain commit for depot_tools checkout')
+        sys.exit(1)
+    if not dtpath.exists():
+        dtpath.mkdir()
+        run(['git', 'init', '-q'], cwd=dtpath, check=True)
         run([
-            'git', 'clone', '--depth=1',
-            "https://chromium.googlesource.com/chromium/tools/depot_tools",
-            str(dtpath)
+            'git', 'remote', 'add', 'origin',
+            'https://chromium.googlesource.com/chromium/tools/depot_tools'
         ],
+            cwd=dtpath,
             check=True)
+    run(['git', 'fetch', '--depth=1', 'origin', dt_commit], cwd=dtpath, check=True)
+    run(['git', 'reset', '--hard', dt_commit], cwd=dtpath, check=True)
+    run(['git', 'clean', '-ffdx'], cwd=dtpath, check=True)
     if iswin:
         (dtpath / 'git.bat').write_text('git')
     # Apply changes to gclient
