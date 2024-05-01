@@ -62,6 +62,8 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
     environ['PYTHONDONTWRITEBYTECODE'] = '1'
     # Allow usage of system python
     environ['VPYTHON_BYPASS'] = 'manually managed python not supported by chrome operations'
+    # Google has some regex strings that aren't escaped properly or set as raw
+    environ["PYTHONWARNINGS"] = "ignore::SyntaxWarning"
 
     # depth=2 since generating LASTCHANGE and gpu_lists_version.h require at least two commits
     get_logger().info('Cloning chromium source: %s', chromium_version)
