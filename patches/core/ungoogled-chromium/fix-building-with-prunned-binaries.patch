@@ -3,7 +3,7 @@
 
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -934,8 +934,6 @@ if (is_win) {
+@@ -937,8 +937,6 @@ if (is_win) {
  
    bundle_data("chrome_framework_resources") {
      sources = [
@@ -14,7 +14,7 @@
        # from disk image and Keystone promotion (if so enabled).  It
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -847,10 +847,6 @@ static_library("browser") {
+@@ -853,10 +853,6 @@ static_library("browser") {
      "navigation_predictor/navigation_predictor_metrics_document_data.h",
      "navigation_predictor/navigation_predictor_preconnect_client.cc",
      "navigation_predictor/navigation_predictor_preconnect_client.h",
@@ -25,7 +25,7 @@
      "navigation_predictor/search_engine_preconnector.cc",
      "navigation_predictor/search_engine_preconnector.h",
      "net/chrome_mojo_proxy_resolver_factory.cc",
-@@ -963,10 +959,6 @@ static_library("browser") {
+@@ -969,10 +965,6 @@ static_library("browser") {
      "optimization_guide/chrome_prediction_model_store.h",
      "optimization_guide/model_execution/chrome_on_device_model_service_controller.cc",
      "optimization_guide/model_execution/chrome_on_device_model_service_controller.h",
@@ -52,14 +52,14 @@
  }
  
 -base::TimeDelta MLModelExecutionTimerInterval() {
--  static int timer_interval = base::GetFieldTrialParamByFeatureAsInt(
--      blink::features::kPreloadingHeuristicsMLModel, "timer_interval", 100);
+-  static int timer_interval =
+-      blink::features::kPreloadingModelTimerInterval.Get();
 -  return base::Milliseconds(timer_interval);
 -}
  
  bool MaySendTraffic() {
    // TODO(b/290223353): Due to concerns about the amount of traffic this feature
-@@ -363,69 +356,6 @@ void NavigationPredictor::ProcessPointer
+@@ -364,71 +357,6 @@ void NavigationPredictor::ProcessPointer
  }
  
  void NavigationPredictor::OnMLModelExecutionTimerFired() {
@@ -104,12 +104,14 @@
 -  inputs.percent_vertical_distance =
 -      static_cast<int>(anchor.ratio_distance_root_top * 100);
 -
--  inputs.is_same_origin = anchor.is_same_host;
+-  inputs.is_same_host = anchor.is_same_host;
 -  auto to_timedelta = [this](std::optional<base::TimeTicks> ts) {
 -    return ts.has_value() ? NowTicks() - ts.value() : base::TimeDelta();
 -  };
--  inputs.entered_viewport_to_left_viewport =
--      to_timedelta(anchor.entered_viewport_timestamp);
+-  // TODO(329691634): Using the real viewport entry time for
+-  // `entered_viewport_to_left_viewport` produces low quality results.
+-  // We could remove it from the model, if we can't get this to be useful.
+-  inputs.entered_viewport_to_left_viewport = base::TimeDelta();
 -  inputs.hover_dwell_time = to_timedelta(anchor.pointer_over_timestamp);
 -  inputs.pointer_hovering_over_count = anchor.pointer_hovering_over_count;
 -  if (model_score_callback_) {
@@ -139,7 +141,7 @@
  #include "chrome/browser/net/dns_probe_service_factory.h"
  #include "chrome/browser/net/profile_network_context_service_factory.h"
  #include "chrome/browser/notifications/metrics/notification_metrics_logger_factory.h"
-@@ -933,7 +932,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -931,7 +930,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #endif
    ModelTypeStoreServiceFactory::GetInstance();
    NavigationPredictorKeyedServiceFactory::GetInstance();
@@ -147,7 +149,7 @@
  #if BUILDFLAG(IS_CHROMEOS_ASH)
    NearbySharingServiceFactory::GetInstance();
    if (base::FeatureList::IsEnabled(ash::features::kNearbyPresence)) {
-@@ -980,9 +978,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -978,9 +976,6 @@ void ChromeBrowserMainExtraPartsProfiles
    }
  #endif
    OpenerHeuristicServiceFactory::GetInstance();
@@ -167,7 +169,7 @@
  #include "chrome/browser/permissions/adaptive_quiet_notification_permission_ui_enabler.h"
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
  #include "chrome/browser/profiles/delete_profile_helper.h"
-@@ -1545,9 +1544,6 @@ void ProfileManager::DoFinalInitForServi
+@@ -1543,9 +1542,6 @@ void ProfileManager::DoFinalInitForServi
    // Ensure NavigationPredictorKeyedService is started.
    NavigationPredictorKeyedServiceFactory::GetForProfile(profile);
  
@@ -315,10 +317,10 @@
  #include "chrome/browser/profiles/profile.h"
 -#include "chrome/browser/screen_ai/screen_ai_service_router.h"
 -#include "chrome/browser/screen_ai/screen_ai_service_router_factory.h"
+ #include "chrome/browser/translate/chrome_translate_client.h"
  #include "chrome/browser/ui/browser.h"
  #include "chrome/browser/ui/browser_finder.h"
- #include "chrome/browser/ui/views/side_panel/read_anything/read_anything_controller.h"
-@@ -206,15 +204,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
+@@ -214,15 +212,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
          highlightGranularity);
    }
  
@@ -336,7 +338,7 @@
  }
 --- a/chrome/test/chromedriver/BUILD.gn
 +++ b/chrome/test/chromedriver/BUILD.gn
-@@ -407,7 +407,7 @@ source_set("lib") {
+@@ -405,7 +405,7 @@ source_set("lib") {
    }
  }
  
@@ -379,7 +381,7 @@
  fuzzer_test("update_client_protocol_serializer_fuzzer") {
 --- a/content/shell/BUILD.gn
 +++ b/content/shell/BUILD.gn
-@@ -773,10 +773,6 @@ if (is_apple) {
+@@ -766,10 +766,6 @@ if (is_apple) {
        deps = [ "//third_party/icu:icudata" ]
      }
  

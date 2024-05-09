@@ -1,9 +1,25 @@
 --- a/chrome/browser/media/webrtc/capture_policy_utils.cc
 +++ b/chrome/browser/media/webrtc/capture_policy_utils.cc
-@@ -141,69 +141,12 @@ void RegisterProfilePrefs(PrefRegistrySi
+@@ -241,89 +241,13 @@ void RegisterProfilePrefs(PrefRegistrySi
  }
  
  bool IsGetAllScreensMediaAllowedForAnySite(content::BrowserContext* context) {
+-// TODO(b/40272166): Implement for Lacros.
+-#if BUILDFLAG(IS_CHROMEOS_ASH)
+-  policy::MultiScreenCapturePolicyService* multi_capture_policy_service =
+-      policy::MultiScreenCapturePolicyServiceFactory::GetForBrowserContext(
+-          context);
+-  if (!multi_capture_policy_service) {
+-    return false;
+-  }
+-
+-  if (multi_capture_policy_service->GetAllowListSize() > 0u) {
+-    return true;
+-  }
+-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+-
+-// TODO(b/329064666): Remove the checks below once the pivot to IWAs is
+-// complete.
 -#if BUILDFLAG(IS_CHROMEOS)
 -  Profile* profile = Profile::FromBrowserContext(context);
 -  if (!profile) {
@@ -37,36 +53,40 @@
 -#endif
  }
  
- bool IsGetAllScreensMediaAllowed(content::BrowserContext* context,
-                                  const GURL& url) {
--#if BUILDFLAG(IS_CHROMEOS)
+ void CheckGetAllScreensMediaAllowed(content::BrowserContext* context,
+                                     const GURL& url,
+                                     base::OnceCallback<void(bool)> callback) {
+-#if BUILDFLAG(IS_CHROMEOS_LACROS)
 -  Profile* profile = Profile::FromBrowserContext(context);
 -  if (!profile) {
--    return false;
+-    std::move(callback).Run(false);
+-    return;
 -  }
--
--#if BUILDFLAG(IS_CHROMEOS_LACROS)
 -  // To ensure that a user is informed at login time that capturing of all
 -  // screens can happen (for privacy reasons), this API is only available on
 -  // primary profiles.
 -  if (!profile->IsMainProfile()) {
--    return false;
+-    std::move(callback).Run(false);
+-    return;
 -  }
 -#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 -
--  HostContentSettingsMap* host_content_settings_map =
--      HostContentSettingsMapFactory::GetForProfile(profile);
--  if (!host_content_settings_map) {
--    return false;
+-#if BUILDFLAG(IS_CHROMEOS)
+-  crosapi::mojom::MultiCaptureService* multi_capture_service =
+-      GetMultiCaptureService();
+-  if (multi_capture_service) {
+-    multi_capture_service->IsMultiCaptureAllowed(
+-        url, base::BindOnce(&IsGetAllScreensMediaAllowedForIwaResultReceived,
+-                            std::move(callback), std::move(url), context));
+-  } else {
+-    // If the multi capture service is not available with the required version,
+-    // fall back to the original flow using the deprecated policy.
+-    IsGetAllScreensMediaAllowedForIwaResultReceived(
+-        std::move(callback), std::move(url), context, /*result=*/false);
 -  }
--  ContentSetting auto_accept_enabled =
--      host_content_settings_map->GetContentSetting(
--          url, url, ContentSettingsType::ALL_SCREEN_CAPTURE);
--  return auto_accept_enabled == ContentSetting::CONTENT_SETTING_ALLOW;
 -#else
--  // This API is currently only available on ChromeOS and Linux.
-   return false;
--#endif
+   std::move(callback).Run(false);
+-#endif  // BUILDFLAG(IS_CHROMEOS)
  }
  
  #if !BUILDFLAG(IS_ANDROID)
