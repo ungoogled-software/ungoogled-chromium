@@ -1,0 +1,93 @@
+--- a/chrome/browser/extensions/chrome_browser_context_keyed_service_factories.cc
++++ b/chrome/browser/extensions/chrome_browser_context_keyed_service_factories.cc
+@@ -22,7 +22,6 @@
+ #include "chrome/browser/extensions/extension_web_ui_override_registrar.h"
+ #include "chrome/browser/extensions/install_tracker_factory.h"
+ #include "chrome/browser/extensions/install_verifier_factory.h"
+-#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
+ #include "chrome/browser/extensions/menu_manager_factory.h"
+ #include "chrome/browser/extensions/permissions/permissions_updater.h"
+ #include "chrome/browser/extensions/plugin_manager.h"
+@@ -48,7 +47,6 @@ void EnsureChromeBrowserContextKeyedServ
+   extensions::IncognitoConnectability::EnsureFactoryBuilt();
+   extensions::InstallTrackerFactory::GetInstance();
+   extensions::InstallVerifierFactory::GetInstance();
+-  extensions::ManifestV2ExperimentManager::GetFactory();
+   extensions::MenuManagerFactory::GetInstance();
+   extensions::PermissionsUpdater::EnsureAssociatedFactoryBuilt();
+ #if BUILDFLAG(ENABLE_PLUGINS)
+--- a/chrome/browser/extensions/extension_management.cc
++++ b/chrome/browser/extensions/extension_management.cc
+@@ -287,31 +287,7 @@ bool ExtensionManagement::IsAllowedManif
+     int manifest_version,
+     const std::string& extension_id,
+     Manifest::Type manifest_type) {
+-  bool enabled_by_default =
+-      !base::FeatureList::IsEnabled(
+-          extensions_features::kExtensionsManifestV3Only) ||
+-      manifest_version >= 3;
+-
+-  // Manifest version policy only supports normal extensions and Chrome OS login
+-  // screen extension.
+-  if (manifest_type != Manifest::Type::TYPE_EXTENSION &&
+-      manifest_type != Manifest::Type::TYPE_LOGIN_SCREEN_EXTENSION) {
+-    return enabled_by_default;
+-  }
+-  switch (global_settings_->manifest_v2_setting) {
+-    case internal::GlobalSettings::ManifestV2Setting::kDefault:
+-      return enabled_by_default;
+-    case internal::GlobalSettings::ManifestV2Setting::kDisabled:
+-      return manifest_version >= 3;
+-    case internal::GlobalSettings::ManifestV2Setting::kEnabled:
+       return true;
+-    case internal::GlobalSettings::ManifestV2Setting::kEnabledForForceInstalled:
+-      auto installation_mode =
+-          GetInstallationMode(extension_id, /*update_url=*/std::string());
+-      return manifest_version >= 3 ||
+-             installation_mode == INSTALLATION_FORCED ||
+-             installation_mode == INSTALLATION_RECOMMENDED;
+-  }
+ }
+ 
+ bool ExtensionManagement::IsAllowedManifestVersion(const Extension* extension) {
+@@ -332,26 +308,8 @@ bool ExtensionManagement::IsExemptFromMV
+     return false;
+   }
+ 
+-  switch (global_settings_->manifest_v2_setting) {
+-    case internal::GlobalSettings::ManifestV2Setting::kDefault:
+-      // Default browser behavior. Not exempt.
+-      return false;
+-    case internal::GlobalSettings::ManifestV2Setting::kDisabled:
+-      // All MV2 extensions are disallowed. Not exempt.
+-      return false;
+-    case internal::GlobalSettings::ManifestV2Setting::kEnabled:
+       // All MV2 extensions are allowed. Exempt.
+       return true;
+-    case internal::GlobalSettings::ManifestV2Setting::kEnabledForForceInstalled:
+-      // Force-installed MV2 extensions are allowed. Exempt if it's a force-
+-      // installed extension only.
+-      auto installation_mode =
+-          GetInstallationMode(extension_id, /*update_url=*/std::string());
+-      return installation_mode == INSTALLATION_FORCED ||
+-             installation_mode == INSTALLATION_RECOMMENDED;
+-  }
+-
+-  return false;
+ }
+ 
+ bool ExtensionManagement::IsAllowedByUnpublishedAvailabilityPolicy(
+--- a/chrome/browser/extensions/manifest_v2_experiment_manager.cc
++++ b/chrome/browser/extensions/manifest_v2_experiment_manager.cc
+@@ -76,11 +76,6 @@ KeyedService* ManifestV2ExperimentManage
+ }
+ 
+ MV2ExperimentStage CalculateCurrentExperimentStage() {
+-  if (base::FeatureList::IsEnabled(
+-          extensions_features::kExtensionManifestV2DeprecationWarning)) {
+-    return MV2ExperimentStage::kWarning;
+-  }
+-
+   return MV2ExperimentStage::kNone;
+ }
+ 

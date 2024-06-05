@@ -19,6 +19,7 @@ from _common import ENCODING, get_logger, add_common_params
 CONTINGENT_PATHS = (
     # Sources
     'third_party/angle/third_party/VK-GL-CTS/src/',
+    'third_party/js_code_coverage/',
     'third_party/llvm/',
     'third_party/rust-src/',
     # Binaries

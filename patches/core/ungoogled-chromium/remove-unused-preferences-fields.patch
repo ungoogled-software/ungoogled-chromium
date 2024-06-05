@@ -23,7 +23,7 @@
  // TODO(amalova): Make sure NetworkContextParams is configured correctly when
 --- a/chrome/browser/android/signin/signin_manager_android.cc
 +++ b/chrome/browser/android/signin/signin_manager_android.cc
-@@ -32,7 +32,6 @@
+@@ -34,7 +34,6 @@
  #include "components/policy/core/common/policy_switches.h"
  #include "components/prefs/pref_service.h"
  #include "components/signin/internal/identity_manager/account_tracker_service.h"
@@ -31,17 +31,19 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_managed_status_finder.h"
  #include "components/signin/public/identity_manager/accounts_cookie_mutator.h"
-@@ -111,9 +110,6 @@ class ProfileDataRemover : public conten
+@@ -119,11 +118,6 @@ class ProfileDataRemover : public conten
        // All the Profile data has been wiped. Clear the last signed in username
        // as well, so that the next signin doesn't trigger the account
        // change dialog.
 -      profile_->GetPrefs()->ClearPref(prefs::kGoogleServicesLastSyncingGaiaId);
 -      profile_->GetPrefs()->ClearPref(
 -          prefs::kGoogleServicesLastSyncingUsername);
+-      profile_->GetPrefs()->ClearPref(
+-          prefs::kGoogleServicesLastSignedInUsername);
      }
  
      origin_runner_->PostTask(FROM_HERE, std::move(callback_));
-@@ -151,11 +147,6 @@ SigninManagerAndroid::SigninManagerAndro
+@@ -161,11 +155,6 @@ SigninManagerAndroid::SigninManagerAndro
    DCHECK(user_cloud_policy_manager_);
    DCHECK(user_policy_signin_service_);
  
@@ -53,7 +55,7 @@
    force_browser_signin_.Init(prefs::kForceBrowserSignin,
                               g_browser_process->local_state());
  
-@@ -191,7 +182,7 @@ SigninManagerAndroid::ManagementCredenti
+@@ -201,7 +190,7 @@ SigninManagerAndroid::ManagementCredenti
  SigninManagerAndroid::ManagementCredentials::~ManagementCredentials() = default;
  
  bool SigninManagerAndroid::IsSigninAllowed() const {
@@ -64,7 +66,7 @@
  jboolean SigninManagerAndroid::IsSigninAllowedByPolicy(JNIEnv* env) const {
 --- a/chrome/browser/android/signin/signin_manager_android.h
 +++ b/chrome/browser/android/signin/signin_manager_android.h
-@@ -125,9 +125,6 @@ class SigninManagerAndroid : public Keye
+@@ -144,9 +144,6 @@ class SigninManagerAndroid : public Keye
  
    const raw_ptr<Profile> profile_ = nullptr;
  
@@ -182,7 +184,7 @@
  }
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -292,7 +292,6 @@
+@@ -294,7 +294,6 @@
  #include "components/safe_browsing/core/browser/url_checker_delegate.h"
  #include "components/safe_browsing/core/common/features.h"
  #include "components/safe_browsing/core/common/hashprefix_realtime/hash_realtime_utils.h"
@@ -202,7 +204,7 @@
  #include "content/public/browser/browser_task_traits.h"
 --- a/chrome/browser/download/download_item_model.cc
 +++ b/chrome/browser/download/download_item_model.cc
-@@ -866,8 +866,6 @@ void DownloadItemModel::ExecuteCommand(D
+@@ -867,8 +867,6 @@ void DownloadItemModel::ExecuteCommand(D
  #if BUILDFLAG(FULL_SAFE_BROWSING)
        CompleteSafeBrowsingScan();
  #endif
@@ -211,7 +213,7 @@
        [[fallthrough]];
      case DownloadCommands::KEEP:
  #if BUILDFLAG(FULL_SAFE_BROWSING)
-@@ -936,24 +934,9 @@ void DownloadItemModel::ExecuteCommand(D
+@@ -937,24 +935,9 @@ void DownloadItemModel::ExecuteCommand(D
        DownloadUIModel::ExecuteCommand(download_commands, command);
        break;
      case DownloadCommands::DEEP_SCAN: {
@@ -248,10 +250,10 @@
  #include "net/base/mime_util.h"
 --- a/chrome/browser/download/download_ui_safe_browsing_util.cc
 +++ b/chrome/browser/download/download_ui_safe_browsing_util.cc
-@@ -8,7 +8,6 @@
- #include "base/strings/stringprintf.h"
- #include "components/download/public/common/download_item.h"
+@@ -11,7 +11,6 @@
+ #include "components/prefs/pref_service.h"
  #include "components/safe_browsing/content/common/file_type_policies.h"
+ #include "components/safe_browsing/core/common/features.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  
  #if BUILDFLAG(FULL_SAFE_BROWSING)
@@ -259,8 +261,8 @@
 --- a/chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.cc
 +++ b/chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.cc
 @@ -45,7 +45,6 @@
- #include "components/policy/core/common/chrome_schema.h"
  #include "components/prefs/pref_service.h"
+ #include "components/safe_browsing/content/browser/web_ui/safe_browsing_ui.h"
  #include "components/safe_browsing/core/common/features.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  #include "components/url_matcher/url_matcher.h"
@@ -412,15 +414,15 @@
  
 --- a/chrome/browser/enterprise/signin/oidc_managed_profile_creation_delegate.cc
 +++ b/chrome/browser/enterprise/signin/oidc_managed_profile_creation_delegate.cc
-@@ -7,7 +7,6 @@
- #include "base/check.h"
+@@ -8,7 +8,6 @@
+ #include "chrome/browser/enterprise/signin/enterprise_signin_prefs.h"
  #include "chrome/browser/profiles/profile_attributes_storage.h"
  #include "components/prefs/pref_service.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  
  OidcManagedProfileCreationDelegate::OidcManagedProfileCreationDelegate() =
      default;
-@@ -35,8 +34,6 @@ void OidcManagedProfileCreationDelegate:
+@@ -54,8 +53,6 @@ void OidcManagedProfileCreationDelegate:
  
  void OidcManagedProfileCreationDelegate::CheckManagedProfileStatus(
      Profile* new_profile) {
@@ -526,15 +528,15 @@
  std::string_view GetOAuth2MintTokenFlowVersion() {
 --- a/chrome/browser/extensions/api/preference/preference_api.cc
 +++ b/chrome/browser/extensions/api/preference/preference_api.cc
-@@ -24,7 +24,6 @@
- #include "chrome/common/pref_names.h"
- #include "components/autofill/core/common/autofill_prefs.h"
+@@ -26,7 +26,6 @@
+ #include "components/content_settings/core/common/pref_names.h"
  #include "components/prefs/pref_service.h"
+ #include "components/privacy_sandbox/tracking_protection_prefs.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  #include "extensions/browser/api/content_settings/content_settings_service.h"
  #include "extensions/browser/extension_pref_value_map.h"
  #include "extensions/browser/extension_pref_value_map_factory.h"
-@@ -695,17 +694,6 @@ ExtensionFunction::ResponseAction SetPre
+@@ -697,17 +696,6 @@ ExtensionFunction::ResponseAction SetPre
          base::Value(browser_pref_value->GetBool()));
    }
  
@@ -542,7 +544,7 @@
 -  // preference, it must also set |kSafeBrowsingEnhanced| to false.
 -  // See crbug.com/1064722 for more background.
 -  //
--  // TODO(crbug.com/1064722): Consider extending
+-  // TODO(crbug.com/40681445): Consider extending
 -  // chrome.privacy.services.safeBrowsingEnabled to a three-state enum.
 -  if (prefs::kSafeBrowsingEnabled == browser_pref) {
 -    prefs_helper->SetExtensionControlledPref(extension_id(),
@@ -550,9 +552,9 @@
 -                                             scope, base::Value(false));
 -  }
  
-   prefs_helper->SetExtensionControlledPref(extension_id(), browser_pref, scope,
-                                            browser_pref_value->Clone());
-@@ -793,16 +781,6 @@ ExtensionFunction::ResponseAction ClearP
+   // TODO(https://b/333527273): Remove this logic &
+   // CookieControlsModeTransformer and replace with a transformer for this pref.
+@@ -803,16 +791,6 @@ ExtensionFunction::ResponseAction ClearP
    prefs_helper->RemoveExtensionControlledPref(extension_id(), browser_pref,
                                                scope);
  
@@ -560,7 +562,7 @@
 -  // it must also clear |kSafeBrowsingEnhanced|. See crbug.com/1064722 for
 -  // more background.
 -  //
--  // TODO(crbug.com/1064722): Consider extending
+-  // TODO(crbug.com/40681445): Consider extending
 -  // chrome.privacy.services.safeBrowsingEnabled to a three-state enum.
 -  if (prefs::kSafeBrowsingEnabled == browser_pref) {
 -    prefs_helper->RemoveExtensionControlledPref(
@@ -571,15 +573,15 @@
        did_just_control_pref) {
 --- a/chrome/browser/extensions/api/preference/preference_apitest.cc
 +++ b/chrome/browser/extensions/api/preference/preference_apitest.cc
-@@ -30,7 +30,6 @@
- #include "components/password_manager/core/common/password_manager_pref_names.h"
+@@ -31,7 +31,6 @@
  #include "components/prefs/pref_service.h"
  #include "components/privacy_sandbox/privacy_sandbox_prefs.h"
+ #include "components/privacy_sandbox/tracking_protection_prefs.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  #include "components/translate/core/browser/translate_pref_names.h"
  #include "content/public/test/browser_test.h"
  #include "content/public/test/test_devtools_protocol_client.h"
-@@ -86,7 +85,6 @@ class ExtensionPreferenceApiTest
+@@ -87,7 +86,6 @@ class ExtensionPreferenceApiTest
                prefs->GetInteger(prefetch::prefs::kNetworkPredictionOptions));
      EXPECT_TRUE(
          prefs->GetBoolean(password_manager::prefs::kCredentialsEnableService));
@@ -587,7 +589,7 @@
      EXPECT_TRUE(prefs->GetBoolean(prefs::kSearchSuggestEnabled));
      VerifyPrefValueAndControlledState(prefs::kPrivacySandboxM1TopicsEnabled,
                                        base::Value(false),
-@@ -124,7 +122,6 @@ class ExtensionPreferenceApiTest
+@@ -125,7 +123,6 @@ class ExtensionPreferenceApiTest
                prefs->GetInteger(prefetch::prefs::kNetworkPredictionOptions));
      EXPECT_FALSE(
          prefs->GetBoolean(password_manager::prefs::kCredentialsEnableService));
@@ -595,7 +597,7 @@
      EXPECT_FALSE(prefs->GetBoolean(prefs::kSearchSuggestEnabled));
      VerifyPrefValueAndControlledState(prefs::kPrivacySandboxM1TopicsEnabled,
                                        base::Value(true),
-@@ -209,7 +206,6 @@ IN_PROC_BROWSER_TEST_P(ExtensionPreferen
+@@ -210,7 +207,6 @@ IN_PROC_BROWSER_TEST_P(ExtensionPreferen
        prefetch::prefs::kNetworkPredictionOptions,
        static_cast<int>(prefetch::NetworkPredictionOptions::kDisabled));
    prefs->SetBoolean(password_manager::prefs::kCredentialsEnableService, false);
@@ -635,7 +637,7 @@
  #include "components/spellcheck/browser/pref_names.h"
  #include "components/supervised_user/core/common/pref_names.h"
  #include "components/translate/core/browser/translate_pref_names.h"
-@@ -305,8 +303,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+@@ -300,8 +298,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
  #endif
  
    // Privacy page
@@ -644,7 +646,7 @@
    (*s_allowlist)[::prefs::kDnsOverHttpsMode] = settings_api::PrefType::kString;
    (*s_allowlist)[::prefs::kDnsOverHttpsTemplates] =
        settings_api::PrefType::kString;
-@@ -329,16 +325,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+@@ -324,16 +320,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
        settings_api::PrefType::kBoolean;
  
    // Security page
@@ -663,7 +665,7 @@
    (*s_allowlist)[::kGeneratedHttpsFirstModePref] =
 --- a/chrome/browser/extensions/api/webstore_private/webstore_private_apitest.cc
 +++ b/chrome/browser/extensions/api/webstore_private/webstore_private_apitest.cc
-@@ -727,9 +727,6 @@ IN_PROC_BROWSER_TEST_F(ExtensionWebstore
+@@ -732,9 +732,6 @@ IN_PROC_BROWSER_TEST_F(ExtensionWebstore
  IN_PROC_BROWSER_TEST_F(ExtensionWebstorePrivateGetReferrerChainApiTest,
                         GetReferrerChainForNonSafeBrowsingUser) {
    PrefService* pref_service = browser()->profile()->GetPrefs();
@@ -758,7 +760,7 @@
  #include "content/public/browser/browser_thread.h"
  #include "content/public/common/url_constants.h"
  #include "extensions/browser/allowlist_state.h"
-@@ -1130,19 +1129,6 @@ void InstalledLoader::RecordExtensionsMe
+@@ -1128,19 +1127,6 @@ void InstalledLoader::RecordExtensionsMe
      base::UmaHistogramCounts100("Extensions.NotAllowlistedDisabled2",
                                  disabled_not_allowlisted_count);
    }
@@ -780,7 +782,7 @@
  int InstalledLoader::GetCreationFlags(const ExtensionInfo* info) {
 --- a/chrome/browser/extensions/pref_mapping.cc
 +++ b/chrome/browser/extensions/pref_mapping.cc
-@@ -19,7 +19,6 @@
+@@ -20,7 +20,6 @@
  #include "components/privacy_sandbox/privacy_sandbox_prefs.h"
  #include "components/privacy_sandbox/tracking_protection_prefs.h"
  #include "components/proxy_config/proxy_config_pref_names.h"
@@ -788,7 +790,7 @@
  #include "components/spellcheck/browser/pref_names.h"
  #include "components/translate/core/browser/translate_pref_names.h"
  
-@@ -66,11 +65,6 @@ const PrefMappingEntry kMappings[] = {
+@@ -67,11 +66,6 @@ const PrefMappingEntry kMappings[] = {
       APIPermissionID::kPrivacy},
      {"doNotTrackEnabled", prefs::kEnableDoNotTrack, APIPermissionID::kPrivacy,
       APIPermissionID::kPrivacy},
@@ -810,7 +812,7 @@
  #include "content/public/browser/browser_context.h"
  #include "content/public/browser/browser_thread.h"
  #include "content/public/browser/first_party_sets_handler.h"
-@@ -1167,15 +1166,8 @@ void ProfileNetworkContextService::Confi
+@@ -1124,15 +1123,8 @@ void ProfileNetworkContextService::Confi
  
    network_context_params->enable_certificate_reporting = true;
  
@@ -985,7 +987,7 @@
  }  // namespace policy
 --- a/chrome/browser/policy/configuration_policy_handler_list_factory.cc
 +++ b/chrome/browser/policy/configuration_policy_handler_list_factory.cc
-@@ -109,14 +109,11 @@
+@@ -110,14 +110,11 @@
  #include "components/proxy_config/proxy_policy_handler.h"
  #include "components/safe_browsing/buildflags.h"
  #include "components/safe_browsing/content/common/file_type_policies_prefs.h"
@@ -1049,7 +1051,7 @@
  #if BUILDFLAG(ENABLE_PDF)
    { key::kPdfLocalFileAccessAllowedForDomains,
      prefs::kPdfLocalFileAccessAllowedForDomains,
-@@ -701,9 +677,6 @@ const PolicyToPreferenceMapEntry kSimple
+@@ -704,9 +680,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kRestoreOnStartupURLs,
      prefs::kURLsToRestoreOnStartup,
      base::Value::Type::LIST },
@@ -1059,7 +1061,7 @@
    { key::kSameOriginTabCaptureAllowedByOrigins,
      prefs::kSameOriginTabCaptureAllowedByOrigins,
      base::Value::Type::LIST },
-@@ -815,9 +788,6 @@ const PolicyToPreferenceMapEntry kSimple
+@@ -818,9 +791,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kAdditionalDnsQueryTypesEnabled,
      prefs::kAdditionalDnsQueryTypesEnabled,
      base::Value::Type::BOOLEAN },
@@ -1069,7 +1071,7 @@
    { key::kForceGoogleSafeSearch,
      policy_prefs::kForceGoogleSafeSearch,
      base::Value::Type::BOOLEAN },
-@@ -873,9 +843,6 @@ const PolicyToPreferenceMapEntry kSimple
+@@ -876,9 +846,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kRequireOnlineRevocationChecksForLocalAnchors,
      prefs::kCertRevocationCheckingRequiredLocalAnchors,
      base::Value::Type::BOOLEAN },
@@ -1077,9 +1079,9 @@
 -    prefs::kSafeBrowsingSurveysEnabled,
 -    base::Value::Type::BOOLEAN },
  #endif  // #if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
-         // || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_MAC)
- #if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN) \
-@@ -1749,9 +1716,6 @@ const PolicyToPreferenceMapEntry kSimple
+         // || BUILDFLAG(IS_WIN)  || BUILDFLAG(IS_MAC)
+ #if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
+@@ -1751,9 +1718,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kUnmanagedDeviceSignalsConsentFlowEnabled,
      device_signals::prefs::kUnmanagedDeviceSignalsConsentFlowEnabled,
      base::Value::Type::BOOLEAN },
@@ -1087,8 +1089,8 @@
 -    prefs::kProfileSeparationDomainExceptionList,
 -    base::Value::Type::LIST },
  #endif // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
- #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) \
-     || BUILDFLAG(IS_FUCHSIA)
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+   { key::kDefaultBrowserSettingEnabled,
 @@ -1812,9 +1776,6 @@ const PolicyToPreferenceMapEntry kSimple
      prefs::kImportDialogAutofillFormData,
      base::Value::Type::BOOLEAN },
@@ -1099,17 +1101,17 @@
    { key::kHardwareAccelerationModeEnabled,
      prefs::kHardwareAccelerationModeEnabled,
      base::Value::Type::BOOLEAN },
-@@ -2096,9 +2057,6 @@ const PolicyToPreferenceMapEntry kSimple
+@@ -2094,9 +2055,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kGoogleSearchSidePanelEnabled,
      prefs::kGoogleSearchSidePanelEnabled,
      base::Value::Type::BOOLEAN },
 -  { key::kSafeBrowsingDeepScanningEnabled,
 -    prefs::kSafeBrowsingDeepScanningEnabled,
 -    base::Value::Type::BOOLEAN },
- #endif  // BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
+ #endif  // BUILDFLAG(IS_ANDROID)
    { key::kAllowBackForwardCacheForCacheControlNoStorePageEnabled,
      policy_prefs::kAllowBackForwardCacheForCacheControlNoStorePageEnabled,
-@@ -2330,12 +2288,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -2346,12 +2304,6 @@ std::unique_ptr<ConfigurationPolicyHandl
            SimpleSchemaValidatingPolicyHandler::RECOMMENDED_ALLOWED,
            SimpleSchemaValidatingPolicyHandler::MANDATORY_ALLOWED));
  
@@ -1122,7 +1124,7 @@
  
    handlers->AddHandler(
        std::make_unique<NtpCustomBackgroundEnabledPolicyHandler>());
-@@ -2526,21 +2478,7 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -2541,21 +2493,7 @@ std::unique_ptr<ConfigurationPolicyHandl
            key::kBrowserContextAwareAccessSignalsAllowlist,
            enterprise_connectors::kBrowserContextAwareAccessSignalsAllowlistPref,
            chrome_schema));
@@ -1144,7 +1146,7 @@
    handlers->AddHandler(std::make_unique<IntRangePolicyHandler>(
        key::kProfileReauthPrompt, enterprise_signin::prefs::kProfileReauthPrompt,
        static_cast<int>(enterprise_signin::ProfileReauthPrompt::kDoNotPrompt),
-@@ -2629,24 +2567,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -2645,24 +2583,6 @@ std::unique_ptr<ConfigurationPolicyHandl
  #else   // BUILDFLAG(IS_CHROMEOS)
    std::vector<std::unique_ptr<ConfigurationPolicyHandler>>
        signin_legacy_policies;
@@ -1171,22 +1173,23 @@
        std::make_unique<BrowserSigninPolicyHandler>(chrome_schema)));
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -158,14 +158,12 @@
+@@ -158,7 +158,6 @@
  #include "components/privacy_sandbox/privacy_sandbox_prefs.h"
  #include "components/proxy_config/pref_proxy_config_tracker_impl.h"
  #include "components/safe_browsing/content/common/file_type_policies_prefs.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/saved_tab_groups/pref_names.h"
  #include "components/search_engines/template_url_prepopulate_data.h"
  #include "components/security_interstitials/content/insecure_form_blocking_page.h"
- #include "components/security_interstitials/content/stateful_ssl_host_state_delegate.h"
+@@ -166,7 +165,6 @@
  #include "components/segmentation_platform/embedder/default_model/device_switcher_result_dispatcher.h"
  #include "components/segmentation_platform/public/segmentation_platform_service.h"
  #include "components/sessions/core/session_id_generator.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/site_engagement/content/site_engagement_service.h"
- #include "components/subresource_filter/content/shared/browser/ruleset_service.h"
-@@ -1549,7 +1547,6 @@ void RegisterLocalState(PrefRegistrySimp
+@@ -1632,7 +1630,6 @@ void RegisterLocalState(PrefRegistrySimp
    PushMessagingServiceImpl::RegisterPrefs(registry);
  #endif
    RegisterScreenshotPrefs(registry);
@@ -1194,7 +1197,7 @@
    secure_origin_allowlist::RegisterPrefs(registry);
    segmentation_platform::SegmentationPlatformService::RegisterLocalStatePrefs(
        registry);
-@@ -1851,8 +1848,6 @@ void RegisterProfilePrefs(user_prefs::Pr
+@@ -1942,8 +1939,6 @@ void RegisterProfilePrefs(user_prefs::Pr
    QuietNotificationPermissionUiState::RegisterProfilePrefs(registry);
    RegisterBrowserUserPrefs(registry);
    RegisterPrefersDefaultScrollbarStylesPrefs(registry);
@@ -1203,7 +1206,7 @@
    SearchPrefetchService::RegisterProfilePrefs(registry);
    blocked_content::SafeBrowsingTriggeredPopupBlocker::RegisterProfilePrefs(
        registry);
-@@ -2396,20 +2391,6 @@ void MigrateObsoleteProfilePrefs(PrefSer
+@@ -2524,20 +2519,6 @@ void MigrateObsoleteProfilePrefs(PrefSer
    chrome_browser_net::secure_dns::MigrateProbesSettingToOrFromBackup(
        profile_prefs);
  
@@ -1224,7 +1227,7 @@
  
    // TODO(326079444): After experiment is over, update the deprecated date and
    // allow this to be cleaned up.
-@@ -2668,9 +2649,6 @@ void MigrateObsoleteProfilePrefs(PrefSer
+@@ -2796,9 +2777,6 @@ void MigrateObsoleteProfilePrefs(PrefSer
    // If the sync (old) pref still exists, copy it to signin (new),
    // and clear the sync part of the pref.
    if (profile_prefs->HasPrefPath(kSync_ExplicitBrowserSignin)) {
@@ -1234,7 +1237,7 @@
      profile_prefs->ClearPref(kSync_ExplicitBrowserSignin);
    }
  
-@@ -2762,10 +2740,6 @@ void MigrateObsoleteProfilePrefs(PrefSer
+@@ -2890,10 +2868,6 @@ void MigrateObsoleteProfilePrefs(PrefSer
    // Added 03/2024.
    profile_prefs->ClearPref(kDefaultSearchProviderChoicePendingDeprecated);
  
@@ -1304,6 +1307,16 @@
      {29, prefs::kMediaStorageIdSalt, EnforcementLevel::ENFORCE_ON_LOAD,
       PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
  #if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
+@@ -173,9 +158,6 @@ const prefs::TrackedPreferenceMetadata k
+     {32, prefs::kMediaCdmOriginData, EnforcementLevel::ENFORCE_ON_LOAD,
+      PrefTrackingStrategy::ATOMIC, ValueType::IMPERSONAL},
+ #endif  // BUILDFLAG(IS_WIN)
+-    {33, prefs::kGoogleServicesLastSignedInUsername,
+-     EnforcementLevel::ENFORCE_ON_LOAD, PrefTrackingStrategy::ATOMIC,
+-     ValueType::PERSONAL},
+ 
+     // See note at top, new items added here also need to be added to
+     // histograms.xml's TrackedPreference enum.
 --- a/chrome/browser/prefs/pref_functional_browsertest.cc
 +++ b/chrome/browser/prefs/pref_functional_browsertest.cc
 @@ -24,7 +24,6 @@
@@ -1334,24 +1347,24 @@
    EXPECT_FALSE(prefs->GetBoolean(prefs::kSearchSuggestEnabled));
 --- a/chrome/browser/profiles/gaia_info_update_service.cc
 +++ b/chrome/browser/profiles/gaia_info_update_service.cc
-@@ -18,7 +18,6 @@
+@@ -19,7 +19,6 @@
  #include "components/prefs/pref_service.h"
  #include "components/signin/public/base/avatar_icon_util.h"
  #include "components/signin/public/base/consent_level.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
- #include "content/public/browser/storage_partition.h"
 --- a/chrome/browser/profiles/gaia_info_update_service_unittest.cc
 +++ b/chrome/browser/profiles/gaia_info_update_service_unittest.cc
-@@ -28,7 +28,6 @@
- #include "chrome/test/base/testing_profile_manager.h"
+@@ -29,7 +29,6 @@
  #include "components/prefs/pref_service.h"
  #include "components/profile_metrics/state.h"
+ #include "components/signin/public/base/consent_level.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/sync_preferences/pref_service_syncable.h"
- #include "content/public/test/browser_task_environment.h"
 --- a/chrome/browser/profiles/profile_attributes_entry.cc
 +++ b/chrome/browser/profiles/profile_attributes_entry.cc
 @@ -28,7 +28,6 @@
@@ -1381,14 +1394,14 @@
  void ProfileAttributesEntry::SetDasherlessManagement(bool value) {
 --- a/chrome/browser/profiles/profile_attributes_storage.cc
 +++ b/chrome/browser/profiles/profile_attributes_storage.cc
-@@ -42,7 +42,6 @@
+@@ -41,7 +41,6 @@
  #include "components/prefs/scoped_user_pref_update.h"
  #include "components/profile_metrics/state.h"
  #include "components/signin/public/base/persistent_repeating_timer.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_managed_status_finder.h"
  #include "content/public/browser/browser_task_traits.h"
- #include "content/public/browser/browser_thread.h"
 @@ -405,9 +404,7 @@ void ProfileAttributesStorage::AddProfil
                     params.profile_name,
                     /*include_check_for_legacy_profile_name*/ false))
@@ -1402,7 +1415,7 @@
      info.Set(ProfileAttributesEntry::kAccountIdKey,
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -149,7 +149,6 @@
+@@ -148,7 +148,6 @@
  #include "components/profile_metrics/browser_profile_type.h"
  #include "components/safe_search_api/safe_search_util.h"
  #include "components/security_interstitials/content/stateful_ssl_host_state_delegate.h"
@@ -1412,7 +1425,7 @@
  #include "components/spellcheck/spellcheck_buildflags.h"
 --- a/chrome/browser/profiles/profile_manager.cc
 +++ b/chrome/browser/profiles/profile_manager.cc
-@@ -90,7 +90,6 @@
+@@ -89,7 +89,6 @@
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_buildflags.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -1420,7 +1433,7 @@
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/signin/public/identity_manager/primary_account_mutator.h"
  #include "components/supervised_user/core/browser/child_account_service.h"
-@@ -1976,8 +1975,7 @@ void ProfileManager::AddProfileToStorage
+@@ -1975,8 +1974,7 @@ void ProfileManager::AddProfileToStorage
        entry->SetAuthInfo(account_info.gaia, username,
                           is_consented_primary_account);
  
@@ -1430,7 +1443,7 @@
  
  #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
        // Sign out if force-sign-in policy is enabled and profile is not signed
-@@ -2026,14 +2024,13 @@ void ProfileManager::AddProfileToStorage
+@@ -2025,14 +2023,13 @@ void ProfileManager::AddProfileToStorage
  
    init_params.is_ephemeral = IsForceEphemeralProfilesEnabled(profile);
    init_params.is_signed_in_with_credential_provider =
@@ -1969,7 +1982,7 @@
  #include "content/public/browser/browser_task_traits.h"
 --- a/chrome/browser/safe_browsing/download_protection/download_protection_service_unittest.cc
 +++ b/chrome/browser/safe_browsing/download_protection/download_protection_service_unittest.cc
-@@ -96,7 +96,6 @@
+@@ -97,7 +97,6 @@
  #include "components/safe_browsing/core/browser/db/v4_protocol_manager_util.h"
  #include "components/safe_browsing/core/common/features.h"
  #include "components/safe_browsing/core/common/proto/csd.pb.h"
@@ -2241,7 +2254,7 @@
  
    // Record the current enhanced protection pref state for regular profiles only
    if (profiles::IsRegularUserProfile(profile)) {
-@@ -505,18 +490,6 @@ void SafeBrowsingService::RefreshState()
+@@ -519,18 +504,6 @@ void SafeBrowsingService::RefreshState()
  
    // Check if any profile requires the service to be active.
    enabled_by_prefs_ = false;
@@ -2286,7 +2299,7 @@
    // Get current enabled status. Must be called on IO thread.
    bool enabled() const {
      DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
-@@ -326,10 +316,6 @@ class SafeBrowsingService : public SafeB
+@@ -333,10 +323,6 @@ class SafeBrowsingService : public SafeB
  
    std::unique_ptr<ProxyConfigMonitor> proxy_config_monitor_;
  
@@ -2415,7 +2428,7 @@
 --- a/chrome/browser/signin/bound_session_credentials/bound_session_cookie_refresh_service_factory.cc
 +++ b/chrome/browser/signin/bound_session_credentials/bound_session_cookie_refresh_service_factory.cc
 @@ -18,7 +18,6 @@
- #include "chrome/browser/signin/signin_features.h"
+ #include "chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.h"
  #include "components/pref_registry/pref_registry_syncable.h"
  #include "components/signin/public/base/account_consistency_method.h"
 -#include "components/signin/public/base/signin_pref_names.h"
@@ -2432,15 +2445,15 @@
  }
 --- a/chrome/browser/signin/chrome_device_id_helper.cc
 +++ b/chrome/browser/signin/chrome_device_id_helper.cc
-@@ -19,7 +19,6 @@
+@@ -18,7 +18,6 @@
+ #include "chrome/browser/ash/profiles/profile_helper.h"
  #include "chrome/browser/browser_process.h"
- #include "chrome/browser/signin/signin_features.h"
  #include "components/prefs/pref_service.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/user_manager/known_user.h"
  #include "components/user_manager/user_manager.h"
-@@ -88,21 +87,11 @@ void MigrateSigninScopedDeviceId(Profile
+@@ -87,21 +86,11 @@ void MigrateSigninScopedDeviceId(Profile
    user_manager::KnownUser known_user(g_browser_process->local_state());
    const AccountId account_id = user->GetAccountId();
    if (known_user.GetDeviceId(account_id).empty()) {
@@ -2468,7 +2481,7 @@
  #endif
 --- a/chrome/browser/signin/chrome_signin_client.cc
 +++ b/chrome/browser/signin/chrome_signin_client.cc
-@@ -46,7 +46,6 @@
+@@ -45,7 +45,6 @@
  #include "components/signin/public/base/signin_buildflags.h"
  #include "components/signin/public/base/signin_client.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -2488,7 +2501,7 @@
  #include "components/user_manager/user.h"
 --- a/chrome/browser/signin/dice_browsertest.cc
 +++ b/chrome/browser/signin/dice_browsertest.cc
-@@ -66,7 +66,6 @@
+@@ -69,7 +69,6 @@
  #include "components/signin/public/base/signin_buildflags.h"
  #include "components/signin/public/base/signin_client.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -2508,7 +2521,7 @@
  #include "content/public/browser/storage_partition.h"
 --- a/chrome/browser/signin/dice_web_signin_interceptor.cc
 +++ b/chrome/browser/signin/dice_web_signin_interceptor.cc
-@@ -71,7 +71,6 @@
+@@ -72,7 +72,6 @@
  #include "components/search_engines/template_url_service.h"
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -2516,7 +2529,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/account_managed_status_finder.h"
-@@ -330,16 +329,8 @@ void DiceWebSigninInterceptor::RegisterP
+@@ -315,16 +314,8 @@ void DiceWebSigninInterceptor::RegisterP
    registry->RegisterBooleanPref(prefs::kSigninInterceptionEnabled, true);
    registry->RegisterStringPref(prefs::kManagedAccountsSigninRestriction,
                                 std::string());
@@ -2530,10 +2543,10 @@
 -  registry->RegisterListPref(prefs::kProfileSeparationDomainExceptionList);
 -  registry->RegisterStringPref(
 -      prefs::kUserCloudSigninPolicyResponseFromPolicyTestPage, std::string());
-   // TODO(b/314079566): Consider merging the different similar pref counts into
-   // a single pref where the email hash maps to multiple values, includes the
-   // following two prefs and `kProfileCreationInterceptionDeclinedPref` above.
-@@ -1397,16 +1388,6 @@ void DiceWebSigninInterceptor::
+ }
+ 
+ std::optional<SigninInterceptionHeuristicOutcome>
+@@ -1319,16 +1310,6 @@ void DiceWebSigninInterceptor::
            g_browser_process->browser_policy_connector(),
            g_browser_process->system_network_context_manager()
                ->GetSharedURLLoaderFactory());
@@ -2560,7 +2573,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
-@@ -139,7 +138,7 @@ void HeaderModificationDelegateImpl::Pro
+@@ -151,7 +150,7 @@ void HeaderModificationDelegateImpl::Pro
  #endif
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
        sync_service && sync_service->IsSyncFeatureEnabled(),
@@ -2687,18 +2700,18 @@
        IsValidUnconsentedPrimaryAccount(current_primary_account);
 --- a/chrome/browser/signin/signin_promo_util.cc
 +++ b/chrome/browser/signin/signin_promo_util.cc
-@@ -9,7 +9,6 @@
- #include "chrome/browser/signin/identity_manager_factory.h"
+@@ -10,7 +10,6 @@
+ #include "chrome/browser/signin/reauth_result.h"
  #include "components/prefs/pref_service.h"
  #include "components/signin/public/base/consent_level.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
- #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/signin/public/identity_manager/primary_account_mutator.h"
-@@ -18,47 +17,7 @@
- namespace signin {
- 
- bool ShouldShowPromo(Profile& profile, ConsentLevel promo_type) {
+@@ -39,41 +38,7 @@ namespace {
+ // ShouldShowSyncPromo and ShouldShowSignInPromo). |profile| is the profile of
+ // the tab the promo would be shown on.
+ bool ShouldShowPromoCommon(Profile& profile) {
 -#if BUILDFLAG(IS_CHROMEOS_ASH)
 -  // There's no need to show the sign in promo on cros since cros users are
 -  // already logged in.
@@ -2722,30 +2735,24 @@
 -  if (!original_profile->GetPrefs()->GetBoolean(prefs::kSigninAllowed))
      return false;
 -
--  IdentityManager* identity_manager =
+-  signin::IdentityManager* identity_manager =
 -      IdentityManagerFactory::GetForProfile(original_profile);
 -
 -  // No promo if the user is already syncing.
--  if (identity_manager->HasPrimaryAccount(ConsentLevel::kSync)) {
+-  if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
 -    return false;
 -  }
 -
--  // Sync Promos are always shown when the user is not syncing.
--  if (promo_type == ConsentLevel::kSync) {
--    return true;
--  }
--
--  // Signin promo is shown if the user is not signed in or needs to reauth.
--  return !identity_manager->HasPrimaryAccount(ConsentLevel::kSignin) ||
--         identity_manager->HasAccountWithRefreshTokenInPersistentErrorState(
--             identity_manager->GetPrimaryAccountId(ConsentLevel::kSignin));
+-  // Verified the base checks. Depending on whether the promo should be for sync
+-  // or signin, additional checks are necessary.
+-  return true;
 -#endif
  }
  
- bool ShouldShowSignInPromo(Profile& profile,
+ }  // namespace
 --- a/chrome/browser/signin/signin_ui_util.cc
 +++ b/chrome/browser/signin/signin_ui_util.cc
-@@ -41,7 +41,6 @@
+@@ -40,7 +40,6 @@
  #include "components/prefs/pref_service.h"
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -2755,15 +2762,15 @@
  #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
 --- a/chrome/browser/signin/signin_util.cc
 +++ b/chrome/browser/signin/signin_util.cc
-@@ -29,7 +29,6 @@
- #include "components/google/core/common/google_util.h"
+@@ -32,7 +32,6 @@
  #include "components/policy/core/browser/signin/profile_separation_policies.h"
  #include "components/prefs/pref_service.h"
+ #include "components/signin/core/browser/account_reconcilor.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  #include "components/signin/public/identity_manager/account_managed_status_finder.h"
+ #include "components/signin/public/identity_manager/accounts_mutator.h"
  #include "content/public/browser/storage_partition.h"
- #include "google_apis/gaia/gaia_auth_util.h"
-@@ -64,8 +63,7 @@ ScopedForceSigninSetterForTesting::~Scop
+@@ -69,8 +68,7 @@ ScopedForceSigninSetterForTesting::~Scop
  CookiesMover::CookiesMover(base::WeakPtr<Profile> source_profile,
                             base::WeakPtr<Profile> destination_profile,
                             base::OnceCallback<void()> callback)
@@ -2773,7 +2780,7 @@
        source_profile_(std::move(source_profile)),
        destination_profile_(std::move(destination_profile)),
        callback_(std::move(callback)) {
-@@ -75,25 +73,7 @@ CookiesMover::CookiesMover(base::WeakPtr
+@@ -80,25 +78,7 @@ CookiesMover::CookiesMover(base::WeakPtr
  CookiesMover::~CookiesMover() = default;
  
  void CookiesMover::StartMovingCookies() {
@@ -2799,7 +2806,7 @@
  }
  
  void CookiesMover::OnCookiesReceived(
-@@ -235,16 +215,7 @@ bool ProfileSeparationAllowsKeepingUnman
+@@ -240,16 +220,7 @@ bool ProfileSeparationAllowsKeepingUnman
  bool IsAccountExemptedFromEnterpriseProfileSeparation(
      Profile* profile,
      const std::string& email) {
@@ -2898,7 +2905,7 @@
  
 --- a/chrome/browser/ssl/ssl_browsertest.cc
 +++ b/chrome/browser/ssl/ssl_browsertest.cc
-@@ -94,7 +94,6 @@
+@@ -95,7 +95,6 @@
  #include "components/policy/policy_constants.h"
  #include "components/prefs/testing_pref_service.h"
  #include "components/safe_browsing/core/common/features.h"
@@ -2918,7 +2925,7 @@
  #include "components/security_interstitials/content/stateful_ssl_host_state_delegate.h"
 --- a/chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.cc
 +++ b/chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.cc
-@@ -45,7 +45,6 @@
+@@ -44,7 +44,6 @@
  #include "components/autofill/core/common/autofill_features.h"
  #include "components/autofill/core/common/autofill_payments_features.h"
  #include "components/signin/public/base/signin_buildflags.h"
@@ -2928,7 +2935,7 @@
  #include "components/sync/service/sync_service.h"
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
-@@ -81,7 +81,6 @@
+@@ -84,7 +84,6 @@
  #include "components/sessions/core/tab_restore_service.h"
  #include "components/signin/public/base/signin_buildflags.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -2948,7 +2955,7 @@
  #include "ui/events/keycodes/dom/dom_code.h"
 --- a/chrome/browser/ui/chrome_pages.cc
 +++ b/chrome/browser/ui/chrome_pages.cc
-@@ -80,7 +80,6 @@
+@@ -82,7 +82,6 @@
  #if !BUILDFLAG(IS_ANDROID)
  #include "base/metrics/histogram_functions.h"
  #include "chrome/browser/signin/identity_manager_factory.h"
@@ -2958,7 +2965,7 @@
  
 --- a/chrome/browser/ui/hats/trust_safety_sentiment_service.cc
 +++ b/chrome/browser/ui/hats/trust_safety_sentiment_service.cc
-@@ -27,8 +27,6 @@
+@@ -31,8 +31,6 @@
  #include "components/privacy_sandbox/privacy_sandbox_prefs.h"
  #include "components/privacy_sandbox/tracking_protection_prefs.h"
  #include "components/safe_browsing/core/browser/db/v4_protocol_manager_util.h"
@@ -2967,7 +2974,7 @@
  #include "components/unified_consent/pref_names.h"
  #include "components/version_info/channel.h"
  
-@@ -74,9 +72,6 @@ bool HasNonDefaultPrivacySetting(Profile
+@@ -78,9 +76,6 @@ bool HasNonDefaultPrivacySetting(Profile
    auto* prefs = profile->GetPrefs();
  
    std::vector<std::string> prefs_to_check = {
@@ -2977,7 +2984,7 @@
        prefs::kEnableDoNotTrack,
        password_manager::prefs::kPasswordLeakDetectionEnabled,
        prefs::kCookieControlsMode,
-@@ -94,13 +89,9 @@ bool HasNonDefaultPrivacySetting(Profile
+@@ -98,13 +93,9 @@ bool HasNonDefaultPrivacySetting(Profile
    // Users consenting to sync automatically enable UKM collection
    auto* ukm_pref = prefs->FindPreference(
        unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled);
@@ -2992,7 +2999,7 @@
  
    // Check the default value for each user facing content setting. Note that
    // this will not include content setting exceptions set via permission
-@@ -175,8 +166,6 @@ std::map<std::string, bool> BuildProduct
+@@ -177,8 +168,6 @@ std::map<std::string, bool> BuildProduct
      PasswordProtectionUIType ui_type,
      PasswordProtectionUIAction action) {
    std::map<std::string, bool> product_specific_data;
@@ -3001,7 +3008,7 @@
    product_specific_data["Is page info UI"] = false;
    product_specific_data["Is modal dialog UI"] = false;
    product_specific_data["Is interstitial UI"] = false;
-@@ -433,31 +422,12 @@ void TrustSafetySentimentService::Intera
+@@ -437,31 +426,12 @@ void TrustSafetySentimentService::Intera
  void TrustSafetySentimentService::InteractedWithSafeBrowsingInterstitial(
      bool did_proceed,
      safe_browsing::SBThreatType threat_type) {
@@ -3033,6 +3040,36 @@
    product_specific_data["Is mainpage UI"] = false;
    product_specific_data["Is downloads page UI"] = false;
    product_specific_data["Is download prompt UI"] = false;
+--- a/chrome/browser/ui/safety_hub/card_data_helper.cc
++++ b/chrome/browser/ui/safety_hub/card_data_helper.cc
+@@ -28,7 +28,6 @@
+ #include "chrome/browser/upgrade_detector/build_state.h"
+ #include "chrome/grit/branded_strings.h"
+ #include "chrome/grit/generated_resources.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "ui/base/l10n/l10n_util.h"
+ 
+@@ -50,19 +49,6 @@ base::Value::Dict CardDataToValue(int he
+ 
+ // Returns the state of Safe Browsing setting.
+ SafeBrowsingState GetSafeBrowsingState(PrefService* pref_service) {
+-  // TODO(crbug.com/40267370): Use SafeBrowsingResult from Safety Hub instead.
+-  if (safe_browsing::IsEnhancedProtectionEnabled(*pref_service)) {
+-    return SafeBrowsingState::kEnabledEnhanced;
+-  }
+-  if (safe_browsing::IsSafeBrowsingEnabled(*pref_service)) {
+-    return SafeBrowsingState::kEnabledStandard;
+-  }
+-  if (safe_browsing::IsSafeBrowsingPolicyManaged(*pref_service)) {
+-    return SafeBrowsingState::kDisabledByAdmin;
+-  }
+-  if (safe_browsing::IsSafeBrowsingExtensionControlled(*pref_service)) {
+-    return SafeBrowsingState::kDisabledByExtension;
+-  }
+   return SafeBrowsingState::kDisabledByUser;
+ }
+ 
 --- a/chrome/browser/ui/safety_hub/menu_notification_service.cc
 +++ b/chrome/browser/ui/safety_hub/menu_notification_service.cc
 @@ -20,7 +20,6 @@
@@ -3043,10 +3080,10 @@
  
  namespace {
  SafetyHubModuleInfoElement::SafetyHubModuleInfoElement() = default;
-@@ -83,15 +82,6 @@ SafetyHubMenuNotificationService::Safety
-       base::BindRepeating(&PasswordStatusCheckService::GetCachedResult,
-                           base::Unretained(password_check_service)),
-       stored_notifications);
+@@ -102,15 +101,6 @@ SafetyHubMenuNotificationService::Safety
+                             base::Unretained(password_check_service)),
+         stored_notifications);
+   }
 -
 -  // Listen for changes to the Safe Browsing pref to accommodate the trigger
 -  // logic.
@@ -3092,6 +3129,47 @@
    return std::make_unique<SafetyHubSafeBrowsingResult>(
        SafeBrowsingState::kDisabledByUser);
  }
+--- a/chrome/browser/ui/signin/cookie_clear_on_exit_migration_notice.cc
++++ b/chrome/browser/ui/signin/cookie_clear_on_exit_migration_notice.cc
+@@ -23,7 +23,6 @@
+ #include "components/prefs/pref_service.h"
+ #include "components/signin/public/base/consent_level.h"
+ #include "components/signin/public/base/signin_buildflags.h"
+-#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -67,7 +66,6 @@ void OpenCookieSettingsAndCloseDialog(Br
+ }
+ 
+ bool SetCookieClearOnExitMigrationComplete(PrefService& prefs, bool can_close) {
+-  prefs.SetBoolean(prefs::kCookieClearOnExitMigrationNoticeComplete, true);
+   return can_close;
+ }
+ 
+@@ -78,11 +76,6 @@ bool SetCookieClearOnExitMigrationComple
+ bool CanShowCookieClearOnExitMigrationNotice(const Browser& browser) {
+ #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+   Profile* profile = browser.profile();
+-  PrefService* prefs = profile->GetPrefs();
+-
+-  if (prefs->GetBoolean(prefs::kCookieClearOnExitMigrationNoticeComplete)) {
+-    return false;
+-  }
+ 
+   if (CookieClearOnExitMigrationNoticeShowingUserData::HasForProfile(
+           *profile)) {
+@@ -96,10 +89,6 @@ bool CanShowCookieClearOnExitMigrationNo
+   // User has to be signed in with UNO (non-syncing).
+   signin::IdentityManager* identity_manager =
+       IdentityManagerFactory::GetForProfile(profile);
+-  if (!prefs->GetBoolean(prefs::kExplicitBrowserSignin)) {
+-    return false;
+-  }
+-
+   if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
+     return false;
+   }
 --- a/chrome/browser/ui/signin/signin_view_controller.cc
 +++ b/chrome/browser/ui/signin/signin_view_controller.cc
 @@ -26,7 +26,6 @@
@@ -3102,15 +3180,13 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
-@@ -235,17 +234,6 @@ void SigninViewController::SignoutOrReau
+@@ -234,15 +233,6 @@ void SigninViewController::SignoutOrReau
            &SigninViewController::SignoutOrReauthWithPromptWithUnsyncedDataTypes,
            weak_ptr_factory_.GetWeakPtr(), reauth_access_point,
            profile_signout_source, token_signout_source);
 -  // Fetch the unsynced datatypes, as this is required to decide whether the
 -  // confirmation prompt is needed.
 -  if (sync_service &&
--      switches::IsExplicitBrowserSigninUIOnDesktopEnabled(
--          switches::ExplicitBrowserSigninPhase::kFull) &&
 -      profile->GetPrefs()->GetBoolean(prefs::kExplicitBrowserSignin)) {
 -    sync_service->GetTypesWithUnsyncedData(
 -        syncer::TypesRequiringUnsyncedDataCheckOnSignout(),
@@ -3122,15 +3198,15 @@
  }
 --- a/chrome/browser/ui/startup/first_run_service.cc
 +++ b/chrome/browser/ui/startup/first_run_service.cc
-@@ -33,7 +33,6 @@
+@@ -29,7 +29,6 @@
  #include "components/prefs/pref_registry_simple.h"
  #include "components/prefs/pref_service.h"
  #include "components/signin/public/base/consent_level.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
- #include "content/public/browser/browser_context.h"
-@@ -110,47 +109,7 @@ enum class PolicyEffect {
+@@ -107,47 +106,7 @@ enum class PolicyEffect {
  };
  
  PolicyEffect ComputeDevicePolicyEffect(Profile& profile) {
@@ -3181,15 +3257,15 @@
  void SetFirstRunFinished(FirstRunService::FinishedReason reason) {
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -96,7 +96,6 @@
- #include "components/prefs/pref_service.h"
+@@ -99,7 +99,6 @@
  #include "components/profile_metrics/browser_profile_type.h"
+ #include "components/saved_tab_groups/features.h"
  #include "components/signin/public/base/signin_metrics.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/strings/grit/components_strings.h"
  #include "components/vector_icons/vector_icons.h"
-@@ -531,62 +530,7 @@ int ProfileSubMenuModel::GetAndIncrement
+@@ -571,56 +570,7 @@ int ProfileSubMenuModel::GetAndIncrement
  }
  
  bool ProfileSubMenuModel::BuildSyncSection() {
@@ -3222,31 +3298,25 @@
 -  if (error.has_value()) {
 -    if (error == AvatarSyncErrorType::kSyncPaused) {
 -      // If sync is paused the menu item will be specific to the paused error.
--      AddItemWithStringIdAndIcon(IDC_SHOW_SIGNIN_WHEN_PAUSED,
--                                 IDS_PROFILE_ROW_SIGN_IN_AGAIN,
--                                 ui::ImageModel::FromVectorIcon(
--                                     vector_icons::kSyncOffChromeRefreshIcon,
--                                     ui::kColorMenuIcon, kDefaultIconSize));
+-      AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_SIGNIN_WHEN_PAUSED,
+-                                       IDS_PROFILE_ROW_SIGN_IN_AGAIN,
+-                                       vector_icons::kSyncOffChromeRefreshIcon);
 -    } else {
 -      // All remaining errors will have the same menu item.
--      AddItemWithStringIdAndIcon(
--          IDC_SHOW_SYNC_SETTINGS, IDS_PROFILE_ROW_SYNC_ERROR_MESSAGE,
--          ui::ImageModel::FromVectorIcon(
--              vector_icons::kSyncProblemChromeRefreshIcon, ui::kColorMenuIcon,
--              kDefaultIconSize));
+-      AddItemWithStringIdAndVectorIcon(
+-          this, IDC_SHOW_SYNC_SETTINGS, IDS_PROFILE_ROW_SYNC_ERROR_MESSAGE,
+-          vector_icons::kSyncProblemChromeRefreshIcon);
 -    }
 -    return true;
 -  }
 -  if (is_sync_feature_enabled) {
--    AddItemWithStringIdAndIcon(
--        IDC_SHOW_SYNC_SETTINGS, IDS_PROFILE_ROW_SYNC_IS_ON,
--        ui::ImageModel::FromVectorIcon(vector_icons::kSyncChromeRefreshIcon,
--                                       ui::kColorMenuIcon, kDefaultIconSize));
+-    AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_SYNC_SETTINGS,
+-                                     IDS_PROFILE_ROW_SYNC_IS_ON,
+-                                     vector_icons::kSyncChromeRefreshIcon);
 -  } else {
--    AddItemWithStringIdAndIcon(
--        IDC_TURN_ON_SYNC, IDS_PROFILE_ROW_TURN_ON_SYNC,
--        ui::ImageModel::FromVectorIcon(vector_icons::kSyncOffChromeRefreshIcon,
--                                       ui::kColorMenuIcon, kDefaultIconSize));
+-    AddItemWithStringIdAndVectorIcon(this, IDC_TURN_ON_SYNC,
+-                                     IDS_PROFILE_ROW_TURN_ON_SYNC,
+-                                     vector_icons::kSyncOffChromeRefreshIcon);
 -  }
 -  return true;
  }
@@ -3272,9 +3342,38 @@
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/signin/public/identity_manager/identity_test_utils.h"
+--- a/chrome/browser/ui/views/profiles/avatar_toolbar_button_delegate.cc
++++ b/chrome/browser/ui/views/profiles/avatar_toolbar_button_delegate.cc
+@@ -50,7 +50,6 @@
+ #include "components/prefs/pref_service.h"
+ #include "components/signin/public/base/consent_level.h"
+ #include "components/signin/public/base/signin_metrics.h"
+-#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_switches.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "components/signin/public/identity_manager/primary_account_change_event.h"
+@@ -1422,18 +1421,6 @@ void AvatarToolbarButtonDelegate::OnErro
+     const CoreAccountInfo& account_info,
+     const GoogleServiceAuthError& error,
+     signin_metrics::SourceForRefreshTokenOperation token_operation_source) {
+-  if (base::FeatureList::IsEnabled(
+-          syncer::kReplaceSyncPromosWithSignInPromos) &&
+-      profile_->GetPrefs()->GetBoolean(prefs::kExplicitBrowserSignin) &&
+-      account_info == identity_manager_->GetPrimaryAccountInfo(
+-                          signin::ConsentLevel::kSignin) &&
+-      !identity_manager_->HasPrimaryAccount(signin::ConsentLevel::kSync) &&
+-      error.state() ==
+-          GoogleServiceAuthError::State::INVALID_GAIA_CREDENTIALS &&
+-      token_operation_source == signin_metrics::SourceForRefreshTokenOperation::
+-                                    kDiceResponseHandler_Signout) {
+-    avatar_toolbar_button_->MaybeShowWebSignoutIPH(account_info.gaia);
+-  }
+ }
+ 
+ // static
 --- a/chrome/browser/ui/views/profiles/profile_menu_view.cc
 +++ b/chrome/browser/ui/views/profiles/profile_menu_view.cc
-@@ -66,7 +66,6 @@
+@@ -64,7 +64,6 @@
  #include "components/signin/core/browser/signin_error_controller.h"
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -3282,7 +3381,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/primary_account_mutator.h"
-@@ -656,7 +655,6 @@ void ProfileMenuView::BuildAutofillButto
+@@ -669,7 +668,6 @@ void ProfileMenuView::BuildAutofillButto
  
  void ProfileMenuView::BuildSyncInfo() {
    Profile* profile = browser()->profile();
@@ -3292,7 +3391,7 @@
    if (!SyncServiceFactory::IsSyncAllowed(profile)) {
 --- a/chrome/browser/ui/views/profiles/profile_menu_view_browsertest.cc
 +++ b/chrome/browser/ui/views/profiles/profile_menu_view_browsertest.cc
-@@ -74,7 +74,6 @@
+@@ -76,7 +76,6 @@
  #include "components/password_manager/core/common/password_manager_features.h"
  #include "components/prefs/pref_service.h"
  #include "components/signin/public/base/consent_level.h"
@@ -3345,7 +3444,7 @@
  
 --- a/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.h
 +++ b/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.h
-@@ -63,7 +63,6 @@ class PasswordReuseModalWarningDialog
+@@ -64,7 +64,6 @@ class PasswordReuseModalWarningDialog
  
   private:
    OnWarningDone done_callback_;
@@ -3365,15 +3464,15 @@
  #include "content/public/browser/render_process_host.h"
 --- a/chrome/browser/ui/views/toolbar/app_menu.cc
 +++ b/chrome/browser/ui/views/toolbar/app_menu.cc
-@@ -52,7 +52,6 @@
- #include "chrome/grit/generated_resources.h"
+@@ -54,7 +54,6 @@
  #include "chrome/grit/theme_resources.h"
  #include "components/bookmarks/browser/bookmark_model.h"
+ #include "components/saved_tab_groups/features.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/zoom/page_zoom.h"
  #include "components/zoom/zoom_controller.h"
-@@ -347,67 +346,6 @@ void AddSignedInChipToProfileMenuItem(
+@@ -365,67 +364,6 @@ void AddSignedInChipToProfileMenuItem(
      const int horizontal_padding,
      std::vector<base::CallbackListSubscription>&
          profile_menu_subscription_list) {
@@ -3467,7 +3566,7 @@
        break;
 --- a/chrome/browser/ui/webui/downloads/downloads_dom_handler.cc
 +++ b/chrome/browser/ui/webui/downloads/downloads_dom_handler.cc
-@@ -50,7 +50,6 @@
+@@ -54,7 +54,6 @@
  #include "components/history/core/common/pref_names.h"
  #include "components/prefs/pref_service.h"
  #include "components/safe_browsing/core/common/features.h"
@@ -3477,7 +3576,7 @@
  #include "content/public/browser/download_item_utils.h"
 --- a/chrome/browser/ui/webui/history/history_ui.cc
 +++ b/chrome/browser/ui/webui/history/history_ui.cc
-@@ -49,7 +49,6 @@
+@@ -56,7 +56,6 @@
  #include "components/page_image_service/image_service.h"
  #include "components/page_image_service/image_service_handler.h"
  #include "components/prefs/pref_service.h"
@@ -3485,7 +3584,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/strings/grit/components_strings.h"
-@@ -155,8 +154,6 @@ content::WebUIDataSource* CreateAndAddHi
+@@ -163,8 +162,6 @@ content::WebUIDataSource* CreateAndAddHi
    source->AddBoolean("allowDeletingHistory", allow_deleting_history);
  
    source->AddBoolean("isGuestSession", profile->IsGuestSession());
@@ -3496,14 +3595,14 @@
  
 --- a/chrome/browser/ui/webui/management/management_ui_handler.cc
 +++ b/chrome/browser/ui/webui/management/management_ui_handler.cc
-@@ -45,7 +45,6 @@
- #include "components/content_settings/core/common/content_settings_pattern.h"
+@@ -46,7 +46,6 @@
  #include "components/enterprise/browser/reporting/common_pref_names.h"
+ #include "components/policy/core/common/cloud/user_cloud_policy_manager.h"
  #include "components/policy/core/common/management/management_service.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  #include "components/strings/grit/components_strings.h"
  #include "components/supervised_user/core/common/pref_names.h"
- #include "content/public/browser/storage_partition.h"
+ #include "content/public/browser/web_contents.h"
 --- a/chrome/browser/ui/webui/policy/policy_ui_handler.cc
 +++ b/chrome/browser/ui/webui/policy/policy_ui_handler.cc
 @@ -76,7 +76,6 @@
@@ -3514,7 +3613,7 @@
  #include "components/strings/grit/components_strings.h"
  #include "content/public/browser/browser_task_traits.h"
  #include "content/public/browser/browser_thread.h"
-@@ -324,15 +323,6 @@ void PolicyUIHandler::HandleSetLocalTest
+@@ -326,15 +325,6 @@ void PolicyUIHandler::HandleSetLocalTest
  
    CHECK(local_test_provider);
  
@@ -3530,7 +3629,7 @@
    Profile::FromWebUI(web_ui())
        ->GetProfilePolicyConnector()
        ->UseLocalTestPolicyProvider();
-@@ -344,13 +334,6 @@ void PolicyUIHandler::HandleSetLocalTest
+@@ -346,13 +336,6 @@ void PolicyUIHandler::HandleSetLocalTest
  
  void PolicyUIHandler::HandleRevertLocalTestPolicies(
      const base::Value::List& args) {
@@ -3593,10 +3692,10 @@
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_metrics.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
- #include "components/signin/public/identity_manager/accounts_mutator.h"
-@@ -340,10 +339,6 @@ void PeopleHandler::OnJavascriptAllowed(
+@@ -420,10 +419,6 @@ void PeopleHandler::OnJavascriptAllowed(
    PrefService* prefs = profile_->GetPrefs();
    profile_pref_registrar_ = std::make_unique<PrefChangeRegistrar>();
    profile_pref_registrar_->Init(prefs);
@@ -3605,8 +3704,8 @@
 -      base::BindRepeating(&PeopleHandler::UpdateSyncStatus,
 -                          base::Unretained(this)));
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
-   profile_pref_registrar_->Add(
-       prefs::kChromeSigninInterceptionUserChoice,
+   SigninPrefs::ObserveSigninPrefsChanges(
+       *profile_pref_registrar_,
 --- a/chrome/browser/ui/webui/settings/safety_check_handler.cc
 +++ b/chrome/browser/ui/webui/settings/safety_check_handler.cc
 @@ -30,7 +30,6 @@
@@ -3619,7 +3718,7 @@
  #include "content/public/browser/storage_partition.h"
 --- a/chrome/browser/ui/webui/settings/safety_hub_handler.cc
 +++ b/chrome/browser/ui/webui/settings/safety_hub_handler.cc
-@@ -41,7 +41,6 @@
+@@ -46,7 +46,6 @@
  #include "components/content_settings/core/common/features.h"
  #include "components/password_manager/core/common/password_manager_pref_names.h"
  #include "components/permissions/constants.h"
@@ -3627,22 +3726,6 @@
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/site_engagement/content/site_engagement_service.h"
-@@ -119,15 +118,6 @@ SafetyHubHandler::PermissionsData GetUnu
- 
- // Returns the state of Safe Browsing setting.
- SafeBrowsingState GetSafeBrowsingState(PrefService* pref_service) {
--  // TODO(crbug.com/1443466): Use SafeBrowsingResult from Safety Hub instead.
--  if (safe_browsing::IsEnhancedProtectionEnabled(*pref_service))
--    return SafeBrowsingState::kEnabledEnhanced;
--  if (safe_browsing::IsSafeBrowsingEnabled(*pref_service))
--    return SafeBrowsingState::kEnabledStandard;
--  if (safe_browsing::IsSafeBrowsingPolicyManaged(*pref_service))
--    return SafeBrowsingState::kDisabledByAdmin;
--  if (safe_browsing::IsSafeBrowsingExtensionControlled(*pref_service))
--    return SafeBrowsingState::kDisabledByExtension;
-   return SafeBrowsingState::kDisabledByUser;
- }
- 
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 @@ -79,7 +79,6 @@
@@ -3650,10 +3733,10 @@
  #include "components/safe_browsing/core/common/features.h"
  #include "components/safe_browsing/core/common/hashprefix_realtime/hash_realtime_utils.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/saved_tab_groups/features.h"
  #include "components/signin/public/base/signin_buildflags.h"
  #include "components/signin/public/base/signin_switches.h"
- #include "components/strings/grit/components_branded_strings.h"
-@@ -3227,11 +3226,6 @@ void AddSiteSettingsStrings(content::Web
+@@ -3320,11 +3319,6 @@ void AddSiteSettingsStrings(content::Web
    html_source->AddLocalizedStrings(kSensorsLocalizedStrings);
  
    html_source->AddBoolean(
@@ -3667,14 +3750,14 @@
  
 --- a/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -100,7 +100,6 @@
+@@ -99,7 +99,6 @@
  #include "components/safe_browsing/core/common/hashprefix_realtime/hash_realtime_utils.h"
  #include "components/search_engines/search_engine_choice/search_engine_choice_service.h"
  #include "components/search_engines/search_engine_choice/search_engine_choice_utils.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_switches.h"
  #include "components/sync/base/features.h"
  #include "content/public/browser/url_data_source.h"
- #include "content/public/browser/web_contents.h"
 @@ -314,9 +313,7 @@ SettingsUI::SettingsUI(content::WebUI* w
    }
  #endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
@@ -3836,7 +3919,7 @@
  }
 --- a/chrome/browser/ui/webui/signin/turn_sync_on_helper.cc
 +++ b/chrome/browser/ui/webui/signin/turn_sync_on_helper.cc
-@@ -48,7 +48,6 @@
+@@ -47,7 +47,6 @@
  #include "components/search_engines/search_engine_choice/search_engine_choice_utils.h"
  #include "components/signin/core/browser/account_reconcilor.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -3844,7 +3927,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_managed_status_finder.h"
  #include "components/signin/public/identity_manager/accounts_mutator.h"
-@@ -270,8 +269,7 @@ void TurnSyncOnHelper::TurnSyncOnInterna
+@@ -269,8 +268,7 @@ void TurnSyncOnHelper::TurnSyncOnInterna
    // last authenticated account of the current profile, then Chrome will show a
    // confirmation dialog before starting sync.
    // TODO(skym): Warn for high risk upgrade scenario (https://crbug.com/572754).
@@ -3962,7 +4045,7 @@
              "value": ["searchSuggestEnabled", {"type":"boolean"}],
 --- a/components/autofill/core/browser/address_data_manager.cc
 +++ b/components/autofill/core/browser/address_data_manager.cc
-@@ -22,7 +22,6 @@
+@@ -25,7 +25,6 @@
  #include "components/autofill/core/common/autofill_clock.h"
  #include "components/autofill/core/common/autofill_prefs.h"
  #include "components/prefs/pref_service.h"
@@ -3970,22 +4053,12 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/sync/base/features.h"
  #include "components/sync/base/model_type.h"
-@@ -276,23 +275,7 @@ void AddressDataManager::RemoveProfile(c
+@@ -302,13 +301,7 @@ void AddressDataManager::RemoveProfile(c
  }
  
  bool AddressDataManager::IsEligibleForAddressAccountStorage() const {
 -  if (!sync_service_) {
      return false;
--  }
--
--  if (::switches::IsExplicitBrowserSigninUIOnDesktopEnabled(
--          ::switches::ExplicitBrowserSigninPhase::kFull)) {
--    return contact_info_precondition_checker_ &&
--           contact_info_precondition_checker_->GetPreconditionState() ==
--               syncer::ModelTypeController::PreconditionState::
--                   kPreconditionsMet &&
--           sync_service_->GetUserSettings()->GetSelectedTypes().Has(
--               syncer::UserSelectableType::kAutofill);
 -  }
 -
 -  // The CONTACT_INFO data type is only running for eligible users. See
@@ -3994,24 +4067,42 @@
  }
  
  bool AddressDataManager::IsCountryEligibleForAccountStorage(
-@@ -563,19 +546,7 @@ bool AddressDataManager::IsAutofillUserS
+@@ -595,38 +588,7 @@ bool AddressDataManager::IsAutofillUserS
  }
  
  bool AddressDataManager::IsAutofillSyncToggleAvailable() const {
--  return sync_service_ && !sync_service_->GetAccountInfo().IsEmpty() &&
--         !sync_service_->HasSyncConsent() &&
--         !sync_service_->GetUserSettings()->IsTypeManagedByPolicy(
--             syncer::UserSelectableType::kAutofill) &&
--         contact_info_precondition_checker_ &&
+-  // These checks should be removed once the feature is fully launched.
+-  if (!base::FeatureList::IsEnabled(
+-          syncer::kSyncEnableContactInfoDataTypeInTransportMode) ||
+-      !pref_service_->GetBoolean(::prefs::kExplicitBrowserSignin)) {
+-    return false;
+-  }
+-
+-  if (!sync_service_) {
+-    return false;
+-  }
+-
+-  // Do not show the toggle if Sync is disabled on in error.
+-  if (sync_service_->GetTransportState() ==
+-          syncer::SyncService::TransportState::PAUSED ||
+-      sync_service_->GetTransportState() ==
+-          syncer::SyncService::TransportState::DISABLED) {
+     return false;
+-  }
+-
+-  // Do not show the toggle for syncing users.
+-  if (sync_service_->HasSyncConsent()) {
+-    return false;
+-  }
+-
+-  if (sync_service_->GetUserSettings()->IsTypeManagedByPolicy(
+-          syncer::UserSelectableType::kAutofill)) {
+-    return false;
+-  }
+-
+-  return contact_info_precondition_checker_ &&
 -         contact_info_precondition_checker_->GetPreconditionState() ==
--             syncer::ModelTypeController::PreconditionState::
--                 kPreconditionsMet &&
--         base::FeatureList::IsEnabled(
--             syncer::kSyncEnableContactInfoDataTypeInTransportMode) &&
--         ::switches::IsExplicitBrowserSigninUIOnDesktopEnabled(
--             ::switches::ExplicitBrowserSigninPhase::kFull) &&
--         pref_service_->GetBoolean(::prefs::kExplicitBrowserSignin);
-+  return false;
+-             syncer::ModelTypeController::PreconditionState::kPreconditionsMet;
  }
  
  void AddressDataManager::SetAutofillSelectableTypeEnabled(bool enabled) {
@@ -4028,7 +4119,7 @@
    public_deps = [
 --- a/components/feed/core/v2/feed_stream.cc
 +++ b/components/feed/core/v2/feed_stream.cc
-@@ -65,7 +65,6 @@
+@@ -66,7 +66,6 @@
  #include "components/feed/feed_feature_list.h"
  #include "components/offline_pages/task/closure_task.h"
  #include "components/prefs/pref_service.h"
@@ -4036,7 +4127,7 @@
  
  namespace feed {
  namespace {
-@@ -172,9 +171,6 @@ FeedStream::FeedStream(RefreshTaskSchedu
+@@ -173,9 +172,6 @@ FeedStream::FeedStream(RefreshTaskSchedu
    snippets_enabled_by_dse_.Init(prefs::kEnableSnippetsByDse, profile_prefs,
                                  preference_change_callback);
    has_stored_data_.Init(feed::prefs::kHasStoredData, profile_prefs);
@@ -4048,15 +4139,15 @@
  
 --- a/components/feed/core/v2/public/feed_service.cc
 +++ b/components/feed/core/v2/public/feed_service.cc
-@@ -32,7 +32,6 @@
+@@ -33,7 +33,6 @@
  #include "components/history/core/browser/history_types.h"
  #include "components/prefs/pref_service.h"
  #include "components/signin/public/base/consent_level.h"
 -#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "net/base/network_change_notifier.h"
- #include "services/network/public/cpp/shared_url_loader_factory.h"
-@@ -172,7 +171,7 @@ class FeedService::StreamDelegateImpl :
+@@ -192,7 +191,7 @@ class FeedService::StreamDelegateImpl :
    // Returns if signin is allowed on Android. Return true on other platform so
    // behavior is unchanged there.
    bool IsSigninAllowed() override {
@@ -4082,23 +4173,9 @@
  #include "components/password_manager/core/common/password_manager_pref_names.h"
  #include "components/prefs/pref_service.h"
 -#include "components/signin/public/base/signin_pref_names.h"
- #include "components/signin/public/base/signin_switches.h"
  #include "components/sync/base/features.h"
  #include "components/sync/service/sync_service.h"
-@@ -81,13 +80,6 @@ bool IsUserEligibleForAccountStorage(con
-     case syncer::SyncService::TransportState::DISABLED:
-       return false;
-     case syncer::SyncService::TransportState::PAUSED:
--      if (switches::IsExplicitBrowserSigninUIOnDesktopEnabled(
--              switches::ExplicitBrowserSigninPhase::kFull) &&
--          // `prefs::kExplicitBrowserSignin` is false for users who signed in
--          // implicitly through the Dice web signin in a previous run.
--          pref_service->GetBoolean(::prefs::kExplicitBrowserSignin)) {
--        break;
--      }
-       return false;
-     case syncer::SyncService::TransportState::START_DEFERRED:
-     case syncer::SyncService::TransportState::INITIALIZING:
+ #include "components/sync/service/sync_user_settings.h"
 --- a/components/password_manager/core/browser/features/password_manager_features_util_desktop.cc
 +++ b/components/password_manager/core/browser/features/password_manager_features_util_desktop.cc
 @@ -15,7 +15,6 @@
@@ -4109,7 +4186,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/sync/base/pref_names.h"
-@@ -402,16 +401,7 @@ bool ShouldShowAccountStorageSettingTogg
+@@ -398,15 +397,7 @@ bool ShouldShowAccountStorageSettingTogg
  }
  
  bool AreAccountStorageOptInPromosAllowed() {
@@ -4121,8 +4198,7 @@
 -  //   sign-in in the future, at which point the above applies. In the meantime,
 -  //   it's not worth keeping the promos UI. Most users in this group have seen
 -  //   the promo by now and have accepted *if* they want the feature.
--  return !switches::IsExplicitBrowserSigninUIOnDesktopEnabled(
--      switches::ExplicitBrowserSigninPhase::kFull);
+-  return !switches::IsExplicitBrowserSigninUIOnDesktopEnabled();
 +  return false;
  }
  
@@ -4201,7 +4277,7 @@
  
 --- a/components/password_manager/core/browser/password_reuse_manager_impl.cc
 +++ b/components/password_manager/core/browser/password_reuse_manager_impl.cc
-@@ -24,7 +24,6 @@
+@@ -23,7 +23,6 @@
  #include "components/password_manager/core/browser/password_store_signin_notifier.h"
  #include "components/password_manager/core/common/password_manager_features.h"
  #include "components/prefs/pref_service.h"
@@ -4209,7 +4285,7 @@
  #include "components/signin/public/base/consent_level.h"
  #include "google_apis/gaia/gaia_auth_util.h"
  
-@@ -375,21 +374,6 @@ void PasswordReuseManagerImpl::ScheduleP
+@@ -374,21 +373,6 @@ void PasswordReuseManagerImpl::ScheduleP
  }
  
  void PasswordReuseManagerImpl::ScheduleEnterprisePasswordURLUpdate() {
@@ -4265,7 +4341,7 @@
  
 --- a/components/password_manager/core/browser/store_metrics_reporter.cc
 +++ b/components/password_manager/core/browser/store_metrics_reporter.cc
-@@ -26,7 +26,6 @@
+@@ -28,7 +28,6 @@
  #include "components/password_manager/core/browser/password_sync_util.h"
  #include "components/password_manager/core/common/password_manager_pref_names.h"
  #include "components/safe_browsing/core/common/features.h"
@@ -4273,7 +4349,7 @@
  #include "google_apis/gaia/gaia_auth_util.h"
  #include "google_apis/gaia/gaia_urls.h"
  
-@@ -681,7 +680,7 @@ StoreMetricsReporter::StoreMetricsReport
+@@ -683,7 +682,7 @@ StoreMetricsReporter::StoreMetricsReport
    is_opted_in_account_storage_ =
        features_util::IsOptedInForAccountStorage(prefs, sync_service);
  
@@ -4343,7 +4419,7 @@
  bool SyncCredentialsFilter::ShouldSaveGaiaPasswordHash(
 --- a/components/password_manager/core/browser/sync_credentials_filter_unittest.cc
 +++ b/components/password_manager/core/browser/sync_credentials_filter_unittest.cc
-@@ -32,7 +32,6 @@
+@@ -33,7 +33,6 @@
  #include "components/password_manager/core/common/password_manager_features.h"
  #include "components/prefs/pref_registry_simple.h"
  #include "components/prefs/testing_pref_service.h"
@@ -4584,7 +4660,7 @@
  
 --- a/components/safe_browsing/core/browser/db/v4_local_database_manager.cc
 +++ b/components/safe_browsing/core/browser/db/v4_local_database_manager.cc
-@@ -327,12 +327,9 @@ const V4LocalDatabaseManager*
+@@ -296,12 +296,9 @@ const V4LocalDatabaseManager*
  scoped_refptr<V4LocalDatabaseManager> V4LocalDatabaseManager::Create(
      const base::FilePath& base_path,
      scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
@@ -4599,7 +4675,7 @@
        std::move(io_task_runner), nullptr));
  }
  
-@@ -355,17 +352,12 @@ void V4LocalDatabaseManager::CollectData
+@@ -324,17 +321,12 @@ void V4LocalDatabaseManager::CollectData
  
  V4LocalDatabaseManager::V4LocalDatabaseManager(
      const base::FilePath& base_path,
@@ -4617,7 +4693,7 @@
        list_infos_(GetListInfos()),
        task_runner_(task_runner_for_tests
                         ? task_runner_for_tests
-@@ -706,12 +698,6 @@ void V4LocalDatabaseManager::DatabaseRea
+@@ -673,12 +665,6 @@ void V4LocalDatabaseManager::DatabaseRea
      v4_database_ = std::move(v4_database);
  
      v4_database_->RecordFileSizeHistograms();
@@ -4630,7 +4706,7 @@
  
      PopulateArtificialDatabase();
  
-@@ -1285,8 +1271,7 @@ void V4LocalDatabaseManager::SetupUpdate
+@@ -1252,8 +1238,7 @@ void V4LocalDatabaseManager::SetupUpdate
                            weak_factory_.GetWeakPtr());
  
    v4_update_protocol_manager_ = V4UpdateProtocolManager::Create(
@@ -4662,7 +4738,7 @@
        scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
        scoped_refptr<base::SequencedTaskRunner> io_task_runner,
        scoped_refptr<base::SequencedTaskRunner> task_runner_for_tests);
-@@ -431,13 +427,6 @@ class V4LocalDatabaseManager : public Sa
+@@ -428,13 +424,6 @@ class V4LocalDatabaseManager : public Sa
    // ready to process next update.
    DatabaseUpdatedCallback db_updated_callback_;
  
@@ -4678,7 +4754,7 @@
    // information in the full hash request.
 --- a/components/safe_browsing/core/browser/db/v4_protocol_manager_util.cc
 +++ b/components/safe_browsing/core/browser/db/v4_protocol_manager_util.cc
-@@ -89,7 +89,6 @@ void SetSbV4UrlPrefixForTesting(const ch
+@@ -91,7 +91,6 @@ void SetSbV4UrlPrefixForTesting(const ch
  
  std::string GetReportUrl(const V4ProtocolConfig& config,
                           const std::string& method,
@@ -4686,7 +4762,7 @@
                           const bool is_enhanced_protection) {
    std::string url = base::StringPrintf(
        "%s/%s?client=%s&appver=%s&pver=4.0", kSbReportsURLPrefix, method.c_str(),
-@@ -99,8 +98,6 @@ std::string GetReportUrl(const V4Protoco
+@@ -101,8 +100,6 @@ std::string GetReportUrl(const V4Protoco
      base::StringAppendF(&url, "&key=%s",
                          base::EscapeQueryParamValue(api_key, true).c_str());
    }
@@ -4697,13 +4773,12 @@
    return url;
 --- a/components/safe_browsing/core/browser/db/v4_protocol_manager_util.h
 +++ b/components/safe_browsing/core/browser/db/v4_protocol_manager_util.h
-@@ -18,10 +18,11 @@
+@@ -19,9 +19,10 @@
  #include <vector>
  
  #include "base/containers/flat_set.h"
 +#include "base/files/file_path.h"
  #include "base/gtest_prod_util.h"
- #include "base/strings/string_piece.h"
 +#include "base/time/time.h"
  #include "components/safe_browsing/core/browser/db/safebrowsing.pb.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
@@ -5419,10 +5494,10 @@
  #include "components/safe_browsing/core/common/features.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  #include "components/safe_browsing/core/common/utils.h"
+ #include "components/variations/pref_names.h"
  #include "components/variations/service/variations_service.h"
- 
-@@ -106,60 +105,11 @@ HashRealTimeSelection DetermineHashRealT
-     std::optional<std::string> stored_permanent_country,
+@@ -100,58 +99,13 @@ HashRealTimeSelection DetermineHashRealT
+     PrefService* prefs,
      std::optional<std::string> latest_country,
      bool log_usage_histograms) {
 -  // All prefs used in this method must match the ones returned by
@@ -5434,7 +5509,7 @@
 -  } requirements[] = {
 -      {"IneligibleForSessionOrLocation",
 -       hash_realtime_utils::IsHashRealTimeLookupEligibleInSessionAndLocation(
--           stored_permanent_country)},
+-           latest_country)},
 -      {"OffTheRecord", !is_off_the_record},
 -      {"NotStandardProtection", safe_browsing::GetSafeBrowsingState(*prefs) ==
 -                                    SafeBrowsingState::STANDARD_PROTECTION},
@@ -5454,10 +5529,6 @@
 -  }
 -  if (log_usage_histograms) {
 -    base::UmaHistogramBoolean(
--        "SafeBrowsing.HPRT.WouldBeIneligibleForSessionOrLatestCountry",
--        !hash_realtime_utils::IsHashRealTimeLookupEligibleInSessionAndLocation(
--            latest_country));
--    base::UmaHistogramBoolean(
 -        "SafeBrowsing.HPRT.Ineligible.NoGoogleChromeBranding",
 -        !HasGoogleChromeBranding());
 -    base::UmaHistogramBoolean(
@@ -5465,7 +5536,7 @@
 -        !base::FeatureList::IsEnabled(kHashPrefixRealTimeLookups));
 -    base::UmaHistogramBoolean(
 -        "SafeBrowsing.HPRT.Ineligible.IneligibleForLocation",
--        !IsHashRealTimeLookupEligibleInLocation(stored_permanent_country));
+-        !IsHashRealTimeLookupEligibleInLocation(latest_country));
 -  }
 -  return can_do_lookup ?
 -#if BUILDFLAG(IS_ANDROID)
@@ -5477,13 +5548,15 @@
 +  return HashRealTimeSelection::kNone;
  }
  
- std::vector<const char*> GetHashRealTimeSelectionConfiguringPrefs() {
--  return {prefs::kSafeBrowsingEnabled, prefs::kSafeBrowsingEnhanced,
--          prefs::kHashPrefixRealTimeChecksAllowedByPolicy};
-+  return {};
- }
- 
- GoogleChromeBrandingPretenderForTesting::
+ HashRealTimeSelectionConfiguringPrefs
+ GetHashRealTimeSelectionConfiguringPrefs() {
+   std::vector<const char*> profile_prefs = {
+-      prefs::kSafeBrowsingEnabled, prefs::kSafeBrowsingEnhanced,
+-      prefs::kHashPrefixRealTimeChecksAllowedByPolicy};
++      };
+   // |kVariationsCountry| is used by |VariationsService::GetLatestCountry|.
+   std::vector<const char*> local_state_prefs = {
+       variations::prefs::kVariationsCountry};
 --- a/components/safe_browsing/core/common/safe_browsing_policy_handler.cc
 +++ b/components/safe_browsing/core/common/safe_browsing_policy_handler.cc
 @@ -13,7 +13,6 @@
@@ -5832,9 +5905,63 @@
  #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
  #include "components/signin/public/identity_manager/identity_test_environment.h"
  #include "components/sync_preferences/testing_pref_service_syncable.h"
+--- a/components/signin/core/browser/account_reconcilor.cc
++++ b/components/signin/core/browser/account_reconcilor.cc
+@@ -30,7 +30,6 @@
+ #include "components/signin/public/base/account_consistency_method.h"
+ #include "components/signin/public/base/signin_client.h"
+ #include "components/signin/public/base/signin_metrics.h"
+-#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/base/signin_switches.h"
+ #include "components/signin/public/identity_manager/accounts_cookie_mutator.h"
+ #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
+@@ -184,10 +183,6 @@ AccountReconcilor::~AccountReconcilor()
+ 
+ // static
+ void AccountReconcilor::RegisterProfilePrefs(PrefRegistrySimple* registry) {
+-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-  registry->RegisterBooleanPref(
+-      prefs::kCookieClearOnExitMigrationNoticeComplete, false);
+-#endif
+ }
+ 
+ void AccountReconcilor::RegisterWithAllDependencies() {
+@@ -212,16 +207,6 @@ void AccountReconcilor::Initialize(bool
+   delegate_->set_reconcilor(this);
+   timeout_ = delegate_->GetReconcileTimeout();
+ 
+-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-  // If Uno is enabled and there is no "clear on exit" setting affecting Gaia,
+-  // consider the migration done.
+-  PrefService* prefs = client_->GetPrefs();
+-  if (!client_->AreSigninCookiesDeletedOnExit() &&
+-      signin::AreGoogleCookiesRebuiltAfterClearingWhenSignedIn(
+-          *identity_manager_, *client_->GetPrefs())) {
+-    prefs->SetBoolean(prefs::kCookieClearOnExitMigrationNoticeComplete, true);
+-  }
+-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+ 
+   if (delegate_->IsReconcileEnabled()) {
+     SetState(AccountReconcilorState::kScheduled);
+@@ -346,15 +331,6 @@ void AccountReconcilor::OnContentSetting
+   if (!content_type_set.Contains(ContentSettingsType::COOKIES))
+     return;
+ 
+-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-  // Any change in cookie setting after Uno has been enabled count as a
+-  // migration.
+-  if (signin::AreGoogleCookiesRebuiltAfterClearingWhenSignedIn(
+-          *identity_manager_, *client_->GetPrefs())) {
+-    client_->GetPrefs()->SetBoolean(
+-        prefs::kCookieClearOnExitMigrationNoticeComplete, true);
+-  }
+-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+ 
+   // If this does not affect GAIA, just ignore. The secondary pattern is not
+   // needed.
 --- a/components/signin/core/browser/account_reconcilor_unittest.cc
 +++ b/components/signin/core/browser/account_reconcilor_unittest.cc
-@@ -34,7 +34,6 @@
+@@ -35,7 +35,6 @@
  #include "components/signin/public/base/list_accounts_test_utils.h"
  #include "components/signin/public/base/signin_buildflags.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -5854,7 +5981,7 @@
  #include "components/signin/public/identity_manager/accounts_mutator.h"
 --- a/components/signin/internal/identity_manager/account_tracker_service.cc
 +++ b/components/signin/internal/identity_manager/account_tracker_service.cc
-@@ -36,7 +36,6 @@
+@@ -37,7 +37,6 @@
  #include "components/prefs/scoped_user_pref_update.h"
  #include "components/signin/internal/identity_manager/account_capabilities_constants.h"
  #include "components/signin/internal/identity_manager/account_info_util.h"
@@ -5862,7 +5989,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_capabilities.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -203,11 +202,6 @@ AccountTrackerService::~AccountTrackerSe
+@@ -204,11 +203,6 @@ AccountTrackerService::~AccountTrackerSe
  
  // static
  void AccountTrackerService::RegisterPrefs(PrefRegistrySimple* registry) {
@@ -5874,7 +6001,7 @@
  }
  
  void AccountTrackerService::Initialize(PrefService* pref_service,
-@@ -529,14 +523,12 @@ AccountTrackerService::ComputeNewMigrati
+@@ -530,14 +524,12 @@ AccountTrackerService::ComputeNewMigrati
  void AccountTrackerService::SetMigrationState(AccountIdMigrationState state) {
    DCHECK(state != MIGRATION_DONE || AreAllAccountsMigrated())
        << "state: " << state << ", accounts = " << AccountsToString(accounts_);
@@ -5890,7 +6017,7 @@
  }
  #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
  
-@@ -594,26 +586,6 @@ void AccountTrackerService::OnAccountIma
+@@ -595,26 +587,6 @@ void AccountTrackerService::OnAccountIma
      const CoreAccountId& account_id,
      const std::string& image_url_with_size,
      bool success) {
@@ -5917,7 +6044,7 @@
  }
  
  void AccountTrackerService::RemoveAccountImageFromDisk(
-@@ -625,191 +597,16 @@ void AccountTrackerService::RemoveAccoun
+@@ -626,191 +598,16 @@ void AccountTrackerService::RemoveAccoun
  }
  
  void AccountTrackerService::LoadFromPrefs() {
@@ -6206,7 +6333,23 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "google_apis/gaia/core_account_id.h"
-@@ -213,63 +212,13 @@ PrimaryAccountManager::~PrimaryAccountMa
+@@ -214,15 +213,6 @@ PrimaryAccountManager::PrimaryAccountMan
+       account_tracker_service_(account_tracker_service) {
+   DCHECK(client_);
+   DCHECK(account_tracker_service_);
+-
+-  // Clear the pref it is was set and the feature is now off.
+-  if (!switches::IsExplicitBrowserSigninUIOnDesktopEnabled()) {
+-    ScopedPrefCommit scoped_pref_commit(client_->GetPrefs(),
+-                                        /*commit_on_destroy=*/false);
+-    scoped_pref_commit.ClearPref(prefs::kExplicitBrowserSignin);
+-    scoped_pref_commit.ClearPref(
+-        prefs::kCookieClearOnExitMigrationNoticeComplete);
+-  }
+ }
+ 
+ PrimaryAccountManager::~PrimaryAccountManager() {
+@@ -231,82 +221,13 @@ PrimaryAccountManager::~PrimaryAccountMa
  
  // static
  void PrimaryAccountManager::RegisterProfilePrefs(PrefRegistrySimple* registry) {
@@ -6215,6 +6358,8 @@
 -  registry->RegisterStringPref(prefs::kGoogleServicesLastSyncingGaiaId,
 -                               std::string());
 -  registry->RegisterStringPref(prefs::kGoogleServicesLastSyncingUsername,
+-                               std::string());
+-  registry->RegisterStringPref(prefs::kGoogleServicesLastSignedInUsername,
 -                               std::string());
 -  registry->RegisterStringPref(prefs::kGoogleServicesAccountId, std::string());
 -  registry->RegisterBooleanPref(prefs::kGoogleServicesConsentedToSync, false);
@@ -6226,6 +6371,8 @@
 -  registry->RegisterListPref(prefs::kReverseAutologinRejectedEmailList);
 -  registry->RegisterBooleanPref(prefs::kSigninAllowed, true);
 -  registry->RegisterBooleanPref(prefs::kSignedInWithCredentialProvider, false);
+-  registry->RegisterBooleanPref(kExplicitBrowserSigninWithoutFeatureEnabled,
+-                                false);
 -  registry->RegisterBooleanPref(prefs::kExplicitBrowserSignin, false);
  }
  
@@ -6240,6 +6387,21 @@
 -  CHECK(!primary_account_.has_value());
 -
 -  PrefService* prefs = client_->GetPrefs();
+-
+-  // kGoogleServicesLastSignedInUsername was introduced much later than its
+-  // "Syncing" counterpart, so backfill. Note that having different values for
+-  // the 2 prefs is possible (user enabled sync, disabled, then signed-in with
+-  // a different account) and we should not overwrite the "SignedIn" pref in
+-  // that case.
+-  // TODO(crbug.com/337112658): Remove migration after 04/25.
+-  std::string last_syncing_username =
+-      prefs->GetString(prefs::kGoogleServicesLastSyncingUsername);
+-  std::string last_signed_in_username =
+-      prefs->GetString(prefs::kGoogleServicesLastSignedInUsername);
+-  if (!last_syncing_username.empty() && last_signed_in_username.empty()) {
+-    prefs->SetString(prefs::kGoogleServicesLastSignedInUsername,
+-                     last_syncing_username);
+-  }
 -
 -  // If the user is clearing the token service from the command line, then
 -  // clear their login info also (not valid to be logged in without any
@@ -6270,7 +6432,7 @@
  }
  
  std::pair<CoreAccountInfo, PrimaryAccountManager::InitializeAccountInfoState>
-@@ -297,46 +246,10 @@ PrimaryAccountManager::GetOrRestorePrima
+@@ -334,46 +255,10 @@ PrimaryAccountManager::GetOrRestorePrima
                                kEmptyAccountInfo_RestoreFailedNotSyncConsented);
    }
  
@@ -6317,7 +6479,7 @@
  }
  
  void PrimaryAccountManager::Initialize() {
-@@ -346,11 +259,9 @@ void PrimaryAccountManager::Initialize()
+@@ -383,11 +268,9 @@ void PrimaryAccountManager::Initialize()
    // Prepare prefs before loading them.
    PrepareToLoadPrefs();
  
@@ -6331,13 +6493,14 @@
    LogPrimaryAccountPrefsOnInitialize(pref_account_id, pref_consented_to_sync);
  
    ScopedPrefCommit scoped_pref_commit(client_->GetPrefs(),
-@@ -368,13 +279,6 @@ void PrimaryAccountManager::Initialize()
+@@ -405,14 +288,6 @@ void PrimaryAccountManager::Initialize()
      if (pref_consented_to_sync && !account_info.IsEmpty()) {
        SetPrimaryAccountInternal(account_info, /*consented_to_sync=*/true,
                                  scoped_pref_commit);
 -
 -      // Ensure that the last syncing account data is consistent with the
--      // primary account.
+-      // primary account. The last signed-in account data is written inside
+-      // SetPrimaryAccountInternal().
 -      scoped_pref_commit.SetString(prefs::kGoogleServicesLastSyncingGaiaId,
 -                                   account_info.gaia);
 -      scoped_pref_commit.SetString(prefs::kGoogleServicesLastSyncingUsername,
@@ -6345,7 +6508,7 @@
      } else {
        SetPrimaryAccountInternal(account_info, /*consented_to_sync=*/false,
                                  scoped_pref_commit);
-@@ -501,10 +405,6 @@ void PrimaryAccountManager::SetSyncPrima
+@@ -539,10 +414,6 @@ void PrimaryAccountManager::SetSyncPrima
    // Go ahead and update the last signed in account info here as well. Once a
    // user is signed in the corresponding preferences should match. Doing it here
    // as opposed to on signin allows us to catch the upgrade scenario.
@@ -6356,7 +6519,7 @@
  }
  
  void PrimaryAccountManager::SetPrimaryAccountInternal(
-@@ -516,19 +416,6 @@ void PrimaryAccountManager::SetPrimaryAc
+@@ -554,22 +425,6 @@ void PrimaryAccountManager::SetPrimaryAc
    // 'account_info' might be a reference to the contents of `primary_account_`.
    // Create a PrimaryAccount object before calling emplace to avoid crashes.
    primary_account_.emplace(PrimaryAccount(account_info, consented_to_sync));
@@ -6372,11 +6535,14 @@
 -        prefs::kGoogleServicesSyncingGaiaIdMigratedToSignedIn);
 -    scoped_pref_commit.ClearPref(
 -        prefs::kGoogleServicesSyncingUsernameMigratedToSignedIn);
+-  } else {
+-    scoped_pref_commit.SetString(prefs::kGoogleServicesLastSignedInUsername,
+-                                 account_info.email);
 -  }
  }
  
  void PrimaryAccountManager::RecordHadPreviousSyncAccount() const {
-@@ -538,7 +425,7 @@ void PrimaryAccountManager::RecordHadPre
+@@ -579,7 +434,7 @@ void PrimaryAccountManager::RecordHadPre
    }
  
    const std::string& last_gaia_id_with_sync_enabled =
@@ -6385,7 +6551,7 @@
    const bool existed_primary_account_with_sync =
        !last_gaia_id_with_sync_enabled.empty();
  
-@@ -688,27 +575,6 @@ PrimaryAccountChangeEvent::State Primary
+@@ -729,38 +584,6 @@ PrimaryAccountChangeEvent::State Primary
  void PrimaryAccountManager::ComputeExplicitBrowserSignin(
      const PrimaryAccountChangeEvent& event_details,
      ScopedPrefCommit& scoped_pref_commit) {
@@ -6393,7 +6559,10 @@
 -    case PrimaryAccountChangeEvent::Type::kNone:
 -      return;
 -    case PrimaryAccountChangeEvent::Type::kCleared:
--      scoped_pref_commit.ClearPref(prefs::kExplicitBrowserSignin);
+-      scoped_pref_commit.ClearPref(kExplicitBrowserSigninWithoutFeatureEnabled);
+-      if (switches::IsExplicitBrowserSigninUIOnDesktopEnabled()) {
+-        scoped_pref_commit.ClearPref(prefs::kExplicitBrowserSignin);
+-      }
 -      return;
 -    case PrimaryAccountChangeEvent::Type::kSet:
 -      CHECK(event_details.GetAccessPoint().has_value());
@@ -6403,11 +6572,19 @@
 -      if (access_point == signin_metrics::AccessPoint::ACCESS_POINT_UNKNOWN ||
 -          access_point ==
 -              signin_metrics::AccessPoint::ACCESS_POINT_WEB_SIGNIN) {
--        scoped_pref_commit.ClearPref(prefs::kExplicitBrowserSignin);
+-        scoped_pref_commit.ClearPref(
+-            kExplicitBrowserSigninWithoutFeatureEnabled);
+-        if (switches::IsExplicitBrowserSigninUIOnDesktopEnabled()) {
+-          scoped_pref_commit.ClearPref(prefs::kExplicitBrowserSignin);
+-        }
 -      } else {
 -        // All others access points are explicit sign ins except the Web
 -        // Signin event.
--        scoped_pref_commit.SetBoolean(prefs::kExplicitBrowserSignin, true);
+-        scoped_pref_commit.SetBoolean(
+-            kExplicitBrowserSigninWithoutFeatureEnabled, true);
+-        if (switches::IsExplicitBrowserSigninUIOnDesktopEnabled()) {
+-          scoped_pref_commit.SetBoolean(prefs::kExplicitBrowserSignin, true);
+-        }
 -      }
 -  }
  }
@@ -6473,7 +6650,7 @@
  #include "components/sync_preferences/testing_pref_service_syncable.h"
 --- a/components/signin/public/base/BUILD.gn
 +++ b/components/signin/public/base/BUILD.gn
-@@ -164,8 +164,6 @@ component("signin_switches") {
+@@ -167,8 +167,6 @@ component("signin_switches") {
    defines = [ "IS_SIGNIN_SWITCHES_IMPL" ]
  
    sources = [
@@ -6567,15 +6744,15 @@
  #endif
 --- a/components/signin/public/base/signin_switches.cc
 +++ b/components/signin/public/base/signin_switches.cc
-@@ -7,7 +7,6 @@
+@@ -6,7 +6,6 @@
+ 
  #include "base/feature_list.h"
- #include "base/metrics/field_trial_params.h"
  #include "components/prefs/pref_service.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  
  namespace switches {
  
-@@ -49,11 +48,6 @@ BASE_FEATURE(kEnableBoundSessionCredenti
+@@ -57,11 +56,6 @@ BASE_FEATURE(kEnableBoundSessionCredenti
               base::FEATURE_DISABLED_BY_DEFAULT);
  
  bool IsBoundSessionCredentialsEnabled(const PrefService* profile_prefs) {
@@ -6597,7 +6774,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "third_party/icu/source/i18n/unicode/regex.h"
-@@ -58,22 +57,13 @@ bool IsUsernameAllowedByPattern(base::St
+@@ -58,21 +57,13 @@ bool IsUsernameAllowedByPattern(std::str
  
  bool IsUsernameAllowedByPatternFromPrefs(const PrefService* prefs,
                                           const std::string& username) {
@@ -6609,8 +6786,7 @@
  bool IsImplicitBrowserSigninOrExplicitDisabled(
      IdentityManager* identity_manager,
      PrefService* prefs) {
--  if (!switches::IsExplicitBrowserSigninUIOnDesktopEnabled(
--          switches::ExplicitBrowserSigninPhase::kFull)) {
+-  if (!switches::IsExplicitBrowserSigninUIOnDesktopEnabled()) {
 -    return true;
 -  }
 -
@@ -6621,7 +6797,7 @@
 +  return false;
  }
  
- }  // namespace signin
+ bool AreGoogleCookiesRebuiltAfterClearingWhenSignedIn(
 --- a/components/signin/public/identity_manager/identity_utils_unittest.cc
 +++ b/components/signin/public/identity_manager/identity_utils_unittest.cc
 @@ -11,7 +11,6 @@
@@ -6669,59 +6845,51 @@
      },
 --- a/components/sync/service/sync_prefs.cc
 +++ b/components/sync/service/sync_prefs.cc
-@@ -21,7 +21,6 @@
+@@ -22,7 +22,6 @@
  #include "components/prefs/pref_value_map.h"
  #include "components/prefs/scoped_user_pref_update.h"
  #include "components/signin/public/base/gaia_id_hash.h"
 -#include "components/signin/public/base/signin_pref_names.h"
- #include "components/signin/public/base/signin_switches.h"
  #include "components/sync/base/features.h"
  #include "components/sync/base/passphrase_enums.h"
-@@ -222,9 +221,7 @@ bool SyncPrefs::IsInitialSyncFeatureSetu
+ #include "components/sync/base/pref_names.h"
+@@ -248,7 +247,7 @@ bool SyncPrefs::IsInitialSyncFeatureSetu
  }
  
  bool SyncPrefs::IsExplicitBrowserSignin() const {
--  return switches::IsExplicitBrowserSigninUIOnDesktopEnabled(
--             switches::ExplicitBrowserSigninPhase::kFull) &&
--         pref_service_->GetBoolean(::prefs::kExplicitBrowserSignin);
+-  return pref_service_->GetBoolean(::prefs::kExplicitBrowserSignin);
 +  return false;
  }
  
  #if !BUILDFLAG(IS_CHROMEOS_ASH)
-@@ -278,22 +275,6 @@ UserSelectableTypeSet SyncPrefs::GetSele
+@@ -302,16 +301,6 @@ UserSelectableTypeSet SyncPrefs::GetSele
                   type == UserSelectableType::kAutofill) {
  #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
          type_enabled = true;
 -#else
 -        // kPasswords and kAutofill are only on by default if there was an
--        // explicit sign in recorded and
--        // `IsExplicitBrowserSigninUIOnDesktopEnabled()` is true.
+-        // explicit sign in recorded.
 -        // Otherwise:
 -        // - kPasswords requires a dedicated opt-in.
 -        // - kAutofill cannot be enabled.
 -        // Note: If this changes, also update the migration logic in
 -        // MigrateGlobalDataTypePrefsToAccount().
--        switches::ExplicitBrowserSigninPhase phase =
--            type == UserSelectableType::kPasswords
--                ? switches::ExplicitBrowserSigninPhase::kExperimental
--                : switches::ExplicitBrowserSigninPhase::kFull;
 -        type_enabled =
--            switches::IsExplicitBrowserSigninUIOnDesktopEnabled(phase) &&
 -            pref_service_->GetBoolean(::prefs::kExplicitBrowserSignin);
  #endif
        } else if (type == UserSelectableType::kBookmarks ||
                   type == UserSelectableType::kReadingList) {
 --- a/components/sync_preferences/common_syncable_prefs_database.cc
 +++ b/components/sync_preferences/common_syncable_prefs_database.cc
-@@ -20,7 +20,6 @@
+@@ -21,7 +21,6 @@
  #include "components/omnibox/browser/omnibox_prefs.h"
  #include "components/password_manager/core/common/password_manager_pref_names.h"
  #include "components/payments/core/payment_prefs.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/saved_tab_groups/pref_names.h"
  #include "components/search_engines/search_engines_pref_names.h"
  #include "components/translate/core/browser/translate_pref_names.h"
- #include "components/translate/core/browser/translate_prefs.h"
-@@ -84,9 +83,7 @@ enum {
+@@ -87,9 +86,7 @@ enum {
    // kSyncedLastTimePasswordCheckCompleted = 43, (deprecated)
    kWasAutoSignInFirstRunExperienceShown = 44,
    kCanMakePaymentEnabled = 45,
@@ -6731,7 +6899,7 @@
    kSyncedDefaultSearchProviderGUID = 49,
    kPrefForceTriggerTranslateCount = 50,
    // kPrefNeverPromptSitesDeprecated = 51, (deprecated)
-@@ -201,16 +198,9 @@ constexpr auto kCommonSyncablePrefsAllow
+@@ -207,16 +204,9 @@ constexpr auto kCommonSyncablePrefsAllow
          {payments::kCanMakePaymentEnabled,
           {syncable_prefs_ids::kCanMakePaymentEnabled, syncer::PREFERENCES,
            PrefSensitivity::kNone, MergeBehavior::kNone}},
@@ -6750,7 +6918,7 @@
  #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 --- a/content/browser/webid/federated_auth_request_impl.cc
 +++ b/content/browser/webid/federated_auth_request_impl.cc
-@@ -579,31 +579,6 @@ FederatedAuthRequestImpl::~FederatedAuth
+@@ -573,31 +573,6 @@ FederatedAuthRequestImpl::~FederatedAuth
  void FederatedAuthRequestImpl::Create(
      RenderFrameHost* host,
      mojo::PendingReceiver<blink::mojom::FederatedAuthRequest> receiver) {

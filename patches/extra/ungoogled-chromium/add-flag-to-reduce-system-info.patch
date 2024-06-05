@@ -1,0 +1,80 @@
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -132,4 +132,8 @@
+      "Minimal Referrers",
+      "Removes all cross-origin referrers and strips same-origin referrers down to the origin. Has lower precedence than remove-cross-origin-referrers. ungoogled-chromium flag.",
+      kOsAll, FEATURE_VALUE_TYPE(features::kMinimalReferrers)},
++    {"reduced-system-info",
++     "Reduced System Info",
++     "Reduces the amount of system information obatainable through headers and javascript, also causes hardwareConcurrency to respond with two cores. ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(blink::features::kReducedSystemInfo)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/components/embedder_support/user_agent_utils.cc
++++ b/components/embedder_support/user_agent_utils.cc
+@@ -143,6 +143,8 @@ const std::string& GetWindowsPlatformVer
+ // TODO(crbug.com/1330890): Remove this method along with policy.
+ bool ShouldReduceUserAgentMinorVersion(
+     UserAgentReductionEnterprisePolicyState user_agent_reduction) {
++  if (base::FeatureList::IsEnabled(blink::features::kReducedSystemInfo))
++    return true;
+   return ((user_agent_reduction !=
+                UserAgentReductionEnterprisePolicyState::kForceDisabled &&
+            base::FeatureList::IsEnabled(
+@@ -166,6 +168,8 @@ bool ShouldReduceUserAgentMinorVersion(
+ // sending unified platform for the user agent string.
+ bool ShouldSendUserAgentUnifiedPlatform(
+     UserAgentReductionEnterprisePolicyState user_agent_reduction) {
++  if (base::FeatureList::IsEnabled(blink::features::kReducedSystemInfo))
++    return true;
+ #if BUILDFLAG(IS_ANDROID)
+   return ShouldReduceUserAgentMinorVersion(user_agent_reduction) &&
+          base::FeatureList::IsEnabled(
+@@ -456,6 +460,8 @@ blink::UserAgentMetadata GetUserAgentMet
+ 
+ blink::UserAgentMetadata GetUserAgentMetadata(const PrefService* pref_service,
+                                               bool only_low_entropy_ch) {
++  if (base::FeatureList::IsEnabled(blink::features::kReducedSystemInfo))
++    only_low_entropy_ch = true;
+   blink::UserAgentMetadata metadata;
+ 
+   bool enable_updated_grease_by_policy = true;
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -21,6 +21,7 @@ namespace blink {
+ namespace features {
+ 
+ BASE_FEATURE(kDisableLinkDrag, "DisableLinkDrag", base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kReducedSystemInfo, "ReducedSystemInfo", base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // -----------------------------------------------------------------------------
+ // Feature definitions and associated constants (feature params, et cetera)
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -21,6 +21,7 @@ namespace blink {
+ namespace features {
+ 
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDisableLinkDrag);
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kReducedSystemInfo);
+ 
+ // -----------------------------------------------------------------------------
+ // Feature declarations and associated constants (feature params, et cetera)
+--- a/third_party/blink/renderer/core/execution_context/navigator_base.cc
++++ b/third_party/blink/renderer/core/execution_context/navigator_base.cc
+@@ -69,6 +69,8 @@ String NavigatorBase::platform() const {
+   }
+ #endif
+ 
++  if (base::FeatureList::IsEnabled(blink::features::kReducedSystemInfo))
++    return GetReducedNavigatorPlatform();
+   return NavigatorID::platform();
+ }
+ 
+@@ -80,6 +82,8 @@ void NavigatorBase::Trace(Visitor* visit
+ }
+ 
+ unsigned int NavigatorBase::hardwareConcurrency() const {
++  if (base::FeatureList::IsEnabled(blink::features::kReducedSystemInfo))
++    return 2;
+   unsigned int hardware_concurrency =
+       NavigatorConcurrentHardware::hardwareConcurrency();
+ 
