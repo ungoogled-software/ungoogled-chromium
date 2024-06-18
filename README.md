@@ -113,7 +113,7 @@ ungoogled-chromium is available in the following **software repositories**:
 * WinGet: Available as `eloston.ungoogled-chromium`, run `winget install -e --id eloston.ungoogled-chromium`.
 * Scoop: Available as `ungoogled-chromium`, enable the extra repository and run `scoop install extras/ungoogled-chromium`.
 
-If your Operating System / Linux Distribution is not listed, there are distro-independent builds available via the following **package managers**:
+If your Linux Distribution is not listed, there are distro-independent builds available via the following **package managers**:
 
 * Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/com.github.Eloston.UngoogledChromium) as `com.github.Eloston.UngoogledChromium`
 * Nix: Available as `ungoogled-chromium` in nixpkgs, run `nix-shell -p ungoogled-chromium`.
