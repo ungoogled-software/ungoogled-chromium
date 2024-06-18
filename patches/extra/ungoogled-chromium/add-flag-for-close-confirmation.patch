@@ -16,15 +16,44 @@
        override_bounds_(params.initial_bounds),
        initial_show_state_(params.initial_show_state),
        initial_workspace_(params.initial_workspace),
-@@ -933,6 +935,8 @@ std::u16string Browser::FormatTitleForDi
+@@ -940,21 +942,23 @@ Browser::WarnBeforeClosingResult Browser
+   if (force_skip_warning_user_on_close_) {
+     return WarnBeforeClosingResult::kOkToClose;
+   }
++
++  if (CanCloseWithMultipleTabs()) {
++    // `CanCloseWithInProgressDownloads()` may trigger a modal dialog.
++    bool can_close_with_downloads = CanCloseWithInProgressDownloads();
++    if (can_close_with_downloads &&
++        !ShouldShowCookieMigrationNoticeForBrowser(*this)) {
++      return WarnBeforeClosingResult::kOkToClose;
++    }
  
- Browser::WarnBeforeClosingResult Browser::MaybeWarnBeforeClosing(
-     Browser::WarnBeforeClosingCallback warn_callback) {
-+  if (!CanCloseWithMultipleTabs())
-+   return WarnBeforeClosingResult::kDoNotClose;
-   // If the browser can close right away (we've indicated that we want to skip
-   // before-unload handlers by setting `force_skip_warning_user_on_close_` to
-   // true or there are no pending downloads we need to prompt about) then
+-  // `CanCloseWithInProgressDownloads()` may trigger a modal dialog.
+-  bool can_close_with_downloads = CanCloseWithInProgressDownloads();
+-  if (can_close_with_downloads &&
+-      !ShouldShowCookieMigrationNoticeForBrowser(*this)) {
+-    return WarnBeforeClosingResult::kOkToClose;
+-  }
+-
+-  // If there is no download warning, show the cookie migration notice now.
+-  // Otherwise, the download warning is being shown. Cookie migration notice
+-  // will be shown after, if needed.
+-  if (can_close_with_downloads) {
+-    ShowCookieClearOnExitMigrationNotice(
+-        *this, base::BindOnce(&Browser::CookieMigrationNoticeResponse,
+-                              weak_factory_.GetWeakPtr()));
++    // If there is no download warning, show the cookie migration notice now.
++    // Otherwise, the download warning is being shown. Cookie migration notice
++    // will be shown after, if needed.
++    if (can_close_with_downloads) {
++      ShowCookieClearOnExitMigrationNotice(
++          *this, base::BindOnce(&Browser::CookieMigrationNoticeResponse,
++                                weak_factory_.GetWeakPtr()));
++    }
+   }
+ 
+   DCHECK(!warn_before_closing_callback_)
 @@ -992,6 +996,7 @@ bool Browser::TryToCloseWindow(
  
  void Browser::ResetTryToCloseWindow() {
