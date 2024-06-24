@@ -16,15 +16,15 @@ def main():
     """CLI entrypoint"""
     parser = argparse.ArgumentParser(description='Run Pylint over devutils')
     parser.add_argument('--hide-fixme', action='store_true', help='Hide "fixme" Pylint warnings.')
-    parser.add_argument(
-        '--show-locally-disabled',
-        action='store_true',
-        help='Show "locally-disabled" Pylint warnings.')
+    parser.add_argument('--show-locally-disabled',
+                        action='store_true',
+                        help='Show "locally-disabled" Pylint warnings.')
     args = parser.parse_args()
 
     disables = [
         'wrong-import-position',
         'bad-continuation',
+        'duplicate-code',
     ]
 
     if args.hide_fixme:
@@ -54,8 +54,8 @@ def main():
     sys.path.pop(2)
     sys.path.pop(1)
     if not result:
-        exit(1)
-    exit(0)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':

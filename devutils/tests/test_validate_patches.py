@@ -11,18 +11,19 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / 'utils'))
-from _common import LOGGER_NAME
+from _common import get_logger, set_logging_level
 sys.path.pop(0)
 
-from .. import validate_patches
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import validate_patches
+sys.path.pop(0)
 
 
-def test_test_patches(caplog):
+def test_test_patches():
     """Test _dry_check_patched_file"""
 
     #pylint: disable=protected-access
-    caplog.set_level(logging.DEBUG, logger=LOGGER_NAME)
-    #set_logging_level(logging.DEBUG)
+    set_logging_level(logging.DEBUG)
 
     orig_file_content = """bye world"""
     series_iter = ['test.patch']
@@ -37,7 +38,7 @@ def test_test_patches(caplog):
                                                                       Path(tmpdirname))
             return validate_patches._test_patches(series_iter, patch_cache, files_under_test)
 
-    # Check valid modification
+    get_logger().info('Check valid modification')
     patch_content = """--- a/foobar.txt
 +++ b/foobar.txt
 @@ -1 +1 @@
@@ -46,7 +47,7 @@ def test_test_patches(caplog):
 """
     assert not _run_test_patches(patch_content)
 
-    # Check invalid modification
+    get_logger().info('Check invalid modification')
     patch_content = """--- a/foobar.txt
 +++ b/foobar.txt
 @@ -1 +1 @@
@@ -55,7 +56,7 @@ def test_test_patches(caplog):
 """
     assert _run_test_patches(patch_content)
 
-    # Check correct removal
+    get_logger().info('Check correct removal')
     patch_content = """--- a/foobar.txt
 +++ /dev/null
 @@ -1 +0,0 @@
@@ -63,10 +64,14 @@ def test_test_patches(caplog):
 """
     assert not _run_test_patches(patch_content)
 
-    # Check incorrect removal
+    get_logger().info('Check incorrect removal')
     patch_content = """--- a/foobar.txt
 +++ /dev/null
 @@ -1 +0,0 @@
 -this line does not exist in foobar
 """
     assert _run_test_patches(patch_content)
+
+
+if __name__ == '__main__':
+    test_test_patches()

@@ -3,7 +3,7 @@
 
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -938,8 +938,6 @@ if (is_win) {
+@@ -937,8 +937,6 @@ if (is_win) {
  
    bundle_data("chrome_framework_resources") {
      sources = [
@@ -14,7 +14,7 @@
        # from disk image and Keystone promotion (if so enabled).  It
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -845,10 +845,6 @@ static_library("browser") {
+@@ -850,10 +850,6 @@ static_library("browser") {
      "navigation_predictor/navigation_predictor_metrics_document_data.h",
      "navigation_predictor/navigation_predictor_preconnect_client.cc",
      "navigation_predictor/navigation_predictor_preconnect_client.h",
@@ -25,30 +25,41 @@
      "navigation_predictor/search_engine_preconnector.cc",
      "navigation_predictor/search_engine_preconnector.h",
      "net/chrome_mojo_proxy_resolver_factory.cc",
+@@ -972,10 +968,6 @@ static_library("browser") {
+     "optimization_guide/chrome_prediction_model_store.h",
+     "optimization_guide/model_execution/chrome_on_device_model_service_controller.cc",
+     "optimization_guide/model_execution/chrome_on_device_model_service_controller.h",
+-    "optimization_guide/model_validator_keyed_service.cc",
+-    "optimization_guide/model_validator_keyed_service.h",
+-    "optimization_guide/model_validator_keyed_service_factory.cc",
+-    "optimization_guide/model_validator_keyed_service_factory.h",
+     "optimization_guide/optimization_guide_internals_ui.cc",
+     "optimization_guide/optimization_guide_internals_ui.h",
+     "optimization_guide/optimization_guide_keyed_service.cc",
 --- a/chrome/browser/navigation_predictor/navigation_predictor.cc
 +++ b/chrome/browser/navigation_predictor/navigation_predictor.cc
-@@ -17,8 +17,6 @@
+@@ -18,8 +18,6 @@
  #include "base/time/default_tick_clock.h"
  #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service.h"
  #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
 -#include "chrome/browser/navigation_predictor/preloading_model_keyed_service.h"
 -#include "chrome/browser/navigation_predictor/preloading_model_keyed_service_factory.h"
- #include "chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.h"
  #include "chrome/browser/preloading/preloading_prefs.h"
  #include "chrome/browser/profiles/profile.h"
-@@ -88,11 +86,6 @@ base::TimeDelta MLModelExecutionTimerSta
+ #include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
+@@ -94,11 +92,6 @@ base::TimeDelta MLModelExecutionTimerSta
    return base::Milliseconds(timer_start_delay);
  }
  
 -base::TimeDelta MLModelExecutionTimerInterval() {
--  static int timer_interval = base::GetFieldTrialParamByFeatureAsInt(
--      blink::features::kPreloadingHeuristicsMLModel, "timer_interval", 100);
+-  static int timer_interval =
+-      blink::features::kPreloadingModelTimerInterval.Get();
 -  return base::Milliseconds(timer_interval);
 -}
  
- }  // namespace
- 
-@@ -309,69 +302,6 @@ void NavigationPredictor::ProcessPointer
+ bool MLModelOneExecutionPerHover() {
+   static bool one_execution_per_hover =
+@@ -369,80 +362,6 @@ void NavigationPredictor::ProcessPointer
  }
  
  void NavigationPredictor::OnMLModelExecutionTimerFired() {
@@ -93,12 +104,14 @@
 -  inputs.percent_vertical_distance =
 -      static_cast<int>(anchor.ratio_distance_root_top * 100);
 -
--  inputs.is_same_origin = anchor.is_same_host;
+-  inputs.is_same_host = anchor.is_same_host;
 -  auto to_timedelta = [this](std::optional<base::TimeTicks> ts) {
 -    return ts.has_value() ? NowTicks() - ts.value() : base::TimeDelta();
 -  };
--  inputs.entered_viewport_to_left_viewport =
--      to_timedelta(anchor.entered_viewport_timestamp);
+-  // TODO(329691634): Using the real viewport entry time for
+-  // `entered_viewport_to_left_viewport` produces low quality results.
+-  // We could remove it from the model, if we can't get this to be useful.
+-  inputs.entered_viewport_to_left_viewport = base::TimeDelta();
 -  inputs.hover_dwell_time = to_timedelta(anchor.pointer_over_timestamp);
 -  inputs.pointer_hovering_over_count = anchor.pointer_hovering_over_count;
 -  if (model_score_callback_) {
@@ -109,7 +122,16 @@
 -      base::BindOnce(&NavigationPredictor::OnPreloadingHeuristicsModelDone,
 -                     weak_ptr_factory_.GetWeakPtr(), anchor.target_url));
 -
--  if (!ml_model_execution_timer_.IsRunning()) {
+-  // TODO(crbug.com/40278151): In its current form, the model does not seem to
+-  // ever increase in confidence when dwelling on an anchor, which makes
+-  // repeated executions wasteful. So we only do one execution per mouse over.
+-  // As we iterate on the model, multiple executions may become useful, but we
+-  // need to take care to not produce a large amount of redundant predictions
+-  // (as seen in crbug.com/338200075 ). Other ideas here could be to only report
+-  // when the score differs from the previous execution and/or to have a fixed
+-  // limit on the number of executions while dwelling.
+-  if (!MLModelOneExecutionPerHover() &&
+-      !ml_model_execution_timer_.IsRunning()) {
 -    ml_model_execution_timer_.Start(
 -        FROM_HERE, MLModelExecutionTimerInterval(),
 -        base::BindOnce(&NavigationPredictor::OnMLModelExecutionTimerFired,
@@ -118,73 +140,6 @@
  }
  
  void NavigationPredictor::SetModelScoreCallbackForTesting(
---- a/chrome/browser/optimization_guide/model_validator_keyed_service.cc
-+++ b/chrome/browser/optimization_guide/model_validator_keyed_service.cc
-@@ -33,39 +33,6 @@ namespace optimization_guide {
- 
- ModelValidatorKeyedService::ModelValidatorKeyedService(Profile* profile)
-     : profile_(profile) {
--  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
--  DCHECK(ShouldStartModelValidator());
--  auto* opt_guide_service =
--      OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
--  if (!opt_guide_service) {
--    return;
--  }
--#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
--  if (switches::ShouldValidateModel()) {
--    // Create the validator object which will get destroyed when the model
--    // load is complete.
--    new ModelValidatorHandler(
--        opt_guide_service,
--        base::ThreadPool::CreateSequencedTaskRunner(
--            {base::MayBlock(), base::TaskPriority::BEST_EFFORT}));
--  }
--#endif  // BUILD_WITH_TFLITE_LIB
--  if (switches::ShouldValidateModelExecution()) {
--    auto* identity_manager = IdentityManagerFactory::GetForProfile(profile_);
--    if (!identity_manager) {
--      return;
--    }
--    if (!identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
--      identity_manager_observation_.Observe(identity_manager);
--      return;
--    }
--    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
--        FROM_HERE,
--        base::BindOnce(
--            &ModelValidatorKeyedService::StartModelExecutionValidation,
--            weak_ptr_factory_.GetWeakPtr()),
--        kModelExecutionValidationStartupDelay);
--  }
- }
- 
- ModelValidatorKeyedService::~ModelValidatorKeyedService() = default;
-@@ -92,24 +59,6 @@ void ModelValidatorKeyedService::OnPrima
- }
- 
- void ModelValidatorKeyedService::StartModelExecutionValidation() {
--  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
--  auto* opt_guide_service =
--      OptimizationGuideKeyedServiceFactory::GetForProfile(profile_);
--  if (!opt_guide_service) {
--    return;
--  }
--  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
--  std::string model_execution_input =
--      command_line->GetSwitchValueASCII(switches::kModelExecutionValidate);
--  if (model_execution_input.empty()) {
--    return;
--  }
--  proto::StringValue request;
--  request.set_value(model_execution_input);
--  opt_guide_service->ExecuteModel(
--      proto::ModelExecutionFeature::MODEL_EXECUTION_FEATURE_TEST, request,
--      base::BindOnce(&ModelValidatorKeyedService::OnModelExecuteResponse,
--                     weak_ptr_factory_.GetWeakPtr()));
- }
- 
- void ModelValidatorKeyedService::OnModelExecuteResponse(
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 @@ -92,7 +92,6 @@
@@ -195,7 +150,7 @@
  #include "chrome/browser/net/dns_probe_service_factory.h"
  #include "chrome/browser/net/profile_network_context_service_factory.h"
  #include "chrome/browser/notifications/metrics/notification_metrics_logger_factory.h"
-@@ -917,7 +916,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -939,7 +938,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #endif
    ModelTypeStoreServiceFactory::GetInstance();
    NavigationPredictorKeyedServiceFactory::GetInstance();
@@ -203,6 +158,16 @@
  #if BUILDFLAG(IS_CHROMEOS_ASH)
    NearbySharingServiceFactory::GetInstance();
    if (base::FeatureList::IsEnabled(ash::features::kNearbyPresence)) {
+@@ -984,9 +982,6 @@ void ChromeBrowserMainExtraPartsProfiles
+   OneTimePermissionsTrackerFactory::GetInstance();
+ #endif
+   OpenerHeuristicServiceFactory::GetInstance();
+-  if (optimization_guide::ShouldStartModelValidator()) {
+-    optimization_guide::ModelValidatorKeyedServiceFactory::GetInstance();
+-  }
+   OptimizationGuideKeyedServiceFactory::GetInstance();
+   OriginKeyedPermissionActionServiceFactory::GetInstance();
+   OriginTrialsFactory::GetInstance();
 --- a/chrome/browser/profiles/profile_manager.cc
 +++ b/chrome/browser/profiles/profile_manager.cc
 @@ -48,7 +48,6 @@
@@ -213,9 +178,9 @@
  #include "chrome/browser/permissions/adaptive_quiet_notification_permission_ui_enabler.h"
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
  #include "chrome/browser/profiles/delete_profile_helper.h"
-@@ -1566,9 +1565,6 @@ void ProfileManager::DoFinalInitForServi
-   }
- #endif  // !BUILDFLAG(IS_ANDROID)
+@@ -1542,9 +1541,6 @@ void ProfileManager::DoFinalInitForServi
+   // Ensure NavigationPredictorKeyedService is started.
+   NavigationPredictorKeyedServiceFactory::GetForProfile(profile);
  
 -  // Ensure PreloadingModelKeyedService is started.
 -  PreloadingModelKeyedServiceFactory::GetForProfile(profile);
@@ -223,77 +188,221 @@
    IdentityManagerFactory::GetForProfile(profile)->OnNetworkInitialized();
    AccountReconcilorFactory::GetForProfile(profile);
  
---- a/chrome/browser/ui/webui/omnibox/omnibox_page_handler.cc
-+++ b/chrome/browser/ui/webui/omnibox/omnibox_page_handler.cc
-@@ -39,7 +39,6 @@
- #include "components/omnibox/browser/autocomplete_match.h"
- #include "components/omnibox/browser/autocomplete_provider.h"
- #include "components/omnibox/browser/autocomplete_result.h"
--#include "components/omnibox/browser/autocomplete_scoring_model_service.h"
- #include "components/omnibox/browser/omnibox_field_trial.h"
- #include "components/search_engines/template_url.h"
- #include "content/public/browser/web_ui.h"
-@@ -500,31 +499,12 @@ void OmniboxPageHandler::StartOmniboxQue
+--- a/chrome/browser/resources/settings/a11y_page/a11y_page.ts
++++ b/chrome/browser/resources/settings/a11y_page/a11y_page.ts
+@@ -231,7 +231,7 @@ export class SettingsA11yPageElement ext
+    * page; i.e. Settings > Accessibility > Text-to-Speech.
+    */
+   private computeShowPdfOcrToggle_(): boolean {
+-    return loadTimeData.getBoolean('pdfOcrEnabled') && this.hasScreenReader_;
++    return false;
+   }
+   // </if>
+ 
+--- a/chrome/browser/ui/webui/settings/accessibility_main_handler.cc
++++ b/chrome/browser/ui/webui/settings/accessibility_main_handler.cc
+@@ -39,13 +39,6 @@ void AccessibilityMainHandler::RegisterM
+       base::BindRepeating(
+           &AccessibilityMainHandler::HandleCheckAccessibilityImageLabels,
+           base::Unretained(this)));
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  web_ui()->RegisterMessageCallback(
+-      "getScreenAiInstallState",
+-      base::BindRepeating(
+-          &AccessibilityMainHandler::HandleGetScreenAIInstallState,
+-          base::Unretained(this)));
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
  }
  
- void OmniboxPageHandler::GetMlModelVersion(GetMlModelVersionCallback callback) {
--  if (auto* service = GetMlService()) {
--    auto version = service->GetModelVersion();
--    if (version == -1) {
--      service->AddOnModelUpdatedCallback(
--          base::BindOnce(&OmniboxPageHandler::GetMlModelVersion,
--                         weak_factory_.GetWeakPtr(), std::move(callback)));
--    } else {
--      std::move(callback).Run(version);
--    }
--  } else {
-     std::move(callback).Run(-1);
+ void AccessibilityMainHandler::OnJavascriptAllowed() {
+@@ -56,13 +49,6 @@ void AccessibilityMainHandler::OnJavascr
+           base::Unretained(this)));
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  if (features::IsPdfOcrEnabled()) {
+-    CHECK(!component_ready_observer_.IsObserving());
+-    component_ready_observer_.Observe(
+-        screen_ai::ScreenAIInstallState::GetInstance());
 -  }
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
  }
  
- void OmniboxPageHandler::StartMl(mojom::SignalsPtr mojom_signals,
-                                  StartMlCallback callback) {
--  if (auto* service = GetMlService()) {
--    AutocompleteMatch::ScoringSignals signals =
--        mojo::ConvertTo<AutocompleteMatch::ScoringSignals>(mojom_signals);
--    std::vector<AutocompleteScoringModelService::Result> result =
--        service->BatchScoreAutocompleteUrlMatchesSync({&signals});
--    std::move(callback).Run(result.size() ? result[0].value_or(-1) : -1);
--  } else {
-     std::move(callback).Run(-1);
+ void AccessibilityMainHandler::OnJavascriptDisallowed() {
+@@ -70,40 +56,7 @@ void AccessibilityMainHandler::OnJavascr
+   accessibility_subscription_ = {};
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  if (features::IsPdfOcrEnabled()) {
+-    component_ready_observer_.Reset();
 -  }
- }
- 
- std::unique_ptr<AutocompleteController> OmniboxPageHandler::CreateController(
-@@ -549,8 +529,5 @@ OmniboxPageHandler::GetAutocompleteContr
- }
- 
- AutocompleteScoringModelService* OmniboxPageHandler::GetMlService() {
--  return OmniboxFieldTrial::IsMlUrlScoringEnabled()
--             ? AutocompleteScoringModelServiceFactory::GetInstance()
--                   ->GetForProfile(profile_)
--             : nullptr;
-+  return nullptr;
- }
---- a/chrome/test/BUILD.gn
-+++ b/chrome/test/BUILD.gn
-@@ -3114,13 +3114,6 @@ if (!is_android && !is_fuchsia) {
-         "//pdf/loader",
-       ]
- 
--      if (is_linux) {
--        # Add a data dependency for pdf_extension_accessibility_test.cc to
--        # notify testing builders that this test needs this library, which will
--        # need to be downloaded from CIPD as defined in //DEPS.
--        data_deps += [ "//third_party/screen-ai:screen_ai_linux" ]
--      }
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-}
 -
-       if (enable_printing) {
-         sources += [ "../browser/pdf/pdf_extension_printing_test.cc" ]
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-void AccessibilityMainHandler::DownloadProgressChanged(double progress) {
+-  CHECK_GE(progress, 0.0);
+-  CHECK_LE(progress, 1.0);
+-  const int progress_num = progress * 100;
+-  FireWebUIListener("pdf-ocr-downloading-progress-changed",
+-                    base::Value(progress_num));
+-}
+-
+-void AccessibilityMainHandler::StateChanged(
+-    screen_ai::ScreenAIInstallState::State state) {
+-  base::Value state_value = base::Value(static_cast<int>(state));
+-  FireWebUIListener("pdf-ocr-state-changed", state_value);
+-}
+-
+-void AccessibilityMainHandler::HandleGetScreenAIInstallState(
+-    const base::Value::List& args) {
+-  CHECK_EQ(1U, args.size());
+-  const base::Value& callback_id = args[0];
+-  AllowJavascript();
+-  // Get the current install state and send it back to a UI callback.
+-  screen_ai::ScreenAIInstallState::State current_install_state =
+-      screen_ai::ScreenAIInstallState::GetInstance()->get_state();
+-  ResolveJavascriptCallback(
+-      callback_id, base::Value(static_cast<int>(current_install_state)));
+ }
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
  
+ void AccessibilityMainHandler::HandleGetScreenReaderState(
+     const base::Value::List& args) {
+--- a/chrome/browser/ui/webui/settings/accessibility_main_handler.h
++++ b/chrome/browser/ui/webui/settings/accessibility_main_handler.h
+@@ -13,10 +13,6 @@
+ #include "chrome/browser/ash/accessibility/accessibility_manager.h"
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-#include "base/scoped_observation.h"
+-#include "chrome/browser/screen_ai/screen_ai_install_state.h"
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ 
+ namespace settings {
+ 
+@@ -24,10 +20,6 @@ namespace settings {
+ // chrome://settings/accessibility.
+ class AccessibilityMainHandler
+     : public ::settings::SettingsPageUIHandler
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-    ,
+-      public screen_ai::ScreenAIInstallState::Observer
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ {
+  public:
+   AccessibilityMainHandler();
+@@ -40,11 +32,6 @@ class AccessibilityMainHandler
+   void OnJavascriptAllowed() override;
+   void OnJavascriptDisallowed() override;
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  // screen_ai::ScreenAIInstallState::Observer:
+-  void DownloadProgressChanged(double progress) override;
+-  void StateChanged(screen_ai::ScreenAIInstallState::State state) override;
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ 
+  private:
+   void HandleGetScreenReaderState(const base::Value::List& args);
+@@ -63,11 +50,6 @@ class AccessibilityMainHandler
+   base::CallbackListSubscription accessibility_subscription_;
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  base::ScopedObservation<screen_ai::ScreenAIInstallState,
+-                          screen_ai::ScreenAIInstallState::Observer>
+-      component_ready_observer_{this};
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+ };
+ 
+ }  // namespace settings
+--- a/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.cc
++++ b/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.cc
+@@ -17,8 +17,6 @@
+ #include "chrome/browser/accessibility/pdf_ocr_controller_factory.h"
+ #include "chrome/browser/browser_features.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/screen_ai/screen_ai_service_router.h"
+-#include "chrome/browser/screen_ai/screen_ai_service_router_factory.h"
+ #include "chrome/browser/translate/chrome_translate_client.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_finder.h"
+@@ -298,21 +296,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
+         highlightGranularity);
+   }
+ 
+-  if (features::IsReadAnythingWithScreen2xEnabled()) {
+-    screen_ai::ScreenAIServiceRouterFactory::GetForBrowserContext(
+-        browser_->profile())
+-        ->GetServiceStateAsync(
+-            screen_ai::ScreenAIServiceRouter::Service::kMainContentExtraction,
+-            base::BindOnce(
+-                &ReadAnythingUntrustedPageHandler::OnScreenAIServiceInitialized,
+-                weak_factory_.GetWeakPtr()));
+-  }
+-  if (features::IsPdfOcrEnabled()) {
+-    screen_ai::ScreenAIServiceRouterFactory::GetForBrowserContext(
+-        browser_->profile())
+-        ->GetServiceStateAsync(screen_ai::ScreenAIServiceRouter::Service::kOCR,
+-                               base::DoNothing());
+-  }
+ 
+   OnActiveWebContentsChanged();
+ 
+@@ -716,10 +699,6 @@ void ReadAnythingUntrustedPageHandler::S
+           inner_contents[0]->GetPrimaryMainFrame()->GetLastCommittedOrigin())) {
+     pdf_observer_ = std::make_unique<ReadAnythingWebContentsObserver>(
+         weak_factory_.GetSafeRef(), inner_contents[0], kReadAnythingAXMode);
+-    if (features::IsPdfOcrEnabled()) {
+-      screen_ai::PdfOcrControllerFactory::GetForProfile(browser_->profile())
+-          ->Activate();
+-    }
+   }
+ }
+ 
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -423,10 +423,6 @@ static_library("renderer") {
+     sources += [
+       "accessibility/ax_tree_distiller.cc",
+       "accessibility/ax_tree_distiller.h",
+-      "accessibility/read_anything_app_controller.cc",
+-      "accessibility/read_anything_app_controller.h",
+-      "accessibility/read_anything_app_model.cc",
+-      "accessibility/read_anything_app_model.h",
+       "media/chrome_speech_recognition_client.cc",
+       "media/chrome_speech_recognition_client.h",
+       "searchbox/searchbox.cc",
+--- a/chrome/renderer/chrome_render_frame_observer.cc
++++ b/chrome/renderer/chrome_render_frame_observer.cc
+@@ -320,22 +320,6 @@ void ChromeRenderFrameObserver::DidCommi
+ }
+ 
+ void ChromeRenderFrameObserver::DidClearWindowObject() {
+-#if !BUILDFLAG(IS_ANDROID)
+-  const base::CommandLine& command_line =
+-      *base::CommandLine::ForCurrentProcess();
+-  if (command_line.HasSwitch(switches::kInstantProcess))
+-    SearchBoxExtension::Install(render_frame()->GetWebFrame());
+-
+-  // Install ReadAnythingAppController on render frames with the Read Anything
+-  // url, which is chrome-untrusted. ReadAnythingAppController installs v8
+-  // bindings in the chrome.readingMode namespace which are consumed by
+-  // read_anything/app.ts, the resource of the Read Anything WebUI.
+-  if (features::IsReadAnythingEnabled() &&
+-      render_frame()->GetWebFrame()->GetDocument().Url() ==
+-          chrome::kChromeUIUntrustedReadAnythingSidePanelURL) {
+-    ReadAnythingAppController::Install(render_frame());
+-  }
+-#endif  // !BUILDFLAG(IS_ANDROID)
+ }
+ 
+ void ChromeRenderFrameObserver::DidMeaningfulLayout(
 --- a/chrome/test/chromedriver/BUILD.gn
 +++ b/chrome/test/chromedriver/BUILD.gn
-@@ -397,7 +397,7 @@ source_set("lib") {
+@@ -405,7 +405,7 @@ source_set("lib") {
    }
  }
  
@@ -314,7 +423,7 @@
  python_library("fixtures") {
 --- a/components/omnibox/browser/autocomplete_classifier.cc
 +++ b/components/omnibox/browser/autocomplete_classifier.cc
-@@ -97,8 +97,6 @@ void AutocompleteClassifier::Classify(
+@@ -103,8 +103,6 @@ void AutocompleteClassifier::Classify(
      metrics::OmniboxEventProto::PageClassification page_classification,
      AutocompleteMatch* match,
      GURL* alternate_nav_url) {
@@ -323,16 +432,6 @@
    DCHECK(!inside_classify_);
    base::AutoReset<bool> reset(&inside_classify_, true);
    AutocompleteInput input(text, page_classification, *scheme_classifier_);
---- a/components/omnibox/browser/autocomplete_controller.cc
-+++ b/components/omnibox/browser/autocomplete_controller.cc
-@@ -43,7 +43,6 @@
- #include "components/omnibox/browser/autocomplete_input.h"
- #include "components/omnibox/browser/autocomplete_match_type.h"
- #include "components/omnibox/browser/autocomplete_provider.h"
--#include "components/omnibox/browser/autocomplete_scoring_model_service.h"
- #include "components/omnibox/browser/autocomplete_scoring_signals_annotator.h"
- #include "components/omnibox/browser/bookmark_provider.h"
- #include "components/omnibox/browser/bookmark_scoring_signals_annotator.h"
 --- a/components/update_client/BUILD.gn
 +++ b/components/update_client/BUILD.gn
 @@ -312,8 +312,6 @@ source_set("unit_tests") {
@@ -346,7 +445,7 @@
  fuzzer_test("update_client_protocol_serializer_fuzzer") {
 --- a/content/shell/BUILD.gn
 +++ b/content/shell/BUILD.gn
-@@ -739,10 +739,6 @@ if (is_apple) {
+@@ -802,10 +802,6 @@ if (is_apple) {
        deps = [ "//third_party/icu:icudata" ]
      }
  
@@ -357,9 +456,49 @@
      if (v8_use_external_startup_data) {
        public_deps += [ "//v8" ]
        if (use_v8_context_snapshot) {
+--- a/services/passage_embeddings/passage_embeddings_service.cc
++++ b/services/passage_embeddings/passage_embeddings_service.cc
+@@ -6,7 +6,6 @@
+ 
+ #include "base/files/file.h"
+ #include "components/optimization_guide/machine_learning_tflite_buildflags.h"
+-#include "services/passage_embeddings/passage_embedder.h"
+ 
+ namespace passage_embeddings {
+ 
+--- a/services/passage_embeddings/passage_embeddings_service.h
++++ b/services/passage_embeddings/passage_embeddings_service.h
+@@ -11,7 +11,6 @@
+ 
+ namespace passage_embeddings {
+ 
+-class PassageEmbedder;
+ 
+ // Class implementation of the passage embeddings service mojo interface.
+ class PassageEmbeddingsService : public mojom::PassageEmbeddingsService {
+--- a/services/screen_ai/buildflags/features.gni
++++ b/services/screen_ai/buildflags/features.gni
+@@ -7,14 +7,13 @@ import("//build/config/sanitizers/saniti
+ 
+ declare_args() {
+   # Screen AI service is only supported on desktop platforms.
+-  enable_screen_ai_service = is_linux || is_mac || is_chromeos || is_win
++  enable_screen_ai_service = false
+ 
+   # Screen AI library is not available for browser tests on ChromeOS. Tast tests
+   # cover library's OCR functionality on ChromeOS.
+   enable_screen_ai_browsertests =
+-      is_linux || (is_mac && (target_cpu == "arm64" || target_cpu == "x64")) ||
+-      (is_win && (target_cpu == "x64" || target_cpu == "x86"))
++      false
+ 
+   # Screen AI library is not available for MSAN and UBSAN.
+-  use_fake_screen_ai = is_msan || is_ubsan || is_ubsan_vptr || is_ubsan_security
++  use_fake_screen_ai = false
+ }
 --- a/third_party/devtools-frontend/src/BUILD.gn
 +++ b/third_party/devtools-frontend/src/BUILD.gn
-@@ -13,7 +13,6 @@ import("./third_party/blink/public/publi
+@@ -14,7 +14,6 @@ import("./third_party/typescript/typescr
  
  devtools_frontend_resources_deps = [
    "front_end",
@@ -367,6 +506,16 @@
  ]
  
  group("devtools_all_files") {
+--- a/third_party/devtools-frontend/src/front_end/BUILD.gn
++++ b/third_party/devtools-frontend/src/front_end/BUILD.gn
+@@ -184,7 +184,6 @@ group("unittests") {
+     "panels/sources/components:unittests",
+     "panels/timeline:unittests",
+     "panels/timeline/components:unittests",
+-    "panels/timeline/fixtures/traces",
+     "panels/timeline/track_appenders:unittests",
+     "panels/utils:unittests",
+     "panels/web_audio:unittests",
 --- a/third_party/puffin/BUILD.gn
 +++ b/third_party/puffin/BUILD.gn
 @@ -115,7 +115,6 @@ executable("puffin_unittest") {

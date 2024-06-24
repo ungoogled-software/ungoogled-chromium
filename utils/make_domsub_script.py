@@ -86,10 +86,16 @@ def main():
     parser.set_defaults(callback=_callback)
 
     parser.add_argument('-r', '--regex', type=Path, required=True, help='Path to domain_regex.list')
-    parser.add_argument(
-        '-f', '--files', type=Path, required=True, help='Path to domain_substitution.list')
-    parser.add_argument(
-        '-o', '--output', type=Path, required=True, help='Path to script file to create')
+    parser.add_argument('-f',
+                        '--files',
+                        type=Path,
+                        required=True,
+                        help='Path to domain_substitution.list')
+    parser.add_argument('-o',
+                        '--output',
+                        type=Path,
+                        required=True,
+                        help='Path to script file to create')
 
     args = parser.parse_args()
     args.callback(args)

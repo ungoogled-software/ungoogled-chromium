@@ -13,6 +13,7 @@ import configparser
 import enum
 import hashlib
 import shutil
+import ssl
 import subprocess
 import sys
 import urllib.request
@@ -23,7 +24,7 @@ from _common import ENCODING, USE_REGISTRY, ExtractorEnum, get_logger, \
 from _extraction import extract_tar_file, extract_with_7z, extract_with_winrar
 
 sys.path.insert(0, str(Path(__file__).parent / 'third_party'))
-import schema #pylint: disable=wrong-import-position
+import schema #pylint: disable=wrong-import-position, wrong-import-order
 sys.path.pop(0)
 
 # Constants
@@ -31,7 +32,7 @@ sys.path.pop(0)
 
 class HashesURLEnum(str, enum.Enum):
     """Enum for supported hash URL schemes"""
-    chromium = 'chromium'
+    CHROMIUM = 'chromium'
 
 
 class HashMismatchError(BaseException):
@@ -104,7 +105,6 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
 
         Raises schema.SchemaError if validation fails
         """
-
         def _section_generator(data):
             for section in data:
                 if section == configparser.DEFAULTSECT:
@@ -148,13 +148,12 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
 
     def properties_iter(self):
         """Iterator for the download properties sorted by output path"""
-        return sorted(
-            map(lambda x: (x, self[x]), self), key=(lambda x: str(Path(x[1].output_path))))
+        return sorted(map(lambda x: (x, self[x]), self),
+                      key=(lambda x: str(Path(x[1].output_path))))
 
 
 class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
     """Hook for urllib.request.urlretrieve to log progress information to console"""
-
     def __init__(self):
         self._max_len_printed = 0
         self._last_percentage = None
@@ -187,7 +186,6 @@ def _download_via_urllib(url, file_path, show_progress, disable_ssl_verification
     if show_progress:
         reporthook = _UrlRetrieveReportHook()
     if disable_ssl_verification:
-        import ssl
         # TODO: Remove this or properly implement disabling SSL certificate verification
         orig_https_context = ssl._create_default_https_context #pylint: disable=protected-access
         ssl._create_default_https_context = ssl._create_unverified_context #pylint: disable=protected-access
@@ -340,12 +338,11 @@ def unpack_downloads(download_info, cache_dir, output_dir, skip_unused, extracto
         else:
             strip_leading_dirs_path = Path(download_properties.strip_leading_dirs)
 
-        extractor_func(
-            archive_path=download_path,
-            output_dir=output_dir / Path(download_properties.output_path),
-            relative_to=strip_leading_dirs_path,
-            skip_unused=skip_unused,
-            extractors=extractors)
+        extractor_func(archive_path=download_path,
+                       output_dir=output_dir / Path(download_properties.output_path),
+                       relative_to=strip_leading_dirs_path,
+                       skip_unused=skip_unused,
+                       extractors=extractors)
 
 
 def _add_common_args(parser):
@@ -355,13 +352,16 @@ def _add_common_args(parser):
         type=Path,
         nargs='+',
         help='The downloads INI to parse for downloads. Can be specified multiple times.')
-    parser.add_argument(
-        '-c', '--cache', type=Path, required=True, help='Path to the directory to cache downloads.')
+    parser.add_argument('-c',
+                        '--cache',
+                        type=Path,
+                        required=True,
+                        help='Path to the directory to cache downloads.')
 
 
 def _retrieve_callback(args):
-    retrieve_downloads(
-        DownloadInfo(args.ini), args.cache, args.show_progress, args.disable_ssl_verification)
+    retrieve_downloads(DownloadInfo(args.ini), args.cache, args.show_progress,
+                       args.disable_ssl_verification)
     try:
         check_downloads(DownloadInfo(args.ini), args.cache)
     except HashMismatchError as exc:
@@ -393,11 +393,10 @@ def main():
                      'If it is not present, Python\'s urllib will be used. However, only '
                      'the CLI-based downloaders can be resumed if the download is aborted.'))
     _add_common_args(retrieve_parser)
-    retrieve_parser.add_argument(
-        '--hide-progress-bar',
-        action='store_false',
-        dest='show_progress',
-        help='Hide the download progress.')
+    retrieve_parser.add_argument('--hide-progress-bar',
+                                 action='store_false',
+                                 dest='show_progress',
+                                 help='Hide the download progress.')
     retrieve_parser.add_argument(
         '--disable-ssl-verification',
         action='store_true',
@@ -410,11 +409,10 @@ def main():
         help='Unpack download files',
         description='Verifies hashes of and unpacks download files into the specified directory.')
     _add_common_args(unpack_parser)
-    unpack_parser.add_argument(
-        '--tar-path',
-        default='tar',
-        help=('(Linux and macOS only) Command or path to the BSD or GNU tar '
-              'binary for extraction. Default: %(default)s'))
+    unpack_parser.add_argument('--tar-path',
+                               default='tar',
+                               help=('(Linux and macOS only) Command or path to the BSD or GNU tar '
+                                     'binary for extraction. Default: %(default)s'))
     unpack_parser.add_argument(
         '--7z-path',
         dest='sevenz_path',
@@ -428,10 +426,9 @@ def main():
         help=('Command or path to WinRAR\'s "winrar" binary. If "_use_registry" is '
               'specified, determine the path from the registry. Default: %(default)s'))
     unpack_parser.add_argument('output', type=Path, help='The directory to unpack to.')
-    unpack_parser.add_argument(
-        '--skip-unused',
-        action='store_true',
-        help='Skip extraction of unused directories (CONTINGENT_PATHS).')
+    unpack_parser.add_argument('--skip-unused',
+                               action='store_true',
+                               help='Skip extraction of unused directories (CONTINGENT_PATHS).')
     unpack_parser.set_defaults(callback=_unpack_callback)
 
     args = parser.parse_args()

@@ -206,9 +206,8 @@ def apply_substitution(regex_path, files_path, source_tree, domainsub_cache):
     resolved_tree = source_tree.resolve()
     regex_pairs = DomainRegexList(regex_path).regex_pairs
     fileindex_content = io.BytesIO()
-    with tarfile.open(
-            str(domainsub_cache), 'w:%s' % domainsub_cache.suffix[1:],
-            compresslevel=1) if domainsub_cache else open(os.devnull, 'w') as cache_tar:
+    with tarfile.open(str(domainsub_cache), 'w:%s' % domainsub_cache.suffix[1:],
+                      compresslevel=1) if domainsub_cache else open(os.devnull, 'w') as cache_tar:
         for relative_path in filter(len, files_path.read_text().splitlines()):
             if _INDEX_HASH_DELIMITER in relative_path:
                 if domainsub_cache:
@@ -281,8 +280,8 @@ def revert_substitution(domainsub_cache, source_tree):
 
     cache_index_files = set() # All files in the file index
 
-    with tempfile.TemporaryDirectory(
-            prefix='domsubcache_files', dir=str(resolved_tree)) as tmp_extract_name:
+    with tempfile.TemporaryDirectory(prefix='domsubcache_files',
+                                     dir=str(resolved_tree)) as tmp_extract_name:
         extract_path = Path(tmp_extract_name)
         get_logger().debug('Extracting domain substitution cache...')
         extract_tar_file(domainsub_cache, extract_path, None, False)
@@ -333,17 +332,24 @@ def main():
         'apply',
         help='Apply domain substitution',
         description='Applies domain substitution and creates the domain substitution cache.')
-    apply_parser.add_argument(
-        '-r', '--regex', type=Path, required=True, help='Path to domain_regex.list')
-    apply_parser.add_argument(
-        '-f', '--files', type=Path, required=True, help='Path to domain_substitution.list')
+    apply_parser.add_argument('-r',
+                              '--regex',
+                              type=Path,
+                              required=True,
+                              help='Path to domain_regex.list')
+    apply_parser.add_argument('-f',
+                              '--files',
+                              type=Path,
+                              required=True,
+                              help='Path to domain_substitution.list')
     apply_parser.add_argument(
         '-c',
         '--cache',
         type=Path,
         help='The path to the domain substitution cache. The path must not already exist.')
-    apply_parser.add_argument(
-        'directory', type=Path, help='The directory to apply domain substitution')
+    apply_parser.add_argument('directory',
+                              type=Path,
+                              help='The directory to apply domain substitution')
     apply_parser.set_defaults(reverting=False)
 
     # revert
@@ -351,15 +357,15 @@ def main():
         'revert',
         help='Revert domain substitution',
         description='Reverts domain substitution based only on the domain substitution cache.')
-    revert_parser.add_argument(
-        'directory', type=Path, help='The directory to reverse domain substitution')
-    revert_parser.add_argument(
-        '-c',
-        '--cache',
-        type=Path,
-        required=True,
-        help=('The path to the domain substitution cache. '
-              'The path must exist and will be removed if successful.'))
+    revert_parser.add_argument('directory',
+                               type=Path,
+                               help='The directory to reverse domain substitution')
+    revert_parser.add_argument('-c',
+                               '--cache',
+                               type=Path,
+                               required=True,
+                               help=('The path to the domain substitution cache. '
+                                     'The path must exist and will be removed if successful.'))
     revert_parser.set_defaults(reverting=True)
 
     args = parser.parse_args()

@@ -103,14 +103,13 @@ ungoogled-chromium is available in the following **software repositories**:
 
 * Arch: Available in AUR & OBS, [see instructions in ungoogled-chromium-archlinux](https://github.com/ungoogled-software/ungoogled-chromium-archlinux)
 * Debian & Ubuntu: Available in OBS, find your [distribution specific instructions](https://github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
-* Fedora: Available in OBS, by following [instructions](https://github.com/ungoogled-software/ungoogled-chromium-fedora) in the downloads section. Also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy` (outdated).
+* Fedora: Available in [COPR](https://copr.fedorainfracloud.org/coprs/) as [`wojnilowicz/ungoogled-chromium`](https://copr.fedorainfracloud.org/coprs/wojnilowicz/ungoogled-chromium/). Also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy` (outdated).
 * Gentoo: Available in [`::pf4public`](https://github.com/PF4Public/gentoo-overlay) overlay as [`ungoogled-chromium`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium) and [`ungoogled-chromium-bin`](https://github.com/PF4Public/gentoo-overlay/tree/master/www-client/ungoogled-chromium-bin) ebuilds
 * macOS: Available in [Homebrew](https://brew.sh/) as [`eloston-chromium`](https://formulae.brew.sh/cask/eloston-chromium). Just run `brew install --cask eloston-chromium`. Chromium will appear in your `/Applications` directory.
-* openSUSE: Available in [openSUSE Tumbleweed](https://get.opensuse.org/tumbleweed/), run `zypper in ungoogled-chromium`. See [package site](https://software.opensuse.org/package/ungoogled-chromium) for additional options.
 
 If your GNU/Linux distribution is not listed, there are distro-independent builds available via the following **package managers**:
 
-* Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/com.github.Eloston.UngoogledChromium) as `com.github.Eloston.UngoogledChromium`
+* Flatpak: Available [in the Flathub repo](https://flathub.org/apps/details/io.github.ungoogled_software.ungoogled_chromium) as `io.github.ungoogled_software.ungoogled_chromium`
 * GNU Guix: Available as `ungoogled-chromium`
 * NixOS/nixpkgs: Available as `ungoogled-chromium`
 

@@ -23,7 +23,7 @@ from pathlib import Path
 from third_party import unidiff
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
-from _common import ENCODING, get_logger, parse_series
+from _common import ENCODING, get_logger, parse_series # pylint: disable=wrong-import-order
 sys.path.pop(0)
 
 # File suffixes to ignore for checking unused patches
@@ -118,12 +118,11 @@ def main():
     default_patches_dir = root_dir / 'patches'
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        '-p',
-        '--patches',
-        type=Path,
-        default=default_patches_dir,
-        help='Path to the patches directory to use. Default: %(default)s')
+    parser.add_argument('-p',
+                        '--patches',
+                        type=Path,
+                        default=default_patches_dir,
+                        help='Path to the patches directory to use. Default: %(default)s')
     args = parser.parse_args()
 
     warnings = False
@@ -132,8 +131,8 @@ def main():
     warnings |= check_unused_patches(args.patches)
 
     if warnings:
-        exit(1)
-    exit(0)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':

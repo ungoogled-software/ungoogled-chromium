@@ -36,9 +36,8 @@ class ExtractorEnum: #pylint: disable=too-few-public-methods
 
 class SetLogLevel(argparse.Action): #pylint: disable=too-few-public-methods
     """Sets logging level based on command line arguments it receives"""
-
     def __init__(self, option_strings, dest, nargs=None, **kwargs):
-        super(SetLogLevel, self).__init__(option_strings, dest, nargs=nargs, **kwargs)
+        super().__init__(option_strings, dest, nargs=nargs, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         if option_string in ('--verbose', '-v'):

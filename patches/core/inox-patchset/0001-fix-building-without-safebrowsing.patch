@@ -1,6 +1,6 @@
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2352,7 +2352,6 @@ static_library("browser") {
+@@ -2434,7 +2434,6 @@ static_library("browser") {
      "//components/reporting/util:task_runner_context",
      "//components/resources",
      "//components/safe_browsing/content/browser",
@@ -8,7 +8,7 @@
      "//components/safe_browsing/content/browser:safe_browsing_service",
      "//components/safe_browsing/content/browser/password_protection",
      "//components/safe_browsing/content/browser/web_ui",
-@@ -3744,8 +3743,6 @@ static_library("browser") {
+@@ -3882,8 +3881,6 @@ static_library("browser") {
        "download/download_commands.h",
        "download/download_crx_util.cc",
        "download/download_crx_util.h",
@@ -30,7 +30,7 @@
  namespace subresource_filter {
  class RulesetService;
  }
-@@ -219,9 +215,6 @@ class BrowserProcess {
+@@ -223,9 +219,6 @@ class BrowserProcess {
    // on this platform (or this is a unit test).
    virtual StatusTray* status_tray() = 0;
  
@@ -42,7 +42,7 @@
    virtual subresource_filter::RulesetService*
 --- a/chrome/browser/browser_process_impl.cc
 +++ b/chrome/browser/browser_process_impl.cc
-@@ -72,7 +72,6 @@
+@@ -76,7 +76,6 @@
  #include "chrome/browser/printing/print_job_manager.h"
  #include "chrome/browser/profiles/profile_manager.h"
  #include "chrome/browser/resource_coordinator/resource_coordinator_parts.h"
@@ -50,7 +50,7 @@
  #include "chrome/browser/shell_integration.h"
  #include "chrome/browser/site_isolation/prefs_observer.h"
  #include "chrome/browser/ssl/secure_origin_prefs_observer.h"
-@@ -439,8 +438,6 @@ void BrowserProcessImpl::StartTearDown()
+@@ -458,8 +457,6 @@ void BrowserProcessImpl::StartTearDown()
  #endif
    metrics_services_manager_.reset();
    intranet_redirect_detector_.reset();
@@ -58,8 +58,8 @@
 -    safe_browsing_service()->ShutDown();
    network_time_tracker_.reset();
  
- #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
-@@ -1097,14 +1094,6 @@ StatusTray* BrowserProcessImpl::status_t
+ #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
+@@ -1138,14 +1135,6 @@ StatusTray* BrowserProcessImpl::status_t
    return status_tray_.get();
  }
  
@@ -74,7 +74,7 @@
  subresource_filter::RulesetService*
  BrowserProcessImpl::subresource_filter_ruleset_service() {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-@@ -1370,26 +1359,6 @@ void BrowserProcessImpl::CreateBackgroun
+@@ -1453,26 +1442,6 @@ void BrowserProcessImpl::CreateBackgroun
  #endif
  }
  
@@ -90,8 +90,8 @@
 -        safe_browsing::GetSafeBrowsingServiceFactory());
 -  }
 -
--  // TODO(crbug/925153): Port consumers of the |safe_browsing_service_| to use
--  // the interface in components/safe_browsing, and remove this cast.
+-  // TODO(crbug.com/41437292): Port consumers of the |safe_browsing_service_| to
+-  // use the interface in components/safe_browsing, and remove this cast.
 -  safe_browsing_service_ = static_cast<safe_browsing::SafeBrowsingService*>(
 -      safe_browsing::SafeBrowsingServiceInterface::CreateSafeBrowsingService());
 -  if (safe_browsing_service_)
@@ -103,15 +103,15 @@
    created_subresource_filter_ruleset_service_ = true;
 --- a/chrome/browser/browser_process_impl.h
 +++ b/chrome/browser/browser_process_impl.h
-@@ -196,7 +196,6 @@ class BrowserProcessImpl : public Browse
+@@ -200,7 +200,6 @@ class BrowserProcessImpl : public Browse
        std::unique_ptr<BackgroundModeManager> manager) override;
  #endif
    StatusTray* status_tray() override;
 -  safe_browsing::SafeBrowsingService* safe_browsing_service() override;
    subresource_filter::RulesetService* subresource_filter_ruleset_service()
        override;
- 
-@@ -356,9 +355,6 @@ class BrowserProcessImpl : public Browse
+   subresource_filter::RulesetService*
+@@ -367,9 +366,6 @@ class BrowserProcessImpl : public Browse
    std::unique_ptr<BackgroundModeManager> background_mode_manager_;
  #endif
  
@@ -123,7 +123,7 @@
        subresource_filter_ruleset_service_;
 --- a/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
-@@ -65,7 +65,6 @@
+@@ -69,7 +69,6 @@
  #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/reading_list/reading_list_model_factory.h"
@@ -131,7 +131,7 @@
  #include "chrome/browser/safe_browsing/verdict_cache_manager_factory.h"
  #include "chrome/browser/search_engines/template_url_service_factory.h"
  #include "chrome/browser/share/share_history.h"
-@@ -635,10 +634,6 @@ void ChromeBrowsingDataRemoverDelegate::
+@@ -643,10 +642,6 @@ void ChromeBrowsingDataRemoverDelegate::
      base::RecordAction(UserMetricsAction("ClearBrowsingData_Cookies"));
  
      network::mojom::NetworkContext* safe_browsing_context = nullptr;
@@ -144,7 +144,7 @@
      browsing_data::RemoveFederatedSiteSettingsData(delete_begin_, delete_end_,
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -5019,10 +5019,6 @@ ChromeContentBrowserClient::CreateThrott
+@@ -5187,10 +5187,6 @@ ChromeContentBrowserClient::CreateThrott
    throttles.push_back(std::make_unique<PolicyBlocklistNavigationThrottle>(
        handle, handle->GetWebContents()->GetBrowserContext()));
  
@@ -155,7 +155,7 @@
    throttles.push_back(std::make_unique<SSLErrorNavigationThrottle>(
        handle,
        base::BindOnce(&HandleSSLErrorWrapper), base::BindOnce(&IsInHostedApp),
-@@ -5070,16 +5066,6 @@ ChromeContentBrowserClient::CreateThrott
+@@ -5242,16 +5238,6 @@ ChromeContentBrowserClient::CreateThrott
        &throttles);
  #endif
  
@@ -172,7 +172,7 @@
    if (base::FeatureList::IsEnabled(safe_browsing::kDelayedWarnings)) {
      throttles.push_back(
          std::make_unique<safe_browsing::DelayedWarningNavigationThrottle>(
-@@ -5344,8 +5330,6 @@ bool ChromeContentBrowserClient::IsPlugi
+@@ -5569,8 +5555,6 @@ bool ChromeContentBrowserClient::IsPlugi
  void ChromeContentBrowserClient::InitOnUIThread() {
    DCHECK_CURRENTLY_ON(BrowserThread::UI);
  
@@ -207,7 +207,7 @@
  }  // namespace
 --- a/chrome/browser/download/chrome_download_manager_delegate.cc
 +++ b/chrome/browser/download/chrome_download_manager_delegate.cc
-@@ -498,13 +498,6 @@ void ChromeDownloadManagerDelegate::SetD
+@@ -504,13 +504,6 @@ void ChromeDownloadManagerDelegate::SetD
  
    download_manager_ = dm;
  
@@ -221,7 +221,7 @@
    if (download_manager_) {
      download_manager_->AddObserver(this);
    }
-@@ -898,17 +891,6 @@ void ChromeDownloadManagerDelegate::Choo
+@@ -940,17 +933,6 @@ void ChromeDownloadManagerDelegate::Choo
  void ChromeDownloadManagerDelegate::SanitizeSavePackageResourceName(
      base::FilePath* filename,
      const GURL& source_url) {
@@ -241,7 +241,7 @@
  void ChromeDownloadManagerDelegate::SanitizeDownloadParameters(
 --- a/chrome/browser/download/download_item_model.cc
 +++ b/chrome/browser/download/download_item_model.cc
-@@ -110,7 +110,7 @@ class DownloadItemModelData : public bas
+@@ -119,7 +119,7 @@ class DownloadItemModelData : public bas
  
    // Danger level of the file determined based on the file type and whether
    // there was a user action associated with the download.
@@ -250,7 +250,7 @@
  
    // Whether the download is currently being revived.
    bool is_being_revived_ = false;
-@@ -526,13 +526,13 @@ void DownloadItemModel::SetShouldPreferO
+@@ -536,13 +536,13 @@ void DownloadItemModel::SetShouldPreferO
    data->should_prefer_opening_in_browser_ = preference;
  }
  
@@ -267,7 +267,7 @@
    DownloadItemModelData* data = DownloadItemModelData::GetOrCreate(download_);
    data->danger_level_ = danger_level;
  }
-@@ -709,9 +709,6 @@ bool DownloadItemModel::IsCommandEnabled
+@@ -749,9 +749,6 @@ bool DownloadItemModel::IsCommandEnabled
        // filename. Don't base an "Always open" decision based on it. Also
        // exclude extensions.
        return download_->CanOpenDownload() &&
@@ -279,7 +279,7 @@
        return !download_->IsSavePackageDownload() &&
 --- a/chrome/browser/download/download_prefs.cc
 +++ b/chrome/browser/download/download_prefs.cc
-@@ -262,14 +262,7 @@ DownloadPrefs::DownloadPrefs(Profile* pr
+@@ -261,14 +261,7 @@ DownloadPrefs::DownloadPrefs(Profile* pr
          base::FilePath::StringType(1, base::FilePath::kExtensionSeparator) +
          extension);
  
@@ -295,7 +295,7 @@
    }
  }
  
-@@ -447,10 +440,6 @@ bool DownloadPrefs::IsAutoOpenByPolicy(c
+@@ -444,10 +437,6 @@ bool DownloadPrefs::IsAutoOpenByPolicy(c
  bool DownloadPrefs::EnableAutoOpenByUserBasedOnExtension(
      const base::FilePath& file_name) {
    base::FilePath::StringType extension = file_name.Extension();
@@ -308,7 +308,7 @@
    extension.erase(0, 1);
 --- a/chrome/browser/download/download_target_determiner.cc
 +++ b/chrome/browser/download/download_target_determiner.cc
-@@ -324,13 +324,6 @@ base::FilePath DownloadTargetDeterminer:
+@@ -323,13 +323,6 @@ base::FilePath DownloadTargetDeterminer:
        download_->GetURL(), download_->GetContentDisposition(), referrer_charset,
        suggested_filename, sniffed_mime_type, default_filename);
  
@@ -322,7 +322,7 @@
    // If no mime type or explicitly specified a name, don't replace file
    // extension.
    if (sniffed_mime_type.empty() || !suggested_filename.empty())
-@@ -1287,30 +1280,7 @@ DownloadFileType::DangerLevel DownloadTa
+@@ -1290,30 +1283,7 @@ DownloadFileType::DangerLevel DownloadTa
        download_->HasUserGesture())
      return DownloadFileType::NOT_DANGEROUS;
  
@@ -364,7 +364,7 @@
  #include "chrome/browser/download/download_file_icon_extractor.h"
  #include "chrome/browser/download/download_open_prompt.h"
  #include "chrome/browser/download/download_prefs.h"
-@@ -1377,9 +1376,6 @@ DownloadsAcceptDangerFunction::Downloads
+@@ -1378,9 +1377,6 @@ DownloadsAcceptDangerFunction::Downloads
  
  DownloadsAcceptDangerFunction::~DownloadsAcceptDangerFunction() {}
  
@@ -374,7 +374,7 @@
  ExtensionFunction::ResponseAction DownloadsAcceptDangerFunction::Run() {
    std::optional<downloads::AcceptDanger::Params> params =
        downloads::AcceptDanger::Params::Create(args());
-@@ -1417,42 +1413,7 @@ void DownloadsAcceptDangerFunction::Prom
+@@ -1418,42 +1414,7 @@ void DownloadsAcceptDangerFunction::Prom
      return;
    }
    RecordApiFunctions(DOWNLOADS_FUNCTION_ACCEPT_DANGER);
@@ -500,7 +500,7 @@
            referrer_entries)));
 --- a/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
 +++ b/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
-@@ -704,18 +704,6 @@ void WebstorePrivateBeginInstallWithMani
+@@ -697,18 +697,6 @@ void WebstorePrivateBeginInstallWithMani
  
  void WebstorePrivateBeginInstallWithManifest3Function::
      ReportFrictionAcceptedEvent() {
@@ -519,7 +519,7 @@
  }
  
  void WebstorePrivateBeginInstallWithManifest3Function::OnInstallPromptDone(
-@@ -1219,54 +1207,9 @@ WebstorePrivateGetReferrerChainFunction:
+@@ -1207,54 +1195,9 @@ WebstorePrivateGetReferrerChainFunction:
  
  ExtensionFunction::ResponseAction
  WebstorePrivateGetReferrerChainFunction::Run() {
@@ -647,7 +647,7 @@
    // SimpleURLLoader -> (owned loader, extension id).
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -92,7 +92,6 @@
+@@ -91,7 +91,6 @@
  #include "chrome/browser/push_messaging/push_messaging_service_factory.h"
  #include "chrome/browser/push_messaging/push_messaging_service_impl.h"
  #include "chrome/browser/reduce_accept_language/reduce_accept_language_factory.h"
@@ -655,7 +655,7 @@
  #include "chrome/browser/sessions/exit_type_service.h"
  #include "chrome/browser/sharing/sharing_service_factory.h"
  #include "chrome/browser/signin/identity_manager_factory.h"
-@@ -633,17 +632,6 @@ void ProfileImpl::LoadPrefsForNormalStar
+@@ -639,17 +638,6 @@ void ProfileImpl::LoadPrefsForNormalStar
  
    mojo::PendingRemote<prefs::mojom::TrackedPreferenceValidationDelegate>
        pref_validation_delegate;
@@ -695,7 +695,7 @@
    sources = [
      "chrome_controller_client.cc",
      "chrome_controller_client.h",
-@@ -69,6 +70,7 @@ static_library("safe_browsing") {
+@@ -70,6 +71,7 @@ static_library("safe_browsing") {
      "//mojo/public/cpp/system",
      "//services/preferences/public/cpp",
    ]
@@ -703,7 +703,7 @@
  
    if (is_android) {
      deps += [ "//chrome/browser/password_manager/android:utils" ]
-@@ -499,6 +501,7 @@ static_library("advanced_protection") {
+@@ -512,6 +514,7 @@ static_library("advanced_protection") {
  }
  
  source_set("metrics_collector") {
@@ -711,7 +711,7 @@
    sources = [
      "safe_browsing_metrics_collector_factory.cc",
      "safe_browsing_metrics_collector_factory.h",
-@@ -518,6 +521,7 @@ source_set("metrics_collector") {
+@@ -531,6 +534,7 @@ source_set("metrics_collector") {
      "//components/safe_browsing/core/common:safe_browsing_prefs",
      "//content/public/browser",
    ]
@@ -721,10 +721,12 @@
  source_set("test_support") {
 --- a/chrome/browser/ssl/security_state_tab_helper.cc
 +++ b/chrome/browser/ssl/security_state_tab_helper.cc
-@@ -174,92 +174,6 @@ bool SecurityStateTabHelper::UsedPolicyI
+@@ -174,93 +174,6 @@ bool SecurityStateTabHelper::UsedPolicyI
  
  security_state::MaliciousContentStatus
  SecurityStateTabHelper::GetMaliciousContentStatus() const {
+-  using enum safe_browsing::SBThreatType;
+-
 -  content::NavigationEntry* entry =
 -      web_contents()->GetController().GetVisibleEntry();
 -  if (!entry)
@@ -738,20 +740,20 @@
 -  if (sb_ui_manager->IsUrlAllowlistedOrPendingForWebContents(
 -          entry->GetURL(), false, entry, web_contents(), false, &threat_type)) {
 -    switch (threat_type) {
--      case safe_browsing::SB_THREAT_TYPE_UNUSED:
--      case safe_browsing::SB_THREAT_TYPE_SAFE:
--      case safe_browsing::SB_THREAT_TYPE_URL_PHISHING:
--      case safe_browsing::SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING:
+-      case SB_THREAT_TYPE_UNUSED:
+-      case SB_THREAT_TYPE_SAFE:
+-      case SB_THREAT_TYPE_URL_PHISHING:
+-      case SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING:
 -        return security_state::MALICIOUS_CONTENT_STATUS_SOCIAL_ENGINEERING;
--      case safe_browsing::SB_THREAT_TYPE_URL_MALWARE:
+-      case SB_THREAT_TYPE_URL_MALWARE:
 -        return security_state::MALICIOUS_CONTENT_STATUS_MALWARE;
--      case safe_browsing::SB_THREAT_TYPE_URL_UNWANTED:
+-      case SB_THREAT_TYPE_URL_UNWANTED:
 -        return security_state::MALICIOUS_CONTENT_STATUS_UNWANTED_SOFTWARE;
--      case safe_browsing::SB_THREAT_TYPE_SAVED_PASSWORD_REUSE:
+-      case SB_THREAT_TYPE_SAVED_PASSWORD_REUSE:
 -#if BUILDFLAG(FULL_SAFE_BROWSING)
 -        return security_state::MALICIOUS_CONTENT_STATUS_SAVED_PASSWORD_REUSE;
 -#endif
--      case safe_browsing::SB_THREAT_TYPE_SIGNED_IN_SYNC_PASSWORD_REUSE:
+-      case SB_THREAT_TYPE_SIGNED_IN_SYNC_PASSWORD_REUSE:
 -#if BUILDFLAG(FULL_SAFE_BROWSING)
 -        if (safe_browsing::ChromePasswordProtectionService::
 -                ShouldShowPasswordReusePageInfoBubble(
@@ -761,7 +763,7 @@
 -        }
 -#endif
 -        [[fallthrough]];
--      case safe_browsing::SB_THREAT_TYPE_SIGNED_IN_NON_SYNC_PASSWORD_REUSE:
+-      case SB_THREAT_TYPE_SIGNED_IN_NON_SYNC_PASSWORD_REUSE:
 -#if BUILDFLAG(FULL_SAFE_BROWSING)
 -        if (safe_browsing::ChromePasswordProtectionService::
 -                ShouldShowPasswordReusePageInfoBubble(
@@ -771,7 +773,7 @@
 -        }
 -#endif
 -        [[fallthrough]];
--      case safe_browsing::SB_THREAT_TYPE_ENTERPRISE_PASSWORD_REUSE:
+-      case SB_THREAT_TYPE_ENTERPRISE_PASSWORD_REUSE:
 -#if BUILDFLAG(FULL_SAFE_BROWSING)
 -        if (safe_browsing::ChromePasswordProtectionService::
 -                ShouldShowPasswordReusePageInfoBubble(
@@ -783,27 +785,26 @@
 -        // If user has already changed password or FULL_SAFE_BROWSING isn't
 -        // enabled, returns the regular social engineering content status.
 -        return security_state::MALICIOUS_CONTENT_STATUS_SOCIAL_ENGINEERING;
--      case safe_browsing::SB_THREAT_TYPE_BILLING:
+-      case SB_THREAT_TYPE_BILLING:
 -        return security_state::MALICIOUS_CONTENT_STATUS_BILLING;
--      case safe_browsing::SB_THREAT_TYPE_MANAGED_POLICY_BLOCK:
+-      case SB_THREAT_TYPE_MANAGED_POLICY_BLOCK:
 -        return security_state::MALICIOUS_CONTENT_STATUS_MANAGED_POLICY_BLOCK;
--      case safe_browsing::SB_THREAT_TYPE_MANAGED_POLICY_WARN:
+-      case SB_THREAT_TYPE_MANAGED_POLICY_WARN:
 -        return security_state::MALICIOUS_CONTENT_STATUS_MANAGED_POLICY_WARN;
--      case safe_browsing::
--          DEPRECATED_SB_THREAT_TYPE_URL_PASSWORD_PROTECTION_PHISHING:
--      case safe_browsing::DEPRECATED_SB_THREAT_TYPE_URL_CLIENT_SIDE_MALWARE:
--      case safe_browsing::SB_THREAT_TYPE_URL_BINARY_MALWARE:
--      case safe_browsing::SB_THREAT_TYPE_EXTENSION:
--      case safe_browsing::SB_THREAT_TYPE_BLOCKLISTED_RESOURCE:
--      case safe_browsing::SB_THREAT_TYPE_API_ABUSE:
--      case safe_browsing::SB_THREAT_TYPE_SUBRESOURCE_FILTER:
--      case safe_browsing::SB_THREAT_TYPE_CSD_ALLOWLIST:
--      case safe_browsing::SB_THREAT_TYPE_AD_SAMPLE:
--      case safe_browsing::SB_THREAT_TYPE_BLOCKED_AD_POPUP:
--      case safe_browsing::SB_THREAT_TYPE_BLOCKED_AD_REDIRECT:
--      case safe_browsing::SB_THREAT_TYPE_SUSPICIOUS_SITE:
--      case safe_browsing::SB_THREAT_TYPE_APK_DOWNLOAD:
--      case safe_browsing::SB_THREAT_TYPE_HIGH_CONFIDENCE_ALLOWLIST:
+-      case DEPRECATED_SB_THREAT_TYPE_URL_PASSWORD_PROTECTION_PHISHING:
+-      case DEPRECATED_SB_THREAT_TYPE_URL_CLIENT_SIDE_MALWARE:
+-      case SB_THREAT_TYPE_URL_BINARY_MALWARE:
+-      case SB_THREAT_TYPE_EXTENSION:
+-      case SB_THREAT_TYPE_BLOCKLISTED_RESOURCE:
+-      case SB_THREAT_TYPE_API_ABUSE:
+-      case SB_THREAT_TYPE_SUBRESOURCE_FILTER:
+-      case SB_THREAT_TYPE_CSD_ALLOWLIST:
+-      case SB_THREAT_TYPE_AD_SAMPLE:
+-      case SB_THREAT_TYPE_BLOCKED_AD_POPUP:
+-      case SB_THREAT_TYPE_BLOCKED_AD_REDIRECT:
+-      case SB_THREAT_TYPE_SUSPICIOUS_SITE:
+-      case SB_THREAT_TYPE_APK_DOWNLOAD:
+-      case SB_THREAT_TYPE_HIGH_CONFIDENCE_ALLOWLIST:
 -        // These threat types are not currently associated with
 -        // interstitials, and thus resources with these threat types are
 -        // not ever whitelisted or pending whitelisting.
@@ -816,7 +817,7 @@
  
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -5212,7 +5212,6 @@ static_library("ui") {
+@@ -5390,7 +5390,6 @@ static_library("ui") {
        "views/download/bubble/download_dialog_view.h",
        "views/download/bubble/download_toolbar_button_view.cc",
        "views/download/bubble/download_toolbar_button_view.h",
@@ -826,7 +827,7 @@
        "views/download/download_item_view.cc",
 --- a/chrome/browser/ui/tab_helpers.cc
 +++ b/chrome/browser/ui/tab_helpers.cc
-@@ -479,22 +479,6 @@ void TabHelpers::AttachTabHelpers(WebCon
+@@ -501,22 +501,6 @@ void TabHelpers::AttachTabHelpers(WebCon
    //     See https://crbug.com/910288.
    resource_coordinator::ResourceCoordinatorTabHelper::CreateForWebContents(
        web_contents);
@@ -851,7 +852,7 @@
    SecurityStateTabHelper::CreateForWebContents(web_contents);
 --- a/chrome/browser/ui/webui/downloads/downloads_dom_handler.cc
 +++ b/chrome/browser/ui/webui/downloads/downloads_dom_handler.cc
-@@ -25,7 +25,6 @@
+@@ -26,7 +26,6 @@
  #include "base/values.h"
  #include "chrome/browser/browser_process.h"
  #include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
@@ -859,7 +860,7 @@
  #include "chrome/browser/download/download_history.h"
  #include "chrome/browser/download/download_item_model.h"
  #include "chrome/browser/download/download_item_warning_data.h"
-@@ -280,13 +279,6 @@ void DownloadsDOMHandler::SaveDangerousR
+@@ -292,13 +291,6 @@ void DownloadsDOMHandler::SaveDangerousR
    }
  
    CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS);
@@ -873,7 +874,7 @@
  }
  
  // "Suspicious" in this context applies to insecure as well as dangerous
-@@ -540,12 +532,6 @@ void DownloadsDOMHandler::RemoveDownload
+@@ -569,12 +561,6 @@ void DownloadsDOMHandler::RemoveDownload
    IdSet ids;
  
    for (download::DownloadItem* download : to_remove) {
@@ -886,7 +887,7 @@
      DownloadItemModel item_model(download);
      if (!item_model.ShouldShowInShelf() ||
          download->GetState() == download::DownloadItem::IN_PROGRESS) {
-@@ -685,50 +671,6 @@ void DownloadsDOMHandler::FinalizeRemova
+@@ -783,54 +769,6 @@ void DownloadsDOMHandler::FinalizeRemova
    }
  }
  
@@ -907,15 +908,19 @@
 -void DownloadsDOMHandler::DangerPromptDone(
 -    int download_id,
 -    DownloadDangerPrompt::Action action) {
--  if (action != DownloadDangerPrompt::ACCEPT)
+-  if (action != DownloadDangerPrompt::ACCEPT) {
 -    return;
+-  }
 -  download::DownloadItem* item = nullptr;
--  if (GetMainNotifierManager())
+-  if (GetMainNotifierManager()) {
 -    item = GetMainNotifierManager()->GetDownload(download_id);
--  if (!item && GetOriginalNotifierManager())
+-  }
+-  if (!item && GetOriginalNotifierManager()) {
 -    item = GetOriginalNotifierManager()->GetDownload(download_id);
--  if (!item || item->IsDone())
+-  }
+-  if (!item || item->IsDone()) {
 -    return;
+-  }
 -  CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS);
 -
 -  // If a download is insecure, validate that first. Is most cases, insecure
@@ -934,9 +939,9 @@
 -  item->ValidateDangerousDownload();
 -}
 -
- bool DownloadsDOMHandler::IsDeletingHistoryAllowed() {
-   content::DownloadManager* manager = GetMainNotifierManager();
-   return manager &&
+ void DownloadsDOMHandler::MaybeTriggerDownloadWarningHatsSurvey(
+     download::DownloadItem* item,
+     DownloadWarningHatsType survey_type) {
 --- a/chrome/browser/ui/webui/downloads/downloads_dom_handler.h
 +++ b/chrome/browser/ui/webui/downloads/downloads_dom_handler.h
 @@ -12,7 +12,6 @@
@@ -944,10 +949,10 @@
  #include "base/memory/raw_ptr.h"
  #include "base/memory/weak_ptr.h"
 -#include "chrome/browser/download/download_danger_prompt.h"
+ #include "chrome/browser/download/download_warning_desktop_hats_utils.h"
  #include "chrome/browser/ui/webui/downloads/downloads.mojom-forward.h"
  #include "chrome/browser/ui/webui/downloads/downloads_list_tracker.h"
- #include "content/public/browser/web_contents_observer.h"
-@@ -102,18 +101,6 @@ class DownloadsDOMHandler : public conte
+@@ -120,18 +119,6 @@ class DownloadsDOMHandler : public conte
    // null-checking |original_notifier_|.
    content::DownloadManager* GetOriginalNotifierManager() const;
  
@@ -963,19 +968,19 @@
 -  // DownloadItem.
 -  void DangerPromptDone(int download_id, DownloadDangerPrompt::Action action);
 -
-   // Returns true if the records of any downloaded items are allowed (and able)
-   // to be deleted.
-   bool IsDeletingHistoryAllowed();
+   // Launches a HaTS survey for a download warning that is heeded, bypassed, or
+   // ignored (if all preconditions are met).
+   void MaybeTriggerDownloadWarningHatsSurvey(
 --- a/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
 +++ b/chrome/browser/ui/webui/interstitials/interstitial_ui.cc
-@@ -280,66 +280,6 @@ CreateHttpsOnlyModePage(content::WebCont
+@@ -275,69 +275,6 @@ CreateHttpsOnlyModePage(content::WebCont
        security_interstitials::https_only_mode::HttpInterstitialState{});
  }
  
 -std::unique_ptr<security_interstitials::SecurityInterstitialPage>
 -CreateSafeBrowsingBlockingPage(content::WebContents* web_contents) {
 -  safe_browsing::SBThreatType threat_type =
--      safe_browsing::SB_THREAT_TYPE_URL_MALWARE;
+-      safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_MALWARE;
 -  GURL request_url("http://example.com");
 -  std::string url_param;
 -  if (net::GetValueForKeyInQuery(web_contents->GetVisibleURL(), "url",
@@ -991,15 +996,16 @@
 -  if (net::GetValueForKeyInQuery(web_contents->GetVisibleURL(), "type",
 -                                 &type_param)) {
 -    if (type_param == "malware") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_URL_MALWARE;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_MALWARE;
 -    } else if (type_param == "phishing") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_URL_PHISHING;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_PHISHING;
 -    } else if (type_param == "unwanted") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_URL_UNWANTED;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_UNWANTED;
 -    } else if (type_param == "clientside_phishing") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING;
+-      threat_type =
+-          safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING;
 -    } else if (type_param == "billing") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_BILLING;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_BILLING;
 -    }
 -  }
 -  auto* primary_main_frame = web_contents->GetPrimaryMainFrame();
@@ -1028,14 +1034,16 @@
 -  auto* ui_manager =
 -      g_browser_process->safe_browsing_service()->ui_manager().get();
 -  return base::WrapUnique<security_interstitials::SecurityInterstitialPage>(
--      ui_manager->CreateBlockingPage(web_contents, main_frame_url, {resource},
--                                     /*forward_extension_event=*/false));
+-      ui_manager->CreateBlockingPage(
+-          web_contents, main_frame_url, {resource},
+-          /*forward_extension_event=*/false,
+-          /*blocked_page_shown_timestamp=*/std::nullopt));
 -}
 -
  std::unique_ptr<EnterpriseBlockPage> CreateEnterpriseBlockPage(
      content::WebContents* web_contents) {
    const GURL kRequestUrl("https://enterprise-block.example.net");
-@@ -349,94 +289,6 @@ std::unique_ptr<EnterpriseBlockPage> Cre
+@@ -348,95 +285,6 @@ std::unique_ptr<EnterpriseBlockPage> Cre
                                                          kRequestUrl));
  }
  
@@ -1053,7 +1061,8 @@
 -  resource.url = kRequestUrl;
 -  resource.is_subresource = false;
 -  resource.is_subframe = false;
--  resource.threat_type = safe_browsing::SB_THREAT_TYPE_MANAGED_POLICY_WARN;
+-  resource.threat_type =
+-      safe_browsing::SBThreatType::SB_THREAT_TYPE_MANAGED_POLICY_WARN;
 -  resource.render_process_id = primary_main_frame_id.child_id;
 -  resource.render_frame_token = primary_main_frame->GetFrameToken().value();
 -  resource.threat_source =
@@ -1072,7 +1081,7 @@
 -std::unique_ptr<TestSafeBrowsingBlockingPageQuiet>
 -CreateSafeBrowsingQuietBlockingPage(content::WebContents* web_contents) {
 -  safe_browsing::SBThreatType threat_type =
--      safe_browsing::SB_THREAT_TYPE_URL_MALWARE;
+-      safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_MALWARE;
 -  GURL request_url("http://example.com");
 -  std::string url_param;
 -  if (net::GetValueForKeyInQuery(web_contents->GetVisibleURL(), "url",
@@ -1086,15 +1095,15 @@
 -  if (net::GetValueForKeyInQuery(web_contents->GetVisibleURL(), "type",
 -                                 &type_param)) {
 -    if (type_param == "malware") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_URL_MALWARE;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_MALWARE;
 -    } else if (type_param == "phishing") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_URL_PHISHING;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_PHISHING;
 -    } else if (type_param == "unwanted") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_URL_UNWANTED;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_UNWANTED;
 -    } else if (type_param == "billing") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_BILLING;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_BILLING;
 -    } else if (type_param == "giant") {
--      threat_type = safe_browsing::SB_THREAT_TYPE_URL_MALWARE;
+-      threat_type = safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_MALWARE;
 -      is_giant_webview = true;
 -    }
 -  }
@@ -1130,7 +1139,7 @@
  #if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)
  std::unique_ptr<CaptivePortalBlockingPage> CreateCaptivePortalBlockingPage(
      content::WebContents* web_contents) {
-@@ -543,12 +395,8 @@ void InterstitialHTMLSource::StartDataRe
+@@ -543,12 +391,8 @@ void InterstitialHTMLSource::StartDataRe
      interstitial_delegate = CreateMITMSoftwareBlockingPage(web_contents);
    } else if (path_without_query == "/blocked-interception") {
      interstitial_delegate = CreateBlockedInterceptionBlockingPage(web_contents);
@@ -1143,7 +1152,7 @@
    } else if (path_without_query == "/clock") {
      interstitial_delegate = CreateBadClockBlockingPage(web_contents);
    } else if (path_without_query == "/lookalike") {
-@@ -563,16 +411,12 @@ void InterstitialHTMLSource::StartDataRe
+@@ -563,12 +407,7 @@ void InterstitialHTMLSource::StartDataRe
      interstitial_delegate = CreateHttpsOnlyModePage(web_contents);
    }
  
@@ -1152,28 +1161,22 @@
 -        CreateSafeBrowsingQuietBlockingPage(web_contents);
 -    html = blocking_page->GetHTML();
 -    interstitial_delegate = std::move(blocking_page);
- #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
 -  } else if (path_without_query == "/supervised_user") {
 +  if (path_without_query == "/supervised_user") {
      html = GetSupervisedUserInterstitialHTML(path);
-+  } else
- #endif
--  } else if (interstitial_delegate.get()) {
-+  if (interstitial_delegate.get()) {
+   } else if (interstitial_delegate.get()) {
      html = interstitial_delegate.get()->GetHTMLContents();
-   } else {
-     html = ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -102,7 +102,6 @@
- #include "components/password_manager/core/common/password_manager_features.h"
+@@ -106,7 +106,6 @@
+ #include "components/pdf/common/pdf_util.h"
  #include "components/permissions/features.h"
  #include "components/safe_browsing/buildflags.h"
 -#include "components/safe_browsing/content/renderer/threat_dom_details.h"
  #include "components/spellcheck/spellcheck_buildflags.h"
  #include "components/subresource_filter/content/renderer/subresource_filter_agent.h"
  #include "components/subresource_filter/content/renderer/unverified_ruleset_dealer.h"
-@@ -453,12 +452,8 @@ void ChromeContentRendererClient::Render
+@@ -465,12 +464,8 @@ void ChromeContentRendererClient::Render
    subresource_filter_ruleset_dealer_ =
        std::make_unique<subresource_filter::UnverifiedRulesetDealer>();
  

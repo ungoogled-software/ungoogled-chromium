@@ -7,18 +7,19 @@
 """Prune binaries from the source tree"""
 
 import argparse
-from pathlib import Path
-
-from _common import ENCODING, get_logger, add_common_params
 import sys
 import os
 import stat
+from pathlib import Path
+
+from _common import ENCODING, get_logger, add_common_params
 
 # List of paths to prune if they exist, excluded from domain_substitution and pruning lists
 # These allow the lists to be compatible between cloned and tarball sources
 CONTINGENT_PATHS = (
     # Sources
     'third_party/angle/third_party/VK-GL-CTS/src/',
+    'third_party/js_code_coverage/',
     'third_party/llvm/',
     'third_party/rust-src/',
     # Binaries
@@ -31,10 +32,11 @@ CONTINGENT_PATHS = (
     'third_party/dawn/tools/golang/',
     'third_party/depot_tools/external_bin/',
     'third_party/devtools-frontend/src/third_party/esbuild/',
-    'third_party/google-java-format/'
+    'third_party/google-java-format/',
     'third_party/libei/',
     'third_party/llvm-build-tools/',
     'third_party/ninja/',
+    'third_party/screen-ai/',
     'third_party/siso/',
     'third_party/updater/chrome_linux64/',
     'third_party/updater/chromium_linux64/',
@@ -95,7 +97,9 @@ def prune_dirs(unpack_root):
     """
     for pycache in unpack_root.rglob('__pycache__'):
         _prune_path(pycache)
+    get_logger().info('Removing Contingent Paths')
     for cpath in CONTINGENT_PATHS:
+        get_logger().info('%s: %s', 'Exists' if Path(cpath).exists() else 'Absent', cpath)
         _prune_path(unpack_root / cpath)
 
 

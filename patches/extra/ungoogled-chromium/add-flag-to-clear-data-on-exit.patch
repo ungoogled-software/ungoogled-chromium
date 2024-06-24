@@ -1,13 +1,31 @@
+--- a/chrome/browser/browser_features.cc
++++ b/chrome/browser/browser_features.cc
+@@ -415,4 +415,5 @@ BASE_FEATURE(kWebUsbDeviceDetection,
+              "WebUsbDeviceDetection",
+              base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kClearDataOnExit, "ClearDataOnExit", base::FEATURE_DISABLED_BY_DEFAULT);
+ }  // namespace features
+--- a/chrome/browser/browser_features.h
++++ b/chrome/browser/browser_features.h
+@@ -153,6 +153,7 @@ BASE_DECLARE_FEATURE(kTabCaptureBlueBord
+ BASE_DECLARE_FEATURE(kUseOsCryptAsyncForCookieEncryption);
+ BASE_DECLARE_FEATURE(kWebUsbDeviceDetection);
+ 
++BASE_DECLARE_FEATURE(kClearDataOnExit);
+ }  // namespace features
+ 
+ #endif  // CHROME_BROWSER_BROWSER_FEATURES_H_
 --- a/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_lifetime_manager.cc
-@@ -29,6 +29,7 @@
- #include "chrome/common/chrome_switches.h"
- #include "chrome/common/pref_names.h"
- #include "components/browsing_data/core/browsing_data_policies_utils.h"
-+#include "components/browsing_data/core/features.h"
- #include "components/browsing_data/core/pref_names.h"
- #include "components/keep_alive_registry/keep_alive_types.h"
- #include "components/keep_alive_registry/scoped_keep_alive.h"
+@@ -19,6 +19,7 @@
+ #include "base/task/task_traits.h"
+ #include "base/values.h"
+ #include "build/build_config.h"
++#include "chrome/browser/browser_features.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browsing_data/chrome_browsing_data_remover_constants.h"
+ #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 @@ -147,6 +148,21 @@ class BrowsingDataRemoverObserver
  #endif
  };
@@ -35,7 +53,7 @@
        browsing_data::prefs::kClearBrowsingDataOnExitList);
  
 -  if (!data_types.empty() &&
-+  bool cdoe = base::FeatureList::IsEnabled(browsing_data::features::kClearDataOnExit);
++  bool cdoe = base::FeatureList::IsEnabled(features::kClearDataOnExit);
 +  if (cdoe || (!data_types.empty() &&
        IsConditionSatisfiedForBrowsingDataRemoval(GetSyncTypesForPolicyPref(
 -          profile_, browsing_data::prefs::kClearBrowsingDataOnExitList))) {
@@ -63,26 +81,5 @@
 +    {"clear-data-on-exit",
 +     "Clear data on exit",
 +     "Clears all browsing data on exit. ungoogled-chromium flag",
-+     kOsDesktop, FEATURE_VALUE_TYPE(browsing_data::features::kClearDataOnExit)},
++     kOsDesktop, FEATURE_VALUE_TYPE(features::kClearDataOnExit)},
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
---- a/components/browsing_data/core/features.cc
-+++ b/components/browsing_data/core/features.cc
-@@ -7,6 +7,8 @@
- #include "build/build_config.h"
- 
- namespace browsing_data::features {
-+BASE_FEATURE(kClearDataOnExit, "ClearDataOnExit", base::FEATURE_DISABLED_BY_DEFAULT);
-+
- BASE_FEATURE(kEnableBrowsingDataLifetimeManager,
-              "BrowsingDataLifetimeManager",
-              base::FEATURE_ENABLED_BY_DEFAULT);
---- a/components/browsing_data/core/features.h
-+++ b/components/browsing_data/core/features.h
-@@ -8,6 +8,7 @@
- #include "base/feature_list.h"
- 
- namespace browsing_data::features {
-+BASE_DECLARE_FEATURE(kClearDataOnExit);
- 
- // Enable BrowsingDataLifetimeManager that periodically delete browsing data as
- // defined by the BrowsingDataLifetime policy.

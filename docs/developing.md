@@ -33,7 +33,7 @@ To gain a deeper understanding of this updating process, have a read through [do
 * [`quilt`](http://savannah.nongnu.org/projects/quilt)
     * This is available in most (if not all) Linux distributions, and also Homebrew on macOS.
     * This utility facilitates most of the updating process, so it is important to learn how to use this. The manpage for quilt (as of early 2017) lacks an example of a workflow. There are multiple guides online, but [this guide from Debian](https://wiki.debian.org/UsingQuilt) and [the referenced guide on that page](https://raphaelhertzog.com/2012/08/08/how-to-use-quilt-to-manage-patches-in-debian-packages/) are the ones referenced in developing the current workflow.
-* Python 3.6 or newer
+* Python 3.9 or newer
     * `httplib2` and `six` are also required if you wish to utilize a source clone instead of the source tarball.
 
 ### Downloading the source code

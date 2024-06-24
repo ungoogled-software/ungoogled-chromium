@@ -2,11 +2,11 @@
 #   move dotfiles into the staging directory
 #   skip cipd binary downloads
 #   replace 'src' in checkout paths with the output directory
-#   fixes functools decorators for older python
 #   ensure shallow fetches
+#   utilize a newer version of gsutil to support later versions of python
 --- a/gclient.py
 +++ b/gclient.py
-@@ -121,8 +121,8 @@ DEPOT_TOOLS_DIR = os.path.dirname(os.pat
+@@ -126,8 +126,8 @@ DEPOT_TOOLS_DIR = os.path.dirname(os.pat
  # one, e.g. if a spec explicitly says `cache_dir = None`.)
  UNSET_CACHE_DIR = object()
  
@@ -17,7 +17,7 @@
  
  PREVIOUS_SYNC_COMMITS = 'GCLIENT_PREVIOUS_SYNC_COMMITS'
  
-@@ -417,6 +417,7 @@ class Dependency(gclient_utils.WorkItem,
+@@ -424,6 +424,7 @@ class Dependency(gclient_utils.WorkItem,
                   protocol='https',
                   git_dependencies_state=gclient_eval.DEPS,
                   print_outbuf=False):
@@ -25,7 +25,7 @@
          gclient_utils.WorkItem.__init__(self, name)
          DependencySettings.__init__(self, parent, url, managed, custom_deps,
                                      custom_vars, custom_hooks, deps_file,
-@@ -725,6 +726,7 @@ class Dependency(gclient_utils.WorkItem,
+@@ -745,6 +746,7 @@ class Dependency(gclient_utils.WorkItem,
  
              condition = dep_value.get('condition')
              dep_type = dep_value.get('dep_type')
@@ -33,7 +33,7 @@
  
              if condition and not self._get_option('process_all_deps', False):
                  if condition not in cached_conditions:
-@@ -828,6 +830,8 @@ class Dependency(gclient_utils.WorkItem,
+@@ -877,6 +879,8 @@ class Dependency(gclient_utils.WorkItem,
  
          self._gn_args_from = local_scope.get('gclient_gn_args_from')
          self._gn_args_file = local_scope.get('gclient_gn_args_file')
@@ -42,47 +42,9 @@
          self._gn_args = local_scope.get('gclient_gn_args', [])
          # It doesn't make sense to set all of these, since setting gn_args_from
          # to another DEPS will make gclient ignore any other local gn_args*
---- a/gclient_paths.py
-+++ b/gclient_paths.py
-@@ -20,7 +20,7 @@ import subprocess2
- # pylint: disable=line-too-long
- 
- 
--@functools.lru_cache
-+@functools.lru_cache()
- def FindGclientRoot(from_dir, filename='.gclient'):
-     """Tries to find the gclient root."""
-     real_from_dir = os.path.abspath(from_dir)
-@@ -67,7 +67,7 @@ def FindGclientRoot(from_dir, filename='
-     return None
- 
- 
--@functools.lru_cache
-+@functools.lru_cache()
- def _GetPrimarySolutionPathInternal(cwd):
-     gclient_root = FindGclientRoot(cwd)
-     if gclient_root:
-@@ -96,7 +96,7 @@ def GetPrimarySolutionPath():
-     return _GetPrimarySolutionPathInternal(os.getcwd())
- 
- 
--@functools.lru_cache
-+@functools.lru_cache()
- def _GetBuildtoolsPathInternal(cwd, override):
-     if override is not None:
-         return override
-@@ -151,7 +151,7 @@ def GetExeSuffix():
-     return ''
- 
- 
--@functools.lru_cache
-+@functools.lru_cache()
- def GetGClientPrimarySolutionName(gclient_root_dir_path):
-     """Returns the name of the primary solution in the .gclient file specified."""
-     gclient_config_file = os.path.join(gclient_root_dir_path, '.gclient')
 --- a/gclient_scm.py
 +++ b/gclient_scm.py
-@@ -837,8 +837,7 @@ class GitWrapper(SCMWrapper):
+@@ -929,8 +929,7 @@ class GitWrapper(SCMWrapper):
          self._SetFetchConfig(options)
  
          # Fetch upstream if we don't already have |revision|.
@@ -92,7 +54,7 @@
              self._Fetch(options, prune=options.force)
  
              if not scm.GIT.IsValidRevision(
-@@ -854,7 +853,7 @@ class GitWrapper(SCMWrapper):
+@@ -946,7 +945,7 @@ class GitWrapper(SCMWrapper):
  
          # This is a big hammer, debatable if it should even be here...
          if options.force or options.reset:
@@ -101,15 +63,15 @@
              if options.upstream and upstream_branch:
                  target = upstream_branch
              self._Scrub(target, options)
-@@ -869,7 +868,6 @@ class GitWrapper(SCMWrapper):
+@@ -961,7 +960,6 @@ class GitWrapper(SCMWrapper):
              # to the checkout step.
              if not (options.force or options.reset):
                  self._CheckClean(revision)
 -            self._CheckDetachedHead(revision, options)
-             if self._Capture(['rev-list', '-n', '1', 'HEAD']) == revision:
-                 self.Print('Up-to-date; skipping checkout.')
-             else:
-@@ -1545,8 +1543,7 @@ class GitWrapper(SCMWrapper):
+ 
+             if not current_revision:
+                 current_revision = self._Capture(
+@@ -1641,8 +1639,7 @@ class GitWrapper(SCMWrapper):
              fetch_cmd.append('--no-tags')
          elif quiet:
              fetch_cmd.append('--quiet')
@@ -119,3 +81,14 @@
          self._Run(fetch_cmd, options, show_header=options.verbose, retry=True)
  
      def _SetFetchConfig(self, options):
+--- a/gsutil.py
++++ b/gsutil.py
+@@ -25,7 +25,7 @@ DEFAULT_BIN_DIR = os.path.join(THIS_DIR,
+ 
+ IS_WINDOWS = os.name == 'nt'
+ 
+-VERSION = '4.68'
++VERSION = '5.28'
+ 
+ # Google OAuth Context required by gsutil.
+ LUCI_AUTH_SCOPES = [

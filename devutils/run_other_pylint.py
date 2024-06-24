@@ -8,6 +8,7 @@
 import argparse
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from pylint import lint
@@ -17,7 +18,6 @@ class ChangeDir:
     """
     Changes directory to path in with statement
     """
-
     def __init__(self, path):
         self._path = path
         self._orig_path = os.getcwd()
@@ -39,7 +39,7 @@ def run_pylint(module_path, pylint_options, ignore_prefixes=tuple()):
     input_paths = list()
     if not module_path.exists():
         print('ERROR: Cannot find', module_path)
-        exit(1)
+        sys.exit(1)
     if module_path.is_dir():
         for path in module_path.rglob('*.py'):
             ignore_matched = False
@@ -68,16 +68,15 @@ def main():
 
     parser = argparse.ArgumentParser(description='Run Pylint over arbitrary module')
     parser.add_argument('--hide-fixme', action='store_true', help='Hide "fixme" Pylint warnings.')
-    parser.add_argument(
-        '--show-locally-disabled',
-        action='store_true',
-        help='Show "locally-disabled" Pylint warnings.')
+    parser.add_argument('--show-locally-disabled',
+                        action='store_true',
+                        help='Show "locally-disabled" Pylint warnings.')
     parser.add_argument('module_path', type=Path, help='Path to the module to check')
     args = parser.parse_args()
 
     if not args.module_path.exists():
         print('ERROR: Module path "{}" does not exist'.format(args.module_path))
-        exit(1)
+        sys.exit(1)
 
     disables = [
         'wrong-import-position',
@@ -97,8 +96,8 @@ def main():
     ]
 
     if not run_pylint(args.module_path, pylint_options):
-        exit(1)
-    exit(0)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == '__main__':

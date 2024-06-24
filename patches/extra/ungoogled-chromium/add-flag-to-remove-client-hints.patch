@@ -1,0 +1,70 @@
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -136,4 +136,8 @@
+      "Reduced System Info",
+      "Reduces the amount of system information obatainable through headers and javascript, also causes hardwareConcurrency to respond with two cores. ungoogled-chromium flag.",
+      kOsAll, FEATURE_VALUE_TYPE(blink::features::kReducedSystemInfo)},
++    {"remove-client-hints",
++     "Remove Client Hints",
++     "Removes client hints (information sent to servers about your system, similar to a user agent). ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(blink::features::kRemoveClientHints)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/content/browser/client_hints/client_hints.cc
++++ b/content/browser/client_hints/client_hints.cc
+@@ -836,6 +836,8 @@ void UpdateNavigationRequestClientUaHead
+     net::HttpRequestHeaders* headers,
+     const std::optional<GURL>& request_url) {
+   DCHECK(frame_tree_node);
++  if (base::FeatureList::IsEnabled(blink::features::kRemoveClientHints))
++    return;
+   if (!ShouldAddClientHints(origin, frame_tree_node, delegate, request_url)) {
+     return;
+   }
+@@ -857,6 +859,8 @@ void AddRequestClientHintsHeaders(
+     FrameTreeNode* frame_tree_node,
+     const blink::ParsedPermissionsPolicy& container_policy,
+     const std::optional<GURL>& request_url) {
++  if (base::FeatureList::IsEnabled(blink::features::kRemoveClientHints))
++    return;
+   ClientHintsExtendedData data(origin, frame_tree_node, delegate, request_url);
+   UpdateIFramePermissionsPolicyWithDelegationSupportForClientHints(
+       data, container_policy);
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -22,6 +22,7 @@ namespace features {
+ 
+ BASE_FEATURE(kDisableLinkDrag, "DisableLinkDrag", base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kReducedSystemInfo, "ReducedSystemInfo", base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kRemoveClientHints, "RemoveClientHints", base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // -----------------------------------------------------------------------------
+ // Feature definitions and associated constants (feature params, et cetera)
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -22,6 +22,7 @@ namespace features {
+ 
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDisableLinkDrag);
+ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kReducedSystemInfo);
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kRemoveClientHints);
+ 
+ // -----------------------------------------------------------------------------
+ // Feature declarations and associated constants (feature params, et cetera)
+--- a/third_party/blink/renderer/core/frame/navigator_ua.cc
++++ b/third_party/blink/renderer/core/frame/navigator_ua.cc
+@@ -5,6 +5,7 @@
+ #include "third_party/blink/renderer/core/frame/navigator_ua.h"
+ 
+ #include "base/compiler_specific.h"
++#include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
+ #include "third_party/blink/renderer/core/frame/navigator_ua_data.h"
+ #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+@@ -12,6 +13,8 @@
+ namespace blink {
+ 
+ NavigatorUAData* NavigatorUA::userAgentData() {
++  if (base::FeatureList::IsEnabled(blink::features::kRemoveClientHints))
++    return nullptr;
+   NavigatorUAData* ua_data =
+       MakeGarbageCollected<NavigatorUAData>(GetUAExecutionContext());
+ 
