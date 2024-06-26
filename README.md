@@ -78,6 +78,7 @@ Contents of this section:
 * (Iridium Browser feature change) Prevent URLs with the `trk:` scheme from connecting to the Internet
     * Also prevents any URLs with the top-level domain `qjz9zk` (as used in domain substitution) from attempting a connection.
 * (Windows-specific) Do not set the Zone Identifier on downloaded files
+* (Linux-specific) Allows setting the [extension auto-install path](https://developer.chrome.com/docs/extensions/how-to/distribute/install-extensions#preference-linux) using the `CHROMIUM_EXTENSION_DIRECTORY` environment variable
 
 ### Borrowed Features
 
