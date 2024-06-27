@@ -120,6 +120,8 @@ If your operating system is not listed above, you can also try to [**Download bi
 
 These binaries are known as **contributor binaries**.
 
+Please note that no support will be provided for binaries obtained outside of [ungoogled-software](https://github.com/ungoogled-software) GitHub organisation. Usage of `chrlauncher` is also discouraged.
+
 ## Source Code
 
 This repository only contains the common code for all platforms; it does not contain all the configuration and scripts necessary to build ungoogled-chromium. Most users will want to use platform-specific repos, where all the remaining configuration and scripts are provided for specific platforms:
