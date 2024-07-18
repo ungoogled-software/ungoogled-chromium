@@ -3,7 +3,7 @@
 
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -937,8 +937,6 @@ if (is_win) {
+@@ -940,8 +940,6 @@ if (is_win) {
  
    bundle_data("chrome_framework_resources") {
      sources = [
@@ -14,7 +14,7 @@
        # from disk image and Keystone promotion (if so enabled).  It
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -850,10 +850,6 @@ static_library("browser") {
+@@ -842,10 +842,6 @@ static_library("browser") {
      "navigation_predictor/navigation_predictor_metrics_document_data.h",
      "navigation_predictor/navigation_predictor_preconnect_client.cc",
      "navigation_predictor/navigation_predictor_preconnect_client.h",
@@ -25,7 +25,7 @@
      "navigation_predictor/search_engine_preconnector.cc",
      "navigation_predictor/search_engine_preconnector.h",
      "net/chrome_mojo_proxy_resolver_factory.cc",
-@@ -972,10 +968,6 @@ static_library("browser") {
+@@ -964,10 +960,6 @@ static_library("browser") {
      "optimization_guide/chrome_prediction_model_store.h",
      "optimization_guide/model_execution/chrome_on_device_model_service_controller.cc",
      "optimization_guide/model_execution/chrome_on_device_model_service_controller.h",
@@ -150,7 +150,7 @@
  #include "chrome/browser/net/dns_probe_service_factory.h"
  #include "chrome/browser/net/profile_network_context_service_factory.h"
  #include "chrome/browser/notifications/metrics/notification_metrics_logger_factory.h"
-@@ -939,7 +938,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -958,7 +957,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #endif
    ModelTypeStoreServiceFactory::GetInstance();
    NavigationPredictorKeyedServiceFactory::GetInstance();
@@ -158,7 +158,7 @@
  #if BUILDFLAG(IS_CHROMEOS_ASH)
    NearbySharingServiceFactory::GetInstance();
    if (base::FeatureList::IsEnabled(ash::features::kNearbyPresence)) {
-@@ -984,9 +982,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1007,9 +1005,6 @@ void ChromeBrowserMainExtraPartsProfiles
    OneTimePermissionsTrackerFactory::GetInstance();
  #endif
    OpenerHeuristicServiceFactory::GetInstance();
@@ -178,7 +178,7 @@
  #include "chrome/browser/permissions/adaptive_quiet_notification_permission_ui_enabler.h"
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
  #include "chrome/browser/profiles/delete_profile_helper.h"
-@@ -1542,9 +1541,6 @@ void ProfileManager::DoFinalInitForServi
+@@ -1539,9 +1538,6 @@ void ProfileManager::DoFinalInitForServi
    // Ensure NavigationPredictorKeyedService is started.
    NavigationPredictorKeyedServiceFactory::GetForProfile(profile);
  
@@ -187,18 +187,7 @@
 -
    IdentityManagerFactory::GetForProfile(profile)->OnNetworkInitialized();
    AccountReconcilorFactory::GetForProfile(profile);
- 
---- a/chrome/browser/resources/settings/a11y_page/a11y_page.ts
-+++ b/chrome/browser/resources/settings/a11y_page/a11y_page.ts
-@@ -231,7 +231,7 @@ export class SettingsA11yPageElement ext
-    * page; i.e. Settings > Accessibility > Text-to-Speech.
-    */
-   private computeShowPdfOcrToggle_(): boolean {
--    return loadTimeData.getBoolean('pdfOcrEnabled') && this.hasScreenReader_;
-+    return false;
-   }
-   // </if>
- 
+ #if BUILDFLAG(IS_ANDROID)
 --- a/chrome/browser/ui/webui/settings/accessibility_main_handler.cc
 +++ b/chrome/browser/ui/webui/settings/accessibility_main_handler.cc
 @@ -39,13 +39,6 @@ void AccessibilityMainHandler::RegisterM
@@ -220,7 +209,7 @@
  #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
  
 -#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
--  if (features::IsPdfOcrEnabled()) {
+-  if (features::IsPdfOcrEnabled() || features::IsMainNodeAnnotationsEnabled()) {
 -    CHECK(!component_ready_observer_.IsObserving());
 -    component_ready_observer_.Observe(
 -        screen_ai::ScreenAIInstallState::GetInstance());
@@ -234,7 +223,7 @@
  #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
  
 -#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
--  if (features::IsPdfOcrEnabled()) {
+-  if (features::IsPdfOcrEnabled() || features::IsMainNodeAnnotationsEnabled()) {
 -    component_ready_observer_.Reset();
 -  }
 -#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
@@ -245,14 +234,14 @@
 -  CHECK_GE(progress, 0.0);
 -  CHECK_LE(progress, 1.0);
 -  const int progress_num = progress * 100;
--  FireWebUIListener("pdf-ocr-downloading-progress-changed",
+-  FireWebUIListener("screen-ai-downloading-progress-changed",
 -                    base::Value(progress_num));
 -}
 -
 -void AccessibilityMainHandler::StateChanged(
 -    screen_ai::ScreenAIInstallState::State state) {
 -  base::Value state_value = base::Value(static_cast<int>(state));
--  FireWebUIListener("pdf-ocr-state-changed", state_value);
+-  FireWebUIListener("screen-ai-state-changed", state_value);
 -}
 -
 -void AccessibilityMainHandler::HandleGetScreenAIInstallState(
@@ -318,6 +307,31 @@
  };
  
  }  // namespace settings
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -285,7 +285,6 @@ void AddA11yStrings(content::WebUIDataSo
+        IDS_SETTINGS_OVERSCROLL_HISTORY_NAVIGATION_TITLE},
+       {"overscrollHistoryNavigationSubtitle",
+        IDS_SETTINGS_OVERSCROLL_HISTORY_NAVIGATION_SUBTITLE},
+-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+       {"mainNodeAnnotationsDownloadCompleteLabel",
+        IDS_SETTINGS_MAIN_NODE_ANNOTATIONS_DOWNLOAD_COMPLETE},
+       {"mainNodeAnnotationsDownloadErrorLabel",
+@@ -297,13 +296,11 @@ void AddA11yStrings(content::WebUIDataSo
+       {"mainNodeAnnotationsTitle", IDS_SETTINGS_MAIN_NODE_ANNOTATIONS_TITLE},
+       {"mainNodeAnnotationsSubtitle",
+        IDS_SETTINGS_MAIN_NODE_ANNOTATIONS_SUBTITLE},
+-#endif  // BULDFLAG(ENABLE_SCREEN_AI_SERVICE)
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+   };
+   html_source->AddLocalizedStrings(kLocalizedStrings);
+ 
+-#if (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)) && \
+-    BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+   html_source->AddBoolean(
+       "mainNodeAnnotationsEnabled",
+       base::FeatureList::IsEnabled(features::kMainNodeAnnotations));
 --- a/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.cc
 +++ b/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.cc
 @@ -17,8 +17,6 @@
@@ -329,7 +343,7 @@
  #include "chrome/browser/translate/chrome_translate_client.h"
  #include "chrome/browser/ui/browser.h"
  #include "chrome/browser/ui/browser_finder.h"
-@@ -298,21 +296,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
+@@ -301,21 +299,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
          highlightGranularity);
    }
  
@@ -351,7 +365,7 @@
  
    OnActiveWebContentsChanged();
  
-@@ -716,10 +699,6 @@ void ReadAnythingUntrustedPageHandler::S
+@@ -728,10 +711,6 @@ void ReadAnythingUntrustedPageHandler::S
            inner_contents[0]->GetPrimaryMainFrame()->GetLastCommittedOrigin())) {
      pdf_observer_ = std::make_unique<ReadAnythingWebContentsObserver>(
          weak_factory_.GetSafeRef(), inner_contents[0], kReadAnythingAXMode);
@@ -364,7 +378,7 @@
  
 --- a/chrome/renderer/BUILD.gn
 +++ b/chrome/renderer/BUILD.gn
-@@ -423,10 +423,6 @@ static_library("renderer") {
+@@ -424,10 +424,6 @@ static_library("renderer") {
      sources += [
        "accessibility/ax_tree_distiller.cc",
        "accessibility/ax_tree_distiller.h",
@@ -377,7 +391,7 @@
        "searchbox/searchbox.cc",
 --- a/chrome/renderer/chrome_render_frame_observer.cc
 +++ b/chrome/renderer/chrome_render_frame_observer.cc
-@@ -320,22 +320,6 @@ void ChromeRenderFrameObserver::DidCommi
+@@ -320,21 +320,6 @@ void ChromeRenderFrameObserver::DidCommi
  }
  
  void ChromeRenderFrameObserver::DidClearWindowObject() {
@@ -391,9 +405,8 @@
 -  // url, which is chrome-untrusted. ReadAnythingAppController installs v8
 -  // bindings in the chrome.readingMode namespace which are consumed by
 -  // read_anything/app.ts, the resource of the Read Anything WebUI.
--  if (features::IsReadAnythingEnabled() &&
--      render_frame()->GetWebFrame()->GetDocument().Url() ==
--          chrome::kChromeUIUntrustedReadAnythingSidePanelURL) {
+-  if (render_frame()->GetWebFrame()->GetDocument().Url() ==
+-      chrome::kChromeUIUntrustedReadAnythingSidePanelURL) {
 -    ReadAnythingAppController::Install(render_frame());
 -  }
 -#endif  // !BUILDFLAG(IS_ANDROID)
@@ -402,7 +415,7 @@
  void ChromeRenderFrameObserver::DidMeaningfulLayout(
 --- a/chrome/test/chromedriver/BUILD.gn
 +++ b/chrome/test/chromedriver/BUILD.gn
-@@ -405,7 +405,7 @@ source_set("lib") {
+@@ -403,7 +403,7 @@ source_set("lib") {
    }
  }
  
@@ -423,7 +436,7 @@
  python_library("fixtures") {
 --- a/components/omnibox/browser/autocomplete_classifier.cc
 +++ b/components/omnibox/browser/autocomplete_classifier.cc
-@@ -103,8 +103,6 @@ void AutocompleteClassifier::Classify(
+@@ -96,8 +96,6 @@ void AutocompleteClassifier::Classify(
      metrics::OmniboxEventProto::PageClassification page_classification,
      AutocompleteMatch* match,
      GURL* alternate_nav_url) {
@@ -445,7 +458,7 @@
  fuzzer_test("update_client_protocol_serializer_fuzzer") {
 --- a/content/shell/BUILD.gn
 +++ b/content/shell/BUILD.gn
-@@ -802,10 +802,6 @@ if (is_apple) {
+@@ -807,10 +807,6 @@ if (is_apple) {
        deps = [ "//third_party/icu:icudata" ]
      }
  

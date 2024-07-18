@@ -22,7 +22,7 @@ from prune_binaries import CONTINGENT_PATHS
 
 # Config file for gclient
 # Instances of 'src' replaced with UC_OUT, which will be replaced with the output directory
-# third_party/angle/third_party/VK-GL-CTS/src is set to None since it's large and unused
+# custom_deps are set to None since they are large and unused
 # target_* arguments set to match tarball rather than actual build target
 GC_CONFIG = """\
 solutions = [
@@ -32,6 +32,7 @@ solutions = [
     "managed": False,
     "custom_deps": {
       "UC_OUT/third_party/angle/third_party/VK-GL-CTS/src": None,
+      "UC_OUT/third_party/instrumented_libs": None,
     },
     "custom_vars": {
       "checkout_configuration": "small",
