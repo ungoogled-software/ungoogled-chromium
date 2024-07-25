@@ -29,24 +29,21 @@ validate_with_source_task:
         folder: /usr/local/lib/python3.9/site-packages
         fingerprint_script: cat .cirrus_requirements.txt
         populate_script: pip install -r .cirrus_requirements.txt
-    chromium_download_cache:
-        folder: chromium_download_cache
-        fingerprint_script: cat chromium_version.txt
-        populate_script: |
-            # These directories will not exist when this is called, unless cache retrieval
-            # fails and leaves partially-complete files around.
-            rm -rf chromium_src
-            rm -rf chromium_download_cache
-            mkdir chromium_download_cache
-            # Attempt to download tarball
-            if ! ./utils/downloads.py retrieve -i downloads.ini -c chromium_download_cache ; then
-              # If tarball is not available, attempt a clone
-              ./utils/clone.py -o chromium_src
-              rm -rf chromium_src/uc_staging
-              find chromium_src -type d -name '.git' -exec rm -rf "{}" \; -prune
-              tar cf chromium_download_cache/chromium-$(cat chromium_version.txt).tar.xz \
-                --transform s/chromium_src/chromium-$(cat chromium_version.txt)/ chromium_src
-            fi
+    chromium_download_script: |
+        # These directories will not exist when this is called, unless cache retrieval
+        # fails and leaves partially-complete files around.
+        rm -rf chromium_src
+        rm -rf chromium_download_cache
+        mkdir chromium_download_cache
+        # Attempt to download tarball
+        if ! ./utils/downloads.py retrieve -i downloads.ini -c chromium_download_cache ; then
+          # If tarball is not available, attempt a clone
+          ./utils/clone.py -o chromium_src
+          rm -rf chromium_src/uc_staging
+          find chromium_src -type d -name '.git' -exec rm -rf "{}" \; -prune
+          tar cf chromium_download_cache/chromium-$(cat chromium_version.txt).tar.xz \
+            --transform s/chromium_src/chromium-$(cat chromium_version.txt)/ chromium_src
+        fi
     unpack_source_script: |
         if [ ! -d chromium_src ]; then
           ./utils/downloads.py unpack --skip-unused -i downloads.ini -c chromium_download_cache chromium_src
@@ -56,7 +53,5 @@ validate_with_source_task:
     validate_lists_script:
         # NOTE: This check is prone to false positives, but not false negatives.
         - ./devutils/check_files_exist.py chromium_src pruning.list domain_substitution.list
-    cleanup_script:
-        - rm -rf chromium_src
 
 # vim: set expandtab shiftwidth=4 softtabstop=4:
