@@ -36,6 +36,7 @@ solutions = [
     },
     "custom_vars": {
       "checkout_configuration": "small",
+      "non_git_source": "False",
     },
   },
 ];

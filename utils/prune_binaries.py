@@ -17,25 +17,16 @@ from _common import ENCODING, get_logger, add_common_params
 # List of paths to prune if they exist, excluded from domain_substitution and pruning lists
 # These allow the lists to be compatible between cloned and tarball sources
 CONTINGENT_PATHS = (
-    # Sources
+    # Overridable git sources
     'third_party/angle/third_party/VK-GL-CTS/src/',
-    'third_party/js_code_coverage/',
-    'third_party/llvm/',
-    'third_party/rust-src/',
-    # Binaries
+    'third_party/instrumented_libs/',
+    # CIPD sources
     'buildtools/linux64/',
     'buildtools/reclient/',
-    'third_party/android_rust_toolchain/',
     'third_party/apache-linux/',
     'third_party/checkstyle/',
-    'third_party/dawn/third_party/ninja/',
-    'third_party/dawn/tools/golang/',
-    'third_party/depot_tools/external_bin/',
-    'third_party/devtools-frontend/src/third_party/esbuild/',
     'third_party/google-java-format/',
-    'third_party/instrumented_libs/',
     'third_party/libei/',
-    'third_party/llvm-build-tools/',
     'third_party/ninja/',
     'third_party/screen-ai/',
     'third_party/siso/',
@@ -44,6 +35,21 @@ CONTINGENT_PATHS = (
     'tools/luci-go/',
     'tools/resultdb/',
     'tools/skia_goldctl/linux/',
+    # GCS sources
+    'base/tracing/test/data',
+    'build/linux/debian_bullseye_amd64-sysroot/',
+    'build/linux/debian_bullseye_i386-sysroot/',
+    'buildtools/linux64-format/',
+    'third_party/blink/renderer/core/css/perftest_data/',
+    'third_party/js_code_coverage/',
+    'third_party/llvm-build/Release+Asserts/',
+    'third_party/node/linux/',
+    'third_party/opus/tests/resources/',
+    'third_party/rust-toolchain/',
+    'third_party/subresource-filter-ruleset/data',
+    'third_party/test_fonts/test_fonts',
+    'third_party/tfhub_models/testdata/',
+    'tools/perf/page_sets/maps_perf_test/dataset/',
 )
 
 
