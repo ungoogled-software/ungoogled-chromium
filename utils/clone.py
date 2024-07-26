@@ -132,7 +132,11 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
     if iswin:
         gcpath = gcpath.with_suffix('.bat')
     # -f, -D, and -R forces a hard reset on changes and deletes deps that have been removed
-    run([str(gcpath), 'sync', '-f', '-D', '-R', '--no-history', '--nohooks'], check=True)
+    run([
+        str(gcpath), 'sync', '-f', '-D', '-R', '--no-history', '--nohooks',
+        f'--sysroot={args.sysroot}'
+    ],
+        check=True)
 
     # Follow tarball procedure:
     # https://source.chromium.org/chromium/chromium/tools/build/+/main:recipes/recipes/publish_tarball.py
@@ -237,6 +241,8 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
     keep_suffix = ('.gn', '.gni', '.grd', '.gyp', '.isolate', '.pydeps')
     # Include Contingent Paths
     for cpath in CONTINGENT_PATHS:
+        if args.sysroot and f'{args.sysroot}-sysroot' in cpath:
+            continue
         remove_dirs += (args.output / Path(cpath), )
     for remove_dir in remove_dirs:
         for path in sorted(remove_dir.rglob('*'), key=lambda l: len(str(l)), reverse=True):
@@ -291,6 +297,10 @@ def main():
                         default='linux',
                         choices=('linux', 'mac', 'mac-arm', 'win32', 'win64'),
                         help='Specifiy which pgo profile to download.  Default: %(default)s')
+    parser.add_argument('-s',
+                        '--sysroot',
+                        choices=('amd64', 'arm64', 'armhf', 'i386', 'mips64el', 'mipsel'),
+                        help='Download a linux sysroot for the given architecture')
     add_common_params(parser)
     args = parser.parse_args()
     clone(args)

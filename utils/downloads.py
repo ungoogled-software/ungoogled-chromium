@@ -307,13 +307,15 @@ def check_downloads(download_info, cache_dir):
                 raise HashMismatchError(download_path)
 
 
-def unpack_downloads(download_info, cache_dir, output_dir, skip_unused, extractors=None):
+def unpack_downloads(download_info, cache_dir, output_dir, skip_unused, sysroot, extractors=None):
     """
     Unpack downloads in the downloads cache to output_dir. Assumes all downloads are retrieved.
 
     download_info is the DownloadInfo of downloads to unpack.
     cache_dir is the pathlib.Path directory containing the download cache
     output_dir is the pathlib.Path directory to unpack the downloads to.
+    skip_unused is a boolean that determines if unused paths should be extracted.
+    sysroot is a string containing a sysroot to unpack if any.
     extractors is a dictionary of PlatformEnum to a command or path to the
         extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip and WinRAR.
 
@@ -342,6 +344,7 @@ def unpack_downloads(download_info, cache_dir, output_dir, skip_unused, extracto
                        output_dir=output_dir / Path(download_properties.output_path),
                        relative_to=strip_leading_dirs_path,
                        skip_unused=skip_unused,
+                       sysroot=sysroot,
                        extractors=extractors)
 
 
@@ -375,7 +378,8 @@ def _unpack_callback(args):
         ExtractorEnum.WINRAR: args.winrar_path,
         ExtractorEnum.TAR: args.tar_path,
     }
-    unpack_downloads(DownloadInfo(args.ini), args.cache, args.output, args.skip_unused, extractors)
+    unpack_downloads(DownloadInfo(args.ini), args.cache, args.output, args.skip_unused,
+                     args.sysroot, extractors)
 
 
 def main():
@@ -429,6 +433,10 @@ def main():
     unpack_parser.add_argument('--skip-unused',
                                action='store_true',
                                help='Skip extraction of unused directories (CONTINGENT_PATHS).')
+    unpack_parser.add_argument('--sysroot',
+                               choices=('amd64', 'i386'),
+                               help=('Extracts the sysroot for the given architecture '
+                                     'when --skip-unused is set.'))
     unpack_parser.set_defaults(callback=_unpack_callback)
 
     args = parser.parse_args()

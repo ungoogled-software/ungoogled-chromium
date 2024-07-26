@@ -96,7 +96,7 @@ def _prune_path(path):
                 node.rmdir()
 
 
-def prune_dirs(unpack_root):
+def prune_dirs(unpack_root, sysroot):
     """
     Delete all files and directories in pycache and CONTINGENT_PATHS directories.
 
@@ -106,6 +106,9 @@ def prune_dirs(unpack_root):
         _prune_path(pycache)
     get_logger().info('Removing Contingent Paths')
     for cpath in CONTINGENT_PATHS:
+        if sysroot and f'{sysroot}-sysroot' in cpath:
+            get_logger().info('%s: %s', 'Exempt', cpath)
+            continue
         get_logger().info('%s: %s', 'Exists' if Path(cpath).exists() else 'Absent', cpath)
         _prune_path(unpack_root / cpath)
 
@@ -116,7 +119,7 @@ def _callback(args):
         sys.exit(1)
     if not args.pruning_list.exists():
         get_logger().error('Could not find the pruning list: %s', args.pruning_list)
-    prune_dirs(args.directory)
+    prune_dirs(args.directory, args.sysroot)
     prune_list = tuple(filter(len, args.pruning_list.read_text(encoding=ENCODING).splitlines()))
     unremovable_files = prune_files(args.directory, prune_list)
     if unremovable_files:
@@ -131,6 +134,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('directory', type=Path, help='The directory to apply binary pruning.')
     parser.add_argument('pruning_list', type=Path, help='Path to pruning.list')
+    parser.add_argument('--sysroot',
+                        choices=('amd64', 'i386'),
+                        help='Skip pruning the sysroot for the specified architecture.')
     add_common_params(parser)
     parser.set_defaults(callback=_callback)
 

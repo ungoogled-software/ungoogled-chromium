@@ -1,7 +1,9 @@
 # Changes to gclient that:
 #   move dotfiles into the staging directory
 #   skip cipd binary downloads
+#   skip gcs downloads unless its an allowed sysroot
 #   replace 'src' in checkout paths with the output directory
+#   add flag to specify an allowed sysroot
 #   ensure shallow fetches
 #   utilize a newer version of gsutil to support later versions of python
 --- a/gclient.py
@@ -33,7 +35,18 @@
  
              if not self._get_option('process_all_deps', False):
                  should_process = should_process and _should_process(condition)
-@@ -929,6 +931,8 @@ class Dependency(gclient_utils.WorkItem,
+@@ -820,6 +822,10 @@ class Dependency(gclient_utils.WorkItem,
+                     should_process_object = should_process and _should_process(
+                         merged_condition)
+ 
++                    if not f"{self._get_option('sysroot', 'None')}-sysroot" in name:
++                        continue
++                    should_process_object = True
++                    merged_condition = 'True'
+                     gcs_deps.append(
+                         GcsDependency(parent=self,
+                                       name=name,
+@@ -929,6 +935,8 @@ class Dependency(gclient_utils.WorkItem,
  
          self._gn_args_from = local_scope.get('gclient_gn_args_from')
          self._gn_args_file = local_scope.get('gclient_gn_args_file')
@@ -42,6 +55,14 @@
          self._gn_args = local_scope.get('gclient_gn_args', [])
          # It doesn't make sense to set all of these, since setting gn_args_from
          # to another DEPS will make gclient ignore any other local gn_args*
+@@ -3923,6 +3931,7 @@ def CMDsync(parser, args):
+                       dest='experiments',
+                       default=[],
+                       help='Which experiments should be enabled.')
++    parser.add_option('--sysroot')
+     (options, args) = parser.parse_args(args)
+     client = GClient.LoadCurrentConfig(options)
+ 
 --- a/gclient_scm.py
 +++ b/gclient_scm.py
 @@ -925,8 +925,7 @@ class GitWrapper(SCMWrapper):

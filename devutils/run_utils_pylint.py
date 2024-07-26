@@ -31,6 +31,7 @@ def main():
     pylint_options = [
         '--disable={}'.format(','.join(disable)),
         '--jobs=4',
+        '--max-args=6',
         '--score=n',
         '--persistent=n',
     ]
