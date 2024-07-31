@@ -35,53 +35,13 @@
  // https://vasilvv.github.io/httpbis-alps/draft-vvv-httpbis-alps.html.
 --- a/net/dns/host_resolver_manager.cc
 +++ b/net/dns/host_resolver_manager.cc
-@@ -151,11 +151,6 @@ const size_t kMaxHostLength = 4096;
- // cached.
- const int kIPv6ProbePeriodMs = 1000;
- 
--// RIPE NCC k.root-servers.net. 2001:7fd::1 (anycasted), used for IPv6 probes.
--const uint8_t kIPv6ProbeAddress[] = {0x20, 0x01, 0x07, 0xfd, 0x00, 0x00,
--                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
--                                     0x00, 0x00, 0x00, 0x01};
--
- // True if |hostname| ends with either ".local" or ".local.".
- bool ResemblesMulticastDNSName(std::string_view hostname) {
-   return hostname.ends_with(".local") || hostname.ends_with(".local.");
-@@ -1429,33 +1424,10 @@ int HostResolverManager::StartIPv6Reacha
-     return OK;
-   }
- 
--  if (probing_ipv6_) {
--    ipv6_request_callbacks_.push_back(std::move(callback));
--    return ERR_IO_PENDING;
--  }
--  // Cache the result for kIPv6ProbePeriodMs (measured from after
--  // StartGloballyReachableCheck() completes).
--  int rv = OK;
--  bool cached = true;
--  if (last_ipv6_probe_time_.is_null() ||
--      (tick_clock_->NowTicks() - last_ipv6_probe_time_).InMilliseconds() >
--          kIPv6ProbePeriodMs) {
--    probing_ipv6_ = true;
--    rv = StartGloballyReachableCheck(
--        IPAddress(kIPv6ProbeAddress), net_log, client_socket_factory,
--        base::BindOnce(&HostResolverManager::FinishIPv6ReachabilityCheck,
--                       weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
--    if (rv != ERR_IO_PENDING) {
--      SetLastIPv6ProbeResult((rv == OK) ? true : false);
--      rv = OK;
--    }
--    cached = false;
--  }
--  net_log.AddEvent(
--      NetLogEventType::HOST_RESOLVER_MANAGER_IPV6_REACHABILITY_CHECK, [&] {
--        return NetLogIPv6AvailableParams(last_ipv6_probe_result_, cached);
--      });
--  return rv;
-+  probing_ipv6_ = false;
-+  last_ipv6_probe_result_ = !base::FeatureList::IsEnabled(features::kSetIpv6ProbeFalse);
-+  last_ipv6_probe_time_ = base::TimeTicks();
-+  return OK;
- }
- 
- void HostResolverManager::SetLastIPv6ProbeResult(bool last_ipv6_probe_result) {
+@@ -1422,7 +1422,8 @@ int HostResolverManager::StartIPv6Reacha
+     CompletionOnceCallback callback) {
+   // Don't bother checking if the request will use WiFi and IPv6 is assumed to
+   // not work on WiFi.
+-  if (!check_ipv6_on_wifi_ && RequestWillUseWiFi(target_network_)) {
++  if ((!check_ipv6_on_wifi_ && RequestWillUseWiFi(target_network_)) ||
++      base::FeatureList::IsEnabled(features::kSetIpv6ProbeFalse)) {
+     probing_ipv6_ = false;
+     last_ipv6_probe_result_ = false;
+     last_ipv6_probe_time_ = base::TimeTicks();
