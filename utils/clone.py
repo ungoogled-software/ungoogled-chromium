@@ -140,15 +140,6 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
 
     # Follow tarball procedure:
     # https://source.chromium.org/chromium/chromium/tools/build/+/main:recipes/recipes/publish_tarball.py
-    get_logger().info('Downloading node modules')
-    run([
-        sys.executable,
-        str(dtpath / 'download_from_google_storage.py'), '--no_resume', '--extract', '--no_auth',
-        '--bucket', 'chromium-nodejs', '-s',
-        str(args.output / 'third_party' / 'node' / 'node_modules.tar.gz.sha1')
-    ],
-        check=True)
-
     get_logger().info('Downloading pgo profiles')
     run([
         sys.executable,
