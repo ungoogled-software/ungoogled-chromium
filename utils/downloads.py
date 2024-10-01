@@ -286,7 +286,7 @@ def retrieve_downloads(download_info, cache_dir, show_progress, disable_ssl_veri
                                 disable_ssl_verification)
 
 
-def check_downloads(download_info, cache_dir):
+def check_downloads(download_info, cache_dir, chunk_bytes=8192):
     """
     Check integrity of the downloads cache.
 
@@ -295,14 +295,20 @@ def check_downloads(download_info, cache_dir):
 
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     """
+    logger = get_logger()
     for download_name, download_properties in download_info.properties_iter():
-        get_logger().info('Verifying hashes for "%s" ...', download_name)
+        logger.info('Verifying hashes for "%s". This will take a while.', download_name)
         download_path = cache_dir / download_properties.download_filename
-        with download_path.open('rb') as file_obj:
-            archive_data = file_obj.read()
+        
         for hash_name, hash_hex in _get_hash_pairs(download_properties, cache_dir):
-            get_logger().debug('Verifying %s hash...', hash_name)
-            hasher = hashlib.new(hash_name, data=archive_data)
+            logger.info('Verifying %s hash...', hash_name)
+            hasher = hashlib.new(hash_name)
+            
+            with download_path.open('rb') as file_obj:
+                # Read file in chunks. Default is 8 megabytes
+                while chunk := file_obj.read(chunk_bytes):
+                    hasher.update(chunk)
+            
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(download_path)
 
