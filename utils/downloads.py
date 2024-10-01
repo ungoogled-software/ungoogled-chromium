@@ -306,8 +306,10 @@ def check_downloads(download_info, cache_dir, chunk_bytes=8192):
             
             with download_path.open('rb') as file_obj:
                 # Read file in chunks. Default is 8 megabytes
-                while chunk := file_obj.read(chunk_bytes):
+                chunk = file_obj.read(chunk_bytes)
+                while chunk:
                     hasher.update(chunk)
+                    chunk = file_obj.read(chunk_bytes)
             
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(download_path)
