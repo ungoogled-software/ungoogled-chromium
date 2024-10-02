@@ -292,6 +292,7 @@ def check_downloads(download_info, cache_dir, chunk_bytes=8192):
 
     download_info is the DownloadInfo of downloads to unpack.
     cache_dir is the pathlib.Path to the downloads cache.
+    chunk_bytes is the size for each chunk which need to read.
 
     Raises source_retrieval.HashMismatchError when the computed and expected hashes do not match.
     """
@@ -299,21 +300,17 @@ def check_downloads(download_info, cache_dir, chunk_bytes=8192):
     for download_name, download_properties in download_info.properties_iter():
         logger.info('Verifying hashes for "%s". This will take a while.', download_name)
         download_path = cache_dir / download_properties.download_filename
-        
         for hash_name, hash_hex in _get_hash_pairs(download_properties, cache_dir):
             logger.info('Verifying %s hash...', hash_name)
             hasher = hashlib.new(hash_name)
-            
             with download_path.open('rb') as file_obj:
                 # Read file in chunks. Default is 8 megabytes
                 chunk = file_obj.read(chunk_bytes)
                 while chunk:
                     hasher.update(chunk)
                     chunk = file_obj.read(chunk_bytes)
-            
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(download_path)
-
 
 def unpack_downloads(download_info, cache_dir, output_dir, skip_unused, sysroot, extractors=None):
     """
