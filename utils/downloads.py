@@ -312,6 +312,7 @@ def check_downloads(download_info, cache_dir, chunk_bytes=8192):
             if not hasher.hexdigest().lower() == hash_hex.lower():
                 raise HashMismatchError(download_path)
 
+
 def unpack_downloads(download_info, cache_dir, output_dir, skip_unused, sysroot, extractors=None):
     """
     Unpack downloads in the downloads cache to output_dir. Assumes all downloads are retrieved.
