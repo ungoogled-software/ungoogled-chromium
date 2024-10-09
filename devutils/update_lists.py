@@ -58,6 +58,8 @@ PRUNING_EXCLUDE_PATTERNS = [
     'build/android/chromium-debug.keystore',
     'third_party/icu/android/icudtl.dat',
     'third_party/icu/common/icudtb.dat',
+    # Exclusion for rollup v4.0+
+    'third_party/node/node_modules/@rollup/wasm-node/dist/wasm-node/bindings_wasm_bg.wasm',
     # Exclusion for performance tracing
     'third_party/perfetto/src/trace_processor/importers/proto/atoms.descriptor',
     # Exclusions for safe file extensions
