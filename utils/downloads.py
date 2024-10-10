@@ -323,7 +323,7 @@ def check_downloads(download_info, cache_dir, components, chunk_bytes=262144):
             logger.info('Verifying %s hash...', hash_name)
             hasher = hashlib.new(hash_name)
             with download_path.open('rb') as file_obj:
-                # Read file in chunks. Default is 8 megabytes
+                # Read file in chunks. Default is 262144 bytes.
                 chunk = file_obj.read(chunk_bytes)
                 while chunk:
                     hasher.update(chunk)
