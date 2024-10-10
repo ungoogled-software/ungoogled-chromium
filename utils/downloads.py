@@ -301,7 +301,7 @@ def retrieve_downloads(download_info,
                                 disable_ssl_verification)
 
 
-def check_downloads(download_info, cache_dir, components, chunk_bytes=8192):
+def check_downloads(download_info, cache_dir, components, chunk_bytes=262144):
     """
     Check integrity of the downloads cache.
 
