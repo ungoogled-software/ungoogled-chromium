@@ -317,7 +317,7 @@ def check_downloads(download_info, cache_dir, components, chunk_bytes=262144):
         if components and not download_name in components:
             continue
         get_logger().info('Verifying hashes for "%s" ...', download_name)
-        
+
         download_path = cache_dir / download_properties.download_filename
         for hash_name, hash_hex in _get_hash_pairs(download_properties, cache_dir):
             logger.info('Verifying %s hash...', hash_name)
