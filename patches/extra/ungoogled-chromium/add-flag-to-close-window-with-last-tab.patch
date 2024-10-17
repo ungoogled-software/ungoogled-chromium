@@ -8,17 +8,53 @@
  #include "base/containers/adapters.h"
  #include "base/containers/contains.h"
  #include "base/containers/flat_map.h"
-@@ -2065,6 +2066,10 @@ void TabStripModel::CloseTabs(base::span
-     return;
-   }
+@@ -700,6 +701,10 @@ void TabStripModel::CloseAllTabsInGroup(
  
-+  const std::string flag_value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("close-window-with-last-tab");
-+  if (flag_value == "never" && !closing_all_ && static_cast<int>(filtered_items.size()) == count())
+ void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
+   CHECK(ContainsIndex(index));
++  if (base::CommandLine::ForCurrentProcess()->
++          GetSwitchValueASCII("close-window-with-last-tab") == "never" &&
++          !closing_all_ && count() < 2)
 +    delegate()->AddTabAt(GURL(), -1, true);
-+
-   const bool closing_all = static_cast<int>(filtered_items.size()) == count();
-   base::WeakPtr<TabStripModel> ref = weak_factory_.GetWeakPtr();
-   if (closing_all) {
+   WebContents* contents = GetWebContentsAt(index);
+   CloseTabs(base::span<WebContents* const>(&contents, 1u), close_types);
+ }
+@@ -1051,11 +1056,15 @@ void TabStripModel::AddTab(std::unique_p
+ }
+ 
+ void TabStripModel::CloseSelectedTabs() {
+-  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
+-
+   const ui::ListSelectionModel::SelectedIndices& sel =
+       selection_model_.selected_indices();
+-  CloseTabs(GetWebContentsesByIndices(std::vector<int>(sel.begin(), sel.end())),
++  std::vector<int> sel_vec(sel.begin(), sel.end());
++  if (base::CommandLine::ForCurrentProcess()->
++          GetSwitchValueASCII("close-window-with-last-tab") == "never" &&
++          !closing_all_ && static_cast<int>(sel_vec.size()) == count())
++    delegate()->AddTabAt(GURL(), -1, true);
++  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
++  CloseTabs(GetWebContentsesByIndices(sel_vec),
+             TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB |
+                 TabCloseTypes::CLOSE_USER_GESTURE);
+ }
+@@ -1437,10 +1446,15 @@ void TabStripModel::ExecuteContextMenuCo
+     }
+ 
+     case CommandCloseTab: {
++      std::vector<int> indices = GetIndicesForCommand(context_index);
++      if (base::CommandLine::ForCurrentProcess()->
++              GetSwitchValueASCII("close-window-with-last-tab") == "never" &&
++              static_cast<int>(indices.size()) == count())
++          delegate()->AddTabAt(GURL(), -1, true);
+       ReentrancyCheck reentrancy_check(&reentrancy_guard_);
+ 
+       base::RecordAction(UserMetricsAction("TabContextMenu_CloseTab"));
+-      ExecuteCloseTabsByIndicesCommand(GetIndicesForCommand(context_index));
++      ExecuteCloseTabsByIndicesCommand(indices);
+       break;
+     }
+ 
 --- a/chrome/browser/ungoogled_flag_choices.h
 +++ b/chrome/browser/ungoogled_flag_choices.h
 @@ -55,4 +55,10 @@ const FeatureEntry::Choice kOmniboxAutoc
