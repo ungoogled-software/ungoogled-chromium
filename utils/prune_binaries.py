@@ -129,7 +129,7 @@ def _callback(args):
     unremovable_files = prune_files(args.directory, prune_list)
     if unremovable_files:
         get_logger().error('%d files could not be pruned:\n%s', len(unremovable_files), 
-        '\n'.join(f for f in unremovable_files))
+                           '\n'.join(f for f in unremovable_files))
         sys.exit(1)
 
 
