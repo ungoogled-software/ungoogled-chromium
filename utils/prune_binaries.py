@@ -132,6 +132,8 @@ def _callback(args):
         file_list = 'n'.join(f for f in itertools.islice(unremovable_files, 5))
         if len(unremovable_files) > 5:
             file_list += '\n... and ' + str(len(unremovable_files) - 5) + ' more'
+            get_logger().debug('files that could not be pruned:\n%s',
+                               '\n'.join(f for f in unremovable_files))
         get_logger().error('%d files could not be pruned:\n%s', len(unremovable_files), file_list)
         sys.exit(1)
 
