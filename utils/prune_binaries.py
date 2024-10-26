@@ -7,6 +7,7 @@
 """Prune binaries from the source tree"""
 
 import argparse
+import itertools
 import sys
 import os
 import stat
