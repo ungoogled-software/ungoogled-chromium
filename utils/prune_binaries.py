@@ -129,7 +129,7 @@ def _callback(args):
     prune_list = tuple(filter(len, args.pruning_list.read_text(encoding=ENCODING).splitlines()))
     unremovable_files = prune_files(args.directory, prune_list)
     if unremovable_files:
-        file_list = 'n'.join(f for f in itertools.islice(unremovable_files, 5))
+        file_list = '\n'.join(f for f in itertools.islice(unremovable_files, 5))
         if len(unremovable_files) > 5:
             file_list += '\n... and ' + str(len(unremovable_files) - 5) + ' more'
             get_logger().debug('files that could not be pruned:\n%s',
