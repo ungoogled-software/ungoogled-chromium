@@ -47,13 +47,15 @@ target_cpu_only = True;
 """
 
 
-def clone(args): # pylint: disable=too-many-branches, too-many-statements
+def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-statements
     """Clones, downloads, and generates the required sources"""
     get_logger().info('Setting up cloning environment')
     iswin = sys.platform.startswith('win')
     chromium_version = get_chromium_version()
     ucstaging = args.output / 'uc_staging'
     dtpath = ucstaging / 'depot_tools'
+    gsuver = '5.30'
+    gsupath = dtpath / 'external_bin' / 'gsutil' / ('gsutil_%s' % gsuver) / 'gsutil'
     gnpath = ucstaging / 'gn'
     environ['GCLIENT_FILE'] = str(ucstaging / '.gclient')
     environ['PATH'] += pathsep + str(dtpath)
@@ -109,10 +111,35 @@ def clone(args): # pylint: disable=too-many-branches, too-many-statements
     # Apply changes to gclient
     run(['git', 'apply'],
         input=Path(__file__).with_name('depot_tools.patch').read_text().replace(
-            'UC_OUT', str(args.output)).replace('UC_STAGING', str(ucstaging)),
+            'UC_OUT', str(args.output)).replace('UC_STAGING',
+                                                str(ucstaging)).replace('GSUVER', gsuver),
         cwd=dtpath,
         check=True,
         universal_newlines=True)
+
+    # Manualy set up the gsutil directory for newer versions of Python
+    get_logger().info('Cloning gsutil')
+    if not gsupath.exists():
+        gsupath.mkdir(parents=True)
+        run(['git', 'init', '-q'], cwd=gsupath, check=True)
+        run(['git', 'remote', 'add', 'origin', 'https://github.com/GoogleCloudPlatform/gsutil'],
+            cwd=gsupath,
+            check=True)
+    run(['git', 'fetch', '--depth=1', 'origin', 'v%s' % gsuver], cwd=gsupath, check=True)
+    run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=gsupath, check=True)
+    run(['git', 'clean', '-ffdx'], cwd=gsupath, check=True)
+    get_logger().info('Updating gsutil submodules')
+    run(['git', 'submodule', 'update', '--init', '--recursive', '--depth=1', '-q'],
+        cwd=gsupath,
+        check=True)
+    # apitools needs to be set to a newer commit for newer versions of Python
+    run(['git', 'fetch', 'origin', 'f0dfa4e3fcb510d7d27389e011198d9f176026e2'],
+        cwd=(gsupath / 'third_party' / 'apitools'),
+        check=True)
+    run(['git', 'reset', '--hard', 'FETCH_HEAD'],
+        cwd=(gsupath / 'third_party' / 'apitools'),
+        check=True)
+    (gsupath / 'install.flag').write_text('This flag file is dropped by clone.py')
 
     # gn requires full history to be able to generate last_commit_position.h
     get_logger().info('Cloning gn')
