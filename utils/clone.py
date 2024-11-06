@@ -143,12 +143,17 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
 
     # gn requires full history to be able to generate last_commit_position.h
     get_logger().info('Cloning gn')
+    gn_commit = re.search(r"gn_version': 'git_revision:([^']+)',",
+                          Path(args.output / 'DEPS').read_text()).group(1)
+    if not gn_commit:
+        get_logger().error('Unable to obtain commit for gn checkout')
+        sys.exit(1)
     if gnpath.exists():
         run(['git', 'fetch'], cwd=gnpath, check=True)
-        run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=gnpath, check=True)
-        run(['git', 'clean', '-ffdx'], cwd=gnpath, check=True)
     else:
         run(['git', 'clone', "https://gn.googlesource.com/gn", str(gnpath)], check=True)
+    run(['git', 'reset', '--hard', gn_commit], cwd=gnpath, check=True)
+    run(['git', 'clean', '-ffdx'], cwd=gnpath, check=True)
 
     get_logger().info('Running gsync')
     if args.custom_config:

@@ -8,7 +8,7 @@
  #include "base/containers/adapters.h"
  #include "base/containers/contains.h"
  #include "base/containers/flat_map.h"
-@@ -700,6 +701,10 @@ void TabStripModel::CloseAllTabsInGroup(
+@@ -696,6 +697,10 @@ void TabStripModel::CloseAllTabsInGroup(
  
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
    CHECK(ContainsIndex(index));
@@ -19,7 +19,7 @@
    WebContents* contents = GetWebContentsAt(index);
    CloseTabs(base::span<WebContents* const>(&contents, 1u), close_types);
  }
-@@ -1051,11 +1056,15 @@ void TabStripModel::AddTab(std::unique_p
+@@ -1047,11 +1052,15 @@ void TabStripModel::AddTab(std::unique_p
  }
  
  void TabStripModel::CloseSelectedTabs() {
@@ -38,22 +38,20 @@
              TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB |
                  TabCloseTypes::CLOSE_USER_GESTURE);
  }
-@@ -1437,10 +1446,15 @@ void TabStripModel::ExecuteContextMenuCo
-     }
- 
-     case CommandCloseTab: {
-+      std::vector<int> indices = GetIndicesForCommand(context_index);
-+      if (base::CommandLine::ForCurrentProcess()->
-+              GetSwitchValueASCII("close-window-with-last-tab") == "never" &&
-+              static_cast<int>(indices.size()) == count())
-+          delegate()->AddTabAt(GURL(), -1, true);
-       ReentrancyCheck reentrancy_check(&reentrancy_guard_);
- 
-       base::RecordAction(UserMetricsAction("TabContextMenu_CloseTab"));
--      ExecuteCloseTabsByIndicesCommand(GetIndicesForCommand(context_index));
-+      ExecuteCloseTabsByIndicesCommand(indices);
-       break;
-     }
+@@ -1800,9 +1809,13 @@ TabStripModel::GetGroupsDestroyedFromRem
+ void TabStripModel::ExecuteCloseTabsByIndices(
+     base::RepeatingCallback<std::vector<int>()> get_indices_to_close,
+     uint32_t close_types) {
+-  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
+   const std::vector<int> indices_to_close =
+       std::move(get_indices_to_close).Run();
++  if (base::CommandLine::ForCurrentProcess()->
++          GetSwitchValueASCII("close-window-with-last-tab") == "never" &&
++          static_cast<int>(indices_to_close.size()) == count())
++      delegate()->AddTabAt(GURL(), -1, true);
++  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
+   CloseTabs(GetWebContentsesByIndices(indices_to_close), close_types);
+ }
  
 --- a/chrome/browser/ungoogled_flag_choices.h
 +++ b/chrome/browser/ungoogled_flag_choices.h

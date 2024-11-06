@@ -8,7 +8,7 @@
  #include "chrome/browser/extensions/menu_manager_factory.h"
  #include "chrome/browser/extensions/permissions/permissions_updater.h"
  #include "chrome/browser/extensions/plugin_manager.h"
-@@ -48,7 +47,6 @@ void EnsureChromeBrowserContextKeyedServ
+@@ -49,7 +48,6 @@ void EnsureChromeBrowserContextKeyedServ
    extensions::IncognitoConnectability::EnsureFactoryBuilt();
    extensions::InstallTrackerFactory::GetInstance();
    extensions::InstallVerifierFactory::GetInstance();
@@ -18,7 +18,7 @@
  #if BUILDFLAG(ENABLE_PLUGINS)
 --- a/chrome/browser/extensions/extension_management.cc
 +++ b/chrome/browser/extensions/extension_management.cc
-@@ -287,31 +287,7 @@ bool ExtensionManagement::IsAllowedManif
+@@ -310,31 +310,7 @@ bool ExtensionManagement::IsAllowedManif
      int manifest_version,
      const std::string& extension_id,
      Manifest::Type manifest_type) {
@@ -50,7 +50,7 @@
  }
  
  bool ExtensionManagement::IsAllowedManifestVersion(const Extension* extension) {
-@@ -332,26 +308,8 @@ bool ExtensionManagement::IsExemptFromMV
+@@ -355,26 +331,8 @@ bool ExtensionManagement::IsExemptFromMV
      return false;
    }
  
@@ -79,11 +79,16 @@
  bool ExtensionManagement::IsAllowedByUnpublishedAvailabilityPolicy(
 --- a/chrome/browser/extensions/manifest_v2_experiment_manager.cc
 +++ b/chrome/browser/extensions/manifest_v2_experiment_manager.cc
-@@ -143,17 +143,6 @@ bool ManifestV2ExperimentManagerFactory:
+@@ -143,22 +143,6 @@ bool ManifestV2ExperimentManagerFactory:
  
  // Determines the current stage of the MV2 deprecation experiments.
  MV2ExperimentStage CalculateCurrentExperimentStage() {
 -  // Return the "highest" stage that is currently active for the user.
+-  if (base::FeatureList::IsEnabled(
+-          extensions_features::kExtensionManifestV2Unsupported)) {
+-    return MV2ExperimentStage::kUnsupported;
+-  }
+-
 -  if (base::FeatureList::IsEnabled(
 -          extensions_features::kExtensionManifestV2Disabled)) {
 -    return MV2ExperimentStage::kDisableWithReEnable;
@@ -97,6 +102,37 @@
    return MV2ExperimentStage::kNone;
  }
  
+@@ -198,30 +182,7 @@ PrefMap GetGlobalNoticeAcknowledgedPrefF
+ // Returns true if legacy extensions should be disabled, looking at both
+ // experiment stage and global state.
+ bool ShouldDisableLegacyExtensions(MV2ExperimentStage stage) {
+-  if (g_allow_mv2_for_testing) {
+-    // We allow legacy MV2 extensions for testing purposes.
+-    return false;
+-  }
+-
+-  if (base::FeatureList::IsEnabled(
+-          extensions_features::kAllowLegacyMV2Extensions)) {
+-    // The user explicitly set the flag to allow legacy MV2 extensions. It's
+-    // important we retain this functionality so that developers of MV2
+-    // extensions used by enterprises can continue developing (and testing)
+-    // them for as long as the ExtensionManifestV2Availability enterprise policy
+-    // is supported.
+     return false;
+-  }
+-
+-  // Check the experiment stage to determine if extensions should be disabled.
+-  switch (stage) {
+-    case MV2ExperimentStage::kNone:
+-    case MV2ExperimentStage::kWarning:
+-      return false;
+-    case MV2ExperimentStage::kDisableWithReEnable:
+-    case MV2ExperimentStage::kUnsupported:
+-      return true;
+-  }
+ }
+ 
+ // Returns true if the user is allowed to re-enable disabled extensions in the
 --- a/chrome/browser/ui/webui/extensions/extensions_ui.cc
 +++ b/chrome/browser/ui/webui/extensions/extensions_ui.cc
 @@ -471,9 +471,9 @@ content::WebUIDataSource* CreateAndAddEx
@@ -111,3 +147,19 @@
  
    // MV2 deprecation.
    auto* mv2_experiment_manager = ManifestV2ExperimentManager::Get(profile);
+--- a/extensions/common/extension.cc
++++ b/extensions/common/extension.cc
+@@ -95,13 +95,6 @@ bool IsManifestSupported(int manifest_ve
+   // Supported versions are always safe.
+   if (manifest_version >= kMinimumSupportedManifestVersion &&
+       manifest_version <= kMaximumSupportedManifestVersion) {
+-    // Emit a warning for unpacked extensions on Manifest V2 warning that
+-    // MV2 is deprecated.
+-    if (type == Manifest::TYPE_EXTENSION && manifest_version == 2 &&
+-        Manifest::IsUnpackedLocation(location) &&
+-        !g_silence_deprecated_manifest_version_warnings) {
+-      *warning = errors::kManifestV2IsDeprecatedWarning;
+-    }
+     return true;
+   }
+ 
