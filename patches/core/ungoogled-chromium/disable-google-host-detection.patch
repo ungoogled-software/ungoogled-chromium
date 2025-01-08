@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/ui/webui/suggest_internals/suggest_internals_handler.cc
 +++ b/chrome/browser/ui/webui/suggest_internals/suggest_internals_handler.cc
-@@ -66,9 +66,6 @@ void SuggestInternalsHandler::OnSuggestR
+@@ -66,9 +66,6 @@ void SuggestInternalsHandler::OnRequestC
        suggest_internals::mojom::Request::New();
    mojom_request->id = request_id;
    mojom_request->url = request->url;
@@ -11,7 +11,7 @@
 -  mojom_request->data[variations::kClientDataHeader] = variations_header;
    mojom_request->data[request->method] = request->url.spec();
    mojom_request->status = suggest_internals::mojom::RequestStatus::kCreated;
-   page_->OnSuggestRequestCreated(std::move(mojom_request));
+   page_->OnRequestCreated(std::move(mojom_request));
 --- a/chrome/common/google_url_loader_throttle.cc
 +++ b/chrome/common/google_url_loader_throttle.cc
 @@ -24,10 +24,6 @@
@@ -495,23 +495,10 @@
    return false;
  }
  
---- a/components/page_load_metrics/browser/page_load_metrics_util.cc
-+++ b/components/page_load_metrics/browser/page_load_metrics_util.cc
-@@ -285,9 +285,7 @@ bool DidObserveLoadingBehaviorInAnyFrame
- }
- 
- bool IsGoogleSearchHostname(const GURL& url) {
--  std::optional<std::string> result =
--      page_load_metrics::GetGoogleHostnamePrefix(url);
--  return result && result.value() == "www";
-+  return false;
- }
- 
- bool IsProbablyGoogleSearchUrl(const GURL& url) {
---- a/components/page_load_metrics/common/page_load_metrics_util.cc
-+++ b/components/page_load_metrics/common/page_load_metrics_util.cc
-@@ -25,38 +25,7 @@ const int kExtraBufferTimerDelayMillis =
- }  // namespace
+--- a/components/page_load_metrics/google/browser/google_url_util.cc
++++ b/components/page_load_metrics/google/browser/google_url_util.cc
+@@ -14,39 +14,7 @@
+ namespace page_load_metrics {
  
  std::optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
 -  const size_t registry_length =
@@ -536,8 +523,9 @@
 -  const std::string_view hostname_minus_registry =
 -      hostname.substr(0, hostname.length() - (registry_length + 1));
 -
--  if (hostname_minus_registry == "google")
+-  if (hostname_minus_registry == "google") {
 -    return std::string("");
+-  }
 -
 -  if (!base::EndsWith(hostname_minus_registry, ".google",
 -                      base::CompareCase::INSENSITIVE_ASCII)) {
@@ -549,6 +537,17 @@
  }
  
  bool IsGoogleHostname(const GURL& url) {
+@@ -54,9 +22,7 @@ bool IsGoogleHostname(const GURL& url) {
+ }
+ 
+ bool IsGoogleSearchHostname(const GURL& url) {
+-  std::optional<std::string> result =
+-      page_load_metrics::GetGoogleHostnamePrefix(url);
+-  return result && result.value() == "www";
++  return false;
+ }
+ 
+ bool IsProbablyGoogleSearchUrl(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
 @@ -612,11 +612,7 @@ std::u16string TemplateURLRef::SearchTer
@@ -675,7 +674,7 @@
  }  // namespace variations
 --- a/content/browser/preloading/prefetch/prefetch_container.cc
 +++ b/content/browser/preloading/prefetch/prefetch_container.cc
-@@ -974,7 +974,7 @@ void PrefetchContainer::AddRedirectHop(c
+@@ -988,7 +988,7 @@ void PrefetchContainer::AddRedirectHop(c
    // some which are added by throttles). These aren't yet supported for
    // prefetch, including browsing topics and client hints.
    net::HttpRequestHeaders updated_headers;
