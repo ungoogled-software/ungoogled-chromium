@@ -1,14 +1,14 @@
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
-@@ -17,6 +17,7 @@
- #include <unordered_map>
- #include <utility>
+@@ -18,6 +18,7 @@
  
+ #include "base/check.h"
+ #include "base/check_op.h"
 +#include "base/command_line.h"
  #include "base/containers/adapters.h"
- #include "base/containers/contains.h"
  #include "base/containers/flat_map.h"
-@@ -709,6 +710,10 @@ void TabStripModel::CloseAllTabsInGroup(
+ #include "base/containers/span.h"
+@@ -725,6 +726,10 @@ void TabStripModel::CloseAllTabsInGroup(
  
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
    CHECK(ContainsIndex(index));
@@ -16,29 +16,10 @@
 +          GetSwitchValueASCII("close-window-with-last-tab") == "never" &&
 +          !closing_all_ && count() < 2)
 +    delegate()->AddTabAt(GURL(), -1, true);
-   WebContents* contents = GetWebContentsAt(index);
-   CloseTabs(base::span<WebContents* const>(&contents, 1u), close_types);
- }
-@@ -1060,11 +1065,15 @@ void TabStripModel::AddTab(std::unique_p
+   CloseTabs({GetWebContentsAt(index)}, close_types);
  }
  
- void TabStripModel::CloseSelectedTabs() {
--  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
--
-   const ui::ListSelectionModel::SelectedIndices& sel =
-       selection_model_.selected_indices();
--  CloseTabs(GetWebContentsesByIndices(std::vector<int>(sel.begin(), sel.end())),
-+  std::vector<int> sel_vec(sel.begin(), sel.end());
-+  if (base::CommandLine::ForCurrentProcess()->
-+          GetSwitchValueASCII("close-window-with-last-tab") == "never" &&
-+          !closing_all_ && static_cast<int>(sel_vec.size()) == count())
-+    delegate()->AddTabAt(GURL(), -1, true);
-+  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
-+  CloseTabs(GetWebContentsesByIndices(sel_vec),
-             TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB |
-                 TabCloseTypes::CLOSE_USER_GESTURE);
- }
-@@ -1811,9 +1820,13 @@ TabStripModel::GetGroupsDestroyedFromRem
+@@ -1864,9 +1869,13 @@ TabStripModel::GetGroupsDestroyedFromRem
  void TabStripModel::ExecuteCloseTabsByIndices(
      base::RepeatingCallback<std::vector<int>()> get_indices_to_close,
      uint32_t close_types) {

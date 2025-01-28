@@ -1,21 +1,23 @@
---- a/chrome/browser/extensions/chrome_browser_context_keyed_service_factories.cc
-+++ b/chrome/browser/extensions/chrome_browser_context_keyed_service_factories.cc
-@@ -19,7 +19,6 @@
- #include "chrome/browser/extensions/extension_web_ui_override_registrar.h"
- #include "chrome/browser/extensions/install_tracker_factory.h"
- #include "chrome/browser/extensions/install_verifier_factory.h"
--#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
- #include "chrome/browser/extensions/menu_manager_factory.h"
- #include "chrome/browser/extensions/permissions/permissions_updater.h"
- #include "chrome/browser/extensions/plugin_manager.h"
-@@ -43,7 +42,6 @@ void EnsureChromeBrowserContextKeyedServ
-   extensions::ExtensionWebUIOverrideRegistrar::GetFactoryInstance();
-   extensions::InstallTrackerFactory::GetInstance();
-   extensions::InstallVerifierFactory::GetInstance();
--  extensions::ManifestV2ExperimentManager::GetFactory();
-   extensions::MenuManagerFactory::GetInstance();
-   extensions::PermissionsUpdater::EnsureAssociatedFactoryBuilt();
- #if BUILDFLAG(ENABLE_PLUGINS)
+--- a/chrome/browser/extensions/api/developer_private/extension_info_generator.cc
++++ b/chrome/browser/extensions/api/developer_private/extension_info_generator.cc
+@@ -575,17 +575,6 @@ void ExtensionInfoGenerator::CreateExten
+     info->controlled_info.emplace();
+     info->controlled_info->text =
+         l10n_util::GetStringUTF8(IDS_EXTENSIONS_INSTALL_LOCATION_ENTERPRISE);
+-  } else {
+-    // Create Safety Hub information for any non-enterprise extension.
+-    developer::SafetyCheckWarningReason warning_reason =
+-        ExtensionSafetyCheckUtils::GetSafetyCheckWarningReason(extension,
+-                                                               profile);
+-    if (warning_reason != developer::SafetyCheckWarningReason::kNone) {
+-      info->safety_check_warning_reason = warning_reason;
+-      info->safety_check_text =
+-          ExtensionSafetyCheckUtils::GetSafetyCheckWarningStrings(
+-              warning_reason, state);
+-    }
+   }
+ 
+   bool is_enabled = state == developer::ExtensionState::kEnabled;
 --- a/chrome/browser/extensions/extension_management.cc
 +++ b/chrome/browser/extensions/extension_management.cc
 @@ -310,31 +310,7 @@ bool ExtensionManagement::IsAllowedManif
@@ -77,9 +79,27 @@
  }
  
  bool ExtensionManagement::IsAllowedByUnpublishedAvailabilityPolicy(
+--- a/chrome/browser/extensions/keyed_services/chrome_browser_context_keyed_service_factories.cc
++++ b/chrome/browser/extensions/keyed_services/chrome_browser_context_keyed_service_factories.cc
+@@ -19,7 +19,6 @@
+ #include "chrome/browser/extensions/extension_web_ui_override_registrar.h"
+ #include "chrome/browser/extensions/install_tracker_factory.h"
+ #include "chrome/browser/extensions/install_verifier_factory.h"
+-#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
+ #include "chrome/browser/extensions/menu_manager_factory.h"
+ #include "chrome/browser/extensions/permissions/permissions_updater.h"
+ #include "chrome/browser/extensions/plugin_manager.h"
+@@ -43,7 +42,6 @@ void EnsureChromeBrowserContextKeyedServ
+   extensions::ExtensionWebUIOverrideRegistrar::GetFactoryInstance();
+   extensions::InstallTrackerFactory::GetInstance();
+   extensions::InstallVerifierFactory::GetInstance();
+-  extensions::ManifestV2ExperimentManager::GetFactory();
+   extensions::MenuManagerFactory::GetInstance();
+   extensions::PermissionsUpdater::EnsureAssociatedFactoryBuilt();
+ #if BUILDFLAG(ENABLE_PLUGINS)
 --- a/chrome/browser/extensions/manifest_v2_experiment_manager.cc
 +++ b/chrome/browser/extensions/manifest_v2_experiment_manager.cc
-@@ -143,22 +143,6 @@ bool ManifestV2ExperimentManagerFactory:
+@@ -144,22 +144,6 @@ bool ManifestV2ExperimentManagerFactory:
  
  // Determines the current stage of the MV2 deprecation experiments.
  MV2ExperimentStage CalculateCurrentExperimentStage() {
@@ -102,7 +122,7 @@
    return MV2ExperimentStage::kNone;
  }
  
-@@ -198,19 +182,7 @@ PrefMap GetGlobalNoticeAcknowledgedPrefF
+@@ -199,19 +183,7 @@ PrefMap GetGlobalNoticeAcknowledgedPrefF
  // Returns true if legacy extensions should be disabled, looking at both
  // experiment stage and global state.
  bool ShouldDisableLegacyExtensions(MV2ExperimentStage stage) {
@@ -124,12 +144,9 @@
  // Returns true if the given `stage` is one in which extension enablement should
 --- a/chrome/browser/ui/webui/extensions/extensions_ui.cc
 +++ b/chrome/browser/ui/webui/extensions/extensions_ui.cc
-@@ -471,9 +471,9 @@ content::WebUIDataSource* CreateAndAddEx
+@@ -462,7 +462,7 @@ content::WebUIDataSource* CreateAndAddEx
+       base::FeatureList::IsEnabled(
            extensions_features::kExtensionsMenuAccessControlWithPermittedSites));
-   source->AddBoolean(
-       "safetyCheckShowReviewPanel",
--      base::FeatureList::IsEnabled(features::kSafetyCheckExtensions));
-+      false);
    source->AddBoolean("safetyHubShowReviewPanel",
 -                     base::FeatureList::IsEnabled(features::kSafetyHub));
 +                     false);
