@@ -10,6 +10,7 @@ import argparse
 import itertools
 import sys
 import os
+import re
 import stat
 from pathlib import Path
 
@@ -18,8 +19,6 @@ from _common import ENCODING, get_logger, add_common_params
 # List of paths to prune if they exist, excluded from domain_substitution and pruning lists
 # These allow the lists to be compatible between cloned and tarball sources
 CONTINGENT_PATHS = (
-    # Overridable git sources
-    'third_party/angle/third_party/VK-GL-CTS/src/',
     # CIPD sources
     'third_party/dawn/third_party/ninja/',
     'third_party/dawn/tools/golang/',
@@ -29,24 +28,29 @@ CONTINGENT_PATHS = (
     'third_party/updater/chrome_linux64/',
     'third_party/updater/chromium_linux64/',
     # GCS sources
-    'build/linux/debian_bullseye_amd64-sysroot/',
-    'build/linux/debian_bullseye_i386-sysroot/',
     'third_party/js_code_coverage/',
     'third_party/openscreen/src/buildtools/linux64/format/',
     # other
+    'third_party/blink/renderer/core/css/perftest_data/',
     'third_party/depot_tools/external_bin/',
+    'third_party/opus/tests/resources/',
+    'tools/perf/page_sets/maps_perf_test/dataset/',
     # lite tarball paths:
     # https://source.chromium.org/chromium/chromium/tools/build/+/main:recipes/recipes/publish_tarball.py
     'android_webview/',
+    'build/linux/debian_bullseye_amd64-sysroot/',
+    'build/linux/debian_bullseye_i386-sysroot/',
     'buildtools/reclient/',
+    'chrome/android/',
     'chromecast/',
+    'ios/',
     'native_client/',
     'native_client_sdk/',
     'third_party/android_platform/',
+    'third_party/angle/third_party/VK-GL-CTS/',
     'third_party/apache-linux/',
-    'third_party/blink/manual_tests/',
-    'third_party/blink/perf_tests/',
     'third_party/catapult/third_party/vinn/third_party/v8/',
+    'third_party/closure_compiler/',
     'third_party/instrumented_libs/',
     'third_party/llvm/',
     'third_party/llvm-build/',
@@ -55,12 +59,43 @@ CONTINGENT_PATHS = (
     'third_party/rust-src/',
     'third_party/rust-toolchain/',
     'third_party/webgl/',
+    # testdata tarball paths:
+    # https://source.chromium.org/chromium/chromium/tools/build/+/main:recipes/recipe_modules/chromium/resources/export_tarball.py
+    'base/tracing/test/data/',
+    'chrome/test/data/',
+    'components/test/data/',
+    'content/test/data/accessibility/',
+    'content/test/data/gpu/',
+    'content/test/data/media/',
+    'courgette/testdata/',
+    'extensions/test/data/',
+    'media/test/data/',
+    'native_client/src/trusted/service_runtime/testdata/',
+    'testing/libfuzzer/fuzzers/wasm_corpus/',
+    'third_party/blink/manual_tests/',
+    'third_party/blink/perf_tests/',
+    'third_party/breakpad/breakpad/src/processor/testdata/',
+    'third_party/catapult/tracing/test_data/',
+    'third_party/dawn/test/',
+    'third_party/expat/src/testdata/',
+    'third_party/harfbuzz-ng/src/test/',
+    'third_party/llvm/llvm/test/',
+    'third_party/ots/src/tests/fonts/',
+    'third_party/rust-src/src/gcc/gcc/testsuite/',
+    'third_party/rust-src/src/llvm-project/clang/test/',
+    'third_party/rust-src/src/llvm-project/llvm/test/',
+    'third_party/screen-ai/linux/resources/',
+    'third_party/sqlite/src/test/',
+    'third_party/swiftshader/tests/regres/',
+    'third_party/test_fonts/test_fonts/',
+    'tools/perf/testdata/',
 )
 
 
 def prune_files(unpack_root, prune_list):
     """
     Delete files under unpack_root listed in prune_list. Returns an iterable of unremovable files.
+    Don't delete GN- and GRIT-related files, as these may still be referenced.
 
     unpack_root is a pathlib.Path to the directory to be pruned
     prune_list is an iterable of files to be removed.
@@ -88,11 +123,12 @@ def _prune_path(path):
     """
     for node in sorted(path.rglob('*'), key=lambda l: len(str(l)), reverse=True):
         if node.is_file() or node.is_symlink():
-            try:
-                node.unlink()
-            except PermissionError:
-                node.chmod(stat.S_IWRITE)
-                node.unlink()
+            if not re.search(r'\.(gn|gni|grd|grdp)$', node.name):
+                try:
+                    node.unlink()
+                except PermissionError:
+                    node.chmod(stat.S_IWRITE)
+                    node.unlink()
         elif node.is_dir() and not any(node.iterdir()):
             try:
                 node.rmdir()
