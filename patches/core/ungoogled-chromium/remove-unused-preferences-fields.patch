@@ -3767,6 +3767,18 @@
  
    html_source->AddBoolean(
        "turnOffSyncAllowedForManagedProfiles",
+--- a/chrome/browser/ui/webui/settings/site_settings_helper.cc
++++ b/chrome/browser/ui/webui/settings/site_settings_helper.cc
+@@ -592,9 +592,6 @@ std::vector<ContentSettingsType> GetVisi
+       base_types->push_back(ContentSettingsType::PAYMENT_HANDLER);
+     }
+ 
+-    if (base::FeatureList::IsEnabled(features::kFedCm)) {
+-      base_types->push_back(ContentSettingsType::FEDERATED_IDENTITY_API);
+-    }
+ 
+     if (base::FeatureList::IsEnabled(
+             features::kWebBluetoothNewPermissionsBackend)) {
 --- a/chrome/browser/ui/webui/signin/inline_login_handler.cc
 +++ b/chrome/browser/ui/webui/signin/inline_login_handler.cc
 @@ -28,7 +28,6 @@
@@ -4140,6 +4152,38 @@
  }
  #endif  // !BUILDFLAG(IS_ANDROID)
  
+--- a/chrome/browser/webid/federated_identity_api_permission_context.cc
++++ b/chrome/browser/webid/federated_identity_api_permission_context.cc
+@@ -35,29 +35,7 @@ FederatedIdentityApiPermissionContext::
+ content::FederatedIdentityApiPermissionContextDelegate::PermissionStatus
+ FederatedIdentityApiPermissionContext::GetApiPermissionStatus(
+     const url::Origin& relying_party_embedder) {
+-  if (!base::FeatureList::IsEnabled(features::kFedCm))
+     return PermissionStatus::BLOCKED_VARIATIONS;
+-
+-  const GURL rp_embedder_url = relying_party_embedder.GetURL();
+-
+-  const ContentSetting setting = host_content_settings_map_->GetContentSetting(
+-      rp_embedder_url, rp_embedder_url,
+-      ContentSettingsType::FEDERATED_IDENTITY_API);
+-  switch (setting) {
+-    case CONTENT_SETTING_ALLOW:
+-      break;
+-    case CONTENT_SETTING_BLOCK:
+-      return PermissionStatus::BLOCKED_SETTINGS;
+-    default:
+-      NOTREACHED();
+-  }
+-
+-  if (permission_autoblocker_->IsEmbargoed(
+-          rp_embedder_url, ContentSettingsType::FEDERATED_IDENTITY_API)) {
+-    return PermissionStatus::BLOCKED_EMBARGO;
+-  }
+-
+-  return PermissionStatus::GRANTED;
+ }
+ 
+ void FederatedIdentityApiPermissionContext::RecordDismissAndEmbargo(
 --- a/chrome/common/extensions/api/privacy.json
 +++ b/chrome/common/extensions/api/privacy.json
 @@ -63,16 +63,6 @@
@@ -7198,37 +7242,32 @@
  // TODO(crbug.com/40904479): Maybe move to chrome_syncable_prefs_database.cc,
  // see bug.
  #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
---- a/content/browser/webid/federated_auth_request_impl.cc
-+++ b/content/browser/webid/federated_auth_request_impl.cc
-@@ -532,31 +532,6 @@ FederatedAuthRequestImpl::~FederatedAuth
- void FederatedAuthRequestImpl::Create(
-     RenderFrameHost* host,
-     mojo::PendingReceiver<blink::mojom::FederatedAuthRequest> receiver) {
--  CHECK(host);
--
--  BrowserContext* browser_context = host->GetBrowserContext();
--  raw_ptr<FederatedIdentityApiPermissionContextDelegate>
--      api_permission_context =
--          browser_context->GetFederatedIdentityApiPermissionContext();
--  raw_ptr<FederatedIdentityAutoReauthnPermissionContextDelegate>
--      auto_reauthn_permission_context =
--          browser_context->GetFederatedIdentityAutoReauthnPermissionContext();
--  raw_ptr<FederatedIdentityPermissionContextDelegate> permission_context =
--      browser_context->GetFederatedIdentityPermissionContext();
--  raw_ptr<IdentityRegistry> identity_registry =
--      IdentityRegistry::FromWebContents(WebContents::FromRenderFrameHost(host));
--
--  if (!api_permission_context || !auto_reauthn_permission_context ||
--      !permission_context) {
--    return;
+--- a/content/browser/in_memory_federated_permission_context.cc
++++ b/content/browser/in_memory_federated_permission_context.cc
+@@ -23,15 +23,7 @@ InMemoryFederatedPermissionContext::~InM
+ content::FederatedIdentityApiPermissionContextDelegate::PermissionStatus
+ InMemoryFederatedPermissionContext::GetApiPermissionStatus(
+     const url::Origin& relying_party_embedder) {
+-  if (!base::FeatureList::IsEnabled(features::kFedCm)) {
+     return PermissionStatus::BLOCKED_VARIATIONS;
 -  }
 -
--  // FederatedAuthRequestImpl owns itself. It will self-destruct when a mojo
--  // interface error occurs, the RenderFrameHost is deleted, or the
--  // RenderFrameHost navigates to a new document.
--  new FederatedAuthRequestImpl(
--      *host, api_permission_context, auto_reauthn_permission_context,
--      permission_context, identity_registry, std::move(receiver));
+-  if (embargoed_origins_.count(relying_party_embedder)) {
+-    return PermissionStatus::BLOCKED_EMBARGO;
+-  }
+-
+-  return PermissionStatus::GRANTED;
  }
  
- FederatedAuthRequestImpl& FederatedAuthRequestImpl::CreateForTesting(
+ // FederatedIdentityApiPermissionContextDelegate
+--- a/third_party/blink/renderer/modules/credentialmanagement/authentication_credentials_container.cc
++++ b/third_party/blink/renderer/modules/credentialmanagement/authentication_credentials_container.cc
+@@ -2062,8 +2062,6 @@ void AuthenticationCredentialsContainer:
+     }
+   }
+ 
+-  // Log the UseCounter only when the WebID flag is enabled.
+-  UseCounter::Count(context, WebFeature::kFedCm);
+   if (!To<LocalDOMWindow>(resolver->GetExecutionContext())
+            ->GetFrame()
+            ->IsMainFrame()) {
