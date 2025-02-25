@@ -332,13 +332,7 @@ def check_downloads(download_info, cache_dir, components, chunk_bytes=262144):
                 raise HashMismatchError(download_path)
 
 
-def unpack_downloads(download_info,
-                     cache_dir,
-                     components,
-                     output_dir,
-                     skip_unused,
-                     sysroot,
-                     extractors=None):
+def unpack_downloads(download_info, cache_dir, components, output_dir, extractors=None):
     """
     Unpack downloads in the downloads cache to output_dir. Assumes all downloads are retrieved.
 
@@ -346,8 +340,6 @@ def unpack_downloads(download_info,
     cache_dir is the pathlib.Path directory containing the download cache
     components is a list of component names to unpack, if not empty.
     output_dir is the pathlib.Path directory to unpack the downloads to.
-    skip_unused is a boolean that determines if unused paths should be extracted.
-    sysroot is a string containing a sysroot to unpack if any.
     extractors is a dictionary of PlatformEnum to a command or path to the
         extractor binary. Defaults to 'tar' for tar, and '_use_registry' for 7-Zip and WinRAR.
 
@@ -377,8 +369,6 @@ def unpack_downloads(download_info,
         extractor_func(archive_path=download_path,
                        output_dir=output_dir / Path(download_properties.output_path),
                        relative_to=strip_leading_dirs_path,
-                       skip_unused=skip_unused,
-                       sysroot=sysroot,
                        extractors=extractors)
 
 
@@ -409,6 +399,9 @@ def _retrieve_callback(args):
 
 
 def _unpack_callback(args):
+    if args.skip_unused or args.sysroot:
+        get_logger().warning('The --skip-unused and --sysroot flags for downloads.py are'
+                             ' no longer functional and will be removed in the future.')
     extractors = {
         ExtractorEnum.SEVENZIP: args.sevenz_path,
         ExtractorEnum.WINRAR: args.winrar_path,
@@ -416,8 +409,7 @@ def _unpack_callback(args):
     }
     info = DownloadInfo(args.ini)
     info.check_sections_exist(args.components)
-    unpack_downloads(info, args.cache, args.components, args.output, args.skip_unused, args.sysroot,
-                     extractors)
+    unpack_downloads(info, args.cache, args.components, args.output, extractors)
 
 
 def main():
@@ -479,13 +471,8 @@ def main():
         help=('Command or path to WinRAR\'s "winrar" binary. If "_use_registry" is '
               'specified, determine the path from the registry. Default: %(default)s'))
     unpack_parser.add_argument('output', type=Path, help='The directory to unpack to.')
-    unpack_parser.add_argument('--skip-unused',
-                               action='store_true',
-                               help='Skip extraction of unused directories (CONTINGENT_PATHS).')
-    unpack_parser.add_argument('--sysroot',
-                               choices=('amd64', 'i386'),
-                               help=('Extracts the sysroot for the given architecture '
-                                     'when --skip-unused is set.'))
+    unpack_parser.add_argument('--skip-unused', action='store_true', help='Deprecated')
+    unpack_parser.add_argument('--sysroot', choices=('amd64', 'i386'), help='Deprecated')
     unpack_parser.set_defaults(callback=_unpack_callback)
 
     args = parser.parse_args()

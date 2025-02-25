@@ -111,6 +111,8 @@ DOMAIN_EXCLUDE_PREFIXES = [
     # Exclusions for files covered with other patches/unnecessary
     'components/search_engines/prepopulated_engines.json',
     'third_party/blink/renderer/core/dom/document.cc',
+    # Exclusion to allow download of sysroots
+    'build/linux/sysroot_scripts/sysroots.json',
 ]
 
 # pylint: enable=line-too-long
