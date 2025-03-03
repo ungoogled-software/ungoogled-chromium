@@ -18,7 +18,6 @@ from stat import S_IWRITE
 from subprocess import run
 
 from _common import add_common_params, get_chromium_version, get_logger
-from prune_binaries import CONTINGENT_PATHS
 
 # Config file for gclient
 # Instances of 'src' replaced with UC_OUT, which will be replaced with the output directory
@@ -233,72 +232,6 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
          str(args.output / 'tools' / 'gn' / 'bootstrap'))
 
     get_logger().info('Removing uneeded files')
-    # Match removals for the tarball:
-    # https://source.chromium.org/chromium/chromium/tools/build/+/main:recipes/recipe_modules/chromium/resources/export_tarball.py
-    remove_dirs = (
-        (args.output / 'base' / 'tracing' / 'test' / 'data'),
-        (args.output / 'chrome' / 'test' / 'data'),
-        (args.output / 'components' / 'test' / 'data'),
-        (args.output / 'content' / 'test' / 'data'),
-        (args.output / 'courgette' / 'testdata'),
-        (args.output / 'extensions' / 'test' / 'data'),
-        (args.output / 'media' / 'test' / 'data'),
-        (args.output / 'native_client' / 'src' / 'trusted' / 'service_runtime' / 'testdata'),
-        (args.output / 'testing' / 'libfuzzer' / 'fuzzers' / 'wasm_corpus'),
-        (args.output / 'third_party' / 'blink' / 'perf_tests'),
-        (args.output / 'third_party' / 'blink' / 'tools'),
-        (args.output / 'third_party' / 'blink' / 'web_tests'),
-        (args.output / 'third_party' / 'breakpad' / 'breakpad' / 'src' / 'processor' / 'testdata'),
-        (args.output / 'third_party' / 'catapult' / 'tracing' / 'test_data'),
-        (args.output / 'third_party' / 'dawn' / 'test'),
-        (args.output / 'third_party' / 'expat' / 'src' / 'testdata'),
-        (args.output / 'third_party' / 'harfbuzz-ng' / 'src' / 'test'),
-        (args.output / 'third_party' / 'hunspell' / 'tests'),
-        (args.output / 'third_party' / 'hunspell_dictionaries'),
-        (args.output / 'third_party' / 'jdk' / 'current'),
-        (args.output / 'third_party' / 'jdk' / 'extras'),
-        (args.output / 'third_party' / 'liblouis' / 'src' / 'tests' / 'braille-specs'),
-        (args.output / 'third_party' / 'llvm' / 'llvm' / 'test'),
-        (args.output / 'third_party' / 'ots' / 'src' / 'tests' / 'fonts'),
-        (args.output / 'third_party' / 'rust-src' / 'src' / 'gcc' / 'gcc' / 'testsuite'),
-        (args.output / 'third_party' / 'rust-src' / 'src' / 'llvm-project' / 'clang' / 'test'),
-        (args.output / 'third_party' / 'rust-src' / 'src' / 'llvm-project' / 'llvm' / 'test'),
-        (args.output / 'third_party' / 'screen-ai' / 'linux' / 'resources'),
-        (args.output / 'third_party' / 'sqlite' / 'src' / 'test'),
-        (args.output / 'third_party' / 'swiftshader' / 'tests' / 'regres'),
-        (args.output / 'third_party' / 'test_fonts' / 'test_fonts'),
-        (args.output / 'third_party' / 'xdg-utils' / 'tests'),
-        (args.output / 'tools' / 'perf' / 'testdata'),
-        (args.output / 'v8' / 'test'),
-    )
-    keep_files = (
-        (args.output / 'chrome' / 'test' / 'data' / 'webui' / 'i18n_process_css_test.html'),
-        (args.output / 'chrome' / 'test' / 'data' / 'webui' / 'mojo' / 'foobar.mojom'),
-        (args.output / 'chrome' / 'test' / 'data' / 'webui' / 'web_ui_test.mojom'),
-        (args.output / 'v8' / 'test' / 'torque' / 'test-torque.tq'),
-    )
-    keep_suffix = ('.gn', '.gni', '.grd', '.gyp', '.isolate', '.pydeps')
-    # Include Contingent Paths
-    for cpath in CONTINGENT_PATHS:
-        if args.sysroot and f'{args.sysroot}-sysroot' in cpath:
-            continue
-        remove_dirs += (args.output / Path(cpath), )
-    for remove_dir in remove_dirs:
-        for path in sorted(remove_dir.rglob('*'), key=lambda l: len(str(l)), reverse=True):
-            if path.is_file() and path not in keep_files and path.suffix not in keep_suffix:
-                try:
-                    path.unlink()
-                # read-only files can't be deleted on Windows
-                # so remove the flag and try again.
-                except PermissionError:
-                    path.chmod(S_IWRITE)
-                    path.unlink()
-            elif path.is_dir() and not any(path.iterdir()):
-                try:
-                    path.rmdir()
-                except PermissionError:
-                    path.chmod(S_IWRITE)
-                    path.rmdir()
     for path in sorted(args.output.rglob('*'), key=lambda l: len(str(l)), reverse=True):
         if not path.is_symlink() and '.git' not in path.parts:
             if path.is_file() and (('out' in path.parts and 'node_modules' not in path.parts)

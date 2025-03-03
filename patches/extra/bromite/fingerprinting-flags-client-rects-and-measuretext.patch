@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2440,6 +2440,7 @@ static_library("browser") {
+@@ -2476,6 +2476,7 @@ static_library("browser") {
      "//third_party/libyuv",
      "//third_party/metrics_proto",
      "//third_party/re2",
@@ -44,7 +44,7 @@
  #endif  // CHROME_BROWSER_BROMITE_FLAG_ENTRIES_H_
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -282,6 +282,7 @@ source_set("browser") {
+@@ -284,6 +284,7 @@ source_set("browser") {
      "//third_party/re2",
      "//third_party/snappy",
      "//third_party/sqlite",
@@ -61,8 +61,8 @@
 +#include "components/ungoogled/ungoogled_switches.h"
  #include "components/viz/common/switches.h"
  #include "components/viz/host/gpu_client.h"
- #include "content/browser/bad_message.h"
-@@ -3353,6 +3354,8 @@ void RenderProcessHostImpl::PropagateBro
+ #include "components/viz/host/host_frame_sink_manager.h"
+@@ -3412,6 +3413,8 @@ void RenderProcessHostImpl::PropagateBro
        switches::kEnableWebGLImageChromium,
        switches::kEnableWebGPUDeveloperFeatures,
        switches::kFileUrlPathAlias,
@@ -91,7 +91,7 @@
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/base/ui_base_features.h"
  #include "ui/events/blink/blink_features.h"
-@@ -491,6 +492,10 @@ void SetRuntimeFeaturesFromCommandLine(c
+@@ -481,6 +482,10 @@ void SetRuntimeFeaturesFromCommandLine(c
         true},
        {wrf::EnableWebAudioBypassOutputBufferingOptOut,
         blink::switches::kWebAudioBypassOutputBufferingOptOut, true},
@@ -116,15 +116,15 @@
  
 --- a/third_party/blink/renderer/core/dom/document.cc
 +++ b/third_party/blink/renderer/core/dom/document.cc
-@@ -41,6 +41,7 @@
+@@ -42,6 +42,7 @@
  #include "base/metrics/histogram_functions.h"
  #include "base/not_fatal_until.h"
  #include "base/notreached.h"
 +#include "base/rand_util.h"
- #include "base/ranges/algorithm.h"
  #include "base/task/single_thread_task_runner.h"
  #include "base/time/time.h"
-@@ -863,6 +864,11 @@ Document::Document(const DocumentInit& i
+ #include "base/trace_event/trace_event.h"
+@@ -866,6 +867,11 @@ Document::Document(const DocumentInit& i
    TRACE_EVENT_WITH_FLOW0("blink", "Document::Document", TRACE_ID_LOCAL(this),
                           TRACE_EVENT_FLAG_FLOW_OUT);
    DCHECK(agent_);
@@ -136,7 +136,7 @@
    if (base::FeatureList::IsEnabled(features::kDelayAsyncScriptExecution) &&
        features::kDelayAsyncScriptExecutionDelayByDefaultParam.Get()) {
      script_runner_delayer_->Activate();
-@@ -982,6 +988,14 @@ const Position Document::PositionAdjuste
+@@ -992,6 +998,14 @@ const Position Document::PositionAdjuste
    return Position::BeforeNode(*shadow_host);
  }
  
@@ -150,10 +150,10 @@
 +
  SelectorQueryCache& Document::GetSelectorQueryCache() {
    if (!selector_query_cache_)
-     selector_query_cache_ = std::make_unique<SelectorQueryCache>();
+     selector_query_cache_ = MakeGarbageCollected<SelectorQueryCache>();
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -551,6 +551,10 @@ class CORE_EXPORT Document : public Cont
+@@ -550,6 +550,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -164,7 +164,7 @@
    V8VisibilityState visibilityState() const;
    String visibilityStateAsString() const;
    bool IsPageVisible() const;
-@@ -2632,6 +2636,9 @@ class CORE_EXPORT Document : public Cont
+@@ -2641,6 +2645,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -176,7 +176,7 @@
  
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -2659,6 +2659,11 @@ DOMRectList* Element::getClientRects() {
+@@ -2749,6 +2749,11 @@ DOMRectList* Element::getClientRects() {
    DCHECK(element_layout_object);
    GetDocument().AdjustQuadsForScrollAndAbsoluteZoom(quads,
                                                      *element_layout_object);
@@ -188,7 +188,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -2686,6 +2691,9 @@ gfx::RectF Element::GetBoundingClientRec
+@@ -2776,6 +2781,9 @@ gfx::RectF Element::GetBoundingClientRec
    DCHECK(element_layout_object);
    GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
                                                     *element_layout_object);
@@ -200,7 +200,7 @@
  
 --- a/third_party/blink/renderer/core/dom/range.cc
 +++ b/third_party/blink/renderer/core/dom/range.cc
-@@ -1617,6 +1617,12 @@ DOMRectList* Range::getClientRects() con
+@@ -1632,6 +1632,12 @@ DOMRectList* Range::getClientRects() con
    Vector<gfx::QuadF> quads;
    GetBorderAndTextQuads(quads);
  
@@ -213,7 +213,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -1624,7 +1630,11 @@ DOMRect* Range::getBoundingClientRect()
+@@ -1639,7 +1645,11 @@ DOMRect* Range::getBoundingClientRect()
    // TODO(crbug.com/1499981): This should be removed once synchronized scrolling
    // impact is understood.
    SyncScrollAttemptHeuristic::DidAccessScrollOffset();
@@ -266,7 +266,7 @@
                const TextDirection&,
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
-@@ -223,6 +223,9 @@ class Isolate;
+@@ -227,6 +227,9 @@ class Isolate;
  class Value;
  }  // namespace v8
  
@@ -276,9 +276,9 @@
  namespace blink {
  
  class DOMMatrixInit;
-@@ -3718,8 +3721,22 @@ TextMetrics* BaseRenderingContext2D::mea
-   const CanvasRenderingContext2DState& state = GetState();
-   TextDirection direction = ToTextDirection(state.GetDirection(), canvas);
+@@ -3705,8 +3708,22 @@ TextMetrics* BaseRenderingContext2D::mea
+   TextDirection direction = ToTextDirection(
+       state.GetDirection(), GetCanvasRenderingContextHost(), computed_style);
  
 -  return MakeGarbageCollected<TextMetrics>(
 -      font, direction, state.GetTextBaseline(), state.GetTextAlign(), text);
@@ -303,7 +303,7 @@
  void BaseRenderingContext2D::SnapshotStateForFilter() {
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1771,6 +1771,7 @@ component("platform") {
+@@ -1762,6 +1762,7 @@ component("platform") {
      "//components/paint_preview/common",
      "//components/search_engines:search_engine_utils",
      "//components/translate/core/language_detection:language_detection",
@@ -338,8 +338,8 @@
  #include "third_party/blink/renderer/platform/wtf/vector.h"
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -2022,6 +2022,12 @@
-       depends_on: ["FindDecomposedInShortText"],
+@@ -2053,6 +2053,12 @@
+       status: "experimental",
      },
      {
 +      name: "FingerprintingClientRectsNoise",
