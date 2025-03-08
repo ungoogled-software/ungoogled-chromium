@@ -40,7 +40,7 @@ CONTINGENT_PATHS = (
     'buildtools/linux64-format/',
     'third_party/blink/renderer/core/css/perftest_data/',
     'third_party/js_code_coverage/',
-    'third_party/openscreen/src/buildtools/linux64/format/',
+    'third_party/openscreen/src/buildtools/linux64-format/',
     'third_party/opus/tests/resources/',
     'third_party/subresource-filter-ruleset/data/',
     'tools/perf/page_sets/maps_perf_test/dataset/',
