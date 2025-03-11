@@ -1,34 +1,86 @@
 # Return generic values for WebGLDebugRendererInfo to remove a potential data
 # leak while preventing potential website breakage
 
+--- a/chrome/browser/ungoogled_flag_choices.h
++++ b/chrome/browser/ungoogled_flag_choices.h
+@@ -79,4 +79,41 @@ const FeatureEntry::Choice kTabHoverCard
+      "tab-hover-cards",
+      "tooltip"},
+ };
++const FeatureEntry::FeatureParam kSpoofWebGL_Blank[] = {
++    {blink::features::kSpoofWebGLRenderer, " "},
++    {blink::features::kSpoofWebGLVendor, " "},
++};
++const FeatureEntry::FeatureParam kSpoofWebGL_Amd[] = {
++    {blink::features::kSpoofWebGLRenderer, "Radeon R9 200 Series, or similar"},
++    {blink::features::kSpoofWebGLVendor, "AMD"},
++};
++const FeatureEntry::FeatureParam kSpoofWebGL_Apple[] = {
++    {blink::features::kSpoofWebGLRenderer, "Apple GPU"},
++    {blink::features::kSpoofWebGLVendor, "Apple Inc."},
++};
++const FeatureEntry::FeatureParam kSpoofWebGL_Intel[] = {
++    {blink::features::kSpoofWebGLRenderer, "Intel(R) HD Graphics, or similar"},
++    {blink::features::kSpoofWebGLVendor, "Intel"},
++};
++const FeatureEntry::FeatureParam kSpoofWebGL_Mesa[] = {
++    {blink::features::kSpoofWebGLRenderer, "llvmpipe"},
++    {blink::features::kSpoofWebGLVendor, "Mesa"},
++};
++const FeatureEntry::FeatureParam kSpoofWebGL_Nvidia[] = {
++    {blink::features::kSpoofWebGLRenderer, "NVIDIA GeForce GTX 980, or similar"},
++    {blink::features::kSpoofWebGLVendor, "NVIDIA Corporation"},
++};
++const FeatureEntry::FeatureParam kSpoofWebGL_Qualcomm[] = {
++    {blink::features::kSpoofWebGLRenderer, "Adreno (TM) 610"},
++    {blink::features::kSpoofWebGLVendor, "Qualcomm"},
++};
++const FeatureEntry::FeatureVariation kSpoofWebGLChoices[] = {
++    {"Blank", kSpoofWebGL_Blank, std::size(kSpoofWebGL_Blank), nullptr},
++    {"AMD Radeon R9 200", kSpoofWebGL_Amd, std::size(kSpoofWebGL_Amd), nullptr},
++    {"Apple", kSpoofWebGL_Apple, std::size(kSpoofWebGL_Apple), nullptr},
++    {"Intel", kSpoofWebGL_Intel, std::size(kSpoofWebGL_Intel), nullptr},
++    {"Mesa LLVMpipe", kSpoofWebGL_Mesa, std::size(kSpoofWebGL_Mesa), nullptr},
++    {"NVIDIA GeForce GTX 980", kSpoofWebGL_Nvidia, std::size(kSpoofWebGL_Nvidia), nullptr},
++    {"Qualcomm Adreno 610", kSpoofWebGL_Qualcomm, std::size(kSpoofWebGL_Qualcomm), nullptr},
++};
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_CHOICES_H_
 --- a/chrome/browser/ungoogled_flag_entries.h
 +++ b/chrome/browser/ungoogled_flag_entries.h
-@@ -136,4 +136,8 @@
-      "Remove Client Hints",
-      "Removes client hints (information sent to servers about your system, similar to a user agent). ungoogled-chromium flag.",
-      kOsAll, FEATURE_VALUE_TYPE(blink::features::kRemoveClientHints)},
+@@ -140,4 +140,8 @@
+      "Enforce Certificate Transparency",
+      "Enforce Certificate Transparency for certificates that sites present. This is enabled by default. ungoogled-chromium flag.",
+      kOsAll, FEATURE_VALUE_TYPE(features::kCertificateTransparencyAskBeforeEnabling)},
 +    {"spoof-webgl-info",
 +     "Spoof WebGL Info",
 +     "Return generic values for WebGLDebugRendererInfo to remove a potential data leak while preventing potential website breakage. ungoogled-chromium flag.",
-+     kOsAll, FEATURE_VALUE_TYPE(blink::features::kSpoofWebGLInfo)},
++     kOsAll, FEATURE_WITH_PARAMS_VALUE_TYPE(blink::features::kSpoofWebGLInfo, kSpoofWebGLChoices, "SpoofWebGLInfo")},
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
 --- a/third_party/blink/common/features.cc
 +++ b/third_party/blink/common/features.cc
-@@ -23,6 +23,7 @@ namespace blink::features {
+@@ -23,6 +23,11 @@ namespace blink::features {
  BASE_FEATURE(kDisableLinkDrag, "DisableLinkDrag", base::FEATURE_DISABLED_BY_DEFAULT);
  BASE_FEATURE(kReducedSystemInfo, "ReducedSystemInfo", base::FEATURE_DISABLED_BY_DEFAULT);
  BASE_FEATURE(kRemoveClientHints, "RemoveClientHints", base::FEATURE_DISABLED_BY_DEFAULT);
 +BASE_FEATURE(kSpoofWebGLInfo, "SpoofWebGLInfo", base::FEATURE_DISABLED_BY_DEFAULT);
++const char kSpoofWebGLRenderer[] = "renderer";
++const char kSpoofWebGLVendor[] = "vendor";
++const base::FeatureParam<std::string> kSpoofWebGLRendererParam{&kSpoofWebGLInfo, kSpoofWebGLRenderer, " "};
++const base::FeatureParam<std::string> kSpoofWebGLVendorParam{&kSpoofWebGLInfo, kSpoofWebGLVendor, " "};
  
  // -----------------------------------------------------------------------------
  // Feature definitions and associated constants (feature params, et cetera)
 --- a/third_party/blink/public/common/features.h
 +++ b/third_party/blink/public/common/features.h
-@@ -23,6 +23,7 @@ namespace features {
+@@ -23,6 +23,11 @@ namespace features {
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDisableLinkDrag);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kReducedSystemInfo);
  BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kRemoveClientHints);
 +BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kSpoofWebGLInfo);
++extern const char kSpoofWebGLRenderer[];
++extern const char kSpoofWebGLVendor[];
++extern const base::FeatureParam<std::string> kSpoofWebGLRendererParam;
++extern const base::FeatureParam<std::string> kSpoofWebGLVendorParam;
  
  // -----------------------------------------------------------------------------
  // Feature declarations and associated constants (feature params, et cetera)
@@ -39,7 +91,7 @@
                           String(ContextGL()->GetString(GL_RENDERER))));
          }
 +        if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
-+          return WebGLAny(script_state, String("ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)"));
++          return WebGLAny(script_state, String(blink::features::kSpoofWebGLRendererParam.Get()));
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_RENDERER)));
        }
@@ -48,7 +100,7 @@
                           String(ContextGL()->GetString(GL_VENDOR))));
          }
 +        if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
-+          return WebGLAny(script_state, String("Google Inc. (Google)"));
++          return WebGLAny(script_state, String(blink::features::kSpoofWebGLVendorParam.Get()));
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_VENDOR)));
        }
