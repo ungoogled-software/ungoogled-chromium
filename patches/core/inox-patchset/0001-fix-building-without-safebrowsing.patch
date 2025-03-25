@@ -1,14 +1,6 @@
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2266,7 +2266,6 @@ static_library("browser") {
-     "//components/reporting/util:task_runner_context",
-     "//components/resources",
-     "//components/safe_browsing/content/browser",
--    "//components/safe_browsing/content/browser:client_side_detection",
-     "//components/safe_browsing/content/browser:safe_browsing_service",
-     "//components/safe_browsing/content/browser/notification_content_detection",
-     "//components/safe_browsing/content/browser/password_protection",
-@@ -3618,8 +3617,6 @@ static_library("browser") {
+@@ -3648,8 +3648,6 @@ static_library("browser") {
        "download/download_commands.cc",
        "download/download_crx_util.cc",
        "download/download_crx_util.h",
@@ -19,7 +11,7 @@
        "download/download_dir_util.cc",
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -5403,10 +5403,6 @@ ChromeContentBrowserClient::CreateThrott
+@@ -5405,10 +5405,6 @@ ChromeContentBrowserClient::CreateThrott
    throttles.push_back(std::make_unique<PolicyBlocklistNavigationThrottle>(
        handle, handle->GetWebContents()->GetBrowserContext()));
  
@@ -30,32 +22,6 @@
    throttles.push_back(std::make_unique<SSLErrorNavigationThrottle>(
        handle,
        base::BindOnce(&HandleSSLErrorWrapper), base::BindOnce(&IsInHostedApp),
-@@ -5461,16 +5457,6 @@ ChromeContentBrowserClient::CreateThrott
-       &throttles);
- #endif
- 
--  // g_browser_process->safe_browsing_service() may be null in unittests.
--  safe_browsing::SafeBrowsingUIManager* ui_manager =
--      g_browser_process->safe_browsing_service()
--          ? g_browser_process->safe_browsing_service()->ui_manager().get()
--          : nullptr;
--  MaybeAddThrottle(
--      safe_browsing::SafeBrowsingNavigationThrottle::MaybeCreateThrottleFor(
--          handle, ui_manager),
--      &throttles);
--
-   if (base::FeatureList::IsEnabled(safe_browsing::kDelayedWarnings)) {
-     throttles.push_back(
-         std::make_unique<safe_browsing::DelayedWarningNavigationThrottle>(
-@@ -5771,8 +5757,6 @@ bool ChromeContentBrowserClient::IsPlugi
- void ChromeContentBrowserClient::InitOnUIThread() {
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
- 
--  safe_browsing_service_ = g_browser_process->safe_browsing_service();
--
-   // Initialize `network_contexts_parent_directory_`.
-   base::FilePath user_data_dir;
-   base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
 --- a/chrome/browser/component_updater/file_type_policies_component_installer.cc
 +++ b/chrome/browser/component_updater/file_type_policies_component_installer.cc
 @@ -38,21 +38,6 @@ const uint8_t kFileTypePoliciesPublicKey
@@ -80,43 +46,9 @@
  }
  
  }  // namespace
---- a/chrome/browser/download/chrome_download_manager_delegate.cc
-+++ b/chrome/browser/download/chrome_download_manager_delegate.cc
-@@ -530,13 +530,6 @@ void ChromeDownloadManagerDelegate::SetD
- 
-   download_manager_ = dm;
- 
--  safe_browsing::SafeBrowsingService* sb_service =
--      g_browser_process->safe_browsing_service();
--  if (sb_service && !profile_->IsOffTheRecord()) {
--    // Include this download manager in the set monitored by safe browsing.
--    sb_service->AddDownloadManager(dm);
--  }
--
-   if (download_manager_) {
-     download_manager_->AddObserver(this);
-   }
-@@ -1074,17 +1067,6 @@ void ChromeDownloadManagerDelegate::Choo
- void ChromeDownloadManagerDelegate::SanitizeSavePackageResourceName(
-     base::FilePath* filename,
-     const GURL& source_url) {
--  safe_browsing::FileTypePolicies* file_type_policies =
--      safe_browsing::FileTypePolicies::GetInstance();
--
--  const PrefService* prefs = profile_->GetPrefs();
--  if (file_type_policies->GetFileDangerLevel(*filename, source_url, prefs) ==
--      safe_browsing::DownloadFileType::NOT_DANGEROUS)
--    return;
--
--  base::FilePath default_filename = base::FilePath::FromUTF8Unsafe(
--      l10n_util::GetStringUTF8(IDS_DEFAULT_DOWNLOAD_FILENAME));
--  *filename = filename->AddExtension(default_filename.BaseName().value());
- }
- 
- void ChromeDownloadManagerDelegate::SanitizeDownloadParameters(
 --- a/chrome/browser/download/download_item_model.cc
 +++ b/chrome/browser/download/download_item_model.cc
-@@ -119,7 +119,7 @@ class DownloadItemModelData : public bas
+@@ -128,7 +128,7 @@ class DownloadItemModelData : public bas
  
    // Danger level of the file determined based on the file type and whether
    // there was a user action associated with the download.
@@ -125,7 +57,7 @@
  
    // Whether the download is currently being revived.
    bool is_being_revived_ = false;
-@@ -502,13 +502,13 @@ void DownloadItemModel::SetShouldPreferO
+@@ -512,13 +512,13 @@ void DownloadItemModel::SetShouldPreferO
    data->should_prefer_opening_in_browser_ = preference;
  }
  
@@ -142,131 +74,6 @@
    DownloadItemModelData* data = DownloadItemModelData::GetOrCreate(download_);
    data->danger_level_ = danger_level;
  }
-@@ -711,9 +711,6 @@ bool DownloadItemModel::IsCommandEnabled
-       // filename. Don't base an "Always open" decision based on it. Also
-       // exclude extensions.
-       return download_->CanOpenDownload() &&
--             safe_browsing::FileTypePolicies::GetInstance()
--                 ->IsAllowedToOpenAutomatically(
--                     download_->GetTargetFilePath()) &&
-              !download_crx_util::IsExtensionDownload(*download_);
-     case DownloadCommands::PAUSE:
-       return !download_->IsSavePackageDownload() &&
---- a/chrome/browser/download/download_prefs.cc
-+++ b/chrome/browser/download/download_prefs.cc
-@@ -256,14 +256,7 @@ DownloadPrefs::DownloadPrefs(Profile* pr
-         base::FilePath::StringType(1, base::FilePath::kExtensionSeparator) +
-         extension);
- 
--    // Note that the list of file types that are not allowed to open
--    // automatically can change in the future. When the list is tightened, it is
--    // expected that some entries in the users' auto open list will get dropped
--    // permanently as a result.
--    if (FileTypePolicies::GetInstance()->IsAllowedToOpenAutomatically(
--            filename_with_extension)) {
--      auto_open_by_user_.insert(extension);
--    }
-+    auto_open_by_user_.insert(extension);
-   }
- }
- 
-@@ -441,10 +434,6 @@ bool DownloadPrefs::IsAutoOpenByPolicy(c
- bool DownloadPrefs::EnableAutoOpenByUserBasedOnExtension(
-     const base::FilePath& file_name) {
-   base::FilePath::StringType extension = file_name.Extension();
--  if (!FileTypePolicies::GetInstance()->IsAllowedToOpenAutomatically(
--          file_name)) {
--    return false;
--  }
- 
-   DCHECK(extension[0] == base::FilePath::kExtensionSeparator);
-   extension.erase(0, 1);
---- a/chrome/browser/download/download_target_determiner.cc
-+++ b/chrome/browser/download/download_target_determiner.cc
-@@ -324,13 +324,6 @@ base::FilePath DownloadTargetDeterminer:
-       download_->GetURL(), download_->GetContentDisposition(), referrer_charset,
-       suggested_filename, sniffed_mime_type, default_filename);
- 
--  // We don't replace the file extension if sfafe browsing consider the file
--  // extension to be unsafe. Just let safe browsing scan the generated file.
--  if (safe_browsing::FileTypePolicies::GetInstance()->IsCheckedBinaryFile(
--          generated_filename)) {
--    return generated_filename;
--  }
--
-   // If no mime type or explicitly specified a name, don't replace file
-   // extension.
-   if (sniffed_mime_type.empty() || !suggested_filename.empty())
-@@ -1290,68 +1283,7 @@ DownloadFileType::DangerLevel DownloadTa
-     PriorVisitsToReferrer visits) const {
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
- 
--  // User-initiated extension downloads from pref-whitelisted sources are not
--  // considered dangerous.
--  if (download_->HasUserGesture() &&
--      download_crx_util::IsTrustedExtensionDownload(GetProfile(), *download_)) {
--    return DownloadFileType::NOT_DANGEROUS;
--  }
--
--  DownloadFileType::DangerLevel danger_level =
--      safe_browsing::FileTypePolicies::GetInstance()->GetFileDangerLevel(
--          virtual_path_.BaseName(), download_->GetURL(),
--          GetProfile()->GetPrefs());
--  policy::DownloadRestriction download_restriction =
--      static_cast<policy::DownloadRestriction>(
--          GetProfile()->GetPrefs()->GetInteger(
--              policy::policy_prefs::kDownloadRestrictions));
--
--  // If the user has has been prompted or will be, assume that the user has
--  // approved the download. A programmatic download is considered safe unless it
--  // contains malware.
--  bool user_approved_path =
--      !download_->GetForcedFilePath().empty() &&
--      // Drag and drop download paths are not approved by the user. See
--      // https://crbug.com/1513639
--      download_->GetDownloadSource() != download::DownloadSource::DRAG_AND_DROP;
--  if (HasPromptedForPath() ||
--      confirmation_reason_ != DownloadConfirmationReason::NONE ||
--      user_approved_path) {
--    // If the "DownloadRestrictions" enterprise policy explicitly disallows the
--    // download, don't let the user gesture bypass the dangerous verdict.
--    if ((download_restriction == policy::DownloadRestriction::DANGEROUS_FILES ||
--         download_restriction ==
--             policy::DownloadRestriction::POTENTIALLY_DANGEROUS_FILES) &&
--        danger_level != DownloadFileType::NOT_DANGEROUS) {
--      return DownloadFileType::DANGEROUS;
--    }
--    return DownloadFileType::NOT_DANGEROUS;
--  }
--
--  // Anything the user has marked auto-open is OK if it's user-initiated.
--  if (download_prefs_->IsAutoOpenEnabled(download_->GetURL(), virtual_path_) &&
--      download_->HasUserGesture())
--    return DownloadFileType::NOT_DANGEROUS;
--
--  // A danger level of ALLOW_ON_USER_GESTURE is used to label potentially
--  // dangerous file types that have a high frequency of legitimate use. We would
--  // like to avoid prompting for the legitimate cases as much as possible. To
--  // that end, we consider a download to be legitimate if one of the following
--  // is true, and avoid prompting:
--  //
--  // * The user navigated to the download URL via the omnibox (either by typing
--  //   the URL, pasting it, or using search).
--  //
--  // * The navigation that initiated the download has a user gesture associated
--  //   with it AND the user the user is familiar with the referring origin. A
--  //   user is considered familiar with a referring origin if a visit for a page
--  //   from the same origin was recorded on the previous day or earlier.
--  if (danger_level == DownloadFileType::ALLOW_ON_USER_GESTURE &&
--      ((download_->GetTransitionType() &
--        ui::PAGE_TRANSITION_FROM_ADDRESS_BAR) != 0 ||
--       (download_->HasUserGesture() && visits == VISITED_REFERRER)))
--    return DownloadFileType::NOT_DANGEROUS;
--  return danger_level;
-+  return DownloadFileType::NOT_DANGEROUS;
- }
- 
- std::optional<base::Time>
 --- a/chrome/browser/extensions/api/downloads/downloads_api.cc
 +++ b/chrome/browser/extensions/api/downloads/downloads_api.cc
 @@ -38,7 +38,6 @@
@@ -371,7 +178,7 @@
  class DownloadsShowFunction : public ExtensionFunction {
 --- a/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
 +++ b/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
-@@ -713,18 +713,6 @@ void WebstorePrivateBeginInstallWithMani
+@@ -711,18 +711,6 @@ void WebstorePrivateBeginInstallWithMani
  
  void WebstorePrivateBeginInstallWithManifest3Function::
      ReportFrictionAcceptedEvent() {
@@ -436,7 +243,7 @@
    sources = [
      "chrome_controller_client.cc",
      "chrome_controller_client.h",
-@@ -78,6 +79,7 @@ static_library("safe_browsing") {
+@@ -75,6 +76,7 @@ static_library("safe_browsing") {
      "//mojo/public/cpp/system",
      "//services/preferences/public/cpp",
    ]
@@ -444,7 +251,7 @@
  
    if (is_android) {
      deps += [
-@@ -549,6 +551,7 @@ static_library("advanced_protection") {
+@@ -553,6 +555,7 @@ static_library("advanced_protection") {
  }
  
  source_set("metrics_collector") {
@@ -452,7 +259,7 @@
    sources = [
      "safe_browsing_metrics_collector_factory.cc",
      "safe_browsing_metrics_collector_factory.h",
-@@ -568,6 +571,7 @@ source_set("metrics_collector") {
+@@ -572,6 +575,7 @@ source_set("metrics_collector") {
      "//components/safe_browsing/core/common:safe_browsing_prefs",
      "//content/public/browser",
    ]
@@ -460,44 +267,6 @@
  }
  
  source_set("test_support") {
---- a/chrome/browser/ui/tab_helpers.cc
-+++ b/chrome/browser/ui/tab_helpers.cc
-@@ -486,35 +486,8 @@ void TabHelpers::AttachTabHelpers(WebCon
-   //     See https://crbug.com/910288.
-   resource_coordinator::ResourceCoordinatorTabHelper::CreateForWebContents(
-       web_contents);
--  safe_browsing::SafeBrowsingNavigationObserver::MaybeCreateForWebContents(
--      web_contents, HostContentSettingsMapFactory::GetForProfile(profile),
--      safe_browsing::SafeBrowsingNavigationObserverManagerFactory::
--          GetForBrowserContext(profile),
--      profile->GetPrefs(), g_browser_process->safe_browsing_service());
-   site_protection::SiteProtectionMetricsObserver::CreateForWebContents(
-       web_contents);
--
--  if (base::FeatureList::IsEnabled(
--          safe_browsing::kTailoredSecurityIntegration)) {
--    safe_browsing::TailoredSecurityUrlObserver::CreateForWebContents(
--        web_contents,
--        safe_browsing::TailoredSecurityServiceFactory::GetForProfile(profile));
--  }
--  if (g_browser_process->safe_browsing_service()) {
--    safe_browsing::AsyncCheckTracker::CreateForWebContents(
--        web_contents, g_browser_process->safe_browsing_service()->ui_manager(),
--        safe_browsing::AsyncCheckTracker::
--            IsPlatformEligibleForSyncCheckerCheckAllowlist());
--  }
--  // SafeBrowsingTabObserver creates a ClientSideDetectionHost, which observes
--  // events from PermissionRequestManager and AsyncCheckTracker in its
--  // constructor. Therefore, PermissionRequestManager and AsyncCheckTracker need
--  // to be created before SafeBrowsingTabObserver is created.
--  safe_browsing::SafeBrowsingTabObserver::CreateForWebContents(
--      web_contents,
--      std::make_unique<safe_browsing::ChromeSafeBrowsingTabObserverDelegate>());
--  safe_browsing::TriggerCreator::MaybeCreateTriggersForWebContents(
--      profile, web_contents);
-   SafetyTipWebContentsObserver::CreateForWebContents(web_contents);
-   SearchEngineTabHelper::CreateForWebContents(web_contents);
-   if (site_engagement::SiteEngagementService::IsEnabled()) {
 --- a/chrome/browser/ui/views/download/BUILD.gn
 +++ b/chrome/browser/ui/views/download/BUILD.gn
 @@ -27,7 +27,6 @@ source_set("download") {
@@ -518,7 +287,7 @@
  #include "chrome/browser/download/download_history.h"
  #include "chrome/browser/download/download_item_model.h"
  #include "chrome/browser/download/download_item_warning_data.h"
-@@ -536,12 +535,6 @@ void DownloadsDOMHandler::RemoveDownload
+@@ -541,12 +540,6 @@ void DownloadsDOMHandler::RemoveDownload
    IdSet ids;
  
    for (download::DownloadItem* download : to_remove) {
