@@ -268,7 +268,7 @@ def main():
     parser.add_argument('-p',
                         '--pgo',
                         default='linux',
-                        choices=('linux', 'mac', 'mac-arm', 'win32', 'win64'),
+                        choices=('linux', 'mac', 'mac-arm', 'win32', 'win64', 'win-arm64'),
                         help='Specifiy which pgo profile to download.  Default: %(default)s')
     parser.add_argument('-s',
                         '--sysroot',
