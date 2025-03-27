@@ -1,23 +1,25 @@
---- a/components/flags_ui/flags_state.cc
-+++ b/components/flags_ui/flags_state.cc
-@@ -30,6 +30,7 @@
+--- a/components/webui/flags/flags_state.cc
++++ b/components/webui/flags/flags_state.cc
+@@ -31,6 +31,7 @@
  #include "base/strings/utf_string_conversions.h"
  #include "base/values.h"
  #include "build/build_config.h"
 +#include "chrome/browser/unexpire_flags.h"
- #include "components/flags_ui/feature_entry.h"
- #include "components/flags_ui/flags_storage.h"
- #include "components/flags_ui/flags_ui_switches.h"
-@@ -667,13 +668,17 @@ void FlagsState::GetFlagFeatureEntries(
+ #include "components/variations/field_trial_config/field_trial_util.h"
+ #include "components/variations/variations_associated_data.h"
+ #include "components/variations/variations_switches.h"
+@@ -681,14 +682,19 @@ void FlagsState::GetFlagFeatureEntries(
    int current_platform = GetCurrentPlatform();
  
    for (const FeatureEntry& entry : feature_entries_) {
 +    std::string desc = entry.visible_description;
-     if (skip_feature_entry.Run(entry))
-+      if (flags::IsFlagExpired(flags_storage, entry.internal_name))
-+        desc.insert(0, "!!! NOTE: THIS FLAG IS EXPIRED AND MAY STOP FUNCTIONING OR BE REMOVED SOON !!! ");
-+      else
+     if (skip_feature_entry.Run(entry)) {
++     if (flags::IsFlagExpired(flags_storage, entry.internal_name)) {
++       desc.insert(0, "!!! NOTE: THIS FLAG IS EXPIRED AND MAY STOP FUNCTIONING OR BE REMOVED SOON !!! ");
++     } else {
        continue;
++     }
+     }
  
      base::Value::Dict data;
      data.Set("internal_name", entry.internal_name);
@@ -27,11 +29,13 @@
  
      base::Value::List supported_platforms;
      AddOsStrings(entry.supported_platforms, &supported_platforms);
-@@ -1074,6 +1079,7 @@ bool FlagsState::IsSupportedFeature(cons
-     if (!entry.InternalNameMatches(name))
+@@ -1097,7 +1103,9 @@ bool FlagsState::IsSupportedFeature(cons
        continue;
-     if (delegate_ && delegate_->ShouldExcludeFlag(storage, entry))
-+      if (!flags::IsFlagExpired(storage, entry.internal_name))
+     }
+     if (delegate_ && delegate_->ShouldExcludeFlag(storage, entry)) {
++     if (!flags::IsFlagExpired(storage, entry.internal_name)) {
        continue;
++     }
+     }
      return true;
    }
