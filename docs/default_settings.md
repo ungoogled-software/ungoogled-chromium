@@ -9,7 +9,6 @@ Allow sites to check if you have payment methods saved | Disabled | chrome://set
 Ask where to save each file before downloading | Enabled | chrome://settings/downloads
 Auto sign-in | Disabled | chrome://settings/passwords
 Block third-party cookies | Enabled | chrome://settings/cookies
-Clear cookies and site data when you close all windows | Enabled | chrome://settings/cookies
 Continue running background apps when Chromium is closed | Disabled | chrome://settings/system
 Hyperlink auditing (\<a ping>) | Disabled | NA
 Link Doctor | Disabled | NA
