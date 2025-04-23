@@ -18,8 +18,12 @@ from _common import ENCODING, get_logger, add_common_params
 # List of paths to prune if they exist, excluded from domain_substitution and pruning lists
 # These allow the lists to be compatible between cloned, tarball, and lite tarball sources
 CONTINGENT_PATHS = (
+    # checkout_configuration != "small"
+    'third_party/jetstream/',
+    'third_party/speedometer/',
     # CIPD sources
     'buildtools/linux64/',
+    'components/variations/test_data/cipd/',
     'third_party/checkstyle/cipd/',
     'third_party/dawn/third_party/ninja/',
     'third_party/dawn/tools/golang/',

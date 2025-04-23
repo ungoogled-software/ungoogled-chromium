@@ -1,6 +1,6 @@
 --- a/chrome/browser/extensions/api/developer_private/extension_info_generator_desktop.cc
 +++ b/chrome/browser/extensions/api/developer_private/extension_info_generator_desktop.cc
-@@ -131,17 +131,6 @@ void ExtensionInfoGenerator::FillExtensi
+@@ -132,17 +132,6 @@ void ExtensionInfoGenerator::FillExtensi
      info.controlled_info.emplace();
      info.controlled_info->text =
          l10n_util::GetStringUTF8(IDS_EXTENSIONS_INSTALL_LOCATION_ENTERPRISE);
@@ -20,7 +20,7 @@
    bool is_enabled = state == developer::ExtensionState::kEnabled;
 --- a/chrome/browser/extensions/extension_management.cc
 +++ b/chrome/browser/extensions/extension_management.cc
-@@ -318,31 +318,7 @@ bool ExtensionManagement::IsAllowedManif
+@@ -317,31 +317,7 @@ bool ExtensionManagement::IsAllowedManif
      int manifest_version,
      const std::string& extension_id,
      Manifest::Type manifest_type) {
@@ -46,13 +46,13 @@
 -      auto installation_mode =
 -          GetInstallationMode(extension_id, /*update_url=*/std::string());
 -      return manifest_version >= 3 ||
--             installation_mode == INSTALLATION_FORCED ||
--             installation_mode == INSTALLATION_RECOMMENDED;
+-             installation_mode == ManagedInstallationMode::kForced ||
+-             installation_mode == ManagedInstallationMode::kRecommended;
 -  }
  }
  
  bool ExtensionManagement::IsAllowedManifestVersion(const Extension* extension) {
-@@ -363,26 +339,8 @@ bool ExtensionManagement::IsExemptFromMV
+@@ -362,26 +338,8 @@ bool ExtensionManagement::IsExemptFromMV
      return false;
    }
  
@@ -71,8 +71,8 @@
 -      // installed extension only.
 -      auto installation_mode =
 -          GetInstallationMode(extension_id, /*update_url=*/std::string());
--      return installation_mode == INSTALLATION_FORCED ||
--             installation_mode == INSTALLATION_RECOMMENDED;
+-      return installation_mode == ManagedInstallationMode::kForced ||
+-             installation_mode == ManagedInstallationMode::kRecommended;
 -  }
 -
 -  return false;
@@ -126,15 +126,15 @@
  // Returns true if the given `stage` is one in which extension enablement should
 --- a/chrome/browser/ui/webui/extensions/extensions_ui.cc
 +++ b/chrome/browser/ui/webui/extensions/extensions_ui.cc
-@@ -477,7 +477,7 @@ content::WebUIDataSource* CreateAndAddEx
+@@ -481,7 +481,7 @@ content::WebUIDataSource* CreateAndAddEx
            extensions_features::kExtensionsMenuAccessControlWithPermittedSites));
    source->AddBoolean(
        "safetyHubThreeDotDetails",
 -      base::FeatureList::IsEnabled(features::kSafetyHubThreeDotDetails));
 +      false);
  
- // TODO(crbug.com/392777363): Clean these up with non-placeholder values.
  #if BUILDFLAG(IS_ANDROID)
+   source->AddResourcePath("images/product_logo.png",
 --- a/extensions/common/extension.cc
 +++ b/extensions/common/extension.cc
 @@ -96,13 +96,6 @@ bool IsManifestSupported(int manifest_ve

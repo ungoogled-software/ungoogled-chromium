@@ -1,6 +1,6 @@
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -3648,8 +3648,6 @@ static_library("browser") {
+@@ -3685,8 +3685,6 @@ static_library("browser") {
        "download/download_commands.cc",
        "download/download_crx_util.cc",
        "download/download_crx_util.h",
@@ -11,7 +11,7 @@
        "download/download_dir_util.cc",
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -5405,10 +5405,6 @@ ChromeContentBrowserClient::CreateThrott
+@@ -5467,10 +5467,6 @@ ChromeContentBrowserClient::CreateThrott
    throttles.push_back(std::make_unique<PolicyBlocklistNavigationThrottle>(
        handle, handle->GetWebContents()->GetBrowserContext()));
  
@@ -94,7 +94,7 @@
  ExtensionFunction::ResponseAction DownloadsAcceptDangerFunction::Run() {
    std::optional<downloads::AcceptDanger::Params> params =
        downloads::AcceptDanger::Params::Create(args());
-@@ -1418,42 +1414,7 @@ void DownloadsAcceptDangerFunction::Prom
+@@ -1430,44 +1426,7 @@ void DownloadsAcceptDangerFunction::Prom
      return;
    }
    RecordApiFunctions(DOWNLOADS_FUNCTION_ACCEPT_DANGER);
@@ -105,8 +105,10 @@
 -      base::BindOnce(&DownloadsAcceptDangerFunction::DangerPromptCallback, this,
 -                     download_id));
 -  // DownloadDangerPrompt deletes itself
--  if (on_prompt_created_ && !on_prompt_created_->is_null())
+-  if (on_prompt_created_ && !on_prompt_created_->is_null()) {
 -    std::move(*on_prompt_created_).Run(prompt);
+-    on_prompt_created_ = nullptr;
+-  }
 -  // Function finishes in DangerPromptCallback().
 -}
 -
@@ -235,7 +237,7 @@
                             std::unique_ptr<std::string> response_body);
 --- a/chrome/browser/safe_browsing/BUILD.gn
 +++ b/chrome/browser/safe_browsing/BUILD.gn
-@@ -8,6 +8,7 @@ import("//components/safe_browsing/build
+@@ -7,6 +7,7 @@ import("//components/safe_browsing/build
  import("//extensions/buildflags/buildflags.gni")
  
  static_library("safe_browsing") {
@@ -243,15 +245,15 @@
    sources = [
      "chrome_controller_client.cc",
      "chrome_controller_client.h",
-@@ -75,6 +76,7 @@ static_library("safe_browsing") {
+@@ -73,6 +74,7 @@ static_library("safe_browsing") {
      "//mojo/public/cpp/system",
      "//services/preferences/public/cpp",
    ]
 +  }
  
-   if (is_android) {
-     deps += [
-@@ -553,6 +555,7 @@ static_library("advanced_protection") {
+   # Note: is_android is not equivalent to safe_browsing_mode == 2.
+   # Sources and dependencies added to this block must not depend on anything
+@@ -564,6 +566,7 @@ static_library("advanced_protection") {
  }
  
  source_set("metrics_collector") {
@@ -259,7 +261,7 @@
    sources = [
      "safe_browsing_metrics_collector_factory.cc",
      "safe_browsing_metrics_collector_factory.h",
-@@ -572,6 +575,7 @@ source_set("metrics_collector") {
+@@ -583,6 +586,7 @@ source_set("metrics_collector") {
      "//components/safe_browsing/core/common:safe_browsing_prefs",
      "//content/public/browser",
    ]
@@ -312,7 +314,7 @@
  #include "chrome/browser/ui/webui/downloads/downloads_list_tracker.h"
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -113,7 +113,6 @@
+@@ -112,7 +112,6 @@
  #include "components/pdf/common/pdf_util.h"
  #include "components/permissions/features.h"
  #include "components/safe_browsing/buildflags.h"
@@ -320,16 +322,3 @@
  #include "components/sampling_profiler/process_type.h"
  #include "components/sampling_profiler/thread_profiler.h"
  #include "components/security_interstitials/content/renderer/security_interstitial_page_controller_delegate_impl.h"
-@@ -484,12 +483,8 @@ void ChromeContentRendererClient::Render
-     thread->AddObserver(fingerprinting_protection_ruleset_dealer_.get());
-   }
- 
--  phishing_model_setter_ =
--      std::make_unique<safe_browsing::PhishingModelSetterImpl>();
--
-   thread->AddObserver(chrome_observer_.get());
-   thread->AddObserver(subresource_filter_ruleset_dealer_.get());
--  thread->AddObserver(phishing_model_setter_.get());
- 
-   blink::WebScriptController::RegisterExtension(
-       extensions_v8::LoadTimesExtension::Get());

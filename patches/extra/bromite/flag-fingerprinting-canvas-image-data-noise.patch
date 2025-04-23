@@ -34,7 +34,7 @@ approach to change color components.
  #endif  // CHROME_BROWSER_BROMITE_FLAG_ENTRIES_H_
 --- a/content/browser/renderer_host/render_process_host_impl.cc
 +++ b/content/browser/renderer_host/render_process_host_impl.cc
-@@ -3415,6 +3415,7 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3496,6 +3496,7 @@ void RenderProcessHostImpl::PropagateBro
        switches::kFileUrlPathAlias,
        switches::kFingerprintingClientRectsNoise,
        switches::kFingerprintingCanvasMeasureTextNoise,
@@ -44,7 +44,7 @@ approach to change color components.
        switches::kForceGpuMemAvailableMb,
 --- a/content/child/runtime_features.cc
 +++ b/content/child/runtime_features.cc
-@@ -493,6 +493,8 @@ void SetRuntimeFeaturesFromCommandLine(c
+@@ -490,6 +490,8 @@ void SetRuntimeFeaturesFromCommandLine(c
         switches::kFingerprintingClientRectsNoise, true},
        {wrf::EnableFingerprintingCanvasMeasureTextNoise,
         switches::kFingerprintingCanvasMeasureTextNoise, true},
@@ -65,7 +65,7 @@ approach to change color components.
  };
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
-@@ -2967,6 +2967,9 @@ ImageData* BaseRenderingContext2D::getIm
+@@ -508,6 +508,9 @@ ImageData* BaseRenderingContext2D::getIm
            snapshot->PaintImageForCurrentFrame().GetSkImageInfo().bounds();
        DCHECK(!bounds.intersect(SkIRect::MakeXYWH(sx, sy, sw, sh)));
      }
@@ -77,7 +77,7 @@ approach to change color components.
    return image_data;
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1717,7 +1717,9 @@ component("platform") {
+@@ -1729,7 +1729,9 @@ component("platform") {
      "//third_party/blink/renderer:non_test_config",
    ]
  
@@ -101,27 +101,17 @@ approach to change color components.
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 +++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
-@@ -34,6 +34,8 @@
- 
- #include "base/compiler_specific.h"
- #include "base/memory/ptr_util.h"
-+#include "base/rand_util.h"
-+#include "base/logging.h"
- #include "third_party/blink/renderer/platform/image-encoders/image_encoder.h"
- #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
- #include "third_party/blink/renderer/platform/wtf/text/base64.h"
-@@ -141,6 +143,11 @@ bool ImageDataBuffer::EncodeImageInterna
-                                           const SkPixmap& pixmap) const {
-   DCHECK(is_valid_);
- 
+@@ -130,6 +130,10 @@ base::span<const uint8_t> ImageDataBuffe
+ bool ImageDataBuffer::EncodeImage(const ImageEncodingMimeType mime_type,
+                                   const double& quality,
+                                   Vector<unsigned char>* encoded_image) const {
 +  if (RuntimeEnabledFeatures::FingerprintingCanvasImageDataNoiseEnabled()) {
 +    // shuffle subchannel color data within the pixmap
 +    StaticBitmapImage::ShuffleSubchannelColorData(pixmap_.writable_addr(), pixmap_.info(), 0, 0);
 +  }
-+
-   if (mime_type == kMimeTypeJpeg) {
-     SkJpegEncoder::Options options;
-     options.fQuality = ImageEncoder::ComputeJpegQuality(quality);
+   return ImageEncoder::Encode(encoded_image, pixmap_, mime_type, quality);
+ }
+ 
 --- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
 +++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
 @@ -4,6 +4,8 @@
@@ -147,8 +137,8 @@ approach to change color components.
  #include "ui/gfx/geometry/skia_conversions.h"
  #include "v8/include/v8.h"
  
-@@ -115,4 +119,154 @@ void StaticBitmapImage::DrawHelper(cc::P
-       WebCoreClampingModeToSkiaRectConstraint(draw_options.clamping_mode));
+@@ -114,4 +118,154 @@ void StaticBitmapImage::DrawHelper(cc::P
+                         ToSkiaRectConstraint(draw_options.clamping_mode));
  }
  
 +// set the component to maximum-delta if it is >= maximum, or add to existing color component (color + delta)
@@ -304,7 +294,7 @@ approach to change color components.
  }  // namespace blink
 --- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.h
 +++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.h
-@@ -39,6 +39,8 @@ class PLATFORM_EXPORT StaticBitmapImage
+@@ -38,6 +38,8 @@ class PLATFORM_EXPORT StaticBitmapImage
  
    StaticBitmapImage(ImageOrientation orientation) : orientation_(orientation) {}
  
@@ -315,7 +305,7 @@ approach to change color components.
    // Methods overridden by all sub-classes
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -2086,6 +2086,9 @@
+@@ -2098,6 +2098,9 @@
        name: "FingerprintingCanvasMeasureTextNoise",
      },
      {
