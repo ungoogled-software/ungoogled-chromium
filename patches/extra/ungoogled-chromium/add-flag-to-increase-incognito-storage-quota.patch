@@ -1,0 +1,65 @@
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -144,4 +144,8 @@
+      "Spoof WebGL Info",
+      "Return generic values for WebGLDebugRendererInfo to remove a potential data leak while preventing potential website breakage. ungoogled-chromium flag.",
+      kOsAll, FEATURE_WITH_PARAMS_VALUE_TYPE(blink::features::kSpoofWebGLInfo, kSpoofWebGLChoices, "SpoofWebGLInfo")},
++    {"increase-incognito-storage-quota",
++     "Increases the storage quota for Incognito and Guest profiles",
++     "Makes Incognito and Guest profiles compute the storage quota with the same algorithm that regular profiles use. This makes it harder for websites to detect Incognito mode, but may allow sites to induce heavy memory pressure. ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(storage::features::kIncreaseIncognitoStorageQuota)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/storage/browser/quota/quota_features.cc
++++ b/storage/browser/quota/quota_features.cc
+@@ -41,5 +41,9 @@ BASE_FEATURE(kStaticStorageQuota,
+              "StaticStorageQuota",
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kIncreaseIncognitoStorageQuota,
++             "IncreaseIncognitoStorageQuota",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ }  // namespace features
+ }  // namespace storage
+--- a/storage/browser/quota/quota_features.h
++++ b/storage/browser/quota/quota_features.h
+@@ -23,6 +23,8 @@ extern const base::FeatureParam<double>
+ 
+ COMPONENT_EXPORT(STORAGE_BROWSER) BASE_DECLARE_FEATURE(kStaticStorageQuota);
+ 
++COMPONENT_EXPORT(STORAGE_BROWSER) BASE_DECLARE_FEATURE(kIncreaseIncognitoStorageQuota);
++
+ }  // namespace features
+ 
+ }  // namespace storage
+--- a/storage/browser/quota/quota_settings.cc
++++ b/storage/browser/quota/quota_settings.cc
+@@ -9,6 +9,7 @@
+ #include <memory>
+ #include <utility>
+ 
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/no_destructor.h"
+ #include "base/numerics/safe_conversions.h"
+@@ -55,7 +56,8 @@ std::optional<QuotaSettings> CalculateNo
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+ 
+-  if (is_incognito) {
++  if (is_incognito &&
++      !base::FeatureList::IsEnabled(features::kIncreaseIncognitoStorageQuota)) {
+     return CalculateIncognitoDynamicSettings(
+         device_info_helper->AmountOfPhysicalMemory());
+   }
+@@ -116,7 +118,9 @@ std::optional<QuotaSettings> CalculateNo
+ 
+   QuotaSettings settings;
+ 
+-  int64_t total = device_info_helper->AmountOfTotalDiskSpace(partition_path);
++  int64_t total =
++      is_incognito ? device_info_helper->AmountOfPhysicalMemory()
++                   : device_info_helper->AmountOfTotalDiskSpace(partition_path);
+   if (total == -1) {
+     LOG(ERROR) << "Unable to compute QuotaSettings.";
+     return std::nullopt;

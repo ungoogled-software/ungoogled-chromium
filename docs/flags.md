@@ -69,6 +69,7 @@ These are also available on the `chrome://flags` page.
   `RemoveClientHints` | Removes client hints (information sent to servers about your system, similar to a user agent).
   `SetIpv6ProbeFalse` | Forces the result of the browser's IPv6 probing (i.e. IPv6 connectivity test) to be unsuccessful. This causes IPv4 addresses to be prioritized over IPv6 addresses. Without this flag, the probing result is set to be successful, which causes IPv6 to be used over IPv4 when possible.
   `SpoofWebGLInfo` | Return generic values for WebGLDebugRendererInfo to remove a potential data leak while preventing potential website breakage.
+  `IncreaseIncognitoStorageQuota` | Makes Incognito and Guest profiles compute the storage quota with the same algorithm that regular profiles use. This makes it harder for websites to detect Incognito mode, but may allow sites to induce heavy memory pressure.
 
 - ### Available only on desktop
 
