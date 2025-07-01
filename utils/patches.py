@@ -60,7 +60,7 @@ def find_and_check_patch(patch_bin_path=None):
         raise ValueError('Could not find patch from PATCH_BIN env var or "which patch"')
 
     if not patch_bin_path.exists():
-        raise ValueError('Could not find the patch binary: {}'.format(patch_bin_path))
+        raise ValueError(f'Could not find the patch binary: {patch_bin_path}')
 
     # Ensure patch actually runs
     cmd = [str(patch_bin_path), '--version']
@@ -73,7 +73,7 @@ def find_and_check_patch(patch_bin_path=None):
         get_logger().error('"%s" returned non-zero exit code', ' '.join(cmd))
         get_logger().error('stdout:\n%s', result.stdout)
         get_logger().error('stderr:\n%s', result.stderr)
-        raise RuntimeError('Got non-zero exit code running "{}"'.format(' '.join(cmd)))
+        raise RuntimeError(f"Got non-zero exit code running \"{' '.join(cmd)}\"")
 
     return patch_bin_path
 
@@ -167,18 +167,16 @@ def merge_patches(source_iter, destination, prepend=False):
         if prepend:
             if not (destination / 'series').exists():
                 raise FileNotFoundError(
-                    'Could not find series file in existing destination: {}'.format(destination /
-                                                                                    'series'))
+                    f"Could not find series file in existing destination: {destination / 'series'}")
             known_paths.update(generate_patches_from_series(destination))
         else:
-            raise FileExistsError('destination already exists: {}'.format(destination))
+            raise FileExistsError(f'destination already exists: {destination}')
     for source_dir in source_iter:
         patch_paths = tuple(generate_patches_from_series(source_dir))
         patch_intersection = known_paths.intersection(patch_paths)
         if patch_intersection:
-            raise FileExistsError(
-                'Patches from {} have conflicting paths with other sources: {}'.format(
-                    source_dir, patch_intersection))
+            raise FileExistsError(f'Patches from {source_dir} have conflicting paths '
+                                  f'with other sources: {patch_intersection}')
         series.extend(patch_paths)
         _copy_files(patch_paths, source_dir, destination)
     if prepend and (destination / 'series').exists():

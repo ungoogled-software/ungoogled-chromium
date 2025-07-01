@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from _common import ENCODING, get_logger
+
 sys.path.pop(0)
 
 

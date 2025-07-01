@@ -106,7 +106,7 @@ def _substitute_path(path, regex_iter):
             except UnicodeDecodeError:
                 continue
         if not content:
-            raise UnicodeDecodeError('Unable to decode with any encoding: %s' % path)
+            raise UnicodeDecodeError(f'Unable to decode with any encoding: {path}')
         file_subs = 0
         for regex_pair in regex_iter:
             content, sub_count = regex_pair.pattern.subn(regex_pair.replacement, content)
@@ -206,17 +206,17 @@ def apply_substitution(regex_path, files_path, source_tree, domainsub_cache):
     resolved_tree = source_tree.resolve()
     regex_pairs = DomainRegexList(regex_path).regex_pairs
     fileindex_content = io.BytesIO()
-    with tarfile.open(str(domainsub_cache), 'w:%s' % domainsub_cache.suffix[1:],
-                      compresslevel=1) if domainsub_cache else open(os.devnull, 'w') as cache_tar:
+    with tarfile.open(str(domainsub_cache), f'w:{domainsub_cache.suffix[1:]}',
+                      compresslevel=1) if domainsub_cache else open(
+                          os.devnull, 'w', encoding=ENCODING) as cache_tar:
         for relative_path in filter(len, files_path.read_text().splitlines()):
             if _INDEX_HASH_DELIMITER in relative_path:
                 if domainsub_cache:
                     # Cache tar will be incomplete; remove it for convenience
                     cache_tar.close()
                     domainsub_cache.unlink()
-                raise ValueError(
-                    'Path "%s" contains the file index hash delimiter "%s"' % relative_path,
-                    _INDEX_HASH_DELIMITER)
+                raise ValueError(f'Path "{relative_path}" contains '
+                                 f'the file index hash delimiter "{_INDEX_HASH_DELIMITER}"')
             path = resolved_tree / relative_path
             if not path.exists():
                 get_logger().warning('Skipping non-existant path: %s', path)
@@ -230,8 +230,8 @@ def apply_substitution(regex_path, files_path, source_tree, domainsub_cache):
                 get_logger().info('Path has no substitutions: %s', relative_path)
                 continue
             if domainsub_cache:
-                fileindex_content.write('{}{}{:08x}\n'.format(relative_path, _INDEX_HASH_DELIMITER,
-                                                              crc32_hash).encode(ENCODING))
+                fileindex_content.write(
+                    f'{relative_path}{_INDEX_HASH_DELIMITER}{crc32_hash:08x}\n'.encode(ENCODING))
                 orig_tarinfo = tarfile.TarInfo(str(Path(_ORIG_DIR) / relative_path))
                 orig_tarinfo.size = len(orig_content)
                 with io.BytesIO(orig_content) as orig_file:

@@ -25,6 +25,7 @@ from _extraction import extract_tar_file, extract_with_7z, extract_with_winrar
 
 sys.path.insert(0, str(Path(__file__).parent / 'third_party'))
 import schema #pylint: disable=wrong-import-position, wrong-import-order
+
 sys.path.pop(0)
 
 # Constants
@@ -74,6 +75,7 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
     })
 
     class _DownloadsProperties: #pylint: disable=too-few-public-methods
+
         def __init__(self, section_dict, passthrough_properties, hashes):
             self._section_dict = section_dict
             self._passthrough_properties = passthrough_properties
@@ -97,7 +99,7 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
                             value = value.split(DownloadInfo.hash_url_delimiter)
                         hashes_dict[hash_name] = value
                 return hashes_dict
-            raise AttributeError('"{}" has no attribute "{}"'.format(type(self).__name__, name))
+            raise AttributeError(f'"{type(self).__name__}" has no attribute "{name}"')
 
     def _parse_data(self, path):
         """
@@ -105,6 +107,7 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
 
         Raises schema.SchemaError if validation fails
         """
+
         def _section_generator(data):
             for section in data:
                 if section == configparser.DEFAULTSECT:
@@ -157,11 +160,12 @@ class DownloadInfo: #pylint: disable=too-few-public-methods
             return
         for name in section_names:
             if name not in self:
-                raise KeyError('"{}" has no section "{}"'.format(type(self).__name__, name))
+                raise KeyError(f'"{type(self).__name__}" has no section "{name}"')
 
 
 class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
     """Hook for urllib.request.urlretrieve to log progress information to console"""
+
     def __init__(self):
         self._max_len_printed = 0
         self._last_percentage = None
@@ -181,10 +185,10 @@ class _UrlRetrieveReportHook: #pylint: disable=too-few-public-methods
                 return
             self._last_percentage = percentage
             print('\r' + ' ' * self._max_len_printed, end='')
-            status_line = 'Progress: {:.1%} of {:,d} B'.format(percentage, total_size)
+            status_line = f'Progress: {percentage:.1%} of {total_size:,d} B'
         else:
             downloaded_estimate = block_count * block_size
-            status_line = 'Progress: {:,d} B of unknown size'.format(downloaded_estimate)
+            status_line = f'Progress: {downloaded_estimate:,d} B of unknown size'
         self._max_len_printed = len(status_line)
         print('\r' + status_line, end='')
 
@@ -259,7 +263,7 @@ def _get_hash_pairs(download_properties, cache_dir):
             if hash_processor == 'chromium':
                 yield from _chromium_hashes_generator(cache_dir / hash_filename)
             else:
-                raise ValueError('Unknown hash_url processor: %s' % hash_processor)
+                raise ValueError(f'Unknown hash_url processor: {hash_processor}')
         else:
             yield entry_type, entry_value
 

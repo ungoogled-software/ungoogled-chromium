@@ -11,6 +11,7 @@ Generate standalone script that performs the domain substitution.
 from pathlib import Path
 import argparse
 import re
+from _common import ENCODING
 
 
 def make_domain_substitution_script(regex_path, files_path, output_path):
@@ -41,8 +42,8 @@ def make_domain_substitution_script(regex_path, files_path, output_path):
     files_list_str = '\n'.join(files_list)
     perl_replace_list_str = '\n'.join([f'    {x};' for x in perl_replace_list])
 
-    with open(output_path, 'w') as out:
-        out.write("""#!/bin/sh -e
+    with open(output_path, 'w', encoding=ENCODING) as out:
+        out.write(f"""#!/bin/sh -e
 #
 # This script performs domain substitution on the Chromium source files.
 #
@@ -54,25 +55,25 @@ def make_domain_substitution_script(regex_path, files_path, output_path):
 test -f build/config/compiler/BUILD.gn
 
 # These filenames may contain spaces and/or other unusual characters
-print_file_list() {
+print_file_list() {{
 	cat <<'__END__'
-%s
+{files_list_str}
 __END__
-}
+}}
 
 echo "Creating backup archive ..."
 
 backup=domain-substitution.orig.tar
 print_file_list | tar cf $backup --verbatim-files-from --files-from=-
 
-echo "Applying ungoogled-chromium domain substitution to %d files ..."
+echo "Applying ungoogled-chromium domain substitution to {len(files_list)} files ..."
 
 print_file_list | xargs -d '\\n' perl -0777 -C0 -pwi -e '
-%s
+{perl_replace_list_str}
 '
 
 # end
-""" % (files_list_str, len(files_list), perl_replace_list_str))
+""")
 
 
 def _callback(args):

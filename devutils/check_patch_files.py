@@ -24,6 +24,7 @@ from third_party import unidiff
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from _common import ENCODING, get_logger, parse_series # pylint: disable=wrong-import-order
+
 sys.path.pop(0)
 
 # File suffixes to ignore for checking unused patches

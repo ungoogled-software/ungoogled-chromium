@@ -17,7 +17,7 @@ from shutil import copytree, copy, move
 from stat import S_IWRITE
 from subprocess import run
 
-from _common import add_common_params, get_chromium_version, get_logger
+from _common import ENCODING, add_common_params, get_chromium_version, get_logger
 
 # Config file for gclient
 # Instances of 'src' replaced with UC_OUT, which will be replaced with the output directory
@@ -53,7 +53,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     ucstaging = args.output / 'uc_staging'
     dtpath = ucstaging / 'depot_tools'
     gsuver = '5.30'
-    gsupath = dtpath / 'external_bin' / 'gsutil' / ('gsutil_%s' % gsuver) / 'gsutil'
+    gsupath = dtpath / 'external_bin' / 'gsutil' / f'gsutil_{gsuver}' / 'gsutil'
     gnpath = ucstaging / 'gn'
     environ['GCLIENT_FILE'] = str(ucstaging / '.gclient')
     environ['PATH'] += pathsep + str(dtpath)
@@ -88,7 +88,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
 
     get_logger().info('Cloning depot_tools')
     dt_commit = re.search(r"depot_tools\.git'\s*\+\s*'@'\s*\+\s*'([^']+)',",
-                          Path(args.output / 'DEPS').read_text()).group(1)
+                          Path(args.output / 'DEPS').read_text(encoding=ENCODING)).group(1)
     if not dt_commit:
         get_logger().error('Unable to obtain commit for depot_tools checkout')
         sys.exit(1)
@@ -108,7 +108,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
         (dtpath / 'git.bat').write_text('git')
     # Apply changes to gclient
     run(['git', 'apply', '--ignore-whitespace'],
-        input=Path(__file__).with_name('depot_tools.patch').read_text().replace(
+        input=Path(__file__).with_name('depot_tools.patch').read_text(encoding=ENCODING).replace(
             'UC_OUT', str(args.output)).replace('UC_STAGING',
                                                 str(ucstaging)).replace('GSUVER', gsuver),
         cwd=dtpath,
@@ -123,7 +123,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
         run(['git', 'remote', 'add', 'origin', 'https://github.com/GoogleCloudPlatform/gsutil'],
             cwd=gsupath,
             check=True)
-    run(['git', 'fetch', '--depth=1', 'origin', 'v%s' % gsuver], cwd=gsupath, check=True)
+    run(['git', 'fetch', '--depth=1', 'origin', f'v{gsuver}'], cwd=gsupath, check=True)
     run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=gsupath, check=True)
     run(['git', 'clean', '-ffdx'], cwd=gsupath, check=True)
     get_logger().info('Updating gsutil submodules')
@@ -142,7 +142,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     # gn requires full history to be able to generate last_commit_position.h
     get_logger().info('Cloning gn')
     gn_commit = re.search(r"gn_version': 'git_revision:([^']+)',",
-                          Path(args.output / 'DEPS').read_text()).group(1)
+                          Path(args.output / 'DEPS').read_text(encoding=ENCODING)).group(1)
     if not gn_commit:
         get_logger().error('Unable to obtain commit for gn checkout')
         sys.exit(1)
@@ -226,7 +226,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     for item in gnpath.iterdir():
         if not item.is_dir():
             copy(item, args.output / 'tools' / 'gn')
-        elif item.name != '.git' and item.name != 'out':
+        elif item.name not in ('.git', 'out'):
             copytree(item, args.output / 'tools' / 'gn' / item.name)
     move(str(gnpath / 'out' / 'last_commit_position.h'),
          str(args.output / 'tools' / 'gn' / 'bootstrap'))

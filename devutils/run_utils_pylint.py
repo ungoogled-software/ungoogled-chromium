@@ -21,20 +21,17 @@ def main():
                         help='Show "locally-disabled" Pylint warnings.')
     args = parser.parse_args()
 
-    disable = ['bad-continuation']
-
-    if args.hide_fixme:
-        disable.append('fixme')
-    if not args.show_locally_disabled:
-        disable.append('locally-disabled')
-
     pylint_options = [
-        '--disable={}'.format(','.join(disable)),
         '--jobs=4',
         '--max-args=7',
         '--score=n',
         '--persistent=n',
     ]
+
+    if args.hide_fixme:
+        pylint_options.append('--disable=fixme')
+    if not args.show_locally_disabled:
+        pylint_options.append('--disable=locally-disabled')
 
     ignore_prefixes = [
         ('third_party', ),

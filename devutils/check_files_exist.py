@@ -27,8 +27,7 @@ def main():
                      Path(input_name).read_text(encoding='UTF-8').splitlines()))
         for file_name in file_iter:
             if not Path(args.root_dir, file_name).exists():
-                print('ERROR: Path "{}" from file "{}" does not exist.'.format(
-                    file_name, input_name),
+                print(f'ERROR: Path "{file_name}" from file "{input_name}" does not exist.',
                       file=sys.stderr)
                 sys.exit(1)
 

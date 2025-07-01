@@ -23,7 +23,6 @@ def main():
 
     disables = [
         'wrong-import-position',
-        'bad-continuation',
         'duplicate-code',
     ]
 
@@ -33,7 +32,7 @@ def main():
         disables.append('locally-disabled')
 
     pylint_options = [
-        '--disable={}'.format(','.join(disables)),
+        f"--disable={','.join(disables)}",
         '--jobs=4',
         '--score=n',
         '--persistent=n',

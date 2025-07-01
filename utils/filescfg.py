@@ -57,10 +57,10 @@ def _get_archive_writer(output_path, timestamp=None):
     timestamp is a file timestamp to use for all files, if set.
     """
     if not output_path.suffixes:
-        raise ValueError('Output name has no suffix: %s' % output_path.name)
+        raise ValueError(f'Output name has no suffix: {output_path.name}')
     if output_path.suffixes[-1].lower() == '.zip':
         archive_root = Path(output_path.stem)
-        output_archive = zipfile.ZipFile(str(output_path), 'w', zipfile.ZIP_DEFLATED)
+        output_archive = zipfile.ZipFile(str(output_path), 'w', zipfile.ZIP_DEFLATED) # pylint: disable=consider-using-with
         zip_date_time = None
         if timestamp:
             zip_date_time = datetime.datetime.fromtimestamp(timestamp).timetuple()[:6]
@@ -83,17 +83,18 @@ def _get_archive_writer(output_path, timestamp=None):
                 zip_write(str(in_path), str(arc_path))
     elif '.tar' in output_path.name.lower():
         if len(output_path.suffixes) >= 2 and output_path.suffixes[-2].lower() == '.tar':
-            tar_mode = 'w:%s' % output_path.suffixes[-1][1:]
+            tar_mode = f'w:{output_path.suffixes[-1][1:]}'
             archive_root = Path(output_path.with_suffix('').stem)
         elif output_path.suffixes[-1].lower() == '.tar':
             tar_mode = 'w'
             archive_root = Path(output_path.stem)
         else:
-            raise ValueError('Could not detect tar format for output: %s' % output_path.name)
+            raise ValueError(f'Could not detect tar format for output: {output_path.name}')
         if timestamp:
 
             class TarInfoFixedTimestamp(tarfile.TarInfo):
                 """TarInfo class with predefined constant mtime"""
+
                 @property
                 def mtime(self):
                     """Return predefined timestamp"""
@@ -106,10 +107,13 @@ def _get_archive_writer(output_path, timestamp=None):
             tarinfo_class = TarInfoFixedTimestamp
         else:
             tarinfo_class = tarfile.TarInfo
-        output_archive = tarfile.open(str(output_path), tar_mode, tarinfo=tarinfo_class)
-        add_func = lambda in_path, arc_path: output_archive.add(str(in_path), str(arc_path))
+        output_archive = tarfile.open(str(output_path), tar_mode, tarinfo=tarinfo_class) # pylint: disable=consider-using-with
+
+        def add_func(in_path, arc_path):
+            """Add files to tar archive"""
+            output_archive.add(str(in_path), str(arc_path))
     else:
-        raise ValueError('Unknown archive extension with name: %s' % output_path.name)
+        raise ValueError(f'Unknown archive extension with name: {output_path.name}')
     return output_archive, add_func, archive_root
 
 
@@ -147,7 +151,7 @@ def _files_generator_by_args(args):
 
 def _list_callback(args):
     """List files needed to run Chromium."""
-    sys.stdout.writelines('%s\n' % x for x in _files_generator_by_args(args))
+    sys.stdout.writelines(f'{x}\n' for x in _files_generator_by_args(args))
 
 
 def _archive_callback(args):

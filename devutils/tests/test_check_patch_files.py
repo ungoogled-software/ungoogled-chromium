@@ -11,11 +11,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / 'utils'))
-from _common import get_logger, set_logging_level
+from _common import ENCODING, get_logger, set_logging_level
+
 sys.path.pop(0)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from check_patch_files import check_series_duplicates
+
 sys.path.pop(0)
 
 
@@ -33,7 +35,7 @@ def test_check_series_duplicates():
             'a.patch',
             'b.patch',
             'c.patch',
-        ]))
+        ]), encoding=ENCODING)
         assert not check_series_duplicates(patches_dir)
 
         get_logger().info('Check duplicates')
@@ -42,7 +44,8 @@ def test_check_series_duplicates():
             'b.patch',
             'c.patch',
             'a.patch',
-        ]))
+        ]),
+                               encoding=ENCODING)
         assert check_series_duplicates(patches_dir)
 
 

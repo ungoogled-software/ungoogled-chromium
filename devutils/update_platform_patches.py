@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from _common import ENCODING, get_logger
 from patches import merge_patches
+
 sys.path.pop(0)
 
 _SERIES = 'series'
@@ -107,14 +108,14 @@ def unmerge_platform_patches(platform_patches_dir):
         return False
     orig_series = (platform_patches_dir / _SERIES_ORIG).read_text(encoding=ENCODING).splitlines()
     # patch path -> list of lines after patch path and before next patch path
-    path_comments = dict()
+    path_comments = {}
     # patch path -> inline comment for patch
-    path_inline_comments = dict()
+    path_inline_comments = {}
     previous_path = None
     for partial_path in orig_series:
         if not partial_path or partial_path.startswith('#'):
             if partial_path not in path_comments:
-                path_comments[previous_path] = list()
+                path_comments[previous_path] = []
             path_comments[previous_path].append(partial_path)
         else:
             path_parts = partial_path.split(' #', maxsplit=1)

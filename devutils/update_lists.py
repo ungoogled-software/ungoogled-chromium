@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
 from _common import get_logger
 from domain_substitution import DomainRegexList, TREE_ENCODINGS
 from prune_binaries import CONTINGENT_PATHS
+
 sys.path.pop(0)
 
 # Encoding for output files
@@ -383,9 +384,9 @@ def main(args_list=None):
         args.tree,
         DomainRegexList(args.domain_regex).search_regex, args.processes)
     with args.pruning.open('w', encoding=_ENCODING) as file_obj:
-        file_obj.writelines('%s\n' % line for line in pruning_set)
+        file_obj.writelines(f'{line}\n' for line in pruning_set)
     with args.domain_substitution.open('w', encoding=_ENCODING) as file_obj:
-        file_obj.writelines('%s\n' % line for line in domain_substitution_set)
+        file_obj.writelines(f'{line}\n' for line in domain_substitution_set)
     if unused_patterns.log_unused(args.error_unused) and args.error_unused:
         get_logger().error('Please update or remove unused patterns and/or prefixes. '
                            'The lists have still been updated with the remaining valid entries.')
