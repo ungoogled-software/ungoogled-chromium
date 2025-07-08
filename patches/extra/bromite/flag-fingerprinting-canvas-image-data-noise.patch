@@ -99,19 +99,6 @@ approach to change color components.
 +}
 +
  }  // namespace blink
---- a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
-+++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
-@@ -130,6 +130,10 @@ base::span<const uint8_t> ImageDataBuffe
- bool ImageDataBuffer::EncodeImage(const ImageEncodingMimeType mime_type,
-                                   const double& quality,
-                                   Vector<unsigned char>* encoded_image) const {
-+  if (RuntimeEnabledFeatures::FingerprintingCanvasImageDataNoiseEnabled()) {
-+    // shuffle subchannel color data within the pixmap
-+    StaticBitmapImage::ShuffleSubchannelColorData(pixmap_.writable_addr(), pixmap_.info(), 0, 0);
-+  }
-   return ImageEncoder::Encode(encoded_image, pixmap_, mime_type, quality);
- }
- 
 --- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
 +++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
 @@ -4,6 +4,8 @@
@@ -303,6 +290,28 @@ approach to change color components.
    bool IsStaticBitmapImage() const override { return true; }
  
    // Methods overridden by all sub-classes
+--- a/third_party/blink/renderer/platform/image-encoders/image_encoder.cc
++++ b/third_party/blink/renderer/platform/image-encoders/image_encoder.cc
+@@ -14,6 +14,8 @@
+ #include <stdio.h>  // Needed by jpeglib.h
+ 
+ #include "jpeglib.h"  // for JPEG_MAX_DIMENSION
++#include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/libwebp/src/src/webp/encode.h"  // for WEBP_MAX_DIMENSION
+ 
+ namespace blink {
+@@ -43,6 +45,10 @@ bool ImageEncoder::Encode(Vector<unsigne
+                           const SkPixmap& src,
+                           ImageEncodingMimeType mime_type,
+                           double quality) {
++  if (RuntimeEnabledFeatures::FingerprintingCanvasImageDataNoiseEnabled()) {
++    // shuffle subchannel color data within the pixmap
++    StaticBitmapImage::ShuffleSubchannelColorData(src.writable_addr(), src.info(), 0, 0);
++  }
+   switch (mime_type) {
+     case kMimeTypeJpeg: {
+       SkJpegEncoder::Options options;
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
 @@ -2260,6 +2260,9 @@
