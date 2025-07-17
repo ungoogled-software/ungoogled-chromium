@@ -94,7 +94,7 @@ def _extract_tar_with_7z(binary, archive_path, output_dir, relative_to):
                            output_dir / relative_to)
         raise FileExistsError()
     cmd1 = (binary, 'x', str(archive_path), '-so')
-    cmd2 = (binary, 'x', '-si', '-aoa', '-ttar', f'-o{str(output_dir)}')
+    cmd2 = (binary, 'x', '-si', '-snld', '-aoa', '-ttar', f'-o{str(output_dir)}')
     get_logger().debug('7z command line: %s | %s', ' '.join(cmd1), ' '.join(cmd2))
 
     proc1 = subprocess.Popen(cmd1, stdout=subprocess.PIPE) #pylint: disable=consider-using-with
