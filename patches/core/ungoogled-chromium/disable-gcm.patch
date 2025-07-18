@@ -10,7 +10,37 @@
    std::vector<GURL> endpoints;
    endpoints.push_back(gservices_settings_.GetMCSMainEndpoint());
    GURL fallback_endpoint = gservices_settings_.GetMCSFallbackEndpoint();
-@@ -610,23 +611,6 @@ void GCMClientImpl::RemoveHeartbeatInter
+@@ -482,8 +483,6 @@ void GCMClientImpl::OnReady(const std::v
+ void GCMClientImpl::StartMCSLogin() {
+   DCHECK_EQ(READY, state_);
+   DCHECK(device_checkin_info_.IsValid());
+-  mcs_client_->Login(device_checkin_info_.android_id,
+-                     device_checkin_info_.secret);
+ }
+ 
+ void GCMClientImpl::DestroyStoreWhenNotNeeded() {
+@@ -554,8 +553,6 @@ void GCMClientImpl::SetLastTokenFetchTim
+ void GCMClientImpl::UpdateHeartbeatTimer(
+     std::unique_ptr<base::RetainingOneShotTimer> timer) {
+   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+-  DCHECK(mcs_client_);
+-  mcs_client_->UpdateHeartbeatTimer(std::move(timer));
+ }
+ 
+ void GCMClientImpl::AddInstanceIDData(const std::string& app_id,
+@@ -598,35 +595,14 @@ void GCMClientImpl::GetInstanceIDData(co
+ void GCMClientImpl::AddHeartbeatInterval(const std::string& scope,
+                                          int interval_ms) {
+   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+-  DCHECK(mcs_client_);
+-  mcs_client_->AddHeartbeatInterval(scope, interval_ms);
+ }
+ 
+ void GCMClientImpl::RemoveHeartbeatInterval(const std::string& scope) {
+   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+-  DCHECK(mcs_client_);
+-  mcs_client_->RemoveHeartbeatInterval(scope);
+ }
  
  void GCMClientImpl::StartCheckin() {
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -34,7 +64,7 @@
  }
  
  void GCMClientImpl::OnCheckinCompleted(
-@@ -683,24 +667,6 @@ void GCMClientImpl::SetGServicesSettings
+@@ -683,24 +659,6 @@ void GCMClientImpl::SetGServicesSettings
  
  void GCMClientImpl::SchedulePeriodicCheckin() {
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -59,3 +89,29 @@
  }
  
  base::TimeDelta GCMClientImpl::GetTimeToNextCheckin() const {
+@@ -1124,25 +1082,6 @@ void GCMClientImpl::Send(const std::stri
+                          const OutgoingMessage& message) {
+   DCHECK_EQ(state_, READY);
+   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+-
+-  mcs_proto::DataMessageStanza stanza;
+-  stanza.set_ttl(message.time_to_live);
+-  stanza.set_sent(clock_->Now().ToInternalValue() /
+-                  base::Time::kMicrosecondsPerSecond);
+-  stanza.set_id(message.id);
+-  stanza.set_from(kSendMessageFromValue);
+-  stanza.set_to(receiver_id);
+-  stanza.set_category(app_id);
+-
+-  for (auto iter = message.data.begin(); iter != message.data.end(); ++iter) {
+-    mcs_proto::AppData* app_data = stanza.add_app_data();
+-    app_data->set_key(iter->first);
+-    app_data->set_value(iter->second);
+-  }
+-
+-  MCSMessage mcs_message(stanza);
+-  DVLOG(1) << "MCS message size: " << mcs_message.size();
+-  mcs_client_->SendMessage(mcs_message);
+ }
+ 
+ std::string GCMClientImpl::GetStateString() const {
