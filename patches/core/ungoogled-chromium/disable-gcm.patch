@@ -2,7 +2,46 @@
 
 --- a/components/gcm_driver/gcm_client_impl.cc
 +++ b/components/gcm_driver/gcm_client_impl.cc
-@@ -431,6 +431,7 @@ void GCMClientImpl::StartGCM() {
+@@ -296,38 +296,6 @@ void GCMClientImpl::Initialize(
+ }
+ 
+ void GCMClientImpl::Start(StartMode start_mode) {
+-  DCHECK_NE(UNINITIALIZED, state_);
+-  DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
+-
+-  if (state_ == LOADED) {
+-    // Start the GCM if not yet.
+-    if (start_mode == IMMEDIATE_START) {
+-      // Give up the scheduling to wipe out the store since now some one starts
+-      // to use GCM.
+-      destroying_gcm_store_ptr_factory_.InvalidateWeakPtrs();
+-
+-      StartGCM();
+-    }
+-    return;
+-  }
+-
+-  // The delay start behavior will be abandoned when Start has been called
+-  // once with IMMEDIATE_START behavior.
+-  if (start_mode == IMMEDIATE_START)
+-    start_mode_ = IMMEDIATE_START;
+-
+-  // Bail out if the loading is not started or completed.
+-  if (state_ != INITIALIZED)
+-    return;
+-
+-  // Once the loading is completed, the check-in will be initiated.
+-  // If we're in lazy start mode, don't create a new store since none is really
+-  // using GCM functionality yet.
+-  gcm_store_->Load((start_mode == IMMEDIATE_START) ? GCMStore::CREATE_IF_MISSING
+-                                                   : GCMStore::DO_NOT_CREATE,
+-                   base::BindOnce(&GCMClientImpl::OnLoadCompleted,
+-                                  weak_ptr_factory_.GetWeakPtr()));
+-  state_ = LOADING;
+ }
+ 
+ void GCMClientImpl::OnLoadCompleted(
+@@ -431,6 +399,7 @@ void GCMClientImpl::StartGCM() {
  
  void GCMClientImpl::InitializeMCSClient() {
    DCHECK(network_connection_tracker_);
@@ -10,7 +49,7 @@
    std::vector<GURL> endpoints;
    endpoints.push_back(gservices_settings_.GetMCSMainEndpoint());
    GURL fallback_endpoint = gservices_settings_.GetMCSFallbackEndpoint();
-@@ -482,8 +483,6 @@ void GCMClientImpl::OnReady(const std::v
+@@ -482,8 +451,6 @@ void GCMClientImpl::OnReady(const std::v
  void GCMClientImpl::StartMCSLogin() {
    DCHECK_EQ(READY, state_);
    DCHECK(device_checkin_info_.IsValid());
@@ -19,7 +58,7 @@
  }
  
  void GCMClientImpl::DestroyStoreWhenNotNeeded() {
-@@ -554,8 +553,6 @@ void GCMClientImpl::SetLastTokenFetchTim
+@@ -554,8 +521,6 @@ void GCMClientImpl::SetLastTokenFetchTim
  void GCMClientImpl::UpdateHeartbeatTimer(
      std::unique_ptr<base::RetainingOneShotTimer> timer) {
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -28,7 +67,7 @@
  }
  
  void GCMClientImpl::AddInstanceIDData(const std::string& app_id,
-@@ -598,35 +595,14 @@ void GCMClientImpl::GetInstanceIDData(co
+@@ -598,35 +563,14 @@ void GCMClientImpl::GetInstanceIDData(co
  void GCMClientImpl::AddHeartbeatInterval(const std::string& scope,
                                           int interval_ms) {
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -64,7 +103,7 @@
  }
  
  void GCMClientImpl::OnCheckinCompleted(
-@@ -683,24 +659,6 @@ void GCMClientImpl::SetGServicesSettings
+@@ -683,24 +627,6 @@ void GCMClientImpl::SetGServicesSettings
  
  void GCMClientImpl::SchedulePeriodicCheckin() {
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -89,7 +128,7 @@
  }
  
  base::TimeDelta GCMClientImpl::GetTimeToNextCheckin() const {
-@@ -1124,25 +1082,6 @@ void GCMClientImpl::Send(const std::stri
+@@ -1124,25 +1050,6 @@ void GCMClientImpl::Send(const std::stri
                           const OutgoingMessage& message) {
    DCHECK_EQ(state_, READY);
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
