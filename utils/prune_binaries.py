@@ -28,6 +28,7 @@ CONTINGENT_PATHS = (
     'third_party/dawn/third_party/ninja/',
     'third_party/dawn/tools/golang/',
     'third_party/devtools-frontend/src/third_party/esbuild/',
+    'third_party/enterprise_companion/chromium_linux64/cipd/',
     'third_party/google-java-format/',
     'third_party/libei/cipd/',
     'third_party/ninja/',
