@@ -14,7 +14,7 @@ Hyperlink auditing (\<a ping>) | Disabled | NA
 Link Doctor | Disabled | NA
 Offer to save passwords | Disabled | chrome://settings/passwords
 Payment autofill | Disabled | chrome://settings/payments
-Preload pages | Disabled | chrome://settings/cookies
+Preload pages | Disabled | chrome://settings/performance
 Search suggestions | Disabled | chrome://settings/syncSetup
 Show bookmark bar | Enabled | chrome://settings/appearance
 WebRTC IP handling policy | Disable Non-Proxied UDP | `--webrtc-ip-handling-policy`
