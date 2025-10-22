@@ -66,8 +66,8 @@ PRUNING_EXCLUDE_PATTERNS = [
     'third_party/node/node_modules/@rollup/wasm-node/dist/wasm-node/bindings_wasm_bg.wasm',
     # Exclusion for performance tracing
     'third_party/perfetto/src/trace_processor/importers/proto/atoms.descriptor',
-    # Exclusion for jiff
-    'third_party/rust/chromium_crates_io/vendor/jiff-tzdb-v0_1/concatenated-zoneinfo.dat',
+    # Exclusion for zoneinfo64
+    'third_party/rust/chromium_crates_io/vendor/zoneinfo64-v0_2/src/data/zoneinfo64.res',
     # Exclusions for safe file extensions
     '*.avif',
     '*.ttf',
