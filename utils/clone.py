@@ -189,9 +189,10 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     get_logger().info('Generating: DAWN_VERSION')
     run([
         sys.executable,
-        str(args.output / 'build' / 'util' / 'lastchange.py'), '-s',
+        str(args.output / 'build' / 'util' / 'lastchange.py'), '-m', 'DAWN_COMMIT_HASH', '-s',
         str(args.output / 'third_party' / 'dawn'), '--revision',
-        str(args.output / 'gpu' / 'webgpu' / 'DAWN_VERSION')
+        str(args.output / 'gpu' / 'webgpu' / 'DAWN_VERSION'), '--header',
+        str(args.output / 'gpu' / 'webgpu' / 'dawn_commit_hash.h')
     ],
         check=True)
 
