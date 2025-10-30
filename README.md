@@ -107,6 +107,7 @@ ungoogled-chromium is available in the following **software repositories**:
 * [OpenMandriva](https://openmandriva.org/) includes ungoogled-chromium as its main browser. The `chromium` package includes all ungoogling patches.
 * macOS: Available in [Homebrew](https://brew.sh/) as [`ungoogled-chromium`](https://formulae.brew.sh/cask/ungoogled-chromium). Just run `brew install --cask ungoogled-chromium`. Chromium will appear in your `/Applications` directory.
 * FreeBSD: Available in pkg as [`www/ungoogled-chromium`](https://www.freshports.org/www/ungoogled-chromium/).
+* [openSUSE](https://www.opensuse.org/): Available as [`ungoogled-chromium`](https://software.opensuse.org//download.html?project=network%3Achromium&package=ungoogled-chromium). 
 
 If your GNU/Linux distribution is not listed, there are distro-independent builds available via the following **package managers**:
 
