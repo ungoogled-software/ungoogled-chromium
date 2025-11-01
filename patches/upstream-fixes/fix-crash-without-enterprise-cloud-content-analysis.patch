@@ -1,0 +1,79 @@
+From ad7a79a81bde832c4c3e1ebac56c5072c5e23fbf Mon Sep 17 00:00:00 2001
+From: jj <jj@imput.net>
+Date: Sat, 01 Nov 2025 15:28:33 +0100
+Subject: [PATCH] Fix failing CHECK on builds with enterprise_cloud_content_analysis=false
+
+Adds additional compile guards to prevent a failing CHECK when Chromium
+is built with enterprise_cloud_content_analysis=false, which causes
+connectors_service_ to not be initialized.
+
+Bug: 456770303
+Change-Id: Iae2978f1faa463c318a2c0cf7c131746c5a399de
+---
+
+--- a/chrome/browser/enterprise/signals/profile_signals_collector.cc
++++ b/chrome/browser/enterprise/signals/profile_signals_collector.cc
+@@ -22,7 +22,10 @@
+ #include "components/policy/core/common/cloud/cloud_policy_manager.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/version_info/version_info.h"
++
++#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) || BUILDFLAG(IS_ANDROID)
+ #include "chrome/browser/enterprise/connectors/connectors_service.h"
++#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) || BUILDFLAG(IS_ANDROID)
+ 
+ namespace device_signals {
+ 
+@@ -52,7 +55,11 @@ ProfileSignalsCollector::ProfileSignalsC
+ #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) || BUILDFLAG(IS_ANDROID)
+       profile_id_service_(
+           enterprise::ProfileIdServiceFactory::GetForProfile(profile)) {
++
++#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) || BUILDFLAG(IS_ANDROID)
+   CHECK(connectors_service_);
++#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) || BUILDFLAG(IS_ANDROID)
++
+   CHECK(policy_blocklist_service_);
+   CHECK(profile_id_service_);
+ }
+@@ -79,6 +86,8 @@ void ProfileSignalsCollector::GetProfile
+   signal_response.site_isolation_enabled =
+       device_signals::GetSiteIsolationEnabled();
+   signal_response.profile_id = profile_id_service_->GetProfileId();
++
++#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) || BUILDFLAG(IS_ANDROID)
+   signal_response.realtime_url_check_mode =
+       connectors_service_->GetAppliedRealTimeUrlCheck();
+   signal_response.security_event_providers =
+@@ -97,6 +106,7 @@ void ProfileSignalsCollector::GetProfile
+       connectors_service_->GetAnalysisServiceProviderNames(
+           enterprise_connectors::PRINT);
+ #endif  // !BUILDFLAG(IS_ANDROID)
++#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) || BUILDFLAG(IS_ANDROID)
+ 
+   response.profile_signals_response = std::move(signal_response);
+ 
+--- a/chrome/browser/enterprise/signals/profile_signals_collector.h
++++ b/chrome/browser/enterprise/signals/profile_signals_collector.h
+@@ -8,6 +8,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+ #include "components/device_signals/core/browser/base_signals_collector.h"
++#include "components/enterprise/buildflags/buildflags.h"
+ 
+ class PrefService;
+ class Profile;
+@@ -45,8 +46,12 @@ class ProfileSignalsCollector : public B
+   const raw_ptr<PolicyBlocklistService> policy_blocklist_service_;
+   const raw_ptr<PrefService> profile_prefs_;
+   const raw_ptr<policy::CloudPolicyManager> policy_manager_;
+-  const raw_ptr<enterprise_connectors::ConnectorsService> connectors_service_;
+   const raw_ptr<enterprise::ProfileIdService> profile_id_service_;
++
++#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) || BUILDFLAG(IS_ANDROID)
++  const raw_ptr<enterprise_connectors::ConnectorsService> connectors_service_;
++#endif
++
+   base::WeakPtrFactory<ProfileSignalsCollector> weak_factory_{this};
+ };
+ 
