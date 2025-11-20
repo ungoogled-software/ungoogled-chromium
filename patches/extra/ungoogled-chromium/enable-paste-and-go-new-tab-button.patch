@@ -1,34 +1,44 @@
 --- a/chrome/browser/ui/views/frame/tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/tab_strip_region_view.cc
-@@ -302,12 +302,10 @@ TabStripRegionView::TabStripRegionView(s
+@@ -301,6 +301,9 @@ TabStripRegionView::TabStripRegionView(s
+         l10n_util::GetStringUTF16(IDS_TOOLTIP_NEW_TAB));
      new_tab_button_->GetViewAccessibility().SetName(
          l10n_util::GetStringUTF16(IDS_ACCNAME_NEWTAB));
- 
--#if BUILDFLAG(IS_LINUX)
-       // The New Tab Button can be middle-clicked on Linux.
-       new_tab_button_->SetTriggerableEventFlags(
-           new_tab_button_->GetTriggerableEventFlags() |
-           ui::EF_MIDDLE_MOUSE_BUTTON);
--#endif
++    new_tab_button_->SetTriggerableEventFlags(
++        new_tab_button_->GetTriggerableEventFlags() |
++        ui::EF_MIDDLE_MOUSE_BUTTON);
    }
  
    reserved_grab_handle_space_ =
 --- a/chrome/browser/ui/views/tabs/tab_strip.cc
 +++ b/chrome/browser/ui/views/tabs/tab_strip.cc
-@@ -2274,8 +2274,6 @@ void TabStrip::NewTabButtonPressed(const
- 
-     const ui::MouseEvent& mouse = static_cast<const ui::MouseEvent&>(event);
-     if (mouse.IsOnlyMiddleMouseButton()) {
--      if (ui::Clipboard::IsSupportedClipboardBuffer(
--              ui::ClipboardBuffer::kSelection)) {
-         ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
-         CHECK(clipboard)
-             << "Clipboard instance is not available, cannot proceed with "
-@@ -2286,7 +2284,6 @@ void TabStrip::NewTabButtonPressed(const
-         if (!clipboard_text.empty()) {
-           controller_->CreateNewTabWithLocation(clipboard_text);
-         }
--      }
-       return;
+@@ -83,6 +83,8 @@
+ #include "components/tab_groups/tab_group_id.h"
+ #include "components/tab_groups/tab_group_visual_data.h"
+ #include "components/tabs/public/split_tab_id.h"
++#include "ui/base/clipboard/clipboard.h"
++#include "ui/base/clipboard/clipboard_constants.h"
+ #include "ui/base/dragdrop/drag_drop_types.h"
+ #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
+ #include "ui/base/interaction/element_identifier.h"
+@@ -2255,6 +2257,20 @@ void TabStrip::NewTabButtonPressed(const
+     if (hover_card_controller_) {
+       hover_card_controller_->PreventImmediateReshow();
      }
++    const ui::MouseEvent& mouse = static_cast<const ui::MouseEvent&>(event);
++    if (mouse.IsOnlyMiddleMouseButton()) {
++      ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
++      CHECK(clipboard)
++          << "Clipboard instance is not available, cannot proceed with "
++             "middle mouse button action.";
++      std::u16string clipboard_text;
++      clipboard->ReadText(ui::ClipboardBuffer::kSelection,
++                          /* data_dst = */ nullptr, &clipboard_text);
++      if (!clipboard_text.empty()) {
++        controller_->CreateNewTabWithLocation(clipboard_text);
++      }
++      return;
++    }
    }
+   controller_->CreateNewTab(NewTabTypes::NEW_TAB_BUTTON);
+ }

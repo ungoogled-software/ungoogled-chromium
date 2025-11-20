@@ -1,6 +1,6 @@
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -3801,8 +3801,6 @@ static_library("browser") {
+@@ -3800,8 +3800,6 @@ static_library("browser") {
        "download/download_auto_open_policy_handler.cc",
        "download/download_auto_open_policy_handler.h",
        "download/download_commands.cc",
@@ -11,9 +11,9 @@
        "download/download_dir_util.cc",
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -393,10 +393,6 @@ void CreateAndAddChromeThrottlesForNavig
-   registry.AddThrottle(std::make_unique<PolicyBlocklistNavigationThrottle>(
-       registry, handle.GetWebContents()->GetBrowserContext()));
+@@ -405,10 +405,6 @@ void CreateAndAddChromeThrottlesForNavig
+           Profile::FromBrowserContext(context)),
+       SafeSearchFactory::GetForBrowserContext(context)));
  
 -  // Before setting up SSL error detection, configure SSLErrorHandler to invoke
 -  // the relevant extension API whenever an SSL interstitial is shown.
@@ -76,15 +76,15 @@
  }
 --- a/chrome/browser/extensions/api/downloads/downloads_api.cc
 +++ b/chrome/browser/extensions/api/downloads/downloads_api.cc
-@@ -36,7 +36,6 @@
- #include "chrome/browser/browser_process.h"
- #include "chrome/browser/download/download_core_service.h"
- #include "chrome/browser/download/download_core_service_factory.h"
+@@ -86,7 +86,6 @@
+ #endif
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
 -#include "chrome/browser/download/download_danger_prompt.h"
- #include "chrome/browser/download/download_file_icon_extractor.h"
  #include "chrome/browser/download/download_open_prompt.h"
- #include "chrome/browser/download/download_prefs.h"
-@@ -1382,9 +1381,6 @@ DownloadsAcceptDangerFunction::Downloads
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_window.h"
+@@ -1359,9 +1358,6 @@ DownloadsAcceptDangerFunction::Downloads
  
  DownloadsAcceptDangerFunction::~DownloadsAcceptDangerFunction() = default;
  
@@ -94,10 +94,10 @@
  ExtensionFunction::ResponseAction DownloadsAcceptDangerFunction::Run() {
    std::optional<downloads::AcceptDanger::Params> params =
        downloads::AcceptDanger::Params::Create(args());
-@@ -1434,44 +1430,7 @@ void DownloadsAcceptDangerFunction::Prom
-     return;
+@@ -1412,50 +1408,13 @@ void DownloadsAcceptDangerFunction::Prom
    }
    RecordApiFunctions(DownloadsFunctionName::kDownloadsFunctionAcceptDanger);
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
 -  // DownloadDangerPrompt displays a modal dialog using native widgets that the
 -  // user must either accept or cancel. It cannot be scripted.
 -  DownloadDangerPrompt* prompt = DownloadDangerPrompt::Create(
@@ -110,8 +110,13 @@
 -    on_prompt_created_ = nullptr;
 -  }
 -  // Function finishes in DangerPromptCallback().
--}
--
++  download_item->ValidateDangerousDownload();
+ #else
+   NOTIMPLEMENTED();
+   Respond(Error("DownloadDangerPrompt not implemented"));
+ #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+ }
+ 
 -void DownloadsAcceptDangerFunction::DangerPromptCallback(
 -    int download_id,
 -    DownloadDangerPrompt::Action action) {
@@ -136,10 +141,11 @@
 -      break;
 -  }
 -  Respond(NoArguments());
-+  download_item->ValidateDangerousDownload();
- }
- 
+-}
+-
  DownloadsShowFunction::DownloadsShowFunction() = default;
+ 
+ DownloadsShowFunction::~DownloadsShowFunction() = default;
 --- a/chrome/browser/extensions/api/downloads/downloads_api.h
 +++ b/chrome/browser/extensions/api/downloads/downloads_api.h
 @@ -13,7 +13,6 @@
@@ -150,7 +156,7 @@
  #include "chrome/common/extensions/api/downloads.h"
  #include "components/download/content/public/all_download_item_notifier.h"
  #include "components/download/public/common/download_path_reservation_tracker.h"
-@@ -201,13 +200,6 @@ class DownloadsRemoveFileFunction : publ
+@@ -170,13 +169,6 @@ class DownloadsRemoveFileFunction : publ
  
  class DownloadsAcceptDangerFunction : public ExtensionFunction {
   public:
@@ -164,7 +170,7 @@
    DECLARE_EXTENSION_FUNCTION("downloads.acceptDanger", DOWNLOADS_ACCEPTDANGER)
    DownloadsAcceptDangerFunction();
  
-@@ -219,13 +211,10 @@ class DownloadsAcceptDangerFunction : pu
+@@ -188,13 +180,10 @@ class DownloadsAcceptDangerFunction : pu
  
   protected:
    ~DownloadsAcceptDangerFunction() override;
@@ -253,7 +259,7 @@
  
    if (enable_extensions) {
      deps += [ "//chrome/browser/ui/web_applications" ]
-@@ -614,6 +616,7 @@ static_library("advanced_protection") {
+@@ -616,6 +618,7 @@ static_library("advanced_protection") {
  }
  
  source_set("metrics_collector") {
@@ -261,7 +267,7 @@
    sources = [
      "safe_browsing_metrics_collector_factory.cc",
      "safe_browsing_metrics_collector_factory.h",
-@@ -633,6 +636,7 @@ source_set("metrics_collector") {
+@@ -635,6 +638,7 @@ source_set("metrics_collector") {
      "//components/safe_browsing/core/common:safe_browsing_prefs",
      "//content/public/browser",
    ]
