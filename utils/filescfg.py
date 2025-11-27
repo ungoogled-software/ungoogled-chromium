@@ -70,7 +70,7 @@ def _get_archive_writer(output_path, timestamp=None):
                 info = zipfile.ZipInfo.from_file(in_path, arc_path)
                 info.date_time = zip_date_time
                 with open(in_path, 'rb') as in_file:
-                    output_archive.writestr(info, in_file.read())
+                    output_archive.writestr(info, in_file.read(), zipfile.ZIP_DEFLATED, -1)
             else:
                 output_archive.write(in_path, arc_path)
 
