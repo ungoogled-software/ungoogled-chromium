@@ -8,6 +8,8 @@ import argparse
 import enum
 import logging
 import platform
+import requests
+import json
 from pathlib import Path
 
 # Constants
@@ -96,13 +98,16 @@ def set_logging_level(logging_level):
     return logger
 
 
-def get_running_platform():
+def get_running_platform(mode="enum"):
     """
     Returns a PlatformEnum value indicating the platform that utils is running on.
 
     NOTE: Platform detection should only be used when no cross-platform alternative is available.
     """
     uname = platform.uname()
+    # check if mode is `native`. if yes, return the literal name
+    if mode == "native":
+        return uname.system
     # detect native python and WSL
     if uname.system == 'Windows' or 'Microsoft' in uname.release:
         return PlatformEnum.WINDOWS
@@ -110,9 +115,26 @@ def get_running_platform():
     return PlatformEnum.UNIX
 
 
-def get_chromium_version():
-    """Returns the Chromium version."""
-    return (Path(__file__).parent.parent / 'chromium_version.txt').read_text().strip()
+def get_chromium_version(channel="stable"):
+    """Returns the latest Chromium version."""
+    runningPlatform = get_running_platform("native")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    payload = {
+        "channel": channel,
+        "platform": runningPlatform
+    }
+    request = requests.get("https://chromiumdash.appspot.com/fetch_releases", headers=headers, params=payload)
+    if request.status_code == 200:
+        # If request succeeded, return latest version available
+        versions = json.loads(request.content)
+        version = versions[0]["version"]
+        return version
+    else:
+        # Use `chromium_version.txt` fetch as a fallback.
+        return (Path(__file__).parent.parent / 'chromium_version.txt').read_text().strip()
 
 
 def parse_series(series_path):

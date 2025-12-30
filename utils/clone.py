@@ -49,7 +49,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     """Clones, downloads, and generates the required sources"""
     get_logger().info('Setting up cloning environment')
     iswin = sys.platform.startswith('win')
-    chromium_version = get_chromium_version()
+    chromium_version = get_chromium_version(args.version)
     ucstaging = args.output / 'uc_staging'
     dtpath = ucstaging / 'depot_tools'
     gsuver = '5.30'
@@ -68,7 +68,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     environ["PYTHONWARNINGS"] = "ignore::SyntaxWarning"
 
     # depth=2 since generating LASTCHANGE and gpu_lists_version.h require at least two commits
-    get_logger().info('Cloning chromium source: %s', chromium_version)
+    get_logger().info(f"Cloning Chromium source ({args.version}): {chromium_version}")
     if (args.output / '.git').exists():
         run(['git', 'fetch', 'origin', 'tag', chromium_version, '--depth=2'],
             cwd=args.output,
@@ -275,6 +275,10 @@ def main():
                         '--sysroot',
                         choices=('amd64', 'arm64', 'armhf', 'i386', 'mips64el', 'mipsel'),
                         help='Download a linux sysroot for the given architecture')
+    parser.add_argument('--version',
+                        default='stable',
+                        choices=('stable', 'dev', 'beta', 'canary', 'custom'),
+                        help='Selects specific development branch of Chromium. Default: %(default)s')
     add_common_params(parser)
     args = parser.parse_args()
     clone(args)
