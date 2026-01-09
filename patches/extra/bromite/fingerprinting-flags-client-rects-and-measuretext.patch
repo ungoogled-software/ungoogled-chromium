@@ -9,7 +9,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2596,6 +2596,7 @@ static_library("browser") {
+@@ -2583,6 +2583,7 @@ static_library("browser") {
      "//third_party/libyuv",
      "//third_party/metrics_proto",
      "//third_party/re2",
@@ -44,7 +44,7 @@
  #endif  // CHROME_BROWSER_BROMITE_FLAG_ENTRIES_H_
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
-@@ -299,6 +299,7 @@ source_set("browser") {
+@@ -297,6 +297,7 @@ source_set("browser") {
      "//third_party/re2",
      "//third_party/snappy",
      "//third_party/sqlite",
@@ -62,7 +62,7 @@
  #include "components/viz/common/switches.h"
  #include "components/viz/host/gpu_client.h"
  #include "components/viz/host/host_frame_sink_manager.h"
-@@ -3698,6 +3699,8 @@ void RenderProcessHostImpl::PropagateBro
+@@ -3726,6 +3727,8 @@ void RenderProcessHostImpl::PropagateBro
        switches::kEnableWebGLImageChromium,
        switches::kEnableWebGPUDeveloperFeatures,
        switches::kFileUrlPathAlias,
@@ -124,7 +124,7 @@
  #include "base/task/single_thread_task_runner.h"
  #include "base/time/time.h"
  #include "base/trace_event/trace_event.h"
-@@ -1089,6 +1090,11 @@ Document::Document(const DocumentInit& i
+@@ -1093,6 +1094,11 @@ Document::Document(const DocumentInit& i
    TRACE_EVENT_WITH_FLOW0("blink", "Document::Document", TRACE_ID_LOCAL(this),
                           TRACE_EVENT_FLAG_FLOW_OUT);
    DCHECK(agent_);
@@ -153,7 +153,7 @@
      selector_query_cache_ = MakeGarbageCollected<SelectorQueryCache>();
 --- a/third_party/blink/renderer/core/dom/document.h
 +++ b/third_party/blink/renderer/core/dom/document.h
-@@ -574,6 +574,10 @@ class CORE_EXPORT Document : public Cont
+@@ -597,6 +597,10 @@ class CORE_EXPORT Document : public Cont
      has_xml_declaration_ = has_xml_declaration ? 1 : 0;
    }
  
@@ -164,7 +164,7 @@
    V8VisibilityState visibilityState() const;
    String visibilityStateAsString() const;
    bool IsPageVisible() const;
-@@ -2810,6 +2814,9 @@ class CORE_EXPORT Document : public Cont
+@@ -3055,6 +3059,9 @@ class CORE_EXPORT Document : public Cont
  
    base::ElapsedTimer start_time_;
  
@@ -176,7 +176,7 @@
    // - ScriptSchedulingType::kInOrder
 --- a/third_party/blink/renderer/core/dom/element.cc
 +++ b/third_party/blink/renderer/core/dom/element.cc
-@@ -3195,6 +3195,9 @@ Vector<gfx::RectF> Element::GetClientRec
+@@ -3257,6 +3257,9 @@ Vector<gfx::RectF> Element::GetClientRec
    }
    Vector<gfx::RectF> result;
    for (auto& quad : quads) {
@@ -186,7 +186,7 @@
      result.emplace_back(quad.BoundingBox());
    }
    return result;
-@@ -3224,6 +3227,9 @@ gfx::RectF Element::GetBoundingClientRec
+@@ -3286,6 +3289,9 @@ gfx::RectF Element::GetBoundingClientRec
    DCHECK(element_layout_object);
    GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
                                                     *element_layout_object);
@@ -198,7 +198,7 @@
  
 --- a/third_party/blink/renderer/core/dom/range.cc
 +++ b/third_party/blink/renderer/core/dom/range.cc
-@@ -1655,6 +1655,12 @@ DOMRectList* Range::getClientRects() con
+@@ -1654,6 +1654,12 @@ DOMRectList* Range::getClientRects() con
    Vector<gfx::QuadF> quads;
    GetBorderAndTextQuads(quads);
  
@@ -211,7 +211,7 @@
    return MakeGarbageCollected<DOMRectList>(quads);
  }
  
-@@ -1662,7 +1668,11 @@ DOMRect* Range::getBoundingClientRect()
+@@ -1661,7 +1667,11 @@ DOMRect* Range::getBoundingClientRect()
    // TODO(crbug.com/1499981): This should be removed once synchronized scrolling
    // impact is understood.
    SyncScrollAttemptHeuristic::DidAccessScrollOffset();
@@ -264,7 +264,7 @@
                const TextDirection& direction,
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
-@@ -107,6 +107,9 @@
+@@ -103,6 +103,9 @@
  // https://github.com/include-what-you-use/include-what-you-use/issues/1122
  // IWYU pragma: no_include "base/numerics/clamped_math.h"
  
@@ -274,14 +274,14 @@
  namespace blink {
  
  class MemoryManagedPaintCanvas;
-@@ -1233,9 +1236,22 @@ TextMetrics* BaseRenderingContext2D::mea
+@@ -1170,9 +1173,22 @@ TextMetrics* BaseRenderingContext2D::mea
    TextDirection direction =
        ToTextDirection(state.GetDirection(), host, computed_style);
  
 -  return MakeGarbageCollected<TextMetrics>(
 +  TextMetrics* text_metrics = MakeGarbageCollected<TextMetrics>(
-       font, direction, state.GetTextBaseline().AsEnum(),
-       state.GetTextAlign().AsEnum(), text, host->GetPlainTextPainter());
+       font, direction, state.GetTextBaseline(), state.GetTextAlign(), text,
+       host->GetPlainTextPainter());
 +
 +  // Scale text metrics if enabled
 +  if (RuntimeEnabledFeatures::FingerprintingCanvasMeasureTextNoiseEnabled()) {
@@ -300,7 +300,7 @@
  String BaseRenderingContext2D::lang() const {
 --- a/third_party/blink/renderer/platform/BUILD.gn
 +++ b/third_party/blink/renderer/platform/BUILD.gn
-@@ -1811,6 +1811,7 @@ component("platform") {
+@@ -1810,6 +1810,7 @@ component("platform") {
      "//components/paint_preview/common",
      "//components/search_engines:search_engine_utils",
      "//components/translate/core/language_detection",
@@ -335,7 +335,7 @@
  #include "third_party/skia/include/core/SkImage.h"
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -2441,6 +2441,12 @@
+@@ -2511,6 +2511,12 @@
        status: "stable",
      },
      {
