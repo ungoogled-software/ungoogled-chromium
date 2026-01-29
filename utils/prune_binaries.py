@@ -28,6 +28,7 @@ CONTINGENT_PATHS = (
     'third_party/dawn/third_party/ninja/',
     'third_party/dawn/tools/golang/',
     'third_party/devtools-frontend/src/third_party/esbuild/',
+    'third_party/devtools-frontend/src/third_party/rollup_libs/',
     'third_party/enterprise_companion/chromium_linux64/cipd/',
     'third_party/google-java-format/',
     'third_party/libei/cipd/',
@@ -59,6 +60,7 @@ CONTINGENT_PATHS = (
     'build/linux/debian_bullseye_mipsel-sysroot/',
     # other
     'third_party/depot_tools/external_bin/',
+    'third_party/devtools-frontend/src/node_modules/@rollup/rollup-linux-x64-gnu/',
     # Match removals for the tarball:
     # https://source.chromium.org/chromium/chromium/tools/build/+/main:recipes/recipe_modules/chromium/resources/export_tarball.py
     # nonessential

@@ -1,6 +1,6 @@
---- a/chrome/browser/ui/views/frame/tab_strip_region_view.cc
-+++ b/chrome/browser/ui/views/frame/tab_strip_region_view.cc
-@@ -289,6 +289,9 @@ TabStripRegionView::TabStripRegionView(s
+--- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
+@@ -293,6 +293,9 @@ HorizontalTabStripRegionView::Horizontal
          l10n_util::GetStringUTF16(IDS_TOOLTIP_NEW_TAB));
      new_tab_button_->GetViewAccessibility().SetName(
          l10n_util::GetStringUTF16(IDS_ACCNAME_NEWTAB));
@@ -10,18 +10,66 @@
    }
  
    reserved_grab_handle_space_ =
+--- a/chrome/browser/ui/views/tabs/browser_tab_strip_controller.cc
++++ b/chrome/browser/ui/views/tabs/browser_tab_strip_controller.cc
+@@ -20,6 +20,7 @@
+ #include "base/strings/string_util.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
++#include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/favicon/favicon_utils.h"
+ #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+@@ -62,6 +63,8 @@
+ #include "chrome/grit/generated_resources.h"
+ #include "components/feature_engagement/public/feature_constants.h"
+ #include "components/feature_engagement/public/tracker.h"
++#include "components/omnibox/browser/autocomplete_classifier.h"
++#include "components/omnibox/browser/autocomplete_match.h"
+ #include "components/performance_manager/public/user_tuning/prefs.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/saved_tab_groups/public/features.h"
+@@ -530,6 +533,18 @@ void BrowserTabStripController::CreateNe
+   chrome::NewTab(browser_view_->browser(), context);
+ }
+ 
++void BrowserTabStripController::CreateNewTabWithLocation(
++    const std::u16string& location) {
++  // Use autocomplete to clean up the text, going so far as to turn it into
++  // a search query if necessary.
++  AutocompleteMatch match;
++  AutocompleteClassifierFactory::GetForProfile(GetBrowserWindowInterface()->GetProfile())
++      ->Classify(location, false, false, metrics::OmniboxEventProto::BLANK, &match, nullptr);
++  if (match.destination_url.is_valid()) {
++    model_->delegate()->AddTabAt(match.destination_url, -1, true);
++  }
++}
++
+ void BrowserTabStripController::OnStartedDragging() {
+   if (!immersive_reveal_lock_.get()) {
+     // The top-of-window views should be revealed while the user is dragging
+--- a/chrome/browser/ui/views/tabs/browser_tab_strip_controller.h
++++ b/chrome/browser/ui/views/tabs/browser_tab_strip_controller.h
+@@ -91,6 +91,7 @@ class BrowserTabStripController : public
+   int HasAvailableDragActions() const override;
+   void OnDropIndexUpdate(std::optional<int> index, bool drop_before) override;
+   void CreateNewTab(NewTabTypes context) override;
++  void CreateNewTabWithLocation(const std::u16string& loc) override;
+   void OnStartedDragging() override;
+   void OnStoppedDragging() override;
+   void OnKeyboardFocusedTabChanged(std::optional<int> index) override;
 --- a/chrome/browser/ui/views/tabs/tab_strip.cc
 +++ b/chrome/browser/ui/views/tabs/tab_strip.cc
-@@ -83,6 +83,8 @@
- #include "components/tab_groups/tab_group_id.h"
+@@ -86,6 +86,8 @@
  #include "components/tab_groups/tab_group_visual_data.h"
  #include "components/tabs/public/split_tab_id.h"
+ #include "content/public/browser/web_contents.h"
 +#include "ui/base/clipboard/clipboard.h"
 +#include "ui/base/clipboard/clipboard_constants.h"
  #include "ui/base/dragdrop/drag_drop_types.h"
  #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
  #include "ui/base/interaction/element_identifier.h"
-@@ -2242,6 +2244,20 @@ void TabStrip::NewTabButtonPressed(const
+@@ -2222,6 +2224,20 @@ void TabStrip::NewTabButtonPressed(const
      if (hover_card_controller_) {
        hover_card_controller_->PreventImmediateReshow();
      }
@@ -42,3 +90,17 @@
    }
    controller_->CreateNewTab(NewTabTypes::kNewTabButton);
  }
+--- a/chrome/browser/ui/views/tabs/tab_strip_controller.h
++++ b/chrome/browser/ui/views/tabs/tab_strip_controller.h
+@@ -156,6 +156,11 @@ class TabStripController {
+   // Creates the new tab.
+   virtual void CreateNewTab(NewTabTypes context) = 0;
+ 
++  // Creates a new tab, and loads `location` in the tab. If `location` is a
++  // valid URL, then simply loads the URL, otherwise this can open a
++  // search-result page for `location`.
++  virtual void CreateNewTabWithLocation(const std::u16string& location) = 0;
++
+   // Notifies controller that the user started dragging this tabstrip's tabs.
+   virtual void OnStartedDragging() = 0;
+ 

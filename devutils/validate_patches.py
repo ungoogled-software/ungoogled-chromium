@@ -97,7 +97,7 @@ class _NotInRepoError(RuntimeError):
 
 class _DepsNodeVisitor(ast.NodeVisitor):
     _valid_syntax_types = (ast.mod, ast.expr_context, ast.boolop, ast.Assign, ast.Add, ast.Name,
-                           ast.Dict, ast.Str, ast.NameConstant, ast.List, ast.BinOp)
+                           ast.Dict, ast.Constant, ast.List, ast.BinOp)
     _allowed_callables = ('Var', )
 
     def visit_Call(self, node): #pylint: disable=invalid-name

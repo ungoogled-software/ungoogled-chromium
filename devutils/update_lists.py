@@ -62,7 +62,6 @@ PRUNING_EXCLUDE_PATTERNS = [
     'third_party/icu/android/icudtl.dat',
     'third_party/icu/common/icudtb.dat',
     # Exclusion for rollup v4.0+
-    'third_party/devtools-frontend/src/node_modules/@rollup/wasm-node/dist/wasm-node/bindings_wasm_bg.wasm',
     'third_party/node/node_modules/@rollup/wasm-node/dist/wasm-node/bindings_wasm_bg.wasm',
     # Exclusion for performance tracing
     'third_party/perfetto/src/trace_processor/importers/proto/atoms.descriptor',

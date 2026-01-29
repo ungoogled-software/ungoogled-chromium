@@ -386,7 +386,7 @@
 -          switches::kGoogleBaseURL));
 -  if (current_switch_value != *switch_value) {
 -    *switch_value = current_switch_value;
--    *base_url = url_formatter::FixupURL(*switch_value, std::string());
+-    *base_url = url_formatter::FixupURL(*switch_value);
 -    if (!base_url->is_valid() || base_url->has_query() || base_url->has_ref()) {
 -      *base_url = GURL();
 -    }
@@ -570,7 +570,7 @@
  bool IsProbablyGoogleSearchUrl(const GURL& url) {
 --- a/components/search_engines/template_url.cc
 +++ b/components/search_engines/template_url.cc
-@@ -624,10 +624,7 @@ std::u16string TemplateURLRef::SearchTer
+@@ -625,10 +625,7 @@ std::u16string TemplateURLRef::SearchTer
  bool TemplateURLRef::HasGoogleBaseURLs(
      const SearchTermsData& search_terms_data) const {
    ParseIfNecessary(search_terms_data);
@@ -689,14 +689,29 @@
  }  // namespace variations
 --- a/content/browser/preloading/prefetch/prefetch_container.cc
 +++ b/content/browser/preloading/prefetch/prefetch_container.cc
-@@ -728,7 +728,7 @@ void PrefetchContainer::AddRedirectHop(c
-   // prefetch, including browsing topics and client hints.
-   // TODO(crbug.com/441612842): Support User-Agent overrides.
-   net::HttpRequestHeaders updated_headers;
--  std::vector<std::string> headers_to_remove = {variations::kClientDataHeader};
-+  std::vector<std::string> headers_to_remove;
-   updated_headers.SetHeader(blink::kSecPurposeHeaderName,
-                             GetSecPurposeHeaderValue(redirect_info.new_url));
+@@ -860,23 +860,6 @@ void PrefetchContainer::UpdateResourceRe
+   resource_request_->referrer = GURL(redirect_info.new_referrer);
+   resource_request_->referrer_policy = redirect_info.new_referrer_policy;
+ 
+-  // Remove `variations::kClientDataHeader` from `resource_request_->headers`,
+-  // to keep the existing behavior. While `AddXClientDataHeader()` adds
+-  // `variations::kClientDataHeader` to `resource_request->cors_exempt_headers`,
+-  // it's also possible that `variations::kClientDataHeader` is added to
+-  // `resource_request_->headers` via `request().additional_headers()`.
+-  //
+-  // TODO(crbug.com/467177773): The processing of
+-  // `variations::kClientDataHeader` is separated from other headers, to keep
+-  // the behavior of `variations::kClientDataHeader` during the main fixes for
+-  // crbug.com/467177773. The behavior of `variations::kClientDataHeader` should
+-  // be fixed together with other related bugs, by e.g. restructuring
+-  // `variations::AppendVariationsHeader()` and plumbing the
+-  // `variations::kClientDataHeader` removal and modification to
+-  // `FollowRedirect()`.
+-  // TODO(crbug.com/454082776): Remove `variations::kClientDataHeader` from
+-  // `resource_request->cors_exempt_headers`.
+-  resource_request_->headers.RemoveHeader(variations::kClientDataHeader);
+   AddXClientDataHeader(*resource_request_.get());
+ }
  
 --- a/net/base/url_util.cc
 +++ b/net/base/url_util.cc

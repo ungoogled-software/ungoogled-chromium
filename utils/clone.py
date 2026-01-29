@@ -52,7 +52,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     chromium_version = get_chromium_version()
     ucstaging = args.output / 'uc_staging'
     dtpath = ucstaging / 'depot_tools'
-    gsuver = '5.30'
+    gsuver = '5.35'
     gsupath = dtpath / 'external_bin' / 'gsutil' / f'gsutil_{gsuver}' / 'gsutil'
     gnpath = ucstaging / 'gn'
     environ['GCLIENT_FILE'] = str(ucstaging / '.gclient')
@@ -130,13 +130,12 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     run(['git', 'submodule', 'update', '--init', '--recursive', '--depth=1', '-q'],
         cwd=gsupath,
         check=True)
-    # apitools needs to be set to a newer commit for newer versions of Python
-    run(['git', 'fetch', 'origin', 'f0dfa4e3fcb510d7d27389e011198d9f176026e2'],
-        cwd=(gsupath / 'third_party' / 'apitools'),
-        check=True)
-    run(['git', 'reset', '--hard', 'FETCH_HEAD'],
-        cwd=(gsupath / 'third_party' / 'apitools'),
-        check=True)
+    # Apply changes to gsutil
+    run(['git', 'apply'],
+        input=Path(__file__).with_name('gsutil.patch').read_text(encoding=ENCODING),
+        cwd=gsupath,
+        check=True,
+        universal_newlines=True)
     (gsupath / 'install.flag').write_text('This flag file is dropped by clone.py')
 
     # gn requires full history to be able to generate last_commit_position.h

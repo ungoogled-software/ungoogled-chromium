@@ -8,7 +8,7 @@
  #include "base/containers/adapters.h"
  #include "base/containers/flat_map.h"
  #include "base/containers/span.h"
-@@ -1290,6 +1291,10 @@ void TabStripModel::CloseAllTabsInGroupI
+@@ -1304,6 +1305,10 @@ void TabStripModel::CloseAllTabsInGroupI
  
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
    CHECK(ContainsIndex(index));
@@ -19,21 +19,21 @@
    CloseTabs({GetWebContentsAt(index)}, close_types);
  }
  
-@@ -3159,9 +3164,13 @@ TabStripModel::GetGroupsDestroyedFromRem
- void TabStripModel::ExecuteCloseTabsByIndices(
-     base::RepeatingCallback<std::vector<int>()> get_indices_to_close,
+@@ -3242,9 +3247,13 @@ void TabStripModel::ExecuteCloseTabs(
+     base::RepeatingCallback<std::vector<tabs::TabInterface*>()>
+         get_tabs_to_close,
      uint32_t close_types) {
 -  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
-   const std::vector<int> indices_to_close =
-       std::move(get_indices_to_close).Run();
+   const std::vector<tabs::TabInterface*> tabs_to_close =
+       std::move(get_tabs_to_close).Run();
 +  if (base::CommandLine::ForCurrentProcess()->
 +          GetSwitchValueASCII("close-window-with-last-tab") == "never" &&
-+          static_cast<int>(indices_to_close.size()) == count())
++          static_cast<int>(tabs_to_close.size()) == count())
 +      delegate()->AddTabAt(GURL(), -1, true);
 +  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
-   CloseTabs(GetWebContentsesByIndices(indices_to_close), close_types);
- }
- 
+   std::vector<content::WebContents*> web_contents_to_close;
+   for (tabs::TabInterface* t : tabs_to_close) {
+     web_contents_to_close.push_back(t->GetContents());
 --- a/chrome/browser/ungoogled_flag_choices.h
 +++ b/chrome/browser/ungoogled_flag_choices.h
 @@ -55,4 +55,10 @@ const FeatureEntry::Choice kOmniboxAutoc
