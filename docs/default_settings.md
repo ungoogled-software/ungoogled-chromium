@@ -17,4 +17,5 @@ Payment autofill | Disabled | chrome://settings/payments
 Preload pages | Disabled | chrome://settings/performance
 Search suggestions | Disabled | chrome://settings/syncSetup
 Show bookmark bar | Enabled | chrome://settings/appearance
+Third-party sign-in | Disabled | `--enable-features=FedCm`
 WebRTC IP handling policy | Disable Non-Proxied UDP | `--webrtc-ip-handling-policy`
