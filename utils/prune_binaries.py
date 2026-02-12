@@ -21,6 +21,8 @@ CONTINGENT_PATHS = (
     # checkout_configuration != "small"
     'third_party/jetstream/',
     'third_party/speedometer/',
+    # generate_location_tags = true
+    'testing/location_tags.json',
     # CIPD sources
     'buildtools/linux64/',
     'components/variations/test_data/cipd/',
