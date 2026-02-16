@@ -101,6 +101,7 @@ Other platforms are discussed and tracked in this repository's Issue Tracker. Le
 ungoogled-chromium is available in the following **software repositories**:
 
 * Arch: Available in the AUR, [see instructions in ungoogled-chromium-archlinux](https://github.com/ungoogled-software/ungoogled-chromium-archlinux)
+* Artix: Available in the [omniverse repository](https://wiki.artixlinux.org/Main/Repositories#Omniverse)
 * Debian: Available in OBS, find your [distribution specific instructions](https://github.com/ungoogled-software/ungoogled-chromium-debian) in the Installing section
 * Ubuntu: Available in the [XtraDeb PPA](https://xtradeb.net/) as [ungoogled-chromium](https://xtradeb.net/apps/ungoogled-chromium/).
 * Fedora: Available in [COPR](https://copr.fedorainfracloud.org/coprs/) as [`wojnilowicz/ungoogled-chromium`](https://copr.fedorainfracloud.org/coprs/wojnilowicz/ungoogled-chromium/). Also available in [RPM Fusion](https://rpmfusion.org/Configuration) as `chromium-browser-privacy` (outdated).
