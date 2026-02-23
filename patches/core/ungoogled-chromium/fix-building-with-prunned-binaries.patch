@@ -267,6 +267,100 @@
  
    RegisterCommerceHeuristicsComponent(cus);
  
+--- a/chrome/browser/contextual_cueing/contextual_cueing_helper.cc
++++ b/chrome/browser/contextual_cueing/contextual_cueing_helper.cc
+@@ -382,35 +382,6 @@ void ContextualCueingHelper::OnCueingDec
+     return;
+   }
+ 
+-  // Handle side panel auto-open case: bypass nudge and open panel directly.
+-  // If auto-open fails or is disabled, falls through to standard nudge.
+-  const bool should_open_side_panel =
+-      decision_result->auto_open_eligible &&
+-      base::FeatureList::IsEnabled(kEnableAutoOpenGlicSidePanel);
+-
+-  if (should_open_side_panel) {
+-    auto* tab_interface = tabs::TabInterface::GetFromContents(web_contents());
+-    auto* browser_window_interface = tab_interface->GetBrowserWindowInterface();
+-    Profile* profile =
+-        Profile::FromBrowserContext(web_contents()->GetBrowserContext());
+-    auto* glic_service =
+-        glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile);
+-    if (glic_service && browser_window_interface) {
+-      const bool auto_send_prompt =
+-          decision_result->auto_send_params.has_value() &&
+-          decision_result->auto_send_params->auto_send_eligible &&
+-          !prompt_suggestion.empty();
+-      glic_service->ToggleUI(
+-          browser_window_interface,
+-          /*prevent_close=*/true,
+-          glic::mojom::InvocationSource::kAutoOpenedByContextualCue,
+-          prompt_suggestion.empty() ? std::nullopt
+-                                    : std::make_optional(prompt_suggestion),
+-          auto_send_prompt);
+-      return;
+-    }
+-    // Fall through to nudge if side panel open fails.
+-  }
+ 
+   GetGlicNudgeController()->UpdateNudgeLabel(
+       web_contents(), cue_label,
+--- a/chrome/browser/extensions/api/pdf_viewer_private/BUILD.gn
++++ b/chrome/browser/extensions/api/pdf_viewer_private/BUILD.gn
+@@ -18,7 +18,6 @@ source_set("pdf_viewer_private") {
+ 
+   deps = [
+     "//base",
+-    "//chrome/browser/glic",
+     "//chrome/browser/pdf",
+     "//chrome/browser/pdf:pdf_pref_names",
+     "//chrome/browser/profiles:profile",
+@@ -48,8 +47,6 @@ source_set("browser_tests") {
+   # sources = [ "pdf_viewer_private_browsertest.cc" ]
+   deps = [
+     ":pdf_viewer_private",
+-    "//chrome/browser/glic",
+-    "//chrome/browser/glic/test_support",
+     "//chrome/test:test_support",
+     "//content/test:test_support",
+   ]
+--- a/chrome/browser/extensions/api/pdf_viewer_private/pdf_viewer_private_api.cc
++++ b/chrome/browser/extensions/api/pdf_viewer_private/pdf_viewer_private_api.cc
+@@ -12,9 +12,6 @@
+ #include "base/numerics/safe_conversions.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/values.h"
+-#include "chrome/browser/glic/public/glic_enabling.h"
+-#include "chrome/browser/glic/public/glic_keyed_service.h"
+-#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+ #include "chrome/browser/pdf/pdf_pref_names.h"
+ #include "chrome/browser/pdf/pdf_viewer_stream_manager.h"
+ #include "chrome/browser/profiles/profile.h"
+@@ -306,24 +303,7 @@ ExtensionFunction::ResponseAction PdfVie
+     return RespondNow(Error("No tab."));
+   }
+ 
+-  if (!glic::GlicEnabling::IsEnabledForProfile(
+-          Profile::FromBrowserContext(contents->GetBrowserContext()))) {
+     return RespondNow(Error("Glic is not enabled."));
+-  }
+-
+-  glic::GlicKeyedService* glic_service =
+-      glic::GlicKeyedServiceFactory::GetGlicKeyedService(
+-          contents->GetBrowserContext());
+-  CHECK(glic_service);
+-
+-  glic_service->ToggleUI(tab_interface->GetBrowserWindowInterface(),
+-                         /*prevent_close=*/true,
+-                         glic::mojom::InvocationSource::kPdfSummarizeButton,
+-                         /*prompt_suggestion=*/"summarize the pdf",
+-                         /*auto_send=*/true);
+-
+-  success = true;
+-  return RespondNow(NoArguments());
+ }
+ 
+ }  // namespace extensions
 --- a/chrome/browser/navigation_predictor/navigation_predictor.cc
 +++ b/chrome/browser/navigation_predictor/navigation_predictor.cc
 @@ -17,8 +17,6 @@
@@ -389,9 +483,19 @@
  }
  
  void PasswordChangeDelegateImpl::OnLoginStateCheckResult(
+--- a/chrome/browser/pdf/BUILD.gn
++++ b/chrome/browser/pdf/BUILD.gn
+@@ -32,7 +32,6 @@ source_set("pdf") {
+     "//build:chromeos_buildflags",
+     "//chrome/browser:browser_process",
+     "//chrome/browser:resources",
+-    "//chrome/browser/glic",
+     "//chrome/browser/pdf:pdf_pref_names",
+     "//chrome/browser/profiles:profile",
+     "//chrome/browser/resources/pdf:resources",
 --- a/chrome/browser/pdf/pdf_extension_util.cc
 +++ b/chrome/browser/pdf/pdf_extension_util.cc
-@@ -121,7 +121,6 @@ base::Value::Dict GetPdfViewerStrings()
+@@ -126,7 +126,6 @@ base::Value::Dict GetPdfViewerStrings()
        {"rotationStateLabel90", IDS_PDF_ROTATION_STATE_LABEL_90},
        {"rotationStateLabel180", IDS_PDF_ROTATION_STATE_LABEL_180},
        {"rotationStateLabel270", IDS_PDF_ROTATION_STATE_LABEL_270},
@@ -635,7 +739,7 @@
  
 --- a/chrome/browser/resources/pdf/pdf_viewer.html
 +++ b/chrome/browser/resources/pdf/pdf_viewer.html
-@@ -105,10 +105,6 @@ import {AnnotationMode} from './constant
+@@ -108,10 +108,6 @@ import {AnnotationMode} from './constant
        </cr-page-selector>
      ` : ''}
    </if>
@@ -683,9 +787,11 @@
  
  source_set("pdf") {
    sources = [
-@@ -16,7 +15,6 @@ source_set("pdf") {
+@@ -15,9 +14,7 @@ source_set("pdf") {
+   ]
    deps = [
      "//chrome/browser/download",
+-    "//chrome/browser/glic",
      "//chrome/browser/pdf",
 -    "//chrome/browser/screen_ai:screen_ai_install_state",
      "//chrome/browser/ui/tab_contents",
@@ -693,7 +799,46 @@
      "//chrome/common",
 --- a/chrome/browser/ui/pdf/chrome_pdf_document_helper_client.cc
 +++ b/chrome/browser/ui/pdf/chrome_pdf_document_helper_client.cc
-@@ -113,22 +113,3 @@ void ChromePDFDocumentHelperClient::SetP
+@@ -58,22 +58,6 @@ void MaybeHideSearchifyFeaturePromo(tabs
+   }
+ }
+ 
+-void LogGlicSummarizeMetrics(content::RenderFrameHost* render_frame_host) {
+-  content::WebContents* web_contents_to_use =
+-      GetWebContentsToUse(render_frame_host);
+-  if (!web_contents_to_use) {
+-    return;
+-  }
+-
+-  bool glic_enabled = glic::GlicEnabling::IsEnabledForProfile(
+-      Profile::FromBrowserContext(web_contents_to_use->GetBrowserContext()));
+-  base::UmaHistogramBoolean("PDF.GlicEnabled", glic_enabled);
+-  bool glic_summarize_button_enabled =
+-      pdf_extension_util::ShouldShowGlicSummarizeButton(
+-          web_contents_to_use->GetBrowserContext());
+-  base::UmaHistogramBoolean("PDF.GlicSummarizeButtonEnabled",
+-                            glic_summarize_button_enabled);
+-}
+ 
+ }  // namespace
+ 
+@@ -86,15 +70,6 @@ void ChromePDFDocumentHelperClient::OnDo
+   MaybeShowFeaturePromo(feature_engagement::kIPHPdfInkSignaturesFeature,
+                         GetWebContentsToUse(render_frame_host));
+ 
+-  auto* parent = render_frame_host->GetParent();
+-  bool is_pdf_viewer =
+-      parent && parent->GetLastCommittedURL().GetWithEmptyPath() ==
+-                    base::FilePath(ChromeContentClient::kPDFExtensionPluginPath)
+-                        .MaybeAsASCII();
+-
+-  if (is_pdf_viewer) {
+-    LogGlicSummarizeMetrics(render_frame_host);
+-  }
+ }
+ 
+ void ChromePDFDocumentHelperClient::UpdateContentRestrictions(
+@@ -146,22 +121,3 @@ void ChromePDFDocumentHelperClient::SetP
    }
  }
  
@@ -1011,7 +1156,7 @@
        "//services/service_manager/public/cpp",
        "//services/strings",
        "//services/test/echo/public/mojom",
-@@ -7297,9 +7292,6 @@ test("unit_tests") {
+@@ -7298,9 +7293,6 @@ test("unit_tests") {
      "//components/safe_browsing/content/browser",
      "//components/safe_browsing/content/browser:client_side_detection_images_cache",
      "//components/safe_browsing/content/browser:credit_card_form_event",
@@ -1021,7 +1166,7 @@
      "//components/safe_browsing/content/browser/password_protection",
      "//components/safe_browsing/content/browser/password_protection:mock_password_protection",
      "//components/safe_browsing/content/browser/web_ui",
-@@ -8652,7 +8644,6 @@ test("unit_tests") {
+@@ -8653,7 +8645,6 @@ test("unit_tests") {
      #
      # TODO(crbug.com/417513088): Maybe merge with the non-android `deps` declaration above?
      deps += [
@@ -1029,7 +1174,7 @@
        "//chrome:packed_resources_integrity_header",
        "//chrome/browser/apps:icon_standardizer",
        "//chrome/browser/apps/app_service",
-@@ -8687,7 +8678,6 @@ test("unit_tests") {
+@@ -8688,7 +8679,6 @@ test("unit_tests") {
        "//chrome/browser/page_content_annotations",
        "//chrome/browser/profile_resetter:fake_profile_resetter",
        "//chrome/browser/resources/new_tab_page_instant:resources_grit",
