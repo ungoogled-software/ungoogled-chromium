@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
-@@ -1699,7 +1699,8 @@ void BrowserCommandController::InitComma
+@@ -1723,7 +1723,8 @@ void BrowserCommandController::InitComma
    command_updater_.UpdateCommandEnabled(IDC_WINDOW_CLOSE_OTHER_TABS,
                                          normal_window);
  
@@ -10,30 +10,28 @@
    command_updater_.UpdateCommandEnabled(IDC_TAB_SEARCH,
                                          enable_tab_search_commands);
    command_updater_.UpdateCommandEnabled(IDC_TAB_SEARCH_CLOSE,
---- a/chrome/browser/ui/ui_features.cc
-+++ b/chrome/browser/ui/ui_features.cc
-@@ -4,6 +4,7 @@
+--- a/chrome/browser/ui/tab_search_feature.cc
++++ b/chrome/browser/ui/tab_search_feature.cc
+@@ -6,12 +6,16 @@
  
- #include "chrome/browser/ui/ui_features.h"
+ #include <string>
  
 +#include "base/command_line.h"
- #include "base/feature_list.h"
- #include "base/metrics/field_trial_params.h"
- #include "base/time/time.h"
-@@ -516,6 +517,10 @@ static std::string GetCountryCode() {
- }
+ #include "chrome/browser/glic/public/glic_enabling.h"
  
+ namespace features {
  bool HasTabSearchToolbarButton() {
+   // It is important that this value not change at runtime in production. Any
+   // future updates to this function must maintain that property.
 +  if (base::CommandLine::ForCurrentProcess()->HasSwitch("remove-tabsearch-button")) {
 +    return false;
 +  }
-+
-   static const bool is_tab_search_moving = [] {
-     if (GetCountryCode() == "us" &&
-         base::FeatureList::IsEnabled(
+   return true;
+ }
+ }  // namespace features
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -4517,6 +4517,9 @@ BookmarkBar::State BrowserView::bookmark
+@@ -4385,6 +4385,9 @@ BookmarkBar::State BrowserView::bookmark
  }
  
  void BrowserView::UpdateTabSearchBubbleHost() {
@@ -50,12 +48,12 @@
  #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
  
 +#include "base/command_line.h"
+ #include "base/feature_list.h"
  #include "base/functional/bind.h"
  #include "base/strings/utf_string_conversions.h"
- #include "base/task/single_thread_task_runner.h"
-@@ -219,6 +220,7 @@ HorizontalTabStripRegionView::Horizontal
+@@ -241,6 +242,7 @@ HorizontalTabStripRegionView::Horizontal
+   std::unique_ptr<TabSearchContainer> tab_search_container;
    std::unique_ptr<TabStripActionContainer> tab_strip_action_container;
-   std::unique_ptr<ProductSpecificationsButton> product_specifications_button;
    if (browser &&
 +      !base::CommandLine::ForCurrentProcess()->HasSwitch("remove-tabsearch-button") &&
        (browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL)) {

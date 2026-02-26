@@ -2,7 +2,7 @@
 
 --- a/chrome/browser/media/webrtc/webrtc_log_uploader.cc
 +++ b/chrome/browser/media/webrtc/webrtc_log_uploader.cc
-@@ -179,31 +179,13 @@ void WebRtcLogUploader::OnLoggingStopped
+@@ -174,31 +174,13 @@ void WebRtcLogUploader::OnLoggingStopped
    DCHECK(meta_data.get());
    DCHECK(!upload_done_data.paths.directory.empty());
  
@@ -11,7 +11,7 @@
 -  std::string local_log_id;
 -
    if (base::PathExists(upload_done_data.paths.directory)) {
-     webrtc_logging::DeleteOldWebRtcLogFiles(upload_done_data.paths.directory);
+     webrtc_logging::DeleteOldWebRtcLogFiles({upload_done_data.paths.directory});
 -
 -    local_log_id =
 -        base::NumberToString(base::Time::Now().InSecondsFSinceUnixEpoch());
@@ -29,18 +29,18 @@
 -  upload_done_data.local_log_id = local_log_id;
  
    if (is_text_log_upload_allowed) {
--    PrepareMultipartPostData(compressed_log, std::move(meta_data),
+-    PrepareMultipartPostData(content_name, compressed_log, std::move(meta_data),
 -                             std::move(upload_done_data));
 +    NotifyUploadDoneAndLogStats(net::HTTP_OK, net::OK, "", std::move(upload_done_data));
    } else {
      main_task_runner_->PostTask(
          FROM_HERE,
-@@ -220,28 +202,7 @@ void WebRtcLogUploader::PrepareMultipart
+@@ -216,28 +198,7 @@ void WebRtcLogUploader::PrepareMultipart
    DCHECK(!compressed_log.empty());
    DCHECK(meta_data.get());
  
 -  std::unique_ptr<std::string> post_data(new std::string());
--  SetupMultipart(post_data.get(), compressed_log,
+-  SetupMultipart(post_data.get(), content_name, compressed_log,
 -                 upload_done_data.paths.incoming_rtp_dump,
 -                 upload_done_data.paths.outgoing_rtp_dump, *meta_data.get());
 -
@@ -64,12 +64,12 @@
 +  NotifyUploadDoneAndLogStats(net::HTTP_OK, net::OK, "", std::move(upload_done_data));
  }
  
- void WebRtcLogUploader::UploadStoredLog(
-@@ -308,48 +269,6 @@ void WebRtcLogUploader::LoggingStoppedDo
+ void WebRtcLogUploader::LoggingStoppedDoStore(
+@@ -251,48 +212,6 @@ void WebRtcLogUploader::LoggingStoppedDo
    DCHECK(log_buffer.get());
    DCHECK(!log_paths.directory.empty());
  
--  webrtc_logging::DeleteOldWebRtcLogFiles(log_paths.directory);
+-  webrtc_logging::DeleteOldWebRtcLogFiles({log_paths.directory});
 -
 -  base::FilePath log_list_path =
 -      webrtc_logging::TextLogList::GetWebRtcLogListFileForDirectory(
@@ -122,6 +122,6 @@
    registry->RegisterListPref(prefs::kWebRtcLocalIpsAllowedUrls);
 -  registry->RegisterBooleanPref(prefs::kWebRtcTextLogCollectionAllowed, true);
 +  registry->RegisterBooleanPref(prefs::kWebRtcTextLogCollectionAllowed, false);
- 
-   // We need to register the type of these preferences in order to query
-   // them even though they're only typically controlled via policy.
+   registry->RegisterListPref(
+       prefs::kWebRTCDiagnosticLogCollectionAllowedForOrigins,
+       base::ListValue());
