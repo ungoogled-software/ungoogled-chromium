@@ -1,14 +1,14 @@
 --- a/chrome/browser/ui/browser.cc
 +++ b/chrome/browser/ui/browser.cc
-@@ -141,6 +141,7 @@
+@@ -140,6 +140,7 @@
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/contents_web_view.h"
  #include "chrome/browser/ui/views/frame/multi_contents_view.h"
 +#include "chrome/browser/ui/views/message_box_dialog.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
  #include "chrome/browser/ui/views/status_bubble_views.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
- #include "chrome/browser/ui/webui/signin/login_ui_service.h"
-@@ -598,6 +599,7 @@ Browser::Browser(const CreateParams& par
+@@ -587,6 +588,7 @@ Browser::Browser(const CreateParams& par
        should_trigger_session_restore_(params.should_trigger_session_restore),
        cancel_download_confirmation_state_(
            CancelDownloadConfirmationState::kNotPrompted),
@@ -16,43 +16,24 @@
        override_bounds_(params.initial_bounds),
        initial_show_state_(params.initial_show_state),
        initial_workspace_(params.initial_workspace),
-@@ -985,20 +987,22 @@ Browser::WarnBeforeClosingResult Browser
+@@ -974,10 +976,12 @@ Browser::WarnBeforeClosingResult Browser
      return WarnBeforeClosingResult::kOkToClose;
    }
  
 -  // `CanCloseWithInProgressDownloads()` may trigger a modal dialog.
 -  bool can_close_with_downloads = CanCloseWithInProgressDownloads();
--  if (can_close_with_downloads &&
--      !ShouldShowCookieMigrationNoticeForBrowser(*this)) {
+-  if (can_close_with_downloads) {
 -    return WarnBeforeClosingResult::kOkToClose;
--  }
 +  if (CanCloseWithMultipleTabs()) {
 +    // `CanCloseWithInProgressDownloads()` may trigger a modal dialog.
 +    bool can_close_with_downloads = CanCloseWithInProgressDownloads();
-+    if (can_close_with_downloads &&
-+        !ShouldShowCookieMigrationNoticeForBrowser(*this)) {
-+      return WarnBeforeClosingResult::kOkToClose;
-+    }
- 
--  // If there is no download warning, show the cookie migration notice now.
--  // Otherwise, the download warning is being shown. Cookie migration notice
--  // will be shown after, if needed.
--  if (can_close_with_downloads) {
--    ShowCookieClearOnExitMigrationNotice(
--        *this, base::BindOnce(&Browser::CookieMigrationNoticeResponse,
--                              weak_factory_.GetWeakPtr()));
-+    // If there is no download warning, show the cookie migration notice now.
-+    // Otherwise, the download warning is being shown. Cookie migration notice
-+    // will be shown after, if needed.
 +    if (can_close_with_downloads) {
-+      ShowCookieClearOnExitMigrationNotice(
-+          *this, base::BindOnce(&Browser::CookieMigrationNoticeResponse,
-+                                weak_factory_.GetWeakPtr()));
++      return WarnBeforeClosingResult::kOkToClose;
 +    }
    }
  
    DCHECK(!warn_before_closing_callback_)
-@@ -1052,6 +1056,7 @@ bool Browser::TryToCloseWindow(
+@@ -1031,6 +1035,7 @@ bool Browser::TryToCloseWindow(
  void Browser::ResetTryToCloseWindow() {
    cancel_download_confirmation_state_ =
        CancelDownloadConfirmationState::kNotPrompted;
@@ -60,7 +41,7 @@
    unload_controller_.ResetTryToCloseWindow();
  }
  
-@@ -3556,6 +3561,58 @@ bool Browser::CanCloseWithInProgressDown
+@@ -3538,6 +3543,59 @@ bool Browser::CanCloseWithInProgressDown
    return false;
  }
  
@@ -80,14 +61,15 @@
 +
 +  // Figure out how many windows are open total
 +  int total_window_count = 0;
-+  for (Browser* browser : *BrowserList::GetInstance()) {
++  GlobalBrowserCollection::GetInstance()->ForEach([&total_window_count, this](BrowserWindowInterface* browser) {
 +    // Don't count this browser window or any other in the process of closing.
 +    // Window closing may be delayed, and windows that are in the process of
 +    // closing don't count against our totals.
-+    if (browser == this || browser->IsAttemptingToCloseBrowser())
-+      continue;
-+    total_window_count++;
-+  }
++    if (browser != this && !browser->capabilities()->IsAttemptingToCloseBrowser()) {
++      total_window_count++;
++    }
++    return true;
++  });
 +
 +  const auto flag_value = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("close-confirmation");
 +  bool show_confirmation_last_window = flag_value == "last";
@@ -119,7 +101,7 @@
  void Browser::InProgressDownloadResponse(bool cancel_downloads) {
    if (cancel_downloads) {
      cancel_download_confirmation_state_ =
-@@ -3584,6 +3641,22 @@ void Browser::InProgressDownloadResponse
+@@ -3559,6 +3617,22 @@ void Browser::InProgressDownloadResponse
  
    std::move(warn_before_closing_callback_)
        .Run(WarnBeforeClosingResult::kDoNotClose);
@@ -141,7 +123,7 @@
 +      .Run(WarnBeforeClosingResult::kDoNotClose);
  }
  
- void Browser::CookieMigrationNoticeResponse(bool proceed_closing) {
+ void Browser::FinishWarnBeforeClosing(WarnBeforeClosingResult result) {
 --- a/chrome/browser/ui/browser.h
 +++ b/chrome/browser/ui/browser.h
 @@ -33,6 +33,7 @@
@@ -152,7 +134,7 @@
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
  #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
  #include "chrome/browser/ui/unload_controller.h"
-@@ -1146,12 +1147,17 @@ class Browser : public TabStripModelObse
+@@ -1135,12 +1136,17 @@ class Browser : public TabStripModelObse
    // Returns true if the window can close, false otherwise.
    bool CanCloseWithInProgressDownloads();
  
@@ -170,7 +152,7 @@
    // Called when the user has decided whether to proceed or not with the browser
    // closure, in case the cookie migration notice was shown. |proceed_closing|
    // is true if the browser can  be closed.
-@@ -1327,6 +1333,8 @@ class Browser : public TabStripModelObse
+@@ -1311,6 +1317,8 @@ class Browser : public TabStripModelObse
    // when the browser is closed with in-progress downloads.
    CancelDownloadConfirmationState cancel_download_confirmation_state_;
  
