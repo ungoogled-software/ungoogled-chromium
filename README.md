@@ -153,6 +153,22 @@ List of mirrors:
 
 [See docs/building.md](docs/building.md)
 
+A quick way to build Linux binaries, run the following:
+
+```sh
+cd utils/ungoogled-chromium-building-scripts
+./build.py init --shallow
+./build.py sync --shallow --os linux --install-build-deps
+./build.py prepare --os linux
+./build.py build -a x64 --os linux
+```
+
+For debug builds, run
+```sh
+./build.py build -a x64 --os linux --debug
+```
+instead.
+
 ## Design Documentation
 
 [See docs/design.md](docs/design.md)
