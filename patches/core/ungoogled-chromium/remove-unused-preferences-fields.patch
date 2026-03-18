@@ -6798,7 +6798,7 @@
  }
  
  void PrimaryAccountManager::UpdatePrimaryAccountInfo() {
-@@ -702,124 +498,6 @@ PrimaryAccountChangeEvent::State Primary
+@@ -702,128 +498,6 @@ PrimaryAccountChangeEvent::State Primary
  void PrimaryAccountManager::SetExplicitBrowserSigninPrefs(
      const PrimaryAccountChangeEvent& event_details,
      ScopedPrefCommit& scoped_pref_commit) {
@@ -6892,10 +6892,14 @@
 -              .SetExtensionsExplicitBrowserSignin(current_gaia_id, true);
 -        }
 -      }
--      if (access_point == signin_metrics::AccessPoint::kBookmarkBubble &&
--          base::FeatureList::IsEnabled(
--              switches::kSyncEnableBookmarksInTransportMode)) {
--        // Record an explicit signin for bookmarks for this account only.
+-      if (base::FeatureList::IsEnabled(
+-              switches::kSyncEnableBookmarksInTransportMode) &&
+-          (access_point == signin_metrics::AccessPoint::kBookmarkBubble ||
+-           syncer::kExplicitSigninForBookmarks.Get())) {
+-        // Record an explicit signin for bookmarks for this account only. This
+-        // should happen for every new sign in if `kExplicitSigninForBookmarks`
+-        // is enabled, as this pref will be used to determine whether users are
+-        // eligible for account storage or not.
 -        SigninPrefs(*client_->GetPrefs())
 -            .SetBookmarksExplicitBrowserSignin(current_gaia_id, true);
 -      }
@@ -7296,14 +7300,18 @@
  }
  #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
  
-@@ -1138,25 +1100,17 @@ bool SyncPrefs::IsTypeSelectedByDefaultI
-       // Before kReplaceSyncPromosWithSignInPromos, Bookmarks and Reading List
-       // require a specific explicit sign in (relevant for desktop only).
-       return base::FeatureList::IsEnabled(kReplaceSyncPromosWithSignInPromos) ||
+@@ -1139,28 +1101,16 @@ bool SyncPrefs::IsTypeSelectedByDefaultI
+       // `kExplicitSigninForBookmarks` is enabled (relevant for desktop only).
+       // If it is not, but `kReplaceSyncPromosWithSignInPromos` is, then
+       // bookmarks and reading list are on by default.
+-      return (base::FeatureList::IsEnabled(
+-                  kReplaceSyncPromosWithSignInPromos) &&
+-              !syncer::kExplicitSigninForBookmarks.Get()) ||
 -             SigninPrefs(*pref_service_)
 -                 .GetBookmarksExplicitBrowserSignin(gaia_id) ||
-              base::FeatureList::IsEnabled(
-                  kEnableBookmarksSelectedTypeOnSigninForTesting);
+-             base::FeatureList::IsEnabled(
+-                 kEnableBookmarksSelectedTypeOnSigninForTesting);
++      return false;
      case UserSelectableType::kPreferences:
      case UserSelectableType::kThemes:
 -      return base::FeatureList::IsEnabled(kReplaceSyncPromosWithSignInPromos) ||

@@ -52,7 +52,7 @@
        "accessibility/caption_bubble_context_browser.h",
        "accessibility/embedded_a11y_extension_loader.cc",
        "accessibility/embedded_a11y_extension_loader.h",
-@@ -4236,8 +4228,6 @@ static_library("browser") {
+@@ -4238,8 +4230,6 @@ static_library("browser") {
        "//chrome/app:command_ids",
        "//chrome/app/theme:chrome_unscaled_resources_grit",
        "//chrome/app/vector_icons",
@@ -61,7 +61,7 @@
        "//chrome/browser/actor/ui",
        "//chrome/browser/actor/ui:actor_overlay",
        "//chrome/browser/actor/ui:window_controller_impl",
-@@ -4274,10 +4264,6 @@ static_library("browser") {
+@@ -4276,10 +4266,6 @@ static_library("browser") {
        "//chrome/browser/performance_manager/user_tuning",
        "//chrome/browser/policy:path_parser",
        "//chrome/browser/resource_coordinator",
@@ -72,7 +72,7 @@
        "//chrome/browser/sharing_hub",
        "//chrome/browser/smart_card",
        "//chrome/browser/themes",
-@@ -4354,7 +4340,6 @@ static_library("browser") {
+@@ -4356,7 +4342,6 @@ static_library("browser") {
        "//chrome/browser/ui/webui:webui_util",
        "//chrome/browser/ui/webui/access_code_cast",
        "//chrome/browser/ui/webui/app_service_internals",
@@ -80,7 +80,7 @@
        "//chrome/browser/ui/webui/color_pipeline_internals",
        "//chrome/browser/ui/webui/commerce",
        "//chrome/browser/ui/webui/commerce:impl",
-@@ -4453,9 +4438,6 @@ static_library("browser") {
+@@ -4455,9 +4440,6 @@ static_library("browser") {
        "//components/webauthn/core/browser",
        "//components/webauthn/core/browser:passkey_model",
        "//services/device/public/cpp/hid",
@@ -90,7 +90,7 @@
        "//third_party/crashpad/crashpad/client:common",
        "//third_party/zxcvbn-cpp",
        "//ui/views",
-@@ -4646,8 +4628,6 @@ static_library("browser") {
+@@ -4648,8 +4630,6 @@ static_library("browser") {
        sources += [
          "accessibility/soda_installer_impl.cc",
          "accessibility/soda_installer_impl.h",
@@ -99,7 +99,7 @@
          "download/bubble/download_bubble_accessible_alerts_map.cc",
          "download/bubble/download_bubble_accessible_alerts_map.h",
          "download/bubble/download_bubble_display_info.cc",
-@@ -4699,8 +4679,6 @@ static_library("browser") {
+@@ -4701,8 +4681,6 @@ static_library("browser") {
          "profiles/profile_activity_metrics_recorder.h",
          "profiles/profile_list_desktop.cc",
          "profiles/profile_list_desktop.h",
@@ -108,7 +108,7 @@
          "signin/force_signin_verifier.cc",
          "signin/force_signin_verifier.h",
        ]
-@@ -5536,7 +5514,6 @@ static_library("browser") {
+@@ -5538,7 +5516,6 @@ static_library("browser") {
        "//chrome/browser/policy:system_features_disable_list",
        "//chrome/browser/push_notification",
        "//chrome/browser/resources:app_icon_resources",
@@ -116,7 +116,7 @@
        "//chrome/browser/sharesheet",
        "//chrome/browser/support_tool/ash",
        "//chrome/browser/ui/ash/accelerator",
-@@ -5800,7 +5777,6 @@ static_library("browser") {
+@@ -5802,7 +5779,6 @@ static_library("browser") {
        "//remoting/host/chromeos:browser_interop",
        "//remoting/host/chromeos:features",
        "//services/device/public/cpp/geolocation",
@@ -308,16 +308,41 @@
  
    // Do not report page loads for these types of navigations.
    if (navigation_handle->IsErrorPage() ||
-@@ -403,52 +395,6 @@ void ContextualCueingHelper::OnCueingDec
+@@ -390,76 +382,6 @@ void ContextualCueingHelper::OnCueingDec
      return;
    }
  
--  // Handle side panel auto-open case: bypass nudge and open panel directly.
--  // If auto-open fails or is disabled, falls through to standard nudge.
+-  std::string cue_label = decision_result.value().cue_label;
+-  std::string prompt_suggestion = decision_result.value().prompt_suggestion;
+-  if (IsBrowserBlockingNudges(decision_recorder.get())) {
+-    return;
+-  }
+-
 -  const bool should_open_side_panel =
 -      decision_result->auto_open_eligible &&
 -      base::FeatureList::IsEnabled(kEnableAutoOpenGlicSidePanel);
 -
+-  const bool is_auto_open_pdf_side_panel_cue =
+-      should_open_side_panel &&
+-      web_contents()->GetContentsMimeType() == pdf::kPDFMimeType &&
+-      base::FeatureList::IsEnabled(features::kAutoOpenGlicForPdf);
+-
+-  // Check nudge rate-limiting/backoff caps. Auto-open PDF side panel bypasses
+-  // this check for a more detemrinistic feel.
+-  NudgeDecision can_show_decision;
+-  if (is_auto_open_pdf_side_panel_cue) {
+-    can_show_decision = NudgeDecision::kSuccess;
+-  } else {
+-    const GURL& url = web_contents()->GetLastCommittedURL();
+-    can_show_decision = contextual_cueing_service_->CanShowNudge(url);
+-  }
+-  decision_recorder->set_nudge_decision(can_show_decision);
+-  if (can_show_decision != NudgeDecision::kSuccess) {
+-    return;
+-  }
+-
+-  // Handle side panel auto-open case: bypass nudge and open panel directly.
+-  // If auto-open fails or is disabled, falls through to standard nudge.
 -  if (should_open_side_panel) {
 -    auto* tab_interface = tabs::TabInterface::GetFromContents(web_contents());
 -    auto* browser_window_interface = tab_interface->GetBrowserWindowInterface();
@@ -333,8 +358,7 @@
 -
 -      glic::mojom::InvocationSource invocation_source =
 -          glic::mojom::InvocationSource::kAutoOpenedByContextualCue;
--      if (web_contents()->GetContentsMimeType() == pdf::kPDFMimeType &&
--          base::FeatureList::IsEnabled(features::kAutoOpenGlicForPdf)) {
+-      if (is_auto_open_pdf_side_panel_cue) {
 -        invocation_source = glic::mojom::InvocationSource::kAutoOpenedForPdf;
 -      }
 -
@@ -378,7 +402,7 @@
      } else if (decision == kNeedsPdfPageCount) {
 --- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
-@@ -341,14 +341,6 @@ void ContextualTasksSidePanelCoordinator
+@@ -343,14 +343,6 @@ void ContextualTasksSidePanelCoordinator
    ObserveWebContentsOnActiveTab();
    NotifyActiveTaskContextProvider();
  
@@ -451,7 +475,7 @@
  }  // namespace extensions
 --- a/chrome/browser/glic/public/glic_enabling.cc
 +++ b/chrome/browser/glic/public/glic_enabling.cc
-@@ -341,35 +341,11 @@ GlicGlobalEnabling::GlicGlobalEnabling(D
+@@ -388,35 +388,11 @@ GlicGlobalEnabling::GlicGlobalEnabling(D
  GlicGlobalEnabling::~GlicGlobalEnabling() = default;
  
  bool GlicGlobalEnabling::IsEnabledByFlags() {
@@ -1301,7 +1325,7 @@
  void ToolbarView::AnimationEnded(const gfx::Animation* animation) {
 --- a/chrome/browser/ui/views/user_education/browser_user_education_service.cc
 +++ b/chrome/browser/ui/views/user_education/browser_user_education_service.cc
-@@ -855,40 +855,6 @@ void MaybeRegisterChromeFeaturePromos(
+@@ -856,40 +856,6 @@ void MaybeRegisterChromeFeaturePromos(
                         "Triggered when the PDF Viewer opens.")));
  #endif
  
@@ -1601,7 +1625,7 @@
        "//services/service_manager/public/cpp",
        "//services/strings",
        "//services/test/echo/public/mojom",
-@@ -6352,7 +6347,6 @@ template("performance_test_suite_templat
+@@ -6354,7 +6349,6 @@ template("performance_test_suite_templat
        data_deps += [
          "//chrome/test:load_library_perf_tests",
          "//components/tracing:tracing_perftests",
@@ -1609,7 +1633,7 @@
          "//testing:run_perf_test",
          "//ui/views:views_perftests",
        ]
-@@ -7371,9 +7365,6 @@ test("unit_tests") {
+@@ -7374,9 +7368,6 @@ test("unit_tests") {
      "//components/safe_browsing/content/browser",
      "//components/safe_browsing/content/browser:client_side_detection_images_cache",
      "//components/safe_browsing/content/browser:credit_card_form_event",
@@ -1619,7 +1643,7 @@
      "//components/safe_browsing/content/browser/password_protection",
      "//components/safe_browsing/content/browser/password_protection:mock_password_protection",
      "//components/safe_browsing/content/browser/web_ui",
-@@ -8754,7 +8745,6 @@ test("unit_tests") {
+@@ -8759,7 +8750,6 @@ test("unit_tests") {
      #
      # TODO(crbug.com/417513088): Maybe merge with the non-android `deps` declaration above?
      deps += [
@@ -1627,7 +1651,7 @@
        "//chrome:packed_resources_integrity_header",
        "//chrome/browser/apps:icon_standardizer",
        "//chrome/browser/apps/app_service",
-@@ -8789,7 +8779,6 @@ test("unit_tests") {
+@@ -8794,7 +8784,6 @@ test("unit_tests") {
        "//chrome/browser/page_content_annotations",
        "//chrome/browser/profile_resetter:fake_profile_resetter",
        "//chrome/browser/resources/new_tab_page_instant:resources_grit",
