@@ -2,16 +2,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -552,8 +552,6 @@ static_library("browser") {
-     "idle/idle_detection_permission_context.h",
-     "interstitials/chrome_settings_page_helper.cc",
-     "interstitials/chrome_settings_page_helper.h",
--    "interstitials/enterprise_util.cc",
--    "interstitials/enterprise_util.h",
-     "invalidation/profile_invalidation_provider_factory.cc",
-     "invalidation/profile_invalidation_provider_factory.h",
-     "k_anonymity_service/k_anonymity_service_factory.cc",
-@@ -2314,7 +2312,6 @@ static_library("browser") {
+@@ -2239,7 +2239,6 @@ static_library("browser") {
      "//components/resources",
      "//components/safe_browsing/content/browser",
      "//components/safe_browsing/content/browser:safe_browsing_service",
@@ -19,7 +10,7 @@
      "//components/safe_browsing/content/browser/password_protection",
      "//components/safe_browsing/content/browser/web_ui",
      "//components/safe_browsing/content/common/proto:download_file_types_proto",
-@@ -3920,10 +3917,6 @@ static_library("browser") {
+@@ -3803,10 +3802,6 @@ static_library("browser") {
        "new_tab_page/modules/modules_switches.h",
        "new_tab_page/modules/new_tab_page_modules.cc",
        "new_tab_page/modules/new_tab_page_modules.h",
@@ -30,7 +21,7 @@
        "new_tab_page/modules/v2/authentication/microsoft_auth_page_handler.cc",
        "new_tab_page/modules/v2/authentication/microsoft_auth_page_handler.h",
        "new_tab_page/modules/v2/calendar/calendar_fake_data_helper.cc",
-@@ -8604,7 +8597,6 @@ static_library("browser_generated_files"
+@@ -8481,7 +8476,6 @@ static_library("browser_generated_files"
      public_deps += [
        "//chrome/browser/lens/core/mojom:mojo_bindings",
        "//chrome/browser/new_tab_page/modules/file_suggestion:mojo_bindings",
@@ -38,7 +29,7 @@
        "//chrome/browser/new_tab_page/modules/v2/authentication:mojo_bindings",
        "//chrome/browser/new_tab_page/modules/v2/calendar:mojo_bindings",
        "//chrome/browser/new_tab_page/modules/v2/most_relevant_tab_resumption:mojo_bindings",
-@@ -9077,8 +9069,6 @@ static_library("test_support") {
+@@ -8939,8 +8933,6 @@ static_library("test_support") {
      "//components/reporting/util:status",
      "//components/reporting/util:status_macros",
      "//components/reporting/util:task_runner_context",
@@ -49,7 +40,7 @@
      "//components/search_engines:test_support",
 --- a/chrome/browser/content_settings/generated_javascript_optimizer_pref.cc
 +++ b/chrome/browser/content_settings/generated_javascript_optimizer_pref.cc
-@@ -30,7 +30,7 @@ GeneratedJavascriptOptimizerPref::Genera
+@@ -30,15 +30,10 @@ GeneratedJavascriptOptimizerPref::Genera
    user_prefs_registrar_.Init(profile->GetPrefs());
    user_prefs_registrar_.AddMultiple(
        {prefs::kJavascriptOptimizerBlockedForUnfamiliarSites,
@@ -58,7 +49,15 @@
        base::BindRepeating(
            &GeneratedJavascriptOptimizerPref::OnPreferencesChanged,
            base::Unretained(this)));
-@@ -98,7 +98,6 @@ PrefObject GeneratedJavascriptOptimizerP
+-  user_prefs_registrar_.Add(
+-      prefs::kSecuritySettingsBundle,
+-      base::BindRepeating(
+-          &GeneratedJavascriptOptimizerPref::OnSettingsBundleChanged,
+-          base::Unretained(this)));
+ 
+   host_content_settings_map_ =
+       HostContentSettingsMapFactory::GetForProfile(profile_);
+@@ -103,7 +98,6 @@ PrefObject GeneratedJavascriptOptimizerP
          &pref_object, SettingSource::kPolicy);
    }
  
@@ -66,7 +65,7 @@
      pref_object.enforcement =
          extensions::api::settings_private::Enforcement::kEnforced;
      pref_object.controlled_by =
-@@ -109,7 +108,6 @@ PrefObject GeneratedJavascriptOptimizerP
+@@ -114,7 +108,6 @@ PrefObject GeneratedJavascriptOptimizerP
      user_selectable_values.Append(
          base::Value(static_cast<int>(JavascriptOptimizerSetting::kBlocked)));
      pref_object.user_selectable_values = std::move(user_selectable_values);
@@ -74,6 +73,64 @@
  
    return pref_object;
  }
+@@ -124,35 +117,7 @@ void GeneratedJavascriptOptimizerPref::O
+ }
+ 
+ void GeneratedJavascriptOptimizerPref::OnSettingsBundleChanged() {
+-  auto bundle = safe_browsing::GetSecurityBundleSetting(*profile_->GetPrefs());
+-  switch (bundle) {
+-    case safe_browsing::SecuritySettingsBundleSetting::STANDARD: {
+-      base::Value pref_value(
+-          static_cast<int>(JavascriptOptimizerSetting::kAllowed));
+-      SetPref(&pref_value);
+-      break;
+-    }
+-    case safe_browsing::SecuritySettingsBundleSetting::ENHANCED: {
+-      base::Value pref_value(static_cast<int>(
+-          JavascriptOptimizerSetting::kBlockedForUnfamiliarSites));
+-      SetPref(&pref_value);
+-      break;
+-    }
+-    default:
+-      NOTREACHED();
+-  }
+ }
+ 
+-content_settings::JavascriptOptimizerSetting
+-GeneratedJavascriptOptimizerPref::GetDefaultJsOptimizerSetting(
+-    safe_browsing::SecuritySettingsBundleSetting bundle_setting) {
+-  switch (bundle_setting) {
+-    case safe_browsing::SecuritySettingsBundleSetting::STANDARD:
+-      return content_settings::JavascriptOptimizerSetting::kAllowed;
+-    case safe_browsing::SecuritySettingsBundleSetting::ENHANCED:
+-      return content_settings::JavascriptOptimizerSetting::
+-          kBlockedForUnfamiliarSites;
+-  }
+-}
+ 
+ }  // namespace content_settings
+--- a/chrome/browser/content_settings/generated_javascript_optimizer_pref.h
++++ b/chrome/browser/content_settings/generated_javascript_optimizer_pref.h
+@@ -12,7 +12,6 @@
+ #include "components/content_settings/browser/ui/javascript_optimizer_setting.h"
+ #include "components/content_settings/core/browser/host_content_settings_map.h"
+ #include "components/prefs/pref_change_registrar.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ 
+ namespace content_settings {
+ 
+@@ -44,11 +43,6 @@ class GeneratedJavascriptOptimizerPref
+   // Fired when the selected bundled setting is changed programmatically.
+   void OnSettingsBundleChanged();
+ 
+-  // Returns the default Javascript Optimizer setting for the passed-in
+-  // security-bundle type.
+-  static content_settings::JavascriptOptimizerSetting
+-  GetDefaultJsOptimizerSetting(
+-      safe_browsing::SecuritySettingsBundleSetting bundle_setting);
+ 
+  private:
+   // Profile this preference is generated for.
 --- a/chrome/browser/download/bubble/download_bubble_ui_controller.cc
 +++ b/chrome/browser/download/bubble/download_bubble_ui_controller.cc
 @@ -47,7 +47,6 @@
@@ -173,7 +230,7 @@
                   << static_cast<int>(download_restriction);
 --- a/chrome/browser/download/download_target_determiner.cc
 +++ b/chrome/browser/download/download_target_determiner.cc
-@@ -1265,14 +1265,7 @@ DownloadFileType::DangerLevel DownloadTa
+@@ -1270,14 +1270,7 @@ DownloadFileType::DangerLevel DownloadTa
  
  std::optional<base::Time>
  DownloadTargetDeterminer::GetLastDownloadBypassTimestamp() const {
@@ -332,7 +389,7 @@
  std::u16string ContentAnalysisDownloadsDelegate::GetBypassJustificationLabel()
 --- a/chrome/browser/enterprise/connectors/analysis/files_request_handler.cc
 +++ b/chrome/browser/enterprise/connectors/analysis/files_request_handler.cc
-@@ -174,63 +174,12 @@ void FilesRequestHandler::FileRequestCal
+@@ -172,63 +172,12 @@ void FilesRequestHandler::FileRequestCal
  }
  
  bool FilesRequestHandler::UploadDataImpl() {
@@ -396,7 +453,7 @@
  void FilesRequestHandler::OnGotFileInfo(
      std::unique_ptr<BinaryUploadRequest> request,
      size_t index,
-@@ -277,19 +226,6 @@ void FilesRequestHandler::OnGotFileInfo(
+@@ -275,19 +224,6 @@ void FilesRequestHandler::OnGotFileInfo(
  void FilesRequestHandler::FinishRequestEarly(
      std::unique_ptr<BinaryUploadRequest> request,
      ScanRequestUploadResult result) {
@@ -418,7 +475,7 @@
  }
 --- a/chrome/browser/enterprise/connectors/analysis/files_request_handler.h
 +++ b/chrome/browser/enterprise/connectors/analysis/files_request_handler.h
-@@ -115,10 +115,6 @@ class FilesRequestHandler : public Reque
+@@ -99,10 +99,6 @@ class FilesRequestHandler : public Reque
        enterprise_connectors::ContentAnalysisResponse response);
  
   private:
@@ -564,7 +621,7 @@
  
 --- a/chrome/browser/enterprise/data_protection/data_protection_navigation_observer.cc
 +++ b/chrome/browser/enterprise/data_protection/data_protection_navigation_observer.cc
-@@ -191,9 +191,7 @@ void LogVerdictSource(
+@@ -192,9 +192,7 @@ void LogVerdictSource(
  
  bool IsScreenshotAllowedByDataControls(content::BrowserContext* context,
                                         const GURL& url) {
@@ -575,9 +632,9 @@
  }
  
  }  // namespace
---- a/chrome/browser/enterprise/data_protection/data_protection_url_lookup_service.cc
-+++ b/chrome/browser/enterprise/data_protection/data_protection_url_lookup_service.cc
-@@ -138,8 +138,7 @@ DataProtectionUrlLookupServiceFactory::
+--- a/chrome/browser/enterprise/data_protection/data_protection_url_lookup_service_factory.cc
++++ b/chrome/browser/enterprise/data_protection/data_protection_url_lookup_service_factory.cc
+@@ -13,8 +13,7 @@ namespace enterprise_data_protection {
  // static
  DataProtectionUrlLookupServiceFactory*
  DataProtectionUrlLookupServiceFactory::GetInstance() {
@@ -587,9 +644,9 @@
  }
  
  // static
---- a/chrome/browser/enterprise/data_protection/data_protection_url_lookup_service.h
-+++ b/chrome/browser/enterprise/data_protection/data_protection_url_lookup_service.h
-@@ -90,7 +90,6 @@ class DataProtectionUrlLookupServiceFact
+--- a/chrome/browser/enterprise/data_protection/data_protection_url_lookup_service_factory.h
++++ b/chrome/browser/enterprise/data_protection/data_protection_url_lookup_service_factory.h
+@@ -26,7 +26,6 @@ class DataProtectionUrlLookupServiceFact
   private:
    DataProtectionUrlLookupServiceFactory();
    ~DataProtectionUrlLookupServiceFactory() override;
@@ -597,6 +654,61 @@
  
    // BrowserContextKeyedServiceFactory:
    std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
+--- a/chrome/browser/enterprise/reporting/saas_usage/saas_usage_report_scheduler_delegate_desktop.cc
++++ b/chrome/browser/enterprise/reporting/saas_usage/saas_usage_report_scheduler_delegate_desktop.cc
+@@ -36,21 +36,6 @@ bool SaasUsageReportSchedulerDelegateDes
+ }
+ 
+ void SaasUsageReportSchedulerDelegateDesktop::OnProfileAdded(Profile* profile) {
+-  // If browser is managed, any profile with a RealtimeReportingClient will be
+-  // able to upload reports using browser DM token.
+-  if (!enterprise_connectors::RealtimeReportingClientFactory::GetForProfile(
+-          profile)) {
+-    return;
+-  }
+-
+-  bool was_ready = IsReady();
+-  profile_observation_.AddObservation(profile);
+-  if (ready_state_changed_callback_ && !was_ready) {
+-    VLOG_POLICY(1, REPORTING)
+-        << "SaaS usage reporting is enabled because a reporting-enabled "
+-           "profile has been added.";
+-    ready_state_changed_callback_.Run();
+-  }
+ }
+ 
+ void SaasUsageReportSchedulerDelegateDesktop::OnProfileManagerDestroying() {
+--- a/chrome/browser/enterprise/reporting/saas_usage/saas_usage_report_uploader_desktop.cc
++++ b/chrome/browser/enterprise/reporting/saas_usage/saas_usage_report_uploader_desktop.cc
+@@ -96,8 +96,7 @@ SaasUsageProfileReportUploaderDesktop::S
+ 
+ enterprise_connectors::RealtimeReportingClientBase*
+ SaasUsageProfileReportUploaderDesktop::GetRealTimeReportingClient() {
+-  return enterprise_connectors::RealtimeReportingClientFactory::GetForProfile(
+-      &profile_.get());
++  return nullptr;
+ }
+ 
+ bool SaasUsageProfileReportUploaderDesktop::ShouldUseProfileClient() {
+@@ -130,18 +129,6 @@ std::optional<std::string> SaasUsageBrow
+ 
+ enterprise_connectors::RealtimeReportingClientBase*
+ SaasUsageBrowserReportUploaderDesktop::GetRealTimeReportingClient() {
+-  // Browser-level reporting can use client from any profile.
+-  // Report scheduler ensures that the client is available before scheduling
+-  // the report upload.
+-  for (auto* profile :
+-       g_browser_process->profile_manager()->GetLoadedProfiles()) {
+-    auto* client =
+-        enterprise_connectors::RealtimeReportingClientFactory::GetForProfile(
+-            profile);
+-    if (client) {
+-      return client;
+-    }
+-  }
+   return nullptr;
+ }
+ 
 --- a/chrome/browser/enterprise/signals/context_info_fetcher.h
 +++ b/chrome/browser/enterprise/signals/context_info_fetcher.h
 @@ -6,6 +6,7 @@
@@ -662,7 +774,7 @@
    info.enterprise_profile_id = signals.enterprise_profile_id;
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -410,8 +410,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+@@ -421,8 +421,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
        settings_api::PrefType::kBoolean;
    (*s_allowlist)[::kGeneratedHttpsFirstModePref] =
        settings_api::PrefType::kNumber;
@@ -706,7 +818,7 @@
  
 --- a/chrome/browser/extensions/extension_service.cc
 +++ b/chrome/browser/extensions/extension_service.cc
-@@ -53,7 +53,6 @@
+@@ -54,7 +54,6 @@
  #include "chrome/browser/extensions/installed_loader.h"
  #include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
  #include "chrome/browser/extensions/mv2_experiment_stage.h"
@@ -714,7 +826,7 @@
  #include "chrome/browser/extensions/profile_util.h"
  #include "chrome/browser/extensions/sync/extension_sync_service.h"
  #include "chrome/browser/extensions/updater/chrome_extension_downloader_factory.h"
-@@ -219,9 +218,6 @@ ExtensionService::ExtensionService(
+@@ -220,9 +219,6 @@ ExtensionService::ExtensionService(
        extension_telemetry_service_verdict_handler_(extension_prefs,
                                                     registry_,
                                                     extension_registrar_),
@@ -724,7 +836,7 @@
        force_installed_tracker_(registry_, profile_),
        force_installed_metrics_(registry_, profile_, &force_installed_tracker_),
        corrupted_extension_reinstaller_(
-@@ -416,11 +412,6 @@ void ExtensionService::LoadExtensionsFro
+@@ -417,11 +413,6 @@ void ExtensionService::LoadExtensionsFro
          << "--load-extension is not allowed in Google Chrome, ignoring.";
      return;
  #else   // BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_CHROMEOS)
@@ -736,7 +848,7 @@
      if (ShouldBlockCommandLineExtension(*profile_)) {
        // TODO(crbug.com/401529219): Deprecate this restriction once
        // --load-extension removal on Chrome builds is fully launched.
-@@ -476,17 +467,6 @@ void ExtensionService::LoadSigninProfile
+@@ -477,17 +468,6 @@ void ExtensionService::LoadSigninProfile
  }
  #endif
  
@@ -837,7 +949,7 @@
    }
 --- a/chrome/browser/feedback/report_unsafe_site_dialog.cc
 +++ b/chrome/browser/feedback/report_unsafe_site_dialog.cc
-@@ -9,16 +9,13 @@
+@@ -9,17 +9,13 @@
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/common/pref_names.h"
  #include "components/prefs/pref_service.h"
@@ -849,6 +961,7 @@
  bool ReportUnsafeSiteDialog::IsEnabled(const Profile& profile) {
    const PrefService* prefs = profile.GetPrefs();
 -  return base::FeatureList::IsEnabled(features::kReportUnsafeSite) &&
+-         !profile.IsOffTheRecord() &&
 -         prefs->GetBoolean(prefs::kUserFeedbackAllowed) &&
 -         safe_browsing::IsSafeBrowsingEnabled(*prefs);
 +  return false;
@@ -857,7 +970,7 @@
  }  // namespace feedback
 --- a/chrome/browser/metrics/chrome_metrics_service_client.cc
 +++ b/chrome/browser/metrics/chrome_metrics_service_client.cc
-@@ -861,13 +861,6 @@ void ChromeMetricsServiceClient::Registe
+@@ -864,13 +864,6 @@ void ChromeMetricsServiceClient::Registe
    metrics_service_->RegisterMetricsProvider(MakeDemographicMetricsProvider(
        metrics::MetricsLogUploader::MetricServiceType::UMA));
  
@@ -871,6 +984,27 @@
  
  #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
    metrics_service_->RegisterMetricsProvider(
+--- a/chrome/browser/net/stub_resolver_config_reader.cc
++++ b/chrome/browser/net/stub_resolver_config_reader.cc
+@@ -31,7 +31,6 @@
+ #include "components/prefs/pref_registry_simple.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/safe_browsing/core/common/features.h"
+-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/webui/flags/pref_service_flags_storage.h"
+ #include "content/public/browser/network_service_instance.h"
+ #include "net/base/features.h"
+@@ -163,10 +162,6 @@ bool ShouldUseDohFallback(net::SecureDns
+   // user. We need to do this in order to test the feature before we include it
+   // in a security bundle. See: crbug.com/490045356
+ 
+-  // Do not force DoH fallback if ESB is not enabled.
+-  if (!safe_browsing::IsEnhancedProtectionEnabled(local_state)) {
+-    return false;
+-  }
+ 
+   // Do not force DoH fallback if the fallback pref is managed.
+   if (local_state.IsManagedPreference(
 --- a/chrome/browser/notifications/platform_notification_service_impl.cc
 +++ b/chrome/browser/notifications/platform_notification_service_impl.cc
 @@ -793,68 +793,8 @@ void PlatformNotificationServiceImpl::
@@ -1029,7 +1163,7 @@
  void ContextualNotificationPermissionUiSelector::OnSafeBrowsingVerdictReceived(
 --- a/chrome/browser/permissions/prediction_service/permissions_ai_ui_selector.cc
 +++ b/chrome/browser/permissions/prediction_service/permissions_ai_ui_selector.cc
-@@ -697,77 +697,6 @@ bool PermissionsAiUiSelector::ShouldHold
+@@ -677,73 +677,6 @@ bool PermissionsAiUiSelector::ShouldHold
  
  PredictionSource PermissionsAiUiSelector::GetPredictionTypeToUse(
      permissions::RequestType request_type) {
@@ -1076,16 +1210,12 @@
 -#endif  // BUILDFLAG(IS_ANDROID)
 -  }
 -  if (use_server_side) {
--    // AIvX models take priority over each other in the following order:
--    // AIv4, AIv3
+-    // The AIv4 model takes priority over the server-side CPSSv3 model if
+-    // enabled.
 -#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
 -    if (PredictionModelHandlerProvider::IsAIv4FeatureEnabled()) {
 -      VLOG(1) << "[CPSS] GetPredictionTypeToUse AIv4";
 -      return PredictionSource::kOnDeviceAiv4AndServerSideModel;
--    }
--    if (base::FeatureList::IsEnabled(permissions::features::kPermissionsAIv3)) {
--      VLOG(1) << "[CPSS] GetPredictionTypeToUse AIv3";
--      return PredictionSource::kOnDeviceAiv3AndServerSideModel;
 -    }
 -#endif  // BUILDFLAG(BUILD_WITH_TFLITE_LIB)
 -    VLOG(1) << "[CPSS] GetPredictionTypeToUse CPSSv3";
@@ -1109,7 +1239,7 @@
    return PredictionSource::kNoCpssModel;
 --- a/chrome/browser/policy/configuration_policy_handler_list_factory.cc
 +++ b/chrome/browser/policy/configuration_policy_handler_list_factory.cc
-@@ -2586,8 +2586,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -2574,8 +2574,6 @@ std::unique_ptr<ConfigurationPolicyHandl
    handlers->AddHandler(
        std::make_unique<bookmarks::ManagedBookmarksPolicyHandler>(
            chrome_schema));
@@ -1117,10 +1247,10 @@
 -      std::make_unique<safe_browsing::SafeBrowsingPolicyHandler>());
    handlers->AddHandler(std::make_unique<syncer::SyncPolicyHandler>());
    handlers->AddHandler(
-       std::make_unique<URLBlocklistPolicyHandler>(key::kURLBlocklist));
+       std::make_unique<URLAllowlistPolicyHandler>(key::kURLAllowlist));
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -269,7 +269,6 @@
+@@ -275,7 +275,6 @@
  #include "chrome/browser/nearby_sharing/common/nearby_share_prefs.h"
  #include "chrome/browser/new_tab_page/modules/file_suggestion/drive_service.h"
  #include "chrome/browser/new_tab_page/modules/file_suggestion/microsoft_files_page_handler.h"
@@ -1128,7 +1258,7 @@
  #include "chrome/browser/new_tab_page/modules/v2/authentication/microsoft_auth_page_handler.h"
  #include "chrome/browser/new_tab_page/modules/v2/calendar/google_calendar_page_handler.h"
  #include "chrome/browser/new_tab_page/modules/v2/calendar/outlook_calendar_page_handler.h"
-@@ -1897,7 +1896,6 @@ void RegisterProfilePrefs(user_prefs::Pr
+@@ -1937,7 +1936,6 @@ void RegisterProfilePrefs(user_prefs::Pr
    NewTabFooterUI::RegisterProfilePrefs(registry);
    NewTabPageHandler::RegisterProfilePrefs(registry);
    NewTabPageUI::RegisterProfilePrefs(registry);
@@ -1138,7 +1268,7 @@
    promos_utils::RegisterProfilePrefs(registry);
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -896,9 +896,7 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -911,9 +911,7 @@ void ChromeBrowserMainExtraPartsProfiles
      enterprise_connectors::TelomereEventRouterFactory::GetInstance();
    }
  #endif
@@ -1150,7 +1280,7 @@
    enterprise_connectors::DeviceTrustConnectorServiceFactory::GetInstance();
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.ts
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.ts
-@@ -143,7 +143,7 @@ export class SettingsPrivacyPageIndexEle
+@@ -148,7 +148,7 @@ export class SettingsPrivacyPageIndexEle
        enableSafeBrowsingSubresourceFilter_: {
          type: Boolean,
          value: () => {
@@ -1161,7 +1291,7 @@
  
 --- a/chrome/browser/safe_browsing/BUILD.gn
 +++ b/chrome/browser/safe_browsing/BUILD.gn
-@@ -88,9 +88,6 @@ static_library("safe_browsing") {
+@@ -91,9 +91,6 @@ static_library("safe_browsing") {
    ]
    }
  
@@ -1171,7 +1301,7 @@
  
    # Note: is_android is not equivalent to safe_browsing_mode == 2.
    # Sources and dependencies added to this block must not depend on anything
-@@ -110,17 +107,6 @@ static_library("safe_browsing") {
+@@ -113,17 +110,6 @@ static_library("safe_browsing") {
      allow_circular_includes_from += [ "//chrome/browser/ash/file_manager" ]
    }
  
@@ -1233,7 +1363,7 @@
  
  namespace settings_api = extensions::api::settings_private;
  
-@@ -19,73 +18,19 @@ const char kGeneratedSafeBrowsingPref[]
+@@ -19,77 +18,19 @@ const char kGeneratedSafeBrowsingPref[]
  GeneratedSafeBrowsingPref::GeneratedSafeBrowsingPref(Profile* profile)
      : profile_(profile) {
    user_prefs_registrar_.Init(profile->GetPrefs());
@@ -1243,6 +1373,10 @@
 -      base::BindRepeating(
 -          &GeneratedSafeBrowsingPref::OnSafeBrowsingPreferencesChanged,
 -          base::Unretained(this)));
+-  user_prefs_registrar_.Add(
+-      prefs::kSecuritySettingsBundle,
+-      base::BindRepeating(&GeneratedSafeBrowsingPref::OnSettingsBundleChanged,
+-                          base::Unretained(this)));
  }
  
  extensions::settings_private::SetPrefResult GeneratedSafeBrowsingPref::SetPref(
@@ -1308,7 +1442,28 @@
  
    ApplySafeBrowsingManagementState(*profile_, pref_object);
  
-@@ -100,76 +45,6 @@ void GeneratedSafeBrowsingPref::OnSafeBr
+@@ -101,97 +42,12 @@ void GeneratedSafeBrowsingPref::OnSafeBr
+ }
+ 
+ void GeneratedSafeBrowsingPref::OnSettingsBundleChanged() {
+-  auto bundle = GetSecurityBundleSetting(*profile_->GetPrefs());
+-  switch (bundle) {
+-    case SecuritySettingsBundleSetting::STANDARD:
+-      SetPref(std::make_unique<base::Value>(
+-                  static_cast<int>(SafeBrowsingState::STANDARD_PROTECTION))
+-                  .get());
+-      break;
+-    case SecuritySettingsBundleSetting::ENHANCED:
+-      SetPref(std::make_unique<base::Value>(
+-                  static_cast<int>(SafeBrowsingState::ENHANCED_PROTECTION))
+-                  .get());
+-      break;
+-    default:
+-      NOTREACHED();
+-  }
+ }
+ 
+ /* static */
  void GeneratedSafeBrowsingPref::ApplySafeBrowsingManagementState(
      const Profile& profile,
      settings_api::PrefObject& pref_object) {
@@ -1596,7 +1751,7 @@
    // certificate. So, when users click proceed on an interstitial, move the tab
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -4320,8 +4320,6 @@ static_library("ui") {
+@@ -4391,8 +4391,6 @@ static_library("ui") {
        "views/safe_browsing/password_reuse_modal_warning_dialog.h",
        "views/safe_browsing/tailored_security_desktop_dialog_manager.cc",
        "views/safe_browsing/tailored_security_desktop_dialog_manager.h",
@@ -1690,15 +1845,15 @@
  
 --- a/chrome/browser/ui/toasts/toast_service.cc
 +++ b/chrome/browser/ui/toasts/toast_service.cc
-@@ -38,7 +38,6 @@
+@@ -41,7 +41,6 @@
  #include "components/plus_addresses/core/browser/grit/plus_addresses_strings.h"
  #include "components/plus_addresses/core/common/features.h"
  #include "components/safe_browsing/core/common/features.h"
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  #include "components/strings/grit/components_strings.h"
  #include "components/tabs/public/tab_interface.h"
- #include "components/vector_icons/vector_icons.h"
-@@ -142,57 +141,6 @@ void ToastService::RegisterToasts(
+ #include "components/translate/core/browser/translate_manager.h"
+@@ -139,57 +138,6 @@ void ToastService::RegisterToasts(
              .Build());
    }
  
@@ -1758,7 +1913,7 @@
      // Current tab has been removed from the group.
 --- a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
 +++ b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
-@@ -111,7 +111,7 @@ void ChromeWebContentsViewDelegateViews:
+@@ -150,7 +150,7 @@ bool ChromeWebContentsViewDelegateViews:
  void ChromeWebContentsViewDelegateViews::OnPerformingDrop(
      const content::DropData& drop_data,
      DropCompletionCallback callback) {
@@ -1769,7 +1924,7 @@
  std::unique_ptr<content::WebContentsViewDelegate> CreateWebContentsViewDelegate(
 --- a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm
 +++ b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm
-@@ -100,7 +100,7 @@ bool ChromeWebContentsViewDelegateViewsM
+@@ -133,7 +133,7 @@ bool ChromeWebContentsViewDelegateViewsM
  void ChromeWebContentsViewDelegateViewsMac::OnPerformingDrop(
      const content::DropData& drop_data,
      DropCompletionCallback callback) {
@@ -1780,7 +1935,7 @@
  std::unique_ptr<RenderViewContextMenuBase>
 --- a/chrome/browser/ui/webui/downloads/downloads_dom_handler.cc
 +++ b/chrome/browser/ui/webui/downloads/downloads_dom_handler.cc
-@@ -180,21 +180,6 @@ void MaybeReportBypassAction(download::D
+@@ -181,21 +181,6 @@ void MaybeReportBypassAction(download::D
  void MaybeTriggerTrustSafetySurvey(download::DownloadItem* file,
                                     WarningSurface surface,
                                     WarningAction action) {
@@ -1802,6 +1957,51 @@
  }
  
  void RecordDownloadsPageValidatedHistogram(download::DownloadItem* item) {
+--- a/chrome/browser/ui/webui/feedback/report_unsafe_site/BUILD.gn
++++ b/chrome/browser/ui/webui/feedback/report_unsafe_site/BUILD.gn
+@@ -26,7 +26,6 @@ static_library("report_unsafe_site") {
+     "//chrome/browser/feedback:feedback_impl",
+     "//chrome/browser/ui/webui/top_chrome",
+     "//chrome/common",
+-    "//components/safe_browsing/content/browser:client_side_detection",
+     "//mojo/public/cpp/bindings",
+   ]
+ }
+--- a/chrome/browser/ui/webui/feedback/report_unsafe_site/report_unsafe_site_handler.cc
++++ b/chrome/browser/ui/webui/feedback/report_unsafe_site/report_unsafe_site_handler.cc
+@@ -5,7 +5,6 @@
+ #include "chrome/browser/ui/webui/feedback/report_unsafe_site/report_unsafe_site_handler.h"
+ 
+ #include "base/strings/utf_string_conversions.h"
+-#include "components/safe_browsing/content/browser/client_side_detection_host.h"
+ #include "components/safe_browsing/content/browser/safe_browsing_tab_observer.h"
+ #include "components/url_formatter/elide_url.h"
+ #include "components/viz/common/frame_sinks/copy_output_result.h"
+@@ -17,16 +16,7 @@
+ namespace {
+ safe_browsing::ClientSideDetectionHost* GetClientSideDetectionHost(
+     content::WebContents* web_contents) {
+-  if (!web_contents) {
+     return nullptr;
+-  }
+-
+-  auto* observer =
+-      safe_browsing::SafeBrowsingTabObserver::FromWebContents(web_contents);
+-  if (!observer) {
+-    return nullptr;
+-  }
+-  return observer->client_side_detection_host();
+ }
+ 
+ }  // anonymous namespace
+@@ -80,7 +70,6 @@ void ReportUnsafeSitePageHandler::SendRe
+   if (!include_screenshot) {
+     screenshot_ = SkBitmap();
+   }
+-  client_side_detection_host->ReportUnsafeSite(screenshot_);
+   std::move(callback).Run();
+ }
+ 
 --- a/chrome/browser/ui/webui/settings/hats_handler.cc
 +++ b/chrome/browser/ui/webui/settings/hats_handler.cc
 @@ -22,14 +22,11 @@
@@ -1939,7 +2139,7 @@
        std::string(version_info::GetChannelString(chrome::GetChannel()));
 --- a/chrome/browser/ui/webui/settings/safety_hub_handler.cc
 +++ b/chrome/browser/ui/webui/settings/safety_hub_handler.cc
-@@ -176,10 +176,6 @@ SafetyHubHandler::SafetyHubHandler(Profi
+@@ -175,10 +175,6 @@ SafetyHubHandler::SafetyHubHandler(Profi
    prefs_observation_.Observe(ExtensionPrefs::Get(profile_));
    extension_registry_observation_.Observe(ExtensionRegistry::Get(profile_));
    pref_change_registrar_.Init(profile_->GetPrefs());
@@ -1950,7 +2150,7 @@
  }
  SafetyHubHandler::~SafetyHubHandler() = default;
  
-@@ -831,14 +827,4 @@ void SafetyHubHandler::OnJavascriptAllow
+@@ -830,14 +826,4 @@ void SafetyHubHandler::OnJavascriptAllow
  void SafetyHubHandler::OnJavascriptDisallowed() {}
  
  void SafetyHubHandler::OnSafeBrowsingEnhancedChanged() {
@@ -1967,7 +2167,7 @@
  }
 --- a/chrome/browser/ui/webui/settings/security_settings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/security_settings_provider.cc
-@@ -8,30 +8,25 @@
+@@ -9,41 +9,32 @@
  #include "chrome/browser/safe_browsing/generated_safe_browsing_pref.h"
  #include "chrome/browser/ssl/https_upgrades_util.h"
  #include "components/safe_browsing/core/common/features.h"
@@ -2000,11 +2200,24 @@
 -                              SecuritySettingsBundleSetting::ENHANCED)));
 +                          0);
  
+   html_source->AddInteger(
+       "securityStandardBundleJavascriptGuardrailsDefault",
+-      static_cast<int>(content_settings::GeneratedJavascriptOptimizerPref::
+-                           GetDefaultJsOptimizerSetting(
+-                               SecuritySettingsBundleSetting::STANDARD)));
++      static_cast<int>(content_settings::JavascriptOptimizerSetting::kAllowed));
+   html_source->AddInteger(
+       "securityEnhancedBundleJavascriptGuardrailsDefault",
+-      static_cast<int>(content_settings::GeneratedJavascriptOptimizerPref::
+-                           GetDefaultJsOptimizerSetting(
+-                               SecuritySettingsBundleSetting::ENHANCED)));
++      static_cast<int>(content_settings::JavascriptOptimizerSetting::kAllowed));
+ 
    // TODO(http://crbug.com/458521865) Move remainder of
    // security-related-settings (not the strings) to this function.
 --- a/chrome/common/webui_url_constants.cc
 +++ b/chrome/common/webui_url_constants.cc
-@@ -131,7 +131,6 @@ base::span<const base::cstring_view> Chr
+@@ -178,7 +178,6 @@ base::span<const base::cstring_view> Chr
        kChromeUISuggestInternalsHost,
  #endif
        kChromeUINTPTilesInternalsHost,
@@ -2014,7 +2227,7 @@
        kChromeUITabSearchHost,
 --- a/chrome/test/BUILD.gn
 +++ b/chrome/test/BUILD.gn
-@@ -2900,7 +2900,6 @@ if (!is_android) {
+@@ -3036,7 +3036,6 @@ if (!is_android) {
        "//components/resources",
        "//components/safe_browsing:buildflags",
        "//components/safe_browsing/content/browser",
@@ -2022,7 +2235,7 @@
        "//components/safe_browsing/content/browser:credit_card_form_event",
        "//components/safe_browsing/content/browser:safe_browsing_service",
        "//components/safe_browsing/content/browser/password_protection",
-@@ -7366,7 +7365,6 @@ test("unit_tests") {
+@@ -7462,7 +7461,6 @@ test("unit_tests") {
      "//components/resources",
      "//components/safe_browsing:buildflags",
      "//components/safe_browsing/content/browser",
@@ -2106,7 +2319,7 @@
  
 --- a/components/enterprise/browser/reporting/chrome_profile_request_generator.cc
 +++ b/components/enterprise/browser/reporting/chrome_profile_request_generator.cc
-@@ -294,18 +294,12 @@ void ChromeProfileRequestGenerator::OnAg
+@@ -311,18 +311,12 @@ void ChromeProfileRequestGenerator::OnAg
          profile_signals.built_in_dns_client_enabled);
      profile_signals_report->set_chrome_remote_desktop_app_blocked(
          profile_signals.chrome_remote_desktop_app_blocked);
@@ -2127,7 +2340,7 @@
  
 --- a/components/enterprise/browser/reporting/report_util.cc
 +++ b/components/enterprise/browser/reporting/report_util.cc
-@@ -81,25 +81,6 @@ em::SettingValue TranslateSettingValue(
+@@ -82,25 +82,6 @@ em::SettingValue TranslateSettingValue(
    }
  }
  
@@ -2153,7 +2366,7 @@
  em::ProfileSignalsReport::RealtimeUrlCheckMode TranslateRealtimeUrlCheckMode(
      enterprise_connectors::EnterpriseRealTimeUrlCheckMode mode) {
    switch (mode) {
-@@ -112,18 +93,6 @@ em::ProfileSignalsReport::RealtimeUrlChe
+@@ -113,18 +94,6 @@ em::ProfileSignalsReport::RealtimeUrlChe
    }
  }
  
@@ -2174,7 +2387,7 @@
      device_signals::AvProduct av_product) {
 --- a/components/enterprise/browser/reporting/report_util.h
 +++ b/components/enterprise/browser/reporting/report_util.h
-@@ -23,17 +23,10 @@ std::string ObfuscateFilePath(const std:
+@@ -33,17 +33,10 @@ std::string ObfuscateFilePath(const std:
  enterprise_management::SettingValue TranslateSettingValue(
      device_signals::SettingValue setting_value);
  
@@ -2256,7 +2469,7 @@
  }  // namespace password_manager
 --- a/components/safe_browsing/content/common/safe_browsing.mojom
 +++ b/components/safe_browsing/content/common/safe_browsing.mojom
-@@ -177,7 +177,6 @@ interface PhishingDetector {
+@@ -182,7 +182,6 @@ interface PhishingDetector {
  
  // Interface for setting a phishing model. This is scoped to an entire
  // RenderProcess.
@@ -2264,6 +2477,16 @@
  interface PhishingModelSetter {
    // A classification model for client-side phishing detection in addition to
    // the image embedding model. This call sends the model and the image
+--- a/components/safe_browsing/content/common/visual_utils.h
++++ b/components/safe_browsing/content/common/visual_utils.h
+@@ -7,7 +7,6 @@
+ 
+ #include <string>
+ 
+-#include "components/safe_browsing/core/common/proto/client_model.pb.h"
+ #include "components/safe_browsing/core/common/proto/csd.pb.h"
+ #include "third_party/skia/include/core/SkBitmap.h"
+ #include "ui/gfx/geometry/size.h"
 --- a/components/safe_browsing/core/browser/BUILD.gn
 +++ b/components/safe_browsing/core/browser/BUILD.gn
 @@ -21,8 +21,6 @@ source_set("browser") {
@@ -2338,7 +2561,7 @@
  }
  
  GURL GetKeyFetchingUrl() {
-@@ -443,42 +428,9 @@ void OhttpKeyService::MaybeStartServerTr
+@@ -443,30 +428,9 @@ void OhttpKeyService::MaybeStartServerTr
  }
  
  void OhttpKeyService::PopulateKeyFromPref() {
@@ -2348,18 +2571,6 @@
 -      prefs::kSafeBrowsingHashRealTimeOhttpExpirationTime);
 -  std::string key_fetch_url = pref_service_->GetString(
 -      prefs::kSafeBrowsingHashRealTimeOhttpKeyFetchUrl);
--  if (!key.empty() && expiration_time > base::Time::Now() &&
--      key_fetch_url.empty()) {
--    // If the key fetch URL is empty, it means the key was saved by a version
--    // of Chrome that used a hardcoded URL. Treat it as such to avoid
--    // unnecessary key fetches.
--    static constexpr char kHardCodedKeyFetchUrl[] =
--        "https://safebrowsingohttpgateway.googleapis.com/v1/ohttp/"
--        "hpkekeyconfig";
--    key_fetch_url = kHardCodedKeyFetchUrl;
--    // TODO(crbug.com/461955661): Remove this entire if statement once the URL
--    // has been saved to preferences for one full Chrome milestone.
--  }
 -  if (!key.empty() && expiration_time > base::Time::Now() &&
 -      key_fetch_url == kHashPrefixRealTimeLookupsKeyFetchUrl.Get()) {
 -    std::string decoded_key;
@@ -2607,7 +2818,7 @@
           {syncable_prefs_ids::kFacilitatedPaymentsPix, syncer::PREFERENCES,
 --- a/content/browser/file_system_access/file_system_access_safe_move_helper.cc
 +++ b/content/browser/file_system_access/file_system_access_safe_move_helper.cc
-@@ -169,15 +169,8 @@ void FileSystemAccessSafeMoveHelper::Sta
+@@ -175,15 +175,8 @@ void FileSystemAccessSafeMoveHelper::Sta
      return;
    }
  
@@ -2623,7 +2834,7 @@
  }
  
  void FileSystemAccessSafeMoveHelper::ComputeHashForSourceFile(
-@@ -216,45 +209,6 @@ bool FileSystemAccessSafeMoveHelper::Req
+@@ -222,45 +215,6 @@ bool FileSystemAccessSafeMoveHelper::Req
    return dest_url().type() != storage::kFileSystemTypeTemporary;
  }
  
@@ -2728,7 +2939,7 @@
        return RespondNow(Error(std::move(error)));
 --- a/extensions/browser/api/web_request/extension_web_request_event_router.cc
 +++ b/extensions/browser/api/web_request/extension_web_request_event_router.cc
-@@ -1142,14 +1142,6 @@ int WebRequestEventRouter::OnBeforeReque
+@@ -1143,14 +1143,6 @@ int WebRequestEventRouter::OnBeforeReque
            DCHECK(action.redirect_url);
            OnDNRActionMatched(browser_context, *request, action);
            *new_url = GetNewUrl(action.redirect_url.value(), browser_context);
@@ -2793,7 +3004,7 @@
  }
 --- a/extensions/browser/extension_registrar.cc
 +++ b/extensions/browser/extension_registrar.cc
-@@ -799,119 +799,27 @@ void ExtensionRegistrar::UnblockAllExten
+@@ -815,119 +815,27 @@ void ExtensionRegistrar::UnblockAllExten
  
  void ExtensionRegistrar::OnBlocklistStateRemoved(
      const std::string& extension_id) {
