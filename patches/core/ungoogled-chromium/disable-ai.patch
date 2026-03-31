@@ -408,7 +408,7 @@
  #include "chrome/browser/pdf/pdf_pref_names.h"
  #include "chrome/browser/pdf/pdf_viewer_stream_manager.h"
  #include "chrome/browser/profiles/profile.h"
-@@ -305,24 +302,7 @@ ExtensionFunction::ResponseAction PdfVie
+@@ -306,43 +303,7 @@ ExtensionFunction::ResponseAction PdfVie
      return RespondNow(Error("No tab."));
    }
  
@@ -422,11 +422,30 @@
 -          contents->GetBrowserContext());
 -  CHECK(glic_service);
 -
--  glic_service->ToggleUI(tab_interface->GetBrowserWindowInterface(),
--                         /*prevent_close=*/true,
--                         glic::mojom::InvocationSource::kPdfSummarizeButton,
--                         /*prompt_suggestion=*/"summarize the pdf",
--                         /*auto_send=*/true);
+-  int arm = features::kPdfGlicSummarizeArm.Get();
+-  bool has_consented = glic::GlicEnabling::HasConsentedForProfile(
+-      Profile::FromBrowserContext(contents->GetBrowserContext()));
+-
+-  glic::GlicInvokeOptions options{
+-      glic::mojom::InvocationSource::kPdfSummarizeButton};
+-  options.prompts.push_back("summarize the pdf");
+-  options.conversation = glic::NewConversation();
+-
+-  if (has_consented) {
+-    glic_service->InvokeWithAutoSubmit(
+-        glic::InvokeWithAutoSubmitPasskeyProvider::GetPassKey(), tab_interface,
+-        std::move(options));
+-  } else {
+-    if (arm == 3) {
+-      options.fre_override = glic::mojom::FreOverride::kTrustFirstInline;
+-      glic_service->InvokeWithAutoSubmit(
+-          glic::InvokeWithAutoSubmitPasskeyProvider::GetPassKey(),
+-          tab_interface, std::move(options));
+-    } else {
+-      options.fre_override = glic::mojom::FreOverride::kTrustFirstText;
+-      glic_service->Invoke(tab_interface, std::move(options));
+-    }
+-  }
 -
 -  success = true;
 -  return RespondNow(NoArguments());
@@ -909,6 +928,73 @@
    IdentityManagerFactory::GetForProfile(profile)->OnNetworkInitialized();
    AccountReconcilorFactory::GetForProfile(profile);
  #if BUILDFLAG(IS_ANDROID)
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -48,7 +48,6 @@
+ #include "chrome/browser/devtools/views/devtools_floaty.h"
+ #include "chrome/browser/download/download_prefs.h"
+ #include "chrome/browser/download/download_stats.h"
+-#include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
+ #include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/language/language_model_manager_factory.h"
+@@ -4472,29 +4471,6 @@ void RenderViewContextMenu::ExecSaveAs()
+ }
+ 
+ void RenderViewContextMenu::ExecGlic() {
+-  if (glic::GlicEnabling::IsContextualMenuItemEnabled(GetProfile())) {
+-    glic::GlicKeyedService* glic_service =
+-        glic::GlicKeyedServiceFactory::GetGlicKeyedService(browser_context_);
+-    if (glic_service) {
+-      tabs::TabInterface* tab =
+-          tabs::TabInterface::MaybeGetFromContents(source_web_contents_);
+-      if (tab) {
+-        glic::GlicInvokeOptions options(
+-            glic::mojom::InvocationSource::kWebContentsContextMenu);
+-        options.fre_override = glic::mojom::FreOverride::kTrustFirstInline;
+-        std::string arm = features::kGlicContextMenuArm.Get();
+-        if (arm == "arm2") {
+-          options.prompts.push_back(
+-              l10n_util::GetStringUTF8(IDS_GLIC_SUMMARIZE_PAGE_PROMPT));
+-          glic_service->InvokeWithAutoSubmit(
+-              glic::InvokeWithAutoSubmitPasskeyProvider::GetPassKey(), tab,
+-              std::move(options));
+-        } else {
+-          glic_service->Invoke(tab, std::move(options));
+-        }
+-      }
+-    }
+-  }
+ }
+ 
+ void RenderViewContextMenu::ExecGlicShareImage() {
+@@ -4890,26 +4866,6 @@ void RenderViewContextMenu::ExecProtocol
+ }
+ 
+ void RenderViewContextMenu::MaybeAppendOpenGlicItem() {
+-  // Append an item for opening Glic
+-  if (glic::GlicEnabling::IsContextualMenuItemEnabled(GetProfile())) {
+-    std::string arm = features::kGlicContextMenuArm.Get();
+-    bool show_summarize_page = (arm == "arm2");
+-    menu_model_.AddItemWithStringIdAndIcon(
+-        IDC_CONTENT_CONTEXT_GLIC,
+-        show_summarize_page ? IDS_GLIC_CONTEXT_MENU_SUMMARIZE_PAGE_WITH_GEMINI
+-                            : IDS_GLIC_BUTTON_ENTRYPOINT_ASK_GEMINI_LABEL,
+-        ui::ImageModel::FromImageSkia(
+-            gfx::ImageSkiaOperations::CreateResizedImage(
+-                *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+-                    IDR_GLIC_BUTTON_ALT_ICON),
+-                skia::ImageOperations::RESIZE_BEST,
+-                gfx::Size(kTabMenuIconSize, kTabMenuIconSize))));
+-    menu_model_.SetIsNewFeatureAt(
+-        menu_model_.GetItemCount() - 1,
+-        UserEducationService::MaybeShowNewBadge(GetBrowserContext(),
+-                                                features::kGlicContextMenu));
+-    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+-  }
+ }
+ 
+ void RenderViewContextMenu::ExecPictureInPicture() {
 --- a/chrome/browser/resources/glic/BUILD.gn
 +++ b/chrome/browser/resources/glic/BUILD.gn
 @@ -7,7 +7,6 @@ import("//extensions/buildflags/buildfla
@@ -1129,7 +1215,7 @@
            IDS_TOOLTIP_TAB_ALERT_STATE_GLIC_ACCESSING);
 --- a/chrome/browser/ui/tabs/tab_features.cc
 +++ b/chrome/browser/ui/tabs/tab_features.cc
-@@ -366,23 +366,6 @@ void TabFeatures::Init(TabInterface& tab
+@@ -375,23 +375,6 @@ void TabFeatures::Init(TabInterface& tab
                    tab, &tab, side_panel_registry_.get());
      }
  #endif  // BUILDFLAG(ENABLE_GLIC)
@@ -1402,7 +1488,7 @@
  void ToolbarView::AnimationEnded(const gfx::Animation* animation) {
 --- a/chrome/browser/ui/views/user_education/browser_user_education_service.cc
 +++ b/chrome/browser/ui/views/user_education/browser_user_education_service.cc
-@@ -856,40 +856,6 @@ void MaybeRegisterChromeFeaturePromos(
+@@ -857,40 +857,6 @@ void MaybeRegisterChromeFeaturePromos(
                         "Triggered when the PDF Viewer opens.")));
  #endif
  
@@ -1443,6 +1529,17 @@
  
    // kIPHLensOverlayFeature:
    registry.RegisterFeature(std::move(
+@@ -2084,10 +2050,6 @@ void MaybeRegisterChromeNewBadges(user_e
+                                "Shown in the link context menu to open the "
+                                "link in a new split tab.")));
+ 
+-  registry.RegisterFeature(user_education::NewBadgeSpecification(
+-      features::kGlicContextMenu,
+-      user_education::Metadata(146, "basiaz@google.com",
+-                               "Shown in the contextual menu.")));
+ 
+   registry.RegisterFeature(user_education::NewBadgeSpecification(
+       tabs::kVerticalTabsPreviewBadge,
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
 @@ -75,7 +75,6 @@ source_set("configs") {
