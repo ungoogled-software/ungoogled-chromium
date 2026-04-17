@@ -88,8 +88,8 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
 
     get_logger().info('Cloning depot_tools')
     # To-Do: Undo this conditional once upstream rolls depot_tools
-    # More info: https://github.com/ungoogled-software/ungoogled-chromium/pull/3738#issuecomment-4256065678
-    if (chromium_version == '147.0.7727.101'):
+    # https://github.com/ungoogled-software/ungoogled-chromium/pull/3738#issuecomment-4256065678
+    if chromium_version == '147.0.7727.101':
         dt_commit = '5e9883513113f4c6b74e33d80c066075d0fd3960'
     else:
         dt_commit = re.search(r"depot_tools\.git'\s*\+\s*'@'\s*\+\s*'([^']+)',",
