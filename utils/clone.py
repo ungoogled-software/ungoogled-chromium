@@ -93,7 +93,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
         dt_commit = '5e9883513113f4c6b74e33d80c066075d0fd3960'
     else:
         dt_commit = re.search(r"depot_tools\.git'\s*\+\s*'@'\s*\+\s*'([^']+)',",
-                            Path(args.output / 'DEPS').read_text(encoding=ENCODING)).group(1)
+                              Path(args.output / 'DEPS').read_text(encoding=ENCODING)).group(1)
     if not dt_commit:
         get_logger().error('Unable to obtain commit for depot_tools checkout')
         sys.exit(1)
