@@ -1,56 +1,17 @@
 # Add extension-mime-request-handling chrome://flag to tweak the behavior of
 # extension MIME types
 
---- a/chrome/browser/download/download_crx_util.cc
-+++ b/chrome/browser/download/download_crx_util.cc
-@@ -9,6 +9,7 @@
- #include <memory>
- 
- #include "base/auto_reset.h"
-+#include "base/command_line.h"
- #include "build/build_config.h"
- #include "chrome/browser/extensions/browser_window_util.h"
- #include "chrome/browser/extensions/extension_install_prompt.h"
-@@ -114,6 +115,14 @@ scoped_refptr<extensions::CrxInstaller>
-   return installer;
- }
- 
-+bool ShouldDownloadAsRegularFile() {
-+    const base::CommandLine& command_line =
-+        *base::CommandLine::ForCurrentProcess();
-+    return command_line.HasSwitch("extension-mime-request-handling") &&
-+        command_line.GetSwitchValueASCII("extension-mime-request-handling") ==
-+        "download-as-regular-file";
-+}
-+
- bool IsExtensionDownload(const DownloadItem& download_item) {
-   if (download_item.GetTargetDisposition() ==
-       DownloadItem::TARGET_DISPOSITION_PROMPT)
-@@ -122,7 +131,7 @@ bool IsExtensionDownload(const DownloadI
-   if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
-       extensions::UserScript::IsURLUserScript(download_item.GetURL(),
-                                               download_item.GetMimeType())) {
--    return true;
-+    return !ShouldDownloadAsRegularFile();
-   } else {
-     return false;
-   }
---- a/chrome/browser/download/download_crx_util.h
-+++ b/chrome/browser/download/download_crx_util.h
-@@ -35,6 +35,10 @@ scoped_refptr<extensions::CrxInstaller>
-     Profile* profile,
-     const download::DownloadItem& download_item);
- 
-+// Returns true if the user wants all extensions to be downloaded as regular
-+// files.
-+bool ShouldDownloadAsRegularFile();
-+
- // Returns true if this is an extension download. This also considers user
- // scripts to be extension downloads, since we convert those automatically.
- bool IsExtensionDownload(const download::DownloadItem& download_item);
 --- a/chrome/browser/download/download_target_determiner.cc
 +++ b/chrome/browser/download/download_target_determiner.cc
-@@ -1135,10 +1135,12 @@ DownloadConfirmationReason DownloadTarge
+@@ -43,6 +43,7 @@
+ #include "content/public/browser/browser_thread.h"
+ #include "content/public/browser/download_item_utils.h"
+ #include "content/public/common/buildflags.h"
++#include "extensions/browser/extension_util.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "extensions/common/constants.h"
+ #include "net/base/filename_util.h"
+@@ -1170,10 +1171,12 @@ DownloadConfirmationReason DownloadTarge
      return DownloadConfirmationReason::SAVE_AS;
  
  #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
@@ -58,7 +19,7 @@
 -  // listed.
 -  if (download_crx_util::IsTrustedExtensionDownload(GetProfile(), *download_))
 -    return DownloadConfirmationReason::NONE;
-+  if (!download_crx_util::ShouldDownloadAsRegularFile()) {
++  if (!extensions::util::ShouldDownloadAsRegularFile()) {
 +    // Don't prompt for extension downloads.
 +    if (download_crx_util::IsTrustedExtensionDownload(GetProfile(), *download_) ||
 +        filename.MatchesExtension(extensions::kExtensionFileExtension))
@@ -69,7 +30,7 @@
    // Don't prompt for file types that are marked for opening automatically.
 --- a/chrome/browser/extensions/extension_management.cc
 +++ b/chrome/browser/extensions/extension_management.cc
-@@ -330,6 +330,13 @@ bool ExtensionManagement::IsInstallation
+@@ -331,6 +331,13 @@ bool ExtensionManagement::IsInstallation
  bool ExtensionManagement::IsOffstoreInstallAllowed(
      const GURL& url,
      const GURL& referrer_url) const {
@@ -110,3 +71,42 @@
 +     "Used when deciding how to handle a request for a CRX or User Script MIME type. ungoogled-chromium flag.",
 +     kOsAll, MULTI_VALUE_TYPE(kExtensionHandlingChoices)},
  #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/extensions/browser/extension_util.cc
++++ b/extensions/browser/extension_util.cc
+@@ -553,6 +553,14 @@ bool AnyCurrentlyInstalledExtensionIsFro
+                              });
+ }
+ 
++bool ShouldDownloadAsRegularFile() {
++    const base::CommandLine& command_line =
++        *base::CommandLine::ForCurrentProcess();
++    return command_line.HasSwitch("extension-mime-request-handling") &&
++        command_line.GetSwitchValueASCII("extension-mime-request-handling") ==
++        "download-as-regular-file";
++}
++
+ bool IsExtensionDownload(const download::DownloadItem& download_item) {
+   if (download_item.GetTargetDisposition() ==
+       download::DownloadItem::TARGET_DISPOSITION_PROMPT) {
+@@ -562,7 +570,7 @@ bool IsExtensionDownload(const download:
+   if (download_item.GetMimeType() == Extension::kMimeType ||
+       UserScript::IsURLUserScript(download_item.GetURL(),
+                                   download_item.GetMimeType())) {
+-    return true;
++    return !ShouldDownloadAsRegularFile();
+   }
+   return false;
+ }
+--- a/extensions/browser/extension_util.h
++++ b/extensions/browser/extension_util.h
+@@ -179,6 +179,10 @@ bool IsAppLaunchableWithoutEnabling(cons
+ bool AnyCurrentlyInstalledExtensionIsFromWebstore(
+     content::BrowserContext* context);
+ 
++// Returns true if the user wants all extensions to be downloaded as regular
++// files.
++bool ShouldDownloadAsRegularFile();
++
+ // Returns true if this is an extension download. This also considers user
+ // scripts to be extension downloads, since we convert those automatically.
+ bool IsExtensionDownload(const download::DownloadItem& download_item);

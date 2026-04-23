@@ -66,7 +66,7 @@ PRUNING_EXCLUDE_PATTERNS = [
     # Exclusion for performance tracing
     'third_party/perfetto/src/trace_processor/importers/proto/atoms.descriptor',
     # Exclusion for zoneinfo64
-    'third_party/rust/chromium_crates_io/vendor/zoneinfo64-v0_2/src/data/zoneinfo64.res',
+    'third_party/rust/chromium_crates_io/vendor/zoneinfo64-v0_3/src/data/zoneinfo64.res',
     # Exclusions for safe file extensions
     '*.avif',
     '*.ttf',

@@ -10,7 +10,7 @@
        extension_misc::kAssessmentAssistantExtensionId,
 --- a/chrome/browser/extensions/component_loader.cc
 +++ b/chrome/browser/extensions/component_loader.cc
-@@ -422,11 +422,6 @@ void ComponentLoader::AddWebStoreApp() {
+@@ -423,11 +423,6 @@ void ComponentLoader::AddWebStoreApp() {
      return;
    }
  #endif
@@ -34,21 +34,22 @@
  
  #if BUILDFLAG(IS_CHROMEOS)
    {
---- a/chrome/browser/extensions/webstore_installer.cc
-+++ b/chrome/browser/extensions/webstore_installer.cc
-@@ -489,20 +489,6 @@ void WebstoreInstaller::DownloadNextPend
+--- a/extensions/browser/webstore_installer.cc
++++ b/extensions/browser/webstore_installer.cc
+@@ -495,21 +495,6 @@ void WebstoreInstaller::DownloadNextPend
  
- void WebstoreInstaller::DownloadCrx(const extensions::ExtensionId& extension_id,
+ void WebstoreInstaller::DownloadCrx(const ExtensionId& extension_id,
                                      InstallSource source) {
 -  download_url_ = GetWebstoreInstallURL(extension_id, source);
 -  MaybeAppendAuthUserParameter(approval_->authuser, &download_url_);
 -
--  base::FilePath user_data_dir;
--  base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
+-  base::FilePath user_data_dir =
+-      ExtensionsBrowserClient::Get()->GetUserDataDir();
 -  base::FilePath download_path = user_data_dir.Append(kWebstoreDownloadFolder);
 -
--  base::FilePath download_directory(g_download_directory_for_tests ?
--      *g_download_directory_for_tests : download_path);
+-  base::FilePath download_directory(g_download_directory_for_tests
+-                                        ? *g_download_directory_for_tests
+-                                        : download_path);
 -
 -  GetExtensionFileTaskRunner()->PostTaskAndReplyWithResult(
 -      FROM_HERE,
@@ -57,7 +58,7 @@
  }
  
  // http://crbug.com/40957413
-@@ -651,21 +637,6 @@ void WebstoreInstaller::UpdateDownloadPr
+@@ -667,24 +652,6 @@ void WebstoreInstaller::UpdateDownloadPr
  void WebstoreInstaller::StartCrxInstaller(const DownloadItem& download) {
    DCHECK_CURRENTLY_ON(BrowserThread::UI);
    DCHECK(!crx_installer_.get());
@@ -65,15 +66,18 @@
 -  const InstallApproval* approval = GetAssociatedApproval(download);
 -  DCHECK(approval);
 -
--  crx_installer_ = download_crx_util::CreateCrxInstaller(profile_, download);
+-  crx_installer_ =
+-      ExtensionsBrowserClient::Get()->CreateCrxInstallerFromDownloadItem(
+-          browser_context_, download);
 -
 -  crx_installer_->set_expected_id(approval->extension_id);
 -  crx_installer_->set_is_gallery_install(true);
 -  crx_installer_->set_allow_silent_install(true);
 -  crx_installer_->AddInstallerCallback(base::BindOnce(
 -      &WebstoreInstaller::OnInstallerDone, weak_ptr_factory_.GetWeakPtr()));
--  if (approval->withhold_permissions)
+-  if (approval->withhold_permissions) {
 -    crx_installer_->set_withhold_permissions();
+-  }
 -
 -  crx_installer_->InstallCrx(download.GetFullPath());
  }
