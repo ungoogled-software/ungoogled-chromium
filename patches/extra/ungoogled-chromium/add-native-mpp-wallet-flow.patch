@@ -1,0 +1,2964 @@
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -3778,6 +3778,10 @@
+       "metrics/usage_scenario/usage_scenario_tracker.h",
+       "metrics/usage_scenario/video_capture_event_provider.cc",
+       "metrics/usage_scenario/video_capture_event_provider.h",
++      "mpp/mpp_payment_utils.cc",
++      "mpp/mpp_payment_utils.h",
++      "mpp/mpp_tab_helper.cc",
++      "mpp/mpp_tab_helper.h",
+       "new_tab_page/chrome_colors/chrome_colors_factory.cc",
+       "new_tab_page/chrome_colors/chrome_colors_factory.h",
+       "new_tab_page/chrome_colors/chrome_colors_service.cc",
+--- /dev/null
++++ b/chrome/browser/mpp/mpp_payment_utils.cc
+@@ -0,0 +1,1071 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/mpp/mpp_payment_utils.h"
++
++#include <algorithm>
++#include <array>
++#include <cstdint>
++#include <map>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include "base/base64url.h"
++#include "base/containers/span.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_util.h"
++#include "base/time/time.h"
++#include "base/values.h"
++#include "crypto/openssl_util.h"
++#include "crypto/random.h"
++#include "third_party/boringssl/src/include/openssl/bn.h"
++
++namespace mpp {
++namespace {
++
++constexpr char kTempoMethod[] = "tempo";
++constexpr char kChargeIntent[] = "charge";
++constexpr char kSecp256k1PrimeHex[] =
++    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F";
++constexpr char kSecp256k1OrderHex[] =
++    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
++constexpr char kSecp256k1GeneratorXHex[] =
++    "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798";
++constexpr char kSecp256k1GeneratorYHex[] =
++    "483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8";
++constexpr uint8_t kTempoTransactionType = 0x76;
++constexpr uint8_t kTempoFeePayerEnvelopeType = 0x78;
++constexpr uint64_t kDefaultTempoChainId = 42431;
++constexpr uint64_t kDefaultMaxPriorityFeePerGas = 1000000000ULL;
++constexpr uint64_t kDefaultMaxFeePerGas = 41000000000ULL;
++constexpr uint64_t kDefaultGasLimit = 1000000ULL;
++constexpr uint64_t kFeePayerValidBeforeSeconds = 25;
++constexpr size_t kEvmAddressBytes = 20;
++constexpr size_t kKeccakDigestBytes = 32;
++constexpr size_t kKeccakRateBytes = 136;
++constexpr size_t kTempoNonceKeyBytes = 32;
++constexpr size_t kSecp256k1PrivateKeyBytes = 32;
++constexpr size_t kSecp256k1UncompressedPublicKeyBytes = 65;
++constexpr std::array<uint8_t, 4> kTip20TransferSelector = {0xa9, 0x05, 0x9c,
++                                                           0xbb};
++
++struct Secp256k1Point {
++  bssl::UniquePtr<BIGNUM> x;
++  bssl::UniquePtr<BIGNUM> y;
++  bool infinity = true;
++};
++
++struct EcdsaSignature {
++  std::array<uint8_t, 32> r = {};
++  std::array<uint8_t, 32> s = {};
++  uint8_t y_parity = 0;
++};
++
++struct TempoChargeRequest {
++  std::string amount;
++  std::array<uint8_t, kEvmAddressBytes> currency = {};
++  std::array<uint8_t, kEvmAddressBytes> recipient = {};
++  uint64_t chain_id = kDefaultTempoChainId;
++  uint64_t valid_before = 0;
++  bool fee_payer = false;
++  bool supports_pull = true;
++};
++
++using Bytes = std::vector<uint8_t>;
++
++std::string EvmAddressBytesToString(base::span<const uint8_t> address) {
++  return "0x" + base::HexEncodeLower(address);
++}
++
++uint64_t RotateLeft64(uint64_t value, int shift) {
++  if (shift == 0) {
++    return value;
++  }
++  return (value << shift) | (value >> (64 - shift));
++}
++
++uint64_t Load64LittleEndian(base::span<const uint8_t> input) {
++  uint64_t result = 0;
++  for (size_t i = 0; i < 8; ++i) {
++    result |= static_cast<uint64_t>(input[i]) << (8 * i);
++  }
++  return result;
++}
++
++void Store64LittleEndian(uint64_t value, base::span<uint8_t> output) {
++  for (size_t i = 0; i < 8; ++i) {
++    output[i] = static_cast<uint8_t>((value >> (8 * i)) & 0xff);
++  }
++}
++
++void KeccakPermutation(std::array<uint64_t, 25>& state) {
++  static constexpr std::array<uint64_t, 24> kRoundConstants = {
++      0x0000000000000001ULL, 0x0000000000008082ULL, 0x800000000000808aULL,
++      0x8000000080008000ULL, 0x000000000000808bULL, 0x0000000080000001ULL,
++      0x8000000080008081ULL, 0x8000000000008009ULL, 0x000000000000008aULL,
++      0x0000000000000088ULL, 0x0000000080008009ULL, 0x000000008000000aULL,
++      0x000000008000808bULL, 0x800000000000008bULL, 0x8000000000008089ULL,
++      0x8000000000008003ULL, 0x8000000000008002ULL, 0x8000000000000080ULL,
++      0x000000000000800aULL, 0x800000008000000aULL, 0x8000000080008081ULL,
++      0x8000000000008080ULL, 0x0000000080000001ULL, 0x8000000080008008ULL};
++  static constexpr std::array<int, 24> kRhoOffsets = {
++      1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14,
++      27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44};
++  static constexpr std::array<size_t, 24> kPiLane = {
++      10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4,
++      15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1};
++
++  std::array<uint64_t, 5> column;
++  for (size_t round = 0; round < kRoundConstants.size(); ++round) {
++    for (size_t i = 0; i < column.size(); ++i) {
++      column[i] = state[i] ^ state[i + 5] ^ state[i + 10] ^ state[i + 15] ^
++                  state[i + 20];
++    }
++    for (size_t i = 0; i < column.size(); ++i) {
++      const uint64_t theta =
++          column[(i + 4) % 5] ^ RotateLeft64(column[(i + 1) % 5], 1);
++      for (size_t lane = i; lane < state.size(); lane += 5) {
++        state[lane] ^= theta;
++      }
++    }
++
++    uint64_t current = state[1];
++    for (size_t i = 0; i < kPiLane.size(); ++i) {
++      const size_t lane = kPiLane[i];
++      const uint64_t saved = state[lane];
++      state[lane] = RotateLeft64(current, kRhoOffsets[i]);
++      current = saved;
++    }
++
++    for (size_t row = 0; row < state.size(); row += 5) {
++      for (size_t i = 0; i < column.size(); ++i) {
++        column[i] = state[row + i];
++      }
++      for (size_t i = 0; i < column.size(); ++i) {
++        state[row + i] ^= (~column[(i + 1) % 5]) & column[(i + 2) % 5];
++      }
++    }
++
++    state[0] ^= kRoundConstants[round];
++  }
++}
++
++void KeccakAbsorbBlock(base::span<const uint8_t> block,
++                       std::array<uint64_t, 25>& state) {
++  for (size_t lane = 0; lane < kKeccakRateBytes / 8; ++lane) {
++    state[lane] ^= Load64LittleEndian(block.subspan(lane * 8, size_t{8}));
++  }
++  KeccakPermutation(state);
++}
++
++std::array<uint8_t, kKeccakDigestBytes> Keccak256(
++    base::span<const uint8_t> input) {
++  std::array<uint64_t, 25> state = {};
++  while (input.size() >= kKeccakRateBytes) {
++    KeccakAbsorbBlock(input.first(kKeccakRateBytes), state);
++    input = input.subspan(kKeccakRateBytes);
++  }
++
++  std::array<uint8_t, kKeccakRateBytes> final_block = {};
++  for (size_t i = 0; i < input.size(); ++i) {
++    final_block[i] = input[i];
++  }
++  final_block[input.size()] = 0x01;
++  final_block[kKeccakRateBytes - 1] |= 0x80;
++  KeccakAbsorbBlock(final_block, state);
++
++  std::array<uint8_t, kKeccakDigestBytes> digest = {};
++  for (size_t lane = 0; lane < kKeccakDigestBytes / 8; ++lane) {
++    Store64LittleEndian(state[lane],
++                        base::span(digest).subspan(lane * 8, size_t{8}));
++  }
++  return digest;
++}
++
++bssl::UniquePtr<BIGNUM> BignumFromHex(const char* value) {
++  BIGNUM* out = nullptr;
++  if (!BN_hex2bn(&out, value)) {
++    return nullptr;
++  }
++  return bssl::UniquePtr<BIGNUM>(out);
++}
++
++bssl::UniquePtr<BIGNUM> BignumFromDecimal(std::string_view value) {
++  BIGNUM* out = nullptr;
++  if (!BN_dec2bn(&out, std::string(value).c_str())) {
++    return nullptr;
++  }
++  return bssl::UniquePtr<BIGNUM>(out);
++}
++
++void SetPointAtInfinity(Secp256k1Point* point) {
++  point->x.reset();
++  point->y.reset();
++  point->infinity = true;
++}
++
++bool SetPoint(Secp256k1Point* point, const BIGNUM* x, const BIGNUM* y) {
++  point->x.reset(BN_dup(x));
++  point->y.reset(BN_dup(y));
++  point->infinity = false;
++  return point->x && point->y;
++}
++
++bool CopyPoint(const Secp256k1Point& source, Secp256k1Point* target) {
++  if (source.infinity) {
++    SetPointAtInfinity(target);
++    return true;
++  }
++  return SetPoint(target, source.x.get(), source.y.get());
++}
++
++bool SetGeneratorPoint(Secp256k1Point* point) {
++  point->x = BignumFromHex(kSecp256k1GeneratorXHex);
++  point->y = BignumFromHex(kSecp256k1GeneratorYHex);
++  point->infinity = false;
++  return point->x && point->y;
++}
++
++bool PointDouble(const Secp256k1Point& point,
++                 const BIGNUM* field_prime,
++                 BN_CTX* ctx,
++                 Secp256k1Point* out) {
++  if (point.infinity) {
++    SetPointAtInfinity(out);
++    return true;
++  }
++  if (BN_is_zero(point.y.get())) {
++    SetPointAtInfinity(out);
++    return true;
++  }
++
++  bssl::UniquePtr<BIGNUM> numerator(BN_new());
++  bssl::UniquePtr<BIGNUM> denominator(BN_new());
++  bssl::UniquePtr<BIGNUM> inverse(BN_new());
++  bssl::UniquePtr<BIGNUM> lambda(BN_new());
++  bssl::UniquePtr<BIGNUM> x3(BN_new());
++  bssl::UniquePtr<BIGNUM> y3(BN_new());
++  bssl::UniquePtr<BIGNUM> tmp(BN_new());
++  if (!numerator || !denominator || !inverse || !lambda || !x3 || !y3 ||
++      !tmp) {
++    return false;
++  }
++
++  if (!BN_mod_sqr(tmp.get(), point.x.get(), field_prime, ctx) ||
++      !BN_mod_add(numerator.get(), tmp.get(), tmp.get(), field_prime, ctx) ||
++      !BN_mod_add(numerator.get(), numerator.get(), tmp.get(), field_prime,
++                  ctx) ||
++      !BN_mod_add(denominator.get(), point.y.get(), point.y.get(),
++                  field_prime, ctx) ||
++      !BN_mod_inverse(inverse.get(), denominator.get(), field_prime, ctx) ||
++      !BN_mod_mul(lambda.get(), numerator.get(), inverse.get(), field_prime,
++                  ctx) ||
++      !BN_mod_sqr(x3.get(), lambda.get(), field_prime, ctx) ||
++      !BN_mod_sub(x3.get(), x3.get(), point.x.get(), field_prime, ctx) ||
++      !BN_mod_sub(x3.get(), x3.get(), point.x.get(), field_prime, ctx) ||
++      !BN_mod_sub(tmp.get(), point.x.get(), x3.get(), field_prime, ctx) ||
++      !BN_mod_mul(y3.get(), lambda.get(), tmp.get(), field_prime, ctx) ||
++      !BN_mod_sub(y3.get(), y3.get(), point.y.get(), field_prime, ctx)) {
++    return false;
++  }
++
++  return SetPoint(out, x3.get(), y3.get());
++}
++
++bool PointAdd(const Secp256k1Point& lhs,
++              const Secp256k1Point& rhs,
++              const BIGNUM* field_prime,
++              BN_CTX* ctx,
++              Secp256k1Point* out) {
++  if (lhs.infinity) {
++    return CopyPoint(rhs, out);
++  }
++  if (rhs.infinity) {
++    return CopyPoint(lhs, out);
++  }
++
++  if (BN_cmp(lhs.x.get(), rhs.x.get()) == 0) {
++    if (BN_cmp(lhs.y.get(), rhs.y.get()) == 0) {
++      return PointDouble(lhs, field_prime, ctx, out);
++    }
++    SetPointAtInfinity(out);
++    return true;
++  }
++
++  bssl::UniquePtr<BIGNUM> numerator(BN_new());
++  bssl::UniquePtr<BIGNUM> denominator(BN_new());
++  bssl::UniquePtr<BIGNUM> inverse(BN_new());
++  bssl::UniquePtr<BIGNUM> lambda(BN_new());
++  bssl::UniquePtr<BIGNUM> x3(BN_new());
++  bssl::UniquePtr<BIGNUM> y3(BN_new());
++  bssl::UniquePtr<BIGNUM> tmp(BN_new());
++  if (!numerator || !denominator || !inverse || !lambda || !x3 || !y3 ||
++      !tmp) {
++    return false;
++  }
++
++  if (!BN_mod_sub(numerator.get(), rhs.y.get(), lhs.y.get(), field_prime,
++                  ctx) ||
++      !BN_mod_sub(denominator.get(), rhs.x.get(), lhs.x.get(), field_prime,
++                  ctx) ||
++      !BN_mod_inverse(inverse.get(), denominator.get(), field_prime, ctx) ||
++      !BN_mod_mul(lambda.get(), numerator.get(), inverse.get(), field_prime,
++                  ctx) ||
++      !BN_mod_sqr(x3.get(), lambda.get(), field_prime, ctx) ||
++      !BN_mod_sub(x3.get(), x3.get(), lhs.x.get(), field_prime, ctx) ||
++      !BN_mod_sub(x3.get(), x3.get(), rhs.x.get(), field_prime, ctx) ||
++      !BN_mod_sub(tmp.get(), lhs.x.get(), x3.get(), field_prime, ctx) ||
++      !BN_mod_mul(y3.get(), lambda.get(), tmp.get(), field_prime, ctx) ||
++      !BN_mod_sub(y3.get(), y3.get(), lhs.y.get(), field_prime, ctx)) {
++    return false;
++  }
++
++  return SetPoint(out, x3.get(), y3.get());
++}
++
++bool ScalarMultiply(const BIGNUM* scalar,
++                    const Secp256k1Point& point,
++                    const BIGNUM* field_prime,
++                    BN_CTX* ctx,
++                    Secp256k1Point* out) {
++  Secp256k1Point result;
++  Secp256k1Point addend;
++  if (!CopyPoint(point, &addend)) {
++    return false;
++  }
++
++  const unsigned bits = BN_num_bits(scalar);
++  for (unsigned bit = 0; bit < bits; ++bit) {
++    if (BN_is_bit_set(scalar, bit)) {
++      Secp256k1Point sum;
++      if (!PointAdd(result, addend, field_prime, ctx, &sum)) {
++        return false;
++      }
++      result = std::move(sum);
++    }
++
++    Secp256k1Point doubled;
++    if (!PointDouble(addend, field_prime, ctx, &doubled)) {
++      return false;
++    }
++    addend = std::move(doubled);
++  }
++
++  *out = std::move(result);
++  return !out->infinity;
++}
++
++bool PublicKeyFromPrivateKey(
++    base::span<const uint8_t, kSecp256k1PrivateKeyBytes> private_key_bytes,
++    std::array<uint8_t, kSecp256k1UncompressedPublicKeyBytes>* public_key) {
++  bssl::UniquePtr<BIGNUM> field_prime = BignumFromHex(kSecp256k1PrimeHex);
++  bssl::UniquePtr<BIGNUM> order = BignumFromHex(kSecp256k1OrderHex);
++  bssl::UniquePtr<BIGNUM> private_key(
++      BN_bin2bn(private_key_bytes.data(), private_key_bytes.size(), nullptr));
++  bssl::UniquePtr<BN_CTX> ctx(BN_CTX_new());
++  Secp256k1Point generator;
++  Secp256k1Point public_point;
++  if (!field_prime || !order || !private_key || !ctx ||
++      !SetGeneratorPoint(&generator) || BN_is_zero(private_key.get()) ||
++      BN_cmp(private_key.get(), order.get()) >= 0 ||
++      !ScalarMultiply(private_key.get(), generator, field_prime.get(), ctx.get(),
++                      &public_point)) {
++    return false;
++  }
++
++  (*public_key)[0] = 0x04;
++  return BN_bn2bin_padded(public_key->data() + 1, kSecp256k1PrivateKeyBytes,
++                          public_point.x.get()) &&
++         BN_bn2bin_padded(public_key->data() + 1 + kSecp256k1PrivateKeyBytes,
++                          kSecp256k1PrivateKeyBytes, public_point.y.get());
++}
++
++std::string EvmAddressFromPublicKey(
++    base::span<const uint8_t> uncompressed_public_key) {
++  if (uncompressed_public_key.size() != kSecp256k1UncompressedPublicKeyBytes ||
++      uncompressed_public_key[0] != 0x04) {
++    return std::string();
++  }
++
++  const auto digest = Keccak256(uncompressed_public_key.subspan(size_t{1}));
++  const auto address = base::span(digest).subspan(
++      kKeccakDigestBytes - kEvmAddressBytes, kEvmAddressBytes);
++  return EvmAddressBytesToString(address);
++}
++
++std::optional<EcdsaSignature> SignDigest(
++    base::span<const uint8_t, kSecp256k1PrivateKeyBytes> private_key_bytes,
++    base::span<const uint8_t, kKeccakDigestBytes> digest) {
++  crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
++  bssl::UniquePtr<BIGNUM> field_prime = BignumFromHex(kSecp256k1PrimeHex);
++  bssl::UniquePtr<BIGNUM> order = BignumFromHex(kSecp256k1OrderHex);
++  bssl::UniquePtr<BIGNUM> half_order(BN_new());
++  bssl::UniquePtr<BIGNUM> private_key(
++      BN_bin2bn(private_key_bytes.data(), private_key_bytes.size(), nullptr));
++  bssl::UniquePtr<BIGNUM> z(BN_bin2bn(digest.data(), digest.size(), nullptr));
++  bssl::UniquePtr<BN_CTX> ctx(BN_CTX_new());
++  Secp256k1Point generator;
++  if (!field_prime || !order || !half_order || !private_key || !z || !ctx ||
++      !SetGeneratorPoint(&generator) || !BN_rshift1(half_order.get(), order.get()) ||
++      BN_is_zero(private_key.get()) || BN_cmp(private_key.get(), order.get()) >= 0) {
++    return std::nullopt;
++  }
++
++  for (size_t attempt = 0; attempt < 100; ++attempt) {
++    std::array<uint8_t, kSecp256k1PrivateKeyBytes> nonce_bytes;
++    crypto::RandBytes(nonce_bytes);
++    bssl::UniquePtr<BIGNUM> nonce(
++        BN_bin2bn(nonce_bytes.data(), nonce_bytes.size(), nullptr));
++    if (!nonce || BN_is_zero(nonce.get()) ||
++        BN_cmp(nonce.get(), order.get()) >= 0) {
++      continue;
++    }
++
++    Secp256k1Point nonce_point;
++    if (!ScalarMultiply(nonce.get(), generator, field_prime.get(), ctx.get(),
++                        &nonce_point) ||
++        BN_cmp(nonce_point.x.get(), order.get()) >= 0) {
++      continue;
++    }
++
++    bssl::UniquePtr<BIGNUM> r(BN_dup(nonce_point.x.get()));
++    bssl::UniquePtr<BIGNUM> k_inverse(BN_new());
++    bssl::UniquePtr<BIGNUM> s(BN_new());
++    bssl::UniquePtr<BIGNUM> tmp(BN_new());
++    if (!r || !k_inverse || !s || !tmp || BN_is_zero(r.get()) ||
++        !BN_mod_inverse(k_inverse.get(), nonce.get(), order.get(), ctx.get()) ||
++        !BN_mod_mul(tmp.get(), r.get(), private_key.get(), order.get(),
++                    ctx.get()) ||
++        !BN_mod_add(tmp.get(), tmp.get(), z.get(), order.get(), ctx.get()) ||
++        !BN_mod_mul(s.get(), k_inverse.get(), tmp.get(), order.get(),
++                    ctx.get()) ||
++        BN_is_zero(s.get())) {
++      continue;
++    }
++
++    uint8_t y_parity = BN_is_odd(nonce_point.y.get()) ? 1 : 0;
++    if (BN_cmp(s.get(), half_order.get()) > 0) {
++      if (!BN_sub(s.get(), order.get(), s.get())) {
++        continue;
++      }
++      y_parity ^= 1;
++    }
++
++    EcdsaSignature signature;
++    signature.y_parity = y_parity;
++    if (!BN_bn2bin_padded(signature.r.data(), signature.r.size(), r.get()) ||
++        !BN_bn2bin_padded(signature.s.data(), signature.s.size(), s.get())) {
++      continue;
++    }
++    return signature;
++  }
++  return std::nullopt;
++}
++
++void AppendRlpLength(size_t length, uint8_t offset, Bytes* out) {
++  if (length < 56) {
++    out->push_back(offset + static_cast<uint8_t>(length));
++    return;
++  }
++
++  Bytes length_bytes;
++  size_t remaining = length;
++  while (remaining > 0) {
++    length_bytes.push_back(static_cast<uint8_t>(remaining & 0xff));
++    remaining >>= 8;
++  }
++  std::ranges::reverse(length_bytes);
++  out->push_back(offset + 55 + static_cast<uint8_t>(length_bytes.size()));
++  out->insert(out->end(), length_bytes.begin(), length_bytes.end());
++}
++
++Bytes TrimLeadingZeros(base::span<const uint8_t> input) {
++  size_t first_non_zero = 0;
++  while (first_non_zero < input.size() && input[first_non_zero] == 0) {
++    ++first_non_zero;
++  }
++  return Bytes(input.begin() + first_non_zero, input.end());
++}
++
++Bytes RlpBytes(base::span<const uint8_t> input) {
++  Bytes out;
++  if (input.size() == 1 && input[0] < 0x80) {
++    out.push_back(input[0]);
++    return out;
++  }
++  AppendRlpLength(input.size(), 0x80, &out);
++  out.insert(out.end(), input.begin(), input.end());
++  return out;
++}
++
++Bytes RlpUint(uint64_t value) {
++  std::array<uint8_t, 8> bytes = {};
++  for (size_t i = 0; i < bytes.size(); ++i) {
++    bytes[bytes.size() - i - 1] = static_cast<uint8_t>(value & 0xff);
++    value >>= 8;
++  }
++  const Bytes trimmed = TrimLeadingZeros(bytes);
++  return RlpBytes(trimmed);
++}
++
++Bytes RlpList(std::vector<Bytes> items) {
++  Bytes payload;
++  for (const Bytes& item : items) {
++    payload.insert(payload.end(), item.begin(), item.end());
++  }
++
++  Bytes out;
++  AppendRlpLength(payload.size(), 0xc0, &out);
++  out.insert(out.end(), payload.begin(), payload.end());
++  return out;
++}
++
++bool HexAddressToBytes(std::string_view address,
++                       std::array<uint8_t, kEvmAddressBytes>* out) {
++  if (!base::StartsWith(address, "0x", base::CompareCase::INSENSITIVE_ASCII)) {
++    return false;
++  }
++  address.remove_prefix(2);
++  if (address.size() != kEvmAddressBytes * 2) {
++    return false;
++  }
++  std::vector<uint8_t> bytes;
++  if (!base::HexStringToBytes(address, &bytes) || bytes.size() != out->size()) {
++    return false;
++  }
++  std::ranges::copy(bytes, out->begin());
++  return true;
++}
++
++std::optional<std::array<uint8_t, 32>> DecimalAmountToUint256(
++    std::string_view amount) {
++  if (amount.empty() ||
++      !std::ranges::all_of(amount, base::IsAsciiDigit<char>)) {
++    return std::nullopt;
++  }
++  bssl::UniquePtr<BIGNUM> value = BignumFromDecimal(amount);
++  std::array<uint8_t, 32> bytes = {};
++  if (!value || !BN_bn2bin_padded(bytes.data(), bytes.size(), value.get())) {
++    return std::nullopt;
++  }
++  return bytes;
++}
++
++Bytes EncodeTip20TransferCall(const TempoChargeRequest& request) {
++  std::optional<std::array<uint8_t, 32>> amount =
++      DecimalAmountToUint256(request.amount);
++  if (!amount) {
++    return Bytes();
++  }
++
++  Bytes data(kTip20TransferSelector.begin(), kTip20TransferSelector.end());
++  data.insert(data.end(), 12, 0);
++  data.insert(data.end(), request.recipient.begin(), request.recipient.end());
++  data.insert(data.end(), amount->begin(), amount->end());
++  return data;
++}
++
++Bytes BuildTempoCalls(const TempoChargeRequest& request) {
++  Bytes transfer_data = EncodeTip20TransferCall(request);
++  if (transfer_data.empty()) {
++    return Bytes();
++  }
++
++  const Bytes call = RlpList({RlpBytes(request.currency), RlpBytes(Bytes()),
++                              RlpBytes(transfer_data)});
++  return RlpList({call});
++}
++
++Bytes BuildTempoTransaction(const TempoChargeRequest& request,
++                            base::span<const uint8_t, kTempoNonceKeyBytes>
++                                nonce_key,
++                            base::span<const uint8_t> signature) {
++  Bytes calls = BuildTempoCalls(request);
++  if (calls.empty()) {
++    return Bytes();
++  }
++
++  std::vector<Bytes> fields = {
++      RlpUint(request.chain_id),
++      RlpUint(kDefaultMaxPriorityFeePerGas),
++      RlpUint(kDefaultMaxFeePerGas),
++      RlpUint(kDefaultGasLimit),
++      calls,
++      RlpList({}),
++      RlpBytes(TrimLeadingZeros(nonce_key)),
++      RlpUint(0),
++      RlpUint(request.valid_before),
++      RlpUint(0),
++      request.fee_payer ? RlpBytes(Bytes()) : RlpBytes(request.currency),
++      request.fee_payer ? RlpBytes(Bytes({0})) : RlpBytes(Bytes()),
++      RlpList({}),
++  };
++  if (!signature.empty()) {
++    fields.push_back(RlpBytes(signature));
++  }
++
++  Bytes transaction = {kTempoTransactionType};
++  Bytes body = RlpList(std::move(fields));
++  transaction.insert(transaction.end(), body.begin(), body.end());
++  return transaction;
++}
++
++Bytes BuildTempoFeePayerEnvelope(
++    const TempoChargeRequest& request,
++    base::span<const uint8_t, kTempoNonceKeyBytes> nonce_key,
++    base::span<const uint8_t, kEvmAddressBytes> sender,
++    base::span<const uint8_t> signature) {
++  Bytes calls = BuildTempoCalls(request);
++  if (calls.empty()) {
++    return Bytes();
++  }
++
++  std::vector<Bytes> fields = {
++      RlpUint(request.chain_id),
++      RlpUint(kDefaultMaxPriorityFeePerGas),
++      RlpUint(kDefaultMaxFeePerGas),
++      RlpUint(kDefaultGasLimit),
++      calls,
++      RlpList({}),
++      RlpBytes(TrimLeadingZeros(nonce_key)),
++      RlpUint(0),
++      RlpUint(request.valid_before),
++      RlpUint(0),
++      RlpBytes(Bytes()),
++      RlpBytes(sender),
++      RlpList({}),
++      RlpBytes(signature),
++  };
++
++  Bytes envelope = {kTempoFeePayerEnvelopeType};
++  Bytes body = RlpList(std::move(fields));
++  envelope.insert(envelope.end(), body.begin(), body.end());
++  return envelope;
++}
++
++uint64_t FeePayerValidBefore() {
++  return static_cast<uint64_t>(base::Time::Now().ToTimeT()) +
++         kFeePayerValidBeforeSeconds;
++}
++
++std::optional<std::string> BuildSignedTempoTransaction(
++    const TempoChargeRequest& request,
++    base::span<const uint8_t, kSecp256k1PrivateKeyBytes> private_key_bytes,
++    std::string_view sender_address) {
++  TempoChargeRequest transaction_request = request;
++  std::array<uint8_t, kTempoNonceKeyBytes> nonce_key;
++  if (request.fee_payer) {
++    nonce_key.fill(0xff);
++    transaction_request.valid_before = FeePayerValidBefore();
++  } else {
++    crypto::RandBytes(nonce_key);
++  }
++
++  Bytes presign_transaction =
++      BuildTempoTransaction(transaction_request, nonce_key,
++                            base::span<uint8_t>());
++  if (presign_transaction.empty()) {
++    return std::nullopt;
++  }
++  const auto digest = Keccak256(presign_transaction);
++  std::optional<EcdsaSignature> signature = SignDigest(private_key_bytes, digest);
++  if (!signature) {
++    return std::nullopt;
++  }
++
++  Bytes signature_bytes;
++  signature_bytes.insert(signature_bytes.end(), signature->r.begin(),
++                         signature->r.end());
++  signature_bytes.insert(signature_bytes.end(), signature->s.begin(),
++                         signature->s.end());
++  signature_bytes.push_back(signature->y_parity);
++
++  Bytes transaction;
++  if (request.fee_payer) {
++    std::array<uint8_t, kEvmAddressBytes> sender;
++    if (!HexAddressToBytes(sender_address, &sender)) {
++      return std::nullopt;
++    }
++    transaction = BuildTempoFeePayerEnvelope(transaction_request, nonce_key,
++                                            sender, signature_bytes);
++  } else {
++    transaction =
++        BuildTempoTransaction(transaction_request, nonce_key, signature_bytes);
++  }
++  if (transaction.empty()) {
++    return std::nullopt;
++  }
++  return "0x" + base::HexEncodeLower(transaction);
++}
++
++std::optional<std::string> BuildProofSignature(
++    const PaymentChallenge& challenge,
++    uint64_t chain_id,
++    base::span<const uint8_t, kSecp256k1PrivateKeyBytes> private_key_bytes) {
++  static constexpr char kDomainType[] =
++      "EIP712Domain(string name,string version,uint256 chainId)";
++  static constexpr char kProofType[] = "Proof(string challengeId)";
++  static constexpr char kDomainName[] = "MPP";
++  static constexpr char kDomainVersion[] = "1";
++
++  std::array<uint8_t, 32> encoded_chain_id = {};
++  for (size_t i = 0; i < 8; ++i) {
++    encoded_chain_id[encoded_chain_id.size() - i - 1] =
++        static_cast<uint8_t>(chain_id & 0xff);
++    chain_id >>= 8;
++  }
++
++  Bytes domain_data;
++  const auto domain_type_hash =
++      Keccak256(base::as_byte_span(std::string_view(kDomainType)));
++  const auto name_hash =
++      Keccak256(base::as_byte_span(std::string_view(kDomainName)));
++  const auto version_hash =
++      Keccak256(base::as_byte_span(std::string_view(kDomainVersion)));
++  domain_data.insert(domain_data.end(), domain_type_hash.begin(),
++                     domain_type_hash.end());
++  domain_data.insert(domain_data.end(), name_hash.begin(), name_hash.end());
++  domain_data.insert(domain_data.end(), version_hash.begin(),
++                     version_hash.end());
++  domain_data.insert(domain_data.end(), encoded_chain_id.begin(),
++                     encoded_chain_id.end());
++  const auto domain_separator = Keccak256(domain_data);
++
++  Bytes proof_data;
++  const auto proof_type_hash =
++      Keccak256(base::as_byte_span(std::string_view(kProofType)));
++  const auto challenge_hash = Keccak256(base::as_byte_span(challenge.id));
++  proof_data.insert(proof_data.end(), proof_type_hash.begin(),
++                    proof_type_hash.end());
++  proof_data.insert(proof_data.end(), challenge_hash.begin(),
++                    challenge_hash.end());
++  const auto struct_hash = Keccak256(proof_data);
++
++  Bytes typed_data = {0x19, 0x01};
++  typed_data.insert(typed_data.end(), domain_separator.begin(),
++                    domain_separator.end());
++  typed_data.insert(typed_data.end(), struct_hash.begin(), struct_hash.end());
++  const auto digest = Keccak256(typed_data);
++  std::optional<EcdsaSignature> signature = SignDigest(private_key_bytes, digest);
++  if (!signature) {
++    return std::nullopt;
++  }
++
++  Bytes signature_bytes;
++  signature_bytes.insert(signature_bytes.end(), signature->r.begin(),
++                         signature->r.end());
++  signature_bytes.insert(signature_bytes.end(), signature->s.begin(),
++                         signature->s.end());
++  signature_bytes.push_back(signature->y_parity);
++  return "0x" + base::HexEncodeLower(signature_bytes);
++}
++
++std::optional<TempoChargeRequest> DecodeTempoChargeRequest(
++    const PaymentChallenge& challenge) {
++  std::string request_json;
++  if (!base::Base64UrlDecode(challenge.request,
++                             base::Base64UrlDecodePolicy::DISALLOW_PADDING,
++                             &request_json)) {
++    return std::nullopt;
++  }
++
++  std::optional<base::DictValue> request =
++      base::JSONReader::ReadDict(request_json, base::JSON_PARSE_RFC);
++  if (!request) {
++    return std::nullopt;
++  }
++
++  const std::string* amount = request->FindString("amount");
++  const std::string* currency = request->FindString("currency");
++  const std::string* recipient = request->FindString("recipient");
++  if (!amount || !currency || !recipient ||
++      !DecimalAmountToUint256(*amount)) {
++    return std::nullopt;
++  }
++
++  TempoChargeRequest result;
++  result.amount = *amount;
++  if (!HexAddressToBytes(*currency, &result.currency) ||
++      !HexAddressToBytes(*recipient, &result.recipient)) {
++    return std::nullopt;
++  }
++
++  if (challenge.expires) {
++    base::Time expires;
++    if (!base::Time::FromUTCString(challenge.expires->c_str(), &expires) ||
++        expires <= base::Time::Now()) {
++      return std::nullopt;
++    }
++    result.valid_before = static_cast<uint64_t>(expires.ToTimeT());
++  }
++
++  const base::DictValue* method_details = request->FindDict("methodDetails");
++  if (!method_details) {
++    return result;
++  }
++  if (std::optional<int> chain_id = method_details->FindInt("chainId");
++      chain_id && *chain_id > 0) {
++    result.chain_id = static_cast<uint64_t>(*chain_id);
++  }
++  result.fee_payer = method_details->FindBool("feePayer").value_or(false);
++  if (const base::ListValue* supported_modes =
++          method_details->FindList("supportedModes")) {
++    result.supports_pull = false;
++    for (const base::Value& value : *supported_modes) {
++      if (value.is_string() && value.GetString() == "pull") {
++        result.supports_pull = true;
++        break;
++      }
++    }
++  }
++  return result;
++}
++
++bool IsExpired(const PaymentChallenge& challenge) {
++  if (!challenge.expires) {
++    return false;
++  }
++  base::Time expires;
++  if (!base::Time::FromUTCString(challenge.expires->c_str(), &expires)) {
++    return true;
++  }
++  return expires <= base::Time::Now();
++}
++
++std::string MakeSourceDid(uint64_t chain_id, std::string_view address) {
++  return "did:pkh:eip155:" + base::NumberToString(chain_id) + ":" +
++         std::string(address);
++}
++
++void AddChallengeFieldIfPresent(base::DictValue* dict,
++                                std::string_view key,
++                                const std::optional<std::string>& value) {
++  if (value) {
++    dict->Set(key, *value);
++  }
++}
++
++std::string CreateCredentialHeader(const PaymentChallenge& challenge,
++                                   std::string_view source,
++                                   base::DictValue payload) {
++  base::DictValue challenge_dict;
++  challenge_dict.Set("id", challenge.id);
++  challenge_dict.Set("realm", challenge.realm);
++  challenge_dict.Set("method", challenge.method);
++  challenge_dict.Set("intent", challenge.intent);
++  challenge_dict.Set("request", challenge.request);
++  AddChallengeFieldIfPresent(&challenge_dict, "description",
++                             challenge.description);
++  AddChallengeFieldIfPresent(&challenge_dict, "digest", challenge.digest);
++  AddChallengeFieldIfPresent(&challenge_dict, "expires", challenge.expires);
++  AddChallengeFieldIfPresent(&challenge_dict, "opaque", challenge.opaque);
++
++  base::DictValue credential;
++  credential.Set("challenge", std::move(challenge_dict));
++  credential.Set("payload", std::move(payload));
++  credential.Set("source", source);
++
++  std::string json;
++  if (!base::JSONWriter::Write(credential, &json)) {
++    return std::string();
++  }
++  std::string encoded;
++  base::Base64UrlEncode(json, base::Base64UrlEncodePolicy::OMIT_PADDING,
++                        &encoded);
++  return "Payment " + encoded;
++}
++
++bool IsTokenChar(char c) {
++  return base::IsAsciiAlpha(c) || base::IsAsciiDigit(c) || c == '!' ||
++         c == '#' || c == '$' || c == '%' || c == '&' || c == '\'' ||
++         c == '*' || c == '+' || c == '-' || c == '.' || c == '^' ||
++         c == '_' || c == '`' || c == '|' || c == '~';
++}
++
++void SkipWhitespaceAndCommas(std::string_view input, size_t* index) {
++  while (*index < input.size() &&
++         (base::IsAsciiWhitespace(input[*index]) || input[*index] == ',')) {
++    ++*index;
++  }
++}
++
++std::map<std::string, std::string> ParseAuthParams(std::string_view input) {
++  std::map<std::string, std::string> params;
++  size_t index = 0;
++  while (index < input.size()) {
++    SkipWhitespaceAndCommas(input, &index);
++    const size_t key_start = index;
++    while (index < input.size() && IsTokenChar(input[index])) {
++      ++index;
++    }
++    if (key_start == index) {
++      break;
++    }
++    std::string key =
++        base::ToLowerASCII(input.substr(key_start, index - key_start));
++    while (index < input.size() && base::IsAsciiWhitespace(input[index])) {
++      ++index;
++    }
++    if (index >= input.size() || input[index] != '=') {
++      break;
++    }
++    ++index;
++    while (index < input.size() && base::IsAsciiWhitespace(input[index])) {
++      ++index;
++    }
++
++    std::string value;
++    if (index < input.size() && input[index] == '"') {
++      ++index;
++      while (index < input.size()) {
++        const char c = input[index++];
++        if (c == '"') {
++          break;
++        }
++        if (c == '\\' && index < input.size()) {
++          value.push_back(input[index++]);
++        } else {
++          value.push_back(c);
++        }
++      }
++    } else {
++      const size_t value_start = index;
++      while (index < input.size() && input[index] != ',') {
++        ++index;
++      }
++      value = std::string(base::TrimWhitespaceASCII(
++          input.substr(value_start, index - value_start), base::TRIM_ALL));
++    }
++    params.emplace(std::move(key), std::move(value));
++  }
++  return params;
++}
++
++std::optional<std::string> FindParam(
++    const std::map<std::string, std::string>& params,
++    std::string_view key) {
++  auto it = params.find(std::string(key));
++  if (it == params.end() || it->second.empty()) {
++    return std::nullopt;
++  }
++  return it->second;
++}
++
++}  // namespace
++
++std::optional<PaymentChallenge> ParsePaymentChallenge(
++    std::string_view header_value) {
++  header_value = base::TrimWhitespaceASCII(header_value, base::TRIM_ALL);
++  if (!base::StartsWith(header_value, "Payment",
++                        base::CompareCase::INSENSITIVE_ASCII)) {
++    return std::nullopt;
++  }
++  header_value.remove_prefix(std::string_view("Payment").size());
++  if (!header_value.empty() &&
++      !base::IsAsciiWhitespace(header_value.front())) {
++    return std::nullopt;
++  }
++
++  const auto params = ParseAuthParams(header_value);
++  std::optional<std::string> id = FindParam(params, "id");
++  std::optional<std::string> realm = FindParam(params, "realm");
++  std::optional<std::string> method = FindParam(params, "method");
++  std::optional<std::string> intent = FindParam(params, "intent");
++  std::optional<std::string> request = FindParam(params, "request");
++  if (!id || !realm || !method || !intent || !request) {
++    return std::nullopt;
++  }
++
++  PaymentChallenge challenge;
++  challenge.id = std::move(*id);
++  challenge.realm = std::move(*realm);
++  challenge.method = std::move(*method);
++  challenge.intent = std::move(*intent);
++  challenge.request = std::move(*request);
++  challenge.description = FindParam(params, "description");
++  challenge.digest = FindParam(params, "digest");
++  challenge.expires = FindParam(params, "expires");
++  challenge.opaque = FindParam(params, "opaque");
++  return challenge;
++}
++
++std::optional<TempoChargeDetails> GetTempoChargeDetails(
++    const PaymentChallenge& challenge) {
++  if (challenge.method != kTempoMethod || challenge.intent != kChargeIntent ||
++      IsExpired(challenge)) {
++    return std::nullopt;
++  }
++
++  std::optional<TempoChargeRequest> request = DecodeTempoChargeRequest(challenge);
++  if (!request || !request->supports_pull) {
++    return std::nullopt;
++  }
++
++  TempoChargeDetails details;
++  details.amount = request->amount;
++  details.currency = EvmAddressBytesToString(request->currency);
++  details.recipient = EvmAddressBytesToString(request->recipient);
++  details.chain_id = request->chain_id;
++  return details;
++}
++
++std::optional<std::string> CreateTempoChargeCredential(
++    const PaymentChallenge& challenge,
++    base::span<const uint8_t> private_key_bytes) {
++  if (private_key_bytes.size() != kSecp256k1PrivateKeyBytes ||
++      challenge.method != kTempoMethod || challenge.intent != kChargeIntent ||
++      IsExpired(challenge)) {
++    return std::nullopt;
++  }
++
++  const auto private_key_span =
++      private_key_bytes.to_fixed_extent<kSecp256k1PrivateKeyBytes>();
++  if (!private_key_span) {
++    return std::nullopt;
++  }
++  std::optional<TempoChargeRequest> request = DecodeTempoChargeRequest(challenge);
++  if (!request || !request->supports_pull) {
++    return std::nullopt;
++  }
++
++  std::array<uint8_t, kSecp256k1UncompressedPublicKeyBytes> public_key = {};
++  if (!PublicKeyFromPrivateKey(*private_key_span, &public_key)) {
++    return std::nullopt;
++  }
++  const std::string address = EvmAddressFromPublicKey(public_key);
++  if (address.empty()) {
++    return std::nullopt;
++  }
++
++  base::DictValue payload;
++  if (request->amount == "0") {
++    std::optional<std::string> signature =
++        BuildProofSignature(challenge, request->chain_id, *private_key_span);
++    if (!signature) {
++      return std::nullopt;
++    }
++    payload.Set("type", "proof");
++    payload.Set("signature", *signature);
++  } else {
++    std::optional<std::string> transaction =
++        BuildSignedTempoTransaction(*request, *private_key_span, address);
++    if (!transaction) {
++      return std::nullopt;
++    }
++    payload.Set("type", "transaction");
++    payload.Set("signature", *transaction);
++  }
++
++  std::string header = CreateCredentialHeader(
++      challenge, MakeSourceDid(request->chain_id, address), std::move(payload));
++  if (header.empty()) {
++    return std::nullopt;
++  }
++  return header;
++}
++
++}  // namespace mpp
+--- /dev/null
++++ b/chrome/browser/mpp/mpp_payment_utils.h
+@@ -0,0 +1,48 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_MPP_MPP_PAYMENT_UTILS_H_
++#define CHROME_BROWSER_MPP_MPP_PAYMENT_UTILS_H_
++
++#include <cstdint>
++#include <optional>
++#include <string>
++#include <string_view>
++
++#include "base/containers/span.h"
++
++namespace mpp {
++
++struct PaymentChallenge {
++  std::string id;
++  std::string realm;
++  std::string method;
++  std::string intent;
++  std::string request;
++  std::optional<std::string> description;
++  std::optional<std::string> digest;
++  std::optional<std::string> expires;
++  std::optional<std::string> opaque;
++};
++
++struct TempoChargeDetails {
++  std::string amount;
++  std::string currency;
++  std::string recipient;
++  uint64_t chain_id = 0;
++};
++
++std::optional<PaymentChallenge> ParsePaymentChallenge(
++    std::string_view header_value);
++
++std::optional<TempoChargeDetails> GetTempoChargeDetails(
++    const PaymentChallenge& challenge);
++
++std::optional<std::string> CreateTempoChargeCredential(
++    const PaymentChallenge& challenge,
++    base::span<const uint8_t> private_key_bytes);
++
++}  // namespace mpp
++
++#endif  // CHROME_BROWSER_MPP_MPP_PAYMENT_UTILS_H_
+--- /dev/null
++++ b/chrome/browser/mpp/mpp_tab_helper.cc
+@@ -0,0 +1,477 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/mpp/mpp_tab_helper.h"
++
++#include <memory>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <utility>
++#include <vector>
++
++#include "base/base64.h"
++#include "base/containers/span.h"
++#include "base/functional/bind.h"
++#include "base/functional/callback.h"
++#include "base/functional/callback_helpers.h"
++#include "base/memory/raw_ptr.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_util.h"
++#include "base/strings/utf_string_conversions.h"
++#include "base/values.h"
++#include "chrome/browser/browser_process.h"
++#include "chrome/browser/mpp/mpp_payment_utils.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/chrome_pages.h"
++#include "chrome/browser/ui/views/webauthn/webauthn_hover_button.h"
++#include "components/os_crypt/async/browser/os_crypt_async.h"
++#include "components/os_crypt/async/common/encryptor.h"
++#include "components/constrained_window/constrained_window_views.h"
++#include "components/prefs/pref_service.h"
++#include "components/vector_icons/vector_icons.h"
++#include "content/public/browser/navigation_handle.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/web_contents.h"
++#include "net/base/net_errors.h"
++#include "net/http/http_response_headers.h"
++#include "net/http/http_status_code.h"
++#include "ui/base/models/image_model.h"
++#include "ui/base/mojom/dialog_button.mojom.h"
++#include "ui/base/ui_base_types.h"
++#include "ui/color/color_id.h"
++#include "ui/gfx/geometry/insets.h"
++#include "ui/gfx/text_constants.h"
++#include "ui/views/controls/image_view.h"
++#include "ui/views/controls/label.h"
++#include "ui/views/controls/separator.h"
++#include "ui/views/layout/box_layout.h"
++#include "ui/views/layout/box_layout_view.h"
++#include "ui/views/layout/layout_provider.h"
++#include "ui/views/style/typography.h"
++#include "ui/views/view.h"
++#include "ui/views/widget/widget.h"
++#include "ui/views/window/dialog_delegate.h"
++#include "url/gurl.h"
++#include "url/origin.h"
++
++namespace mpp {
++namespace {
++
++constexpr char kMppLastSelectedWalletIdPref[] = "mpp.last_selected_wallet_id";
++constexpr char kMppWalletsPref[] = "mpp.wallets";
++constexpr char kWalletEncryptedSeedKey[] = "encrypted_seed";
++constexpr char kWalletIdKey[] = "id";
++constexpr char kWalletLabelKey[] = "label";
++constexpr char kWalletStorageLabelKey[] = "storage_label";
++constexpr int kWalletIconSize = 24;
++constexpr int kChevronIconSize = 20;
++constexpr char kMppWalletSettingsSubPage[] = "mppWallets";
++
++struct WalletInfo {
++  std::string id;
++  std::u16string label;
++  std::u16string storage_label;
++};
++
++std::string OriginForDisplay(const GURL& url) {
++  url::Origin origin = url::Origin::Create(url);
++  if (!origin.opaque()) {
++    return origin.Serialize();
++  }
++  return url.spec();
++}
++
++bool IsUsableWalletDict(const base::DictValue& wallet) {
++  const std::string* encrypted_seed =
++      wallet.FindString(kWalletEncryptedSeedKey);
++  return encrypted_seed && !encrypted_seed->empty();
++}
++
++std::u16string WalletStringForDisplay(const base::DictValue& wallet,
++                                      std::string_view key,
++                                      std::u16string_view fallback) {
++  const std::string* value = wallet.FindString(key);
++  if (!value || value->empty()) {
++    return std::u16string(fallback);
++  }
++  return base::UTF8ToUTF16(*value);
++}
++
++void AddBodyLabel(views::View* parent, std::u16string text) {
++  auto* label = parent->AddChildView(std::make_unique<views::Label>(
++      std::move(text), views::style::CONTEXT_DIALOG_BODY_TEXT));
++  label->SetMultiLine(true);
++  label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++}
++
++std::u16string PaymentDetailLine(std::u16string_view label,
++                                 std::string_view value) {
++  return std::u16string(label) + u": " + base::UTF8ToUTF16(value);
++}
++
++std::vector<WalletInfo> GetWallets(PrefService* prefs) {
++  std::vector<WalletInfo> wallets;
++  const std::string last_selected_wallet_id =
++      prefs->GetString(kMppLastSelectedWalletIdPref);
++  bool prioritized_last_selected_wallet = false;
++  for (const base::Value& value : prefs->GetList(kMppWalletsPref)) {
++    if (!value.is_dict() || !IsUsableWalletDict(value.GetDict())) {
++      continue;
++    }
++    const base::DictValue& wallet = value.GetDict();
++    const std::string* id = wallet.FindString(kWalletIdKey);
++    if (!id || id->empty()) {
++      continue;
++    }
++    WalletInfo wallet_info{
++        *id,
++        WalletStringForDisplay(wallet, kWalletLabelKey,
++                               u"Machine Payments Wallet"),
++        WalletStringForDisplay(wallet, kWalletStorageLabelKey,
++                               u"Local encrypted storage"),
++    };
++    if (!prioritized_last_selected_wallet &&
++        wallet_info.id == last_selected_wallet_id) {
++      wallets.insert(wallets.begin(), std::move(wallet_info));
++      prioritized_last_selected_wallet = true;
++    } else {
++      wallets.push_back(std::move(wallet_info));
++    }
++  }
++  return wallets;
++}
++
++std::optional<PaymentChallenge> FindTempoChargeChallenge(
++    const net::HttpResponseHeaders& headers) {
++  size_t iterator = 0;
++  while (std::optional<std::string_view> value =
++             headers.EnumerateHeader(&iterator, "www-authenticate")) {
++    std::optional<PaymentChallenge> challenge = ParsePaymentChallenge(*value);
++    if (challenge && challenge->method == "tempo" &&
++        challenge->intent == "charge") {
++      return challenge;
++    }
++  }
++  return std::nullopt;
++}
++
++std::optional<std::string> GetWalletEncryptedSeed(PrefService* prefs,
++                                                  const std::string& wallet_id) {
++  for (const base::Value& value : prefs->GetList(kMppWalletsPref)) {
++    if (!value.is_dict()) {
++      continue;
++    }
++    const base::DictValue& wallet = value.GetDict();
++    const std::string* id = wallet.FindString(kWalletIdKey);
++    const std::string* encrypted_seed =
++        wallet.FindString(kWalletEncryptedSeedKey);
++    if (id && *id == wallet_id && encrypted_seed &&
++        !encrypted_seed->empty()) {
++      return *encrypted_seed;
++    }
++  }
++  return std::nullopt;
++}
++
++class MppWalletSelectionView : public views::BoxLayoutView {
++ public:
++  MppWalletSelectionView(
++      const GURL& request_url,
++      const TempoChargeDetails& charge_details,
++      std::vector<WalletInfo> wallets,
++      base::RepeatingCallback<void(const std::string&)> select_wallet_callback,
++      base::RepeatingClosure open_settings_callback)
++      : select_wallet_callback_(std::move(select_wallet_callback)),
++        open_settings_callback_(std::move(open_settings_callback)) {
++    views::LayoutProvider* provider = views::LayoutProvider::Get();
++    SetOrientation(views::BoxLayout::Orientation::kVertical);
++    SetCrossAxisAlignment(views::BoxLayout::CrossAxisAlignment::kStretch);
++    SetInsideBorderInsets(provider->GetInsetsMetric(views::INSETS_DIALOG));
++    SetBetweenChildSpacing(
++        provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_VERTICAL));
++
++    auto* title = AddChildView(std::make_unique<views::Label>(
++        wallets.empty() ? u"Set up Machine Payments"
++                        : u"Choose a wallet for Machine Payments",
++        views::style::CONTEXT_DIALOG_TITLE, views::style::STYLE_HEADLINE_4));
++    title->SetMultiLine(true);
++    title->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++
++    std::u16string description =
++        base::UTF8ToUTF16(OriginForDisplay(request_url));
++    description += wallets.empty()
++                       ? u" requested payment using the Machine Payments "
++                         u"Protocol. Create a wallet in Settings before "
++                         u"choosing one to pay with."
++                       : u" requested payment using the Machine Payments "
++                         u"Protocol. Choose a local wallet for Machine "
++                         u"Payments.";
++    AddBodyLabel(this, std::move(description));
++
++    AddBodyLabel(this, PaymentDetailLine(u"Amount", charge_details.amount));
++    AddBodyLabel(this,
++                 PaymentDetailLine(u"Currency", charge_details.currency));
++    AddBodyLabel(this,
++                 PaymentDetailLine(u"Recipient", charge_details.recipient));
++    AddBodyLabel(this, PaymentDetailLine(
++                           u"Chain ID",
++                           base::NumberToString(charge_details.chain_id)));
++
++    auto* wallet_list = AddChildView(std::make_unique<views::BoxLayoutView>());
++    wallet_list->SetOrientation(views::BoxLayout::Orientation::kVertical);
++    wallet_list->SetCrossAxisAlignment(
++        views::BoxLayout::CrossAxisAlignment::kStretch);
++    wallet_list->AddChildView(std::make_unique<views::Separator>());
++
++    if (wallets.empty()) {
++      initial_focus_view_ =
++          wallet_list->AddChildView(std::make_unique<WebAuthnHoverButton>(
++              base::BindRepeating(&MppWalletSelectionView::OpenSettingsAndClose,
++                                  base::Unretained(this)),
++              std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
++                  vector_icons::kPaymentsIcon, ui::kColorIcon,
++                  kWalletIconSize)),
++              u"Open Machine Payments settings",
++              u"Create and manage local wallets before paying",
++              std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
++                  vector_icons::kSubmenuArrowChromeRefreshIcon, ui::kColorIcon,
++                  kChevronIconSize)),
++              /*enabled=*/true));
++    } else {
++      for (const WalletInfo& wallet : wallets) {
++        views::View* button = wallet_list->AddChildView(std::make_unique<
++                                                        WebAuthnHoverButton>(
++            base::BindRepeating(&MppWalletSelectionView::SelectWalletAndClose,
++                                base::Unretained(this), wallet.id),
++            std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
++                vector_icons::kPaymentsIcon, ui::kColorIcon, kWalletIconSize)),
++            wallet.label, wallet.storage_label,
++            std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
++                vector_icons::kSubmenuArrowChromeRefreshIcon, ui::kColorIcon,
++                kChevronIconSize)),
++            /*enabled=*/true));
++        if (!initial_focus_view_) {
++          initial_focus_view_ = button;
++        }
++      }
++    }
++    wallet_list->AddChildView(std::make_unique<views::Separator>());
++  }
++
++  MppWalletSelectionView(const MppWalletSelectionView&) = delete;
++  MppWalletSelectionView& operator=(const MppWalletSelectionView&) = delete;
++  ~MppWalletSelectionView() override = default;
++
++  views::View* initial_focus_view() { return initial_focus_view_; }
++
++ private:
++  void CloseWithReason(views::Widget::ClosedReason reason) {
++    if (views::Widget* widget = GetWidget()) {
++      widget->CloseWithReason(reason);
++    }
++  }
++
++  void OpenSettingsAndClose() {
++    open_settings_callback_.Run();
++    CloseWithReason(views::Widget::ClosedReason::kAcceptButtonClicked);
++  }
++
++  void SelectWalletAndClose(const std::string& wallet_id) {
++    select_wallet_callback_.Run(wallet_id);
++    CloseWithReason(views::Widget::ClosedReason::kAcceptButtonClicked);
++  }
++
++  raw_ptr<views::View> initial_focus_view_ = nullptr;
++  base::RepeatingCallback<void(const std::string&)> select_wallet_callback_;
++  base::RepeatingClosure open_settings_callback_;
++};
++
++std::unique_ptr<views::DialogDelegate> CreateWalletSelectionDialog(
++    const GURL& request_url,
++    const TempoChargeDetails& charge_details,
++    std::vector<WalletInfo> wallets,
++    base::RepeatingCallback<void(const std::string&)> select_wallet_callback,
++    base::RepeatingClosure open_settings_callback) {
++  auto dialog = std::make_unique<views::DialogDelegate>();
++  dialog->SetModalType(ui::mojom::ModalType::kChild);
++  dialog->SetShowTitle(false);
++  dialog->SetShowCloseButton(false);
++  dialog->SetOwnershipOfNewWidget(
++      views::Widget::InitParams::CLIENT_OWNS_WIDGET);
++  dialog->set_fixed_width(views::LayoutProvider::Get()->GetDistanceMetric(
++      views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH));
++  dialog->SetButtons(static_cast<int>(ui::mojom::DialogButton::kCancel));
++  dialog->SetDefaultButton(static_cast<int>(ui::mojom::DialogButton::kNone));
++  dialog->SetButtonStyle(ui::mojom::DialogButton::kCancel,
++                         ui::ButtonStyle::kDefault);
++  dialog->SetButtonLabel(ui::mojom::DialogButton::kCancel, u"Cancel");
++  dialog->SetTitle(u"Machine Payments");
++
++  auto view = std::make_unique<MppWalletSelectionView>(
++      request_url, charge_details, std::move(wallets),
++      std::move(select_wallet_callback), std::move(open_settings_callback));
++  auto* view_ptr = view.get();
++  dialog->SetContentsView(std::move(view));
++  dialog->SetInitiallyFocusedView(view_ptr->initial_focus_view());
++  return dialog;
++}
++
++}  // namespace
++
++MppTabHelper::MppTabHelper(content::WebContents* web_contents)
++    : content::WebContentsObserver(web_contents),
++      content::WebContentsUserData<MppTabHelper>(*web_contents) {}
++
++MppTabHelper::~MppTabHelper() = default;
++
++// static
++void MppTabHelper::RegisterProfilePrefs(PrefRegistrySimple* registry) {
++  registry->RegisterListPref(kMppWalletsPref);
++  registry->RegisterStringPref(kMppLastSelectedWalletIdPref, std::string());
++}
++
++void MppTabHelper::DidFinishNavigation(
++    content::NavigationHandle* navigation_handle) {
++  if (!navigation_handle->IsInPrimaryMainFrame() ||
++      navigation_handle->IsSameDocument() ||
++      !navigation_handle->HasCommitted() ||
++      navigation_handle->GetNetErrorCode() != net::OK) {
++    return;
++  }
++
++  const net::HttpResponseHeaders* headers =
++      navigation_handle->GetResponseHeaders();
++  if (!headers || headers->response_code() != net::HTTP_PAYMENT_REQUIRED) {
++    return;
++  }
++  std::optional<PaymentChallenge> challenge = FindTempoChargeChallenge(*headers);
++  if (!challenge) {
++    return;
++  }
++
++  // The Payment auth draft requires TLS and recommends rejecting Payment
++  // protocol messages received over non-TLS connections.
++  if (!navigation_handle->GetURL().SchemeIsCryptographic()) {
++    return;
++  }
++
++  MaybeShowWalletPicker(navigation_handle->GetURL(), std::move(*challenge));
++}
++
++void MppTabHelper::MaybeShowWalletPicker(const GURL& request_url,
++                                         PaymentChallenge challenge) {
++  if (wallet_dialog_showing_) {
++    return;
++  }
++
++  Profile* profile =
++      Profile::FromBrowserContext(web_contents()->GetBrowserContext());
++  if (!profile || profile->IsOffTheRecord()) {
++    return;
++  }
++
++  std::optional<TempoChargeDetails> charge_details =
++      GetTempoChargeDetails(challenge);
++  if (!charge_details) {
++    return;
++  }
++
++  wallet_dialog_showing_ = true;
++  pending_request_url_ = request_url;
++  pending_challenge_ = std::move(challenge);
++  wallet_dialog_delegate_ = CreateWalletSelectionDialog(
++      request_url, *charge_details, GetWallets(profile->GetPrefs()),
++      base::BindRepeating(&MppTabHelper::OnWalletSelected,
++                          weak_factory_.GetWeakPtr()),
++      base::BindRepeating(&MppTabHelper::OpenMppWalletSettings,
++                          weak_factory_.GetWeakPtr()));
++  wallet_dialog_widget_ = constrained_window::ShowWebModalDialogViewsOwned(
++      wallet_dialog_delegate_.get(), web_contents(),
++      views::Widget::InitParams::CLIENT_OWNS_WIDGET);
++  wallet_dialog_widget_->MakeCloseSynchronous(
++      base::IgnoreArgs<views::Widget::ClosedReason>(base::BindOnce(
++          &MppTabHelper::OnWalletDialogClosed, weak_factory_.GetWeakPtr())));
++}
++
++void MppTabHelper::OnWalletSelected(const std::string& wallet_id) {
++  Profile* profile =
++      Profile::FromBrowserContext(web_contents()->GetBrowserContext());
++  if (!profile || profile->IsOffTheRecord()) {
++    return;
++  }
++
++  profile->GetPrefs()->SetString(kMppLastSelectedWalletIdPref, wallet_id);
++  if (!pending_request_url_ || !pending_challenge_) {
++    return;
++  }
++
++  std::optional<std::string> encrypted_seed =
++      GetWalletEncryptedSeed(profile->GetPrefs(), wallet_id);
++  if (!encrypted_seed) {
++    return;
++  }
++
++  os_crypt_async::OSCryptAsync* os_crypt_async =
++      g_browser_process->os_crypt_async();
++  if (!os_crypt_async) {
++    return;
++  }
++
++  os_crypt_async->GetInstance(
++      base::BindOnce(&MppTabHelper::CreateCredentialAndRetry,
++                     weak_factory_.GetWeakPtr(), *pending_request_url_,
++                     *pending_challenge_, std::move(*encrypted_seed)),
++      os_crypt_async::Encryptor::Option::kEncryptSyncCompat);
++}
++
++void MppTabHelper::CreateCredentialAndRetry(
++    const GURL& request_url,
++    PaymentChallenge challenge,
++    std::string encrypted_seed,
++    os_crypt_async::Encryptor encryptor) {
++  std::string encrypted_private_key;
++  if (!base::Base64Decode(encrypted_seed, &encrypted_private_key)) {
++    return;
++  }
++
++  std::string private_key;
++  if (!encryptor.DecryptString(encrypted_private_key, &private_key)) {
++    return;
++  }
++
++  std::optional<std::string> credential =
++      CreateTempoChargeCredential(challenge, base::as_byte_span(private_key));
++  if (!credential) {
++    return;
++  }
++
++  pending_request_url_.reset();
++  pending_challenge_.reset();
++  web_contents()->GetController().LoadURL(
++      request_url, content::Referrer(), ui::PAGE_TRANSITION_RELOAD,
++      "Authorization: " + *credential + "\n");
++}
++
++void MppTabHelper::OpenMppWalletSettings() {
++  Profile* profile =
++      Profile::FromBrowserContext(web_contents()->GetBrowserContext());
++  if (!profile || profile->IsOffTheRecord()) {
++    return;
++  }
++  chrome::ShowSettingsSubPageForProfile(profile, kMppWalletSettingsSubPage);
++}
++
++void MppTabHelper::OnWalletDialogClosed() {
++  if (!wallet_dialog_showing_) {
++    return;
++  }
++  wallet_dialog_showing_ = false;
++  wallet_dialog_widget_.reset();
++  wallet_dialog_delegate_.reset();
++}
++
++WEB_CONTENTS_USER_DATA_KEY_IMPL(MppTabHelper);
++
++}  // namespace mpp
+--- /dev/null
++++ b/chrome/browser/mpp/mpp_tab_helper.h
+@@ -0,0 +1,72 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_MPP_MPP_TAB_HELPER_H_
++#define CHROME_BROWSER_MPP_MPP_TAB_HELPER_H_
++
++#include <memory>
++#include <optional>
++#include <string>
++
++#include "chrome/browser/mpp/mpp_payment_utils.h"
++#include "base/memory/weak_ptr.h"
++#include "components/prefs/pref_registry_simple.h"
++#include "content/public/browser/web_contents_observer.h"
++#include "content/public/browser/web_contents_user_data.h"
++
++class GURL;
++
++namespace content {
++class NavigationHandle;
++}  // namespace content
++
++namespace os_crypt_async {
++class Encryptor;
++}  // namespace os_crypt_async
++
++namespace views {
++class DialogDelegate;
++class Widget;
++}  // namespace views
++
++namespace mpp {
++
++class MppTabHelper : public content::WebContentsObserver,
++                     public content::WebContentsUserData<MppTabHelper> {
++ public:
++  static void RegisterProfilePrefs(PrefRegistrySimple* registry);
++
++  MppTabHelper(const MppTabHelper&) = delete;
++  MppTabHelper& operator=(const MppTabHelper&) = delete;
++  ~MppTabHelper() override;
++
++ private:
++  explicit MppTabHelper(content::WebContents* web_contents);
++  friend class content::WebContentsUserData<MppTabHelper>;
++
++  void DidFinishNavigation(
++      content::NavigationHandle* navigation_handle) override;
++  void MaybeShowWalletPicker(const GURL& request_url,
++                             PaymentChallenge challenge);
++  void OnWalletSelected(const std::string& wallet_id);
++  void CreateCredentialAndRetry(const GURL& request_url,
++                                PaymentChallenge challenge,
++                                std::string encrypted_seed,
++                                os_crypt_async::Encryptor encryptor);
++  void OpenMppWalletSettings();
++  void OnWalletDialogClosed();
++
++  bool wallet_dialog_showing_ = false;
++  std::optional<GURL> pending_request_url_;
++  std::optional<PaymentChallenge> pending_challenge_;
++  std::unique_ptr<views::DialogDelegate> wallet_dialog_delegate_;
++  std::unique_ptr<views::Widget> wallet_dialog_widget_;
++  base::WeakPtrFactory<MppTabHelper> weak_factory_{this};
++
++  WEB_CONTENTS_USER_DATA_KEY_DECL();
++};
++
++}  // namespace mpp
++
++#endif  // CHROME_BROWSER_MPP_MPP_TAB_HELPER_H_
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -45,6 +45,9 @@
+ #include "chrome/browser/memory/enterprise_memory_limit_pref_observer.h"
+ #include "chrome/browser/metrics/chrome_metrics_service_client.h"
+ #include "chrome/browser/metrics/tab_stats/tab_stats_tracker.h"
++#if !BUILDFLAG(IS_ANDROID)
++#include "chrome/browser/mpp/mpp_tab_helper.h"
++#endif
+ #include "chrome/browser/net/net_error_tab_helper.h"
+ #include "chrome/browser/net/profile_network_context_service.h"
+ #include "chrome/browser/net/system_network_context_manager.h"
+@@ -1768,6 +1771,9 @@
+   MediaEngagementService::RegisterProfilePrefs(registry);
+   MediaStorageIdSalt::RegisterProfilePrefs(registry);
+   metrics::RegisterDemographicsProfilePrefs(registry);
++#if !BUILDFLAG(IS_ANDROID)
++  mpp::MppTabHelper::RegisterProfilePrefs(registry);
++#endif
+   NotificationDisplayServiceImpl::RegisterProfilePrefs(registry);
+   NotifierStateTracker::RegisterProfilePrefs(registry);
+   ntp_tiles::CustomLinksManagerImpl::RegisterProfilePrefs(registry);
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -1294,6 +1294,8 @@
+       "webui/settings/languages_handler.h",
+       "webui/settings/metrics_reporting_handler.cc",
+       "webui/settings/metrics_reporting_handler.h",
++      "webui/settings/mpp_wallets_handler.cc",
++      "webui/settings/mpp_wallets_handler.h",
+       "webui/settings/on_startup_handler.cc",
+       "webui/settings/on_startup_handler.h",
+       "webui/settings/password_manager_handler.cc",
+@@ -1692,6 +1694,7 @@
+       "//components/media_router/common/mojom:media_router",
+       "//components/network_session_configurator/common",
+       "//components/omnibox/browser:mojo_bindings",
++      "//components/os_crypt/async/browser",
+       "//components/page_load_metrics/browser",
+       "//components/paint_preview/browser",
+       "//components/paint_preview/common",
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -185,6 +185,7 @@
+ #include "content/public/common/content_features.h"
+ #else
+ #include "chrome/browser/banners/app_banner_manager_desktop.h"
++#include "chrome/browser/mpp/mpp_tab_helper.h"
+ #include "chrome/browser/preloading/prefetch/zero_suggest_prefetch/zero_suggest_prefetch_tab_helper.h"
+ #include "chrome/browser/tab_contents/form_interaction_tab_helper.h"
+ #include "chrome/browser/ui/bookmarks/bookmark_tab_helper.h"
+@@ -681,6 +682,7 @@
+       std::make_unique<JavaScriptTabModalDialogManagerDelegateDesktop>(
+           web_contents));
+   ManagePasswordsUIController::CreateForWebContents(web_contents);
++  mpp::MppTabHelper::CreateForWebContents(web_contents);
+ 
+   if (SearchEngineChoiceTabHelper::IsHelperNeeded()) {
+     SearchEngineChoiceTabHelper::CreateForWebContents(web_contents);
+--- /dev/null
++++ b/chrome/browser/ui/webui/settings/mpp_wallets_handler.cc
+@@ -0,0 +1,622 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/settings/mpp_wallets_handler.h"
++
++#include <array>
++#include <cstdint>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <utility>
++#include <vector>
++
++#include "base/base64.h"
++#include "base/check.h"
++#include "base/containers/span.h"
++#include "base/functional/bind.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/utf_string_conversions.h"
++#include "base/values.h"
++#include "build/build_config.h"
++#include "chrome/browser/browser_process.h"
++#include "chrome/browser/profiles/profile.h"
++#include "components/os_crypt/async/browser/os_crypt_async.h"
++#include "components/os_crypt/async/common/encryptor.h"
++#include "components/prefs/pref_service.h"
++#include "components/prefs/scoped_user_pref_update.h"
++#include "content/public/browser/web_ui.h"
++#include "crypto/openssl_util.h"
++#include "crypto/random.h"
++#include "third_party/boringssl/src/include/openssl/bn.h"
++
++namespace settings {
++namespace {
++
++constexpr char kMppLastSelectedWalletIdPref[] = "mpp.last_selected_wallet_id";
++constexpr char kMppWalletsPref[] = "mpp.wallets";
++constexpr char kWalletAddressKey[] = "address";
++constexpr char kWalletEncryptedSeedKey[] = "encrypted_seed";
++constexpr char kWalletIdKey[] = "id";
++constexpr char kWalletKeyAddressKey[] = "key_address";
++constexpr char kWalletKeyTypeKey[] = "key_type";
++constexpr char kWalletLabelKey[] = "label";
++constexpr char kWalletStorageKey[] = "storage";
++constexpr char kWalletStorageLabelKey[] = "storage_label";
++constexpr char kWalletVersionKey[] = "version";
++constexpr char kSecp256k1KeyType[] = "secp256k1";
++constexpr char kSecp256k1PrimeHex[] =
++    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F";
++constexpr char kSecp256k1OrderHex[] =
++    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
++constexpr char kSecp256k1GeneratorXHex[] =
++    "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798";
++constexpr char kSecp256k1GeneratorYHex[] =
++    "483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8";
++constexpr size_t kEvmAddressBytes = 20;
++constexpr size_t kKeccakDigestBytes = 32;
++constexpr size_t kKeccakRateBytes = 136;
++constexpr size_t kSecp256k1PrivateKeyBytes = 32;
++constexpr size_t kSecp256k1UncompressedPublicKeyBytes = 65;
++constexpr size_t kWalletIdBytes = 16;
++
++struct WalletKey {
++  std::string private_key;
++  std::string address;
++};
++
++struct Secp256k1Point {
++  bssl::UniquePtr<BIGNUM> x;
++  bssl::UniquePtr<BIGNUM> y;
++  bool infinity = true;
++};
++
++uint64_t RotateLeft64(uint64_t value, int shift) {
++  if (shift == 0) {
++    return value;
++  }
++  return (value << shift) | (value >> (64 - shift));
++}
++
++uint64_t Load64LittleEndian(base::span<const uint8_t> input) {
++  uint64_t result = 0;
++  for (size_t i = 0; i < 8; ++i) {
++    result |= static_cast<uint64_t>(input[i]) << (8 * i);
++  }
++  return result;
++}
++
++void Store64LittleEndian(uint64_t value, base::span<uint8_t> output) {
++  for (size_t i = 0; i < 8; ++i) {
++    output[i] = static_cast<uint8_t>((value >> (8 * i)) & 0xff);
++  }
++}
++
++void KeccakPermutation(std::array<uint64_t, 25>& state) {
++  static constexpr std::array<uint64_t, 24> kRoundConstants = {
++      0x0000000000000001ULL, 0x0000000000008082ULL, 0x800000000000808aULL,
++      0x8000000080008000ULL, 0x000000000000808bULL, 0x0000000080000001ULL,
++      0x8000000080008081ULL, 0x8000000000008009ULL, 0x000000000000008aULL,
++      0x0000000000000088ULL, 0x0000000080008009ULL, 0x000000008000000aULL,
++      0x000000008000808bULL, 0x800000000000008bULL, 0x8000000000008089ULL,
++      0x8000000000008003ULL, 0x8000000000008002ULL, 0x8000000000000080ULL,
++      0x000000000000800aULL, 0x800000008000000aULL, 0x8000000080008081ULL,
++      0x8000000000008080ULL, 0x0000000080000001ULL, 0x8000000080008008ULL};
++  static constexpr std::array<int, 24> kRhoOffsets = {
++      1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14,
++      27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44};
++  static constexpr std::array<size_t, 24> kPiLane = {
++      10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4,
++      15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1};
++
++  std::array<uint64_t, 5> column;
++  for (size_t round = 0; round < kRoundConstants.size(); ++round) {
++    for (size_t i = 0; i < column.size(); ++i) {
++      column[i] = state[i] ^ state[i + 5] ^ state[i + 10] ^ state[i + 15] ^
++                  state[i + 20];
++    }
++    for (size_t i = 0; i < column.size(); ++i) {
++      const uint64_t theta =
++          column[(i + 4) % 5] ^ RotateLeft64(column[(i + 1) % 5], 1);
++      for (size_t lane = i; lane < state.size(); lane += 5) {
++        state[lane] ^= theta;
++      }
++    }
++
++    uint64_t current = state[1];
++    for (size_t i = 0; i < kPiLane.size(); ++i) {
++      const size_t lane = kPiLane[i];
++      const uint64_t saved = state[lane];
++      state[lane] = RotateLeft64(current, kRhoOffsets[i]);
++      current = saved;
++    }
++
++    for (size_t row = 0; row < state.size(); row += 5) {
++      for (size_t i = 0; i < column.size(); ++i) {
++        column[i] = state[row + i];
++      }
++      for (size_t i = 0; i < column.size(); ++i) {
++        state[row + i] ^= (~column[(i + 1) % 5]) & column[(i + 2) % 5];
++      }
++    }
++
++    state[0] ^= kRoundConstants[round];
++  }
++}
++
++void KeccakAbsorbBlock(base::span<const uint8_t> block,
++                       std::array<uint64_t, 25>& state) {
++  for (size_t lane = 0; lane < kKeccakRateBytes / 8; ++lane) {
++    state[lane] ^= Load64LittleEndian(block.subspan(lane * 8, size_t{8}));
++  }
++  KeccakPermutation(state);
++}
++
++std::array<uint8_t, kKeccakDigestBytes> Keccak256(
++    base::span<const uint8_t> input) {
++  // EVM addresses use legacy Keccak-256 padding, not NIST SHA3-256 padding.
++  std::array<uint64_t, 25> state = {};
++  while (input.size() >= kKeccakRateBytes) {
++    KeccakAbsorbBlock(input.first(kKeccakRateBytes), state);
++    input = input.subspan(kKeccakRateBytes);
++  }
++
++  std::array<uint8_t, kKeccakRateBytes> final_block = {};
++  for (size_t i = 0; i < input.size(); ++i) {
++    final_block[i] = input[i];
++  }
++  final_block[input.size()] = 0x01;
++  final_block[kKeccakRateBytes - 1] |= 0x80;
++  KeccakAbsorbBlock(final_block, state);
++
++  std::array<uint8_t, kKeccakDigestBytes> digest = {};
++  for (size_t lane = 0; lane < kKeccakDigestBytes / 8; ++lane) {
++    Store64LittleEndian(state[lane],
++                        base::span(digest).subspan(lane * 8, size_t{8}));
++  }
++  return digest;
++}
++
++std::string EvmAddressFromPublicKey(
++    base::span<const uint8_t> uncompressed_public_key) {
++  if (uncompressed_public_key.size() != kSecp256k1UncompressedPublicKeyBytes ||
++      uncompressed_public_key[0] != 0x04) {
++    return std::string();
++  }
++
++  const auto digest = Keccak256(uncompressed_public_key.subspan(size_t{1}));
++  return "0x" + base::HexEncodeLower(base::span(digest).subspan(
++                    kKeccakDigestBytes - kEvmAddressBytes, kEvmAddressBytes));
++}
++
++bssl::UniquePtr<BIGNUM> BignumFromHex(const char* value) {
++  BIGNUM* out = nullptr;
++  if (!BN_hex2bn(&out, value)) {
++    return nullptr;
++  }
++  return bssl::UniquePtr<BIGNUM>(out);
++}
++
++void SetPointAtInfinity(Secp256k1Point* point) {
++  point->x.reset();
++  point->y.reset();
++  point->infinity = true;
++}
++
++bool SetPoint(Secp256k1Point* point, const BIGNUM* x, const BIGNUM* y) {
++  point->x.reset(BN_dup(x));
++  point->y.reset(BN_dup(y));
++  point->infinity = false;
++  return point->x && point->y;
++}
++
++bool CopyPoint(const Secp256k1Point& source, Secp256k1Point* target) {
++  if (source.infinity) {
++    SetPointAtInfinity(target);
++    return true;
++  }
++  return SetPoint(target, source.x.get(), source.y.get());
++}
++
++bool SetGeneratorPoint(Secp256k1Point* point) {
++  point->x = BignumFromHex(kSecp256k1GeneratorXHex);
++  point->y = BignumFromHex(kSecp256k1GeneratorYHex);
++  point->infinity = false;
++  return point->x && point->y;
++}
++
++bool PointDouble(const Secp256k1Point& point,
++                 const BIGNUM* field_prime,
++                 BN_CTX* ctx,
++                 Secp256k1Point* out) {
++  if (point.infinity) {
++    SetPointAtInfinity(out);
++    return true;
++  }
++  if (BN_is_zero(point.y.get())) {
++    SetPointAtInfinity(out);
++    return true;
++  }
++
++  bssl::UniquePtr<BIGNUM> numerator(BN_new());
++  bssl::UniquePtr<BIGNUM> denominator(BN_new());
++  bssl::UniquePtr<BIGNUM> inverse(BN_new());
++  bssl::UniquePtr<BIGNUM> lambda(BN_new());
++  bssl::UniquePtr<BIGNUM> x3(BN_new());
++  bssl::UniquePtr<BIGNUM> y3(BN_new());
++  bssl::UniquePtr<BIGNUM> tmp(BN_new());
++  if (!numerator || !denominator || !inverse || !lambda || !x3 || !y3 ||
++      !tmp) {
++    return false;
++  }
++
++  if (!BN_mod_sqr(tmp.get(), point.x.get(), field_prime, ctx) ||
++      !BN_mod_add(numerator.get(), tmp.get(), tmp.get(), field_prime, ctx) ||
++      !BN_mod_add(numerator.get(), numerator.get(), tmp.get(), field_prime,
++                  ctx) ||
++      !BN_mod_add(denominator.get(), point.y.get(), point.y.get(),
++                  field_prime, ctx) ||
++      !BN_mod_inverse(inverse.get(), denominator.get(), field_prime, ctx) ||
++      !BN_mod_mul(lambda.get(), numerator.get(), inverse.get(), field_prime,
++                  ctx) ||
++      !BN_mod_sqr(x3.get(), lambda.get(), field_prime, ctx) ||
++      !BN_mod_sub(x3.get(), x3.get(), point.x.get(), field_prime, ctx) ||
++      !BN_mod_sub(x3.get(), x3.get(), point.x.get(), field_prime, ctx) ||
++      !BN_mod_sub(tmp.get(), point.x.get(), x3.get(), field_prime, ctx) ||
++      !BN_mod_mul(y3.get(), lambda.get(), tmp.get(), field_prime, ctx) ||
++      !BN_mod_sub(y3.get(), y3.get(), point.y.get(), field_prime, ctx)) {
++    return false;
++  }
++
++  return SetPoint(out, x3.get(), y3.get());
++}
++
++bool PointAdd(const Secp256k1Point& lhs,
++              const Secp256k1Point& rhs,
++              const BIGNUM* field_prime,
++              BN_CTX* ctx,
++              Secp256k1Point* out) {
++  if (lhs.infinity) {
++    return CopyPoint(rhs, out);
++  }
++  if (rhs.infinity) {
++    return CopyPoint(lhs, out);
++  }
++
++  if (BN_cmp(lhs.x.get(), rhs.x.get()) == 0) {
++    if (BN_cmp(lhs.y.get(), rhs.y.get()) == 0) {
++      return PointDouble(lhs, field_prime, ctx, out);
++    }
++    SetPointAtInfinity(out);
++    return true;
++  }
++
++  bssl::UniquePtr<BIGNUM> numerator(BN_new());
++  bssl::UniquePtr<BIGNUM> denominator(BN_new());
++  bssl::UniquePtr<BIGNUM> inverse(BN_new());
++  bssl::UniquePtr<BIGNUM> lambda(BN_new());
++  bssl::UniquePtr<BIGNUM> x3(BN_new());
++  bssl::UniquePtr<BIGNUM> y3(BN_new());
++  bssl::UniquePtr<BIGNUM> tmp(BN_new());
++  if (!numerator || !denominator || !inverse || !lambda || !x3 || !y3 ||
++      !tmp) {
++    return false;
++  }
++
++  if (!BN_mod_sub(numerator.get(), rhs.y.get(), lhs.y.get(), field_prime,
++                  ctx) ||
++      !BN_mod_sub(denominator.get(), rhs.x.get(), lhs.x.get(), field_prime,
++                  ctx) ||
++      !BN_mod_inverse(inverse.get(), denominator.get(), field_prime, ctx) ||
++      !BN_mod_mul(lambda.get(), numerator.get(), inverse.get(), field_prime,
++                  ctx) ||
++      !BN_mod_sqr(x3.get(), lambda.get(), field_prime, ctx) ||
++      !BN_mod_sub(x3.get(), x3.get(), lhs.x.get(), field_prime, ctx) ||
++      !BN_mod_sub(x3.get(), x3.get(), rhs.x.get(), field_prime, ctx) ||
++      !BN_mod_sub(tmp.get(), lhs.x.get(), x3.get(), field_prime, ctx) ||
++      !BN_mod_mul(y3.get(), lambda.get(), tmp.get(), field_prime, ctx) ||
++      !BN_mod_sub(y3.get(), y3.get(), lhs.y.get(), field_prime, ctx)) {
++    return false;
++  }
++
++  return SetPoint(out, x3.get(), y3.get());
++}
++
++bool ScalarMultiply(const BIGNUM* scalar,
++                    const Secp256k1Point& point,
++                    const BIGNUM* field_prime,
++                    BN_CTX* ctx,
++                    Secp256k1Point* out) {
++  Secp256k1Point result;
++  Secp256k1Point addend;
++  if (!CopyPoint(point, &addend)) {
++    return false;
++  }
++
++  const unsigned bits = BN_num_bits(scalar);
++  for (unsigned bit = 0; bit < bits; ++bit) {
++    if (BN_is_bit_set(scalar, bit)) {
++      Secp256k1Point sum;
++      if (!PointAdd(result, addend, field_prime, ctx, &sum)) {
++        return false;
++      }
++      result = std::move(sum);
++    }
++
++    Secp256k1Point doubled;
++    if (!PointDouble(addend, field_prime, ctx, &doubled)) {
++      return false;
++    }
++    addend = std::move(doubled);
++  }
++
++  *out = std::move(result);
++  return !out->infinity;
++}
++
++std::optional<std::array<uint8_t, kSecp256k1PrivateKeyBytes>>
++GenerateSecp256k1PrivateKey(const BIGNUM* order) {
++  for (size_t attempt = 0; attempt < 100; ++attempt) {
++    std::array<uint8_t, kSecp256k1PrivateKeyBytes> private_key_bytes;
++    crypto::RandBytes(private_key_bytes);
++    bssl::UniquePtr<BIGNUM> private_key(
++        BN_bin2bn(private_key_bytes.data(), private_key_bytes.size(), nullptr));
++    if (private_key && !BN_is_zero(private_key.get()) &&
++        BN_cmp(private_key.get(), order) < 0) {
++      return private_key_bytes;
++    }
++  }
++  return std::nullopt;
++}
++
++bool PublicKeyFromPrivateKey(
++    base::span<const uint8_t, kSecp256k1PrivateKeyBytes> private_key_bytes,
++    std::array<uint8_t, kSecp256k1UncompressedPublicKeyBytes>* public_key) {
++  crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
++  bssl::UniquePtr<BIGNUM> field_prime = BignumFromHex(kSecp256k1PrimeHex);
++  bssl::UniquePtr<BIGNUM> order = BignumFromHex(kSecp256k1OrderHex);
++  bssl::UniquePtr<BIGNUM> private_key(
++      BN_bin2bn(private_key_bytes.data(), private_key_bytes.size(), nullptr));
++  bssl::UniquePtr<BN_CTX> ctx(BN_CTX_new());
++  Secp256k1Point generator;
++  Secp256k1Point public_point;
++  if (!field_prime || !order || !private_key || !ctx ||
++      !SetGeneratorPoint(&generator) || BN_is_zero(private_key.get()) ||
++      BN_cmp(private_key.get(), order.get()) >= 0 ||
++      !ScalarMultiply(private_key.get(), generator, field_prime.get(), ctx.get(),
++                      &public_point)) {
++    return false;
++  }
++
++  (*public_key)[0] = 0x04;
++  return BN_bn2bin_padded(public_key->data() + 1, kSecp256k1PrivateKeyBytes,
++                          public_point.x.get()) &&
++         BN_bn2bin_padded(public_key->data() + 1 + kSecp256k1PrivateKeyBytes,
++                          kSecp256k1PrivateKeyBytes, public_point.y.get());
++}
++
++std::optional<WalletKey> GenerateWalletKey() {
++  // Tempo-compatible local access keys are secp256k1 keys with EVM addresses.
++  bssl::UniquePtr<BIGNUM> order = BignumFromHex(kSecp256k1OrderHex);
++  if (!order) {
++    return std::nullopt;
++  }
++  std::optional<std::array<uint8_t, kSecp256k1PrivateKeyBytes>>
++      private_key_bytes = GenerateSecp256k1PrivateKey(order.get());
++  if (!private_key_bytes) {
++    return std::nullopt;
++  }
++  std::array<uint8_t, kSecp256k1UncompressedPublicKeyBytes> public_key = {};
++  if (!PublicKeyFromPrivateKey(*private_key_bytes, &public_key)) {
++    return std::nullopt;
++  }
++
++  std::string address = EvmAddressFromPublicKey(public_key);
++  if (address.empty()) {
++    return std::nullopt;
++  }
++
++  return WalletKey{
++      std::string(reinterpret_cast<const char*>(private_key_bytes->data()),
++                  private_key_bytes->size()),
++      std::move(address),
++  };
++}
++
++std::u16string GetWalletStorageLabel() {
++#if BUILDFLAG(IS_MAC)
++  return u"macOS Keychain";
++#elif BUILDFLAG(IS_WIN)
++  return u"Windows credential storage";
++#elif BUILDFLAG(IS_CHROMEOS)
++  return u"ChromeOS encrypted profile storage";
++#elif BUILDFLAG(IS_LINUX)
++  return u"Linux secret service";
++#else
++  return u"system credential storage";
++#endif
++}
++
++std::string GenerateRandomBytes(size_t length) {
++  std::vector<uint8_t> bytes = crypto::RandBytesAsVector(length);
++  return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
++}
++
++bool IsUsableWalletDict(const base::DictValue& wallet) {
++  const std::string* encrypted_seed =
++      wallet.FindString(kWalletEncryptedSeedKey);
++  return encrypted_seed && !encrypted_seed->empty();
++}
++
++std::string WalletStringForSettings(const base::DictValue& wallet,
++                                    std::string_view key,
++                                    std::string_view fallback) {
++  const std::string* value = wallet.FindString(key);
++  if (!value || value->empty()) {
++    return std::string(fallback);
++  }
++  return *value;
++}
++
++std::string WalletAddressForSettings(const base::DictValue& wallet) {
++  const std::string* address = wallet.FindString(kWalletAddressKey);
++  if (address && !address->empty()) {
++    return *address;
++  }
++  return WalletStringForSettings(wallet, kWalletKeyAddressKey, "");
++}
++
++base::ListValue GetWalletsForSettings(PrefService* prefs) {
++  base::ListValue result;
++  for (const base::Value& value : prefs->GetList(kMppWalletsPref)) {
++    if (!value.is_dict() || !IsUsableWalletDict(value.GetDict())) {
++      continue;
++    }
++    const base::DictValue& wallet = value.GetDict();
++    const std::string* id = wallet.FindString(kWalletIdKey);
++    if (!id || id->empty()) {
++      continue;
++    }
++
++    base::DictValue item;
++    item.Set("id", *id);
++    item.Set("address", WalletAddressForSettings(wallet));
++    item.Set("label", WalletStringForSettings(wallet, kWalletLabelKey,
++                                              "Machine Payments Wallet"));
++    item.Set("storageLabel",
++             WalletStringForSettings(wallet, kWalletStorageLabelKey,
++                                     "Local encrypted storage"));
++    result.Append(std::move(item));
++  }
++  return result;
++}
++
++bool CreateWallet(PrefService* prefs,
++                  const os_crypt_async::Encryptor& encryptor) {
++  if (!encryptor.IsEncryptionAvailable()) {
++    return false;
++  }
++
++  std::optional<WalletKey> wallet_key = GenerateWalletKey();
++  if (!wallet_key) {
++    return false;
++  }
++
++  std::string encrypted_private_key;
++  if (!encryptor.EncryptString(wallet_key->private_key,
++                               &encrypted_private_key)) {
++    return false;
++  }
++
++  const size_t wallet_number = prefs->GetList(kMppWalletsPref).size() + 1;
++  base::DictValue wallet;
++  wallet.Set(kWalletVersionKey, 2);
++  wallet.Set(kWalletAddressKey, wallet_key->address);
++  wallet.Set(kWalletIdKey,
++             base::Base64Encode(GenerateRandomBytes(kWalletIdBytes)));
++  wallet.Set(kWalletKeyAddressKey, wallet_key->address);
++  wallet.Set(kWalletKeyTypeKey, kSecp256k1KeyType);
++  wallet.Set(kWalletLabelKey,
++             "Machine Payments Wallet " + base::NumberToString(wallet_number));
++  wallet.Set(kWalletStorageKey, "os_crypt");
++  wallet.Set(kWalletStorageLabelKey,
++             base::UTF16ToUTF8(GetWalletStorageLabel()));
++  wallet.Set(kWalletEncryptedSeedKey,
++             base::Base64Encode(encrypted_private_key));
++
++  ScopedListPrefUpdate update(prefs, kMppWalletsPref);
++  update->Append(std::move(wallet));
++  return true;
++}
++
++bool RemoveWallet(PrefService* prefs, const std::string& wallet_id) {
++  bool removed = false;
++  {
++    ScopedListPrefUpdate update(prefs, kMppWalletsPref);
++    removed = update->EraseIf([&wallet_id](const base::Value& value) {
++      if (!value.is_dict()) {
++        return false;
++      }
++      const std::string* id = value.GetDict().FindString(kWalletIdKey);
++      return id && *id == wallet_id;
++    }) > 0;
++  }
++  if (removed && prefs->GetString(kMppLastSelectedWalletIdPref) == wallet_id) {
++    prefs->SetString(kMppLastSelectedWalletIdPref, std::string());
++  }
++  return removed;
++}
++
++}  // namespace
++
++MppWalletsHandler::MppWalletsHandler(Profile* profile) : profile_(profile) {}
++
++MppWalletsHandler::~MppWalletsHandler() = default;
++
++void MppWalletsHandler::RegisterMessages() {
++  web_ui()->RegisterMessageCallback(
++      "getMppWallets", base::BindRepeating(&MppWalletsHandler::HandleGetWallets,
++                                           base::Unretained(this)));
++  web_ui()->RegisterMessageCallback(
++      "createMppWallet",
++      base::BindRepeating(&MppWalletsHandler::HandleCreateWallet,
++                          base::Unretained(this)));
++  web_ui()->RegisterMessageCallback(
++      "removeMppWallet",
++      base::BindRepeating(&MppWalletsHandler::HandleRemoveWallet,
++                          base::Unretained(this)));
++}
++
++void MppWalletsHandler::OnJavascriptAllowed() {}
++
++void MppWalletsHandler::OnJavascriptDisallowed() {
++  weak_factory_.InvalidateWeakPtrs();
++}
++
++void MppWalletsHandler::HandleGetWallets(const base::ListValue& args) {
++  CHECK_EQ(1U, args.size());
++  const base::Value& callback_id = args[0];
++  AllowJavascript();
++  ResolveJavascriptCallback(callback_id,
++                            GetWalletsForSettings(profile_->GetPrefs()));
++}
++
++void MppWalletsHandler::HandleCreateWallet(const base::ListValue& args) {
++  CHECK_EQ(1U, args.size());
++  base::Value callback_id = args[0].Clone();
++  AllowJavascript();
++
++  os_crypt_async::OSCryptAsync* os_crypt_async =
++      g_browser_process->os_crypt_async();
++  if (!os_crypt_async) {
++    ResolveJavascriptCallback(callback_id, base::Value(false));
++    return;
++  }
++
++  os_crypt_async->GetInstance(
++      base::BindOnce(&MppWalletsHandler::ResolveCreateWallet,
++                     weak_factory_.GetWeakPtr(), std::move(callback_id)),
++      os_crypt_async::Encryptor::Option::kEncryptSyncCompat);
++}
++
++void MppWalletsHandler::HandleRemoveWallet(const base::ListValue& args) {
++  CHECK_EQ(2U, args.size());
++  const base::Value& callback_id = args[0];
++  const std::string& wallet_id = args[1].GetString();
++  AllowJavascript();
++  ResolveJavascriptCallback(
++      callback_id, base::Value(RemoveWallet(profile_->GetPrefs(), wallet_id)));
++}
++
++void MppWalletsHandler::ResolveCreateWallet(
++    base::Value callback_id,
++    os_crypt_async::Encryptor encryptor) {
++  if (!IsJavascriptAllowed()) {
++    return;
++  }
++  ResolveJavascriptCallback(
++      callback_id, base::Value(CreateWallet(profile_->GetPrefs(), encryptor)));
++}
++
++}  // namespace settings
+--- /dev/null
++++ b/chrome/browser/ui/webui/settings/mpp_wallets_handler.h
+@@ -0,0 +1,47 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SETTINGS_MPP_WALLETS_HANDLER_H_
++#define CHROME_BROWSER_UI_WEBUI_SETTINGS_MPP_WALLETS_HANDLER_H_
++
++#include "base/memory/raw_ptr.h"
++#include "base/memory/weak_ptr.h"
++#include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
++
++class Profile;
++
++namespace os_crypt_async {
++class Encryptor;
++}  // namespace os_crypt_async
++
++namespace settings {
++
++class MppWalletsHandler : public SettingsPageUIHandler {
++ public:
++  explicit MppWalletsHandler(Profile* profile);
++
++  MppWalletsHandler(const MppWalletsHandler&) = delete;
++  MppWalletsHandler& operator=(const MppWalletsHandler&) = delete;
++
++  ~MppWalletsHandler() override;
++
++  // SettingsPageUIHandler:
++  void RegisterMessages() override;
++  void OnJavascriptAllowed() override;
++  void OnJavascriptDisallowed() override;
++
++ private:
++  void HandleGetWallets(const base::ListValue& args);
++  void HandleCreateWallet(const base::ListValue& args);
++  void HandleRemoveWallet(const base::ListValue& args);
++  void ResolveCreateWallet(base::Value callback_id,
++                           os_crypt_async::Encryptor encryptor);
++
++  raw_ptr<Profile> profile_ = nullptr;
++  base::WeakPtrFactory<MppWalletsHandler> weak_factory_{this};
++};
++
++}  // namespace settings
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SETTINGS_MPP_WALLETS_HANDLER_H_
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -1752,6 +1752,24 @@
+                   .spec())));
+ 
+   html_source->AddLocalizedStrings(kLocalizedStrings);
++
++  html_source->AddString("mppWalletsTitle", "Machine Payments");
++  html_source->AddString(
++      "mppWalletsRowSubLabel",
++      "Create and manage local wallets for payment challenges");
++  html_source->AddString(
++      "mppWalletsDescription",
++      "Create local wallets for Machine Payments Protocol payments. Keys are "
++      "generated locally, protected with system credential storage, and saved "
++      "only on this device.");
++  html_source->AddString("mppWalletAddressLabel", "Address");
++  html_source->AddString("mppCreateWallet", "Create wallet");
++  html_source->AddString("mppNoWallets", "No Machine Payments wallets yet");
++  html_source->AddString(
++      "mppWalletCreateError",
++      "Could not create a protected wallet key. Check OS keychain access and "
++      "try again.");
++  html_source->AddString("mppRemoveWalletA11yLabel", "Delete $1");
+ 
+   html_source->AddString(
+       "addressesSublabel",
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -69,6 +69,7 @@
+ #include "chrome/browser/ui/webui/settings/hats_handler.h"
+ #include "chrome/browser/ui/webui/settings/import_data_handler.h"
+ #include "chrome/browser/ui/webui/settings/metrics_reporting_handler.h"
++#include "chrome/browser/ui/webui/settings/mpp_wallets_handler.h"
+ #include "chrome/browser/ui/webui/settings/on_startup_handler.h"
+ #include "chrome/browser/ui/webui/settings/password_manager_handler.h"
+ #include "chrome/browser/ui/webui/settings/people_handler.h"
+@@ -274,6 +275,7 @@
+       std::make_unique<SecurityKeysBioEnrollmentHandler>());
+   AddSettingsPageUIHandler(std::make_unique<PasswordManagerHandler>());
+   AddSettingsPageUIHandler(std::make_unique<SavedInfoHandler>(profile));
++  AddSettingsPageUIHandler(std::make_unique<MppWalletsHandler>(profile));
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+   AddSettingsPageUIHandler(std::make_unique<PasskeysHandler>());
+ #endif
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -81,6 +81,7 @@
+     "autofill_page/credit_card_list_entry.ts",
+     "autofill_page/iban_edit_dialog.ts",
+     "autofill_page/iban_list_entry.ts",
++    "autofill_page/mpp_wallets_page.ts",
+     "autofill_page/pay_over_time_issuer_list_entry.ts",
+     "autofill_page/payments_list.ts",
+     "autofill_page/payments_section.ts",
+@@ -324,6 +325,7 @@
+     "autofill_page/autofill_manager_proxy.ts",
+     "autofill_page/country_detail_manager_proxy.ts",
+     "autofill_page/entity_data_manager_proxy.ts",
++    "autofill_page/mpp_wallets_browser_proxy.ts",
+     "autofill_page/password_manager_proxy.ts",
+     "autofill_page/payments_manager_proxy.ts",
+     "base_mixin.ts",
+--- a/chrome/browser/resources/settings/lazy_load.ts
++++ b/chrome/browser/resources/settings/lazy_load.ts
+@@ -9,6 +9,7 @@
+ import './appearance_page/appearance_fonts_page.js';
+ import './autofill_page/autofill_ai_section.js';
+ import './autofill_page/autofill_section.js';
++import './autofill_page/mpp_wallets_page.js';
+ import './autofill_page/walletable_pass_detection_toggle.js';
+ // <if expr="is_win or is_macosx">
+ import './autofill_page/passkeys_subpage.js';
+@@ -181,6 +182,9 @@
+ export type {EntityDataManagerProxy, EntityInstancesChangedListener} from './autofill_page/entity_data_manager_proxy.js';
+ export {SettingsIbanEditDialogElement} from './autofill_page/iban_edit_dialog.js';
+ export {SettingsIbanListEntryElement} from './autofill_page/iban_list_entry.js';
++export {MppWalletsBrowserProxyImpl} from './autofill_page/mpp_wallets_browser_proxy.js';
++export type {MppWallet, MppWalletsBrowserProxy} from './autofill_page/mpp_wallets_browser_proxy.js';
++export {SettingsMppWalletsPageElement} from './autofill_page/mpp_wallets_page.js';
+ // <if expr="is_win or is_macosx">
+ export {PasskeysBrowserProxyImpl} from './autofill_page/passkeys_browser_proxy.js';
+ export type {Passkey, PasskeysBrowserProxy} from './autofill_page/passkeys_browser_proxy.js';
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -226,6 +226,7 @@
+           loadTimeData.getString('autofillPageTitle'));
+ 
+       r.PAYMENTS = r.YOUR_SAVED_INFO.createChild('/payments');
++      r.MPP_WALLETS = r.YOUR_SAVED_INFO.createChild('/mppWallets');
+       r.YOUR_SAVED_INFO_CONTACT_INFO =
+           r.YOUR_SAVED_INFO.createChild('/contactInfo');
+       r.YOUR_SAVED_INFO_IDENTITY_DOCS =
+@@ -240,6 +241,7 @@
+     r.AUTOFILL = r.BASIC.createSection(
+         '/autofill', 'autofill', loadTimeData.getString('autofillPageTitle'));
+     r.PAYMENTS = r.AUTOFILL.createChild('/payments');
++    r.MPP_WALLETS = r.AUTOFILL.createChild('/mppWallets');
+     r.ADDRESSES = r.AUTOFILL.createChild('/addresses');
+ 
+     if (loadTimeData.getBoolean('showAutofillAiControl')) {
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -35,6 +35,7 @@
+   HISTORY_SEARCH: Route;
+   LANGUAGES: Route;
+   MANAGE_PROFILE: Route;
++  MPP_WALLETS: Route;
+   OFFER_WRITING_HELP: Route;
+   ON_STARTUP: Route;
+   PASSKEYS: Route;
+--- a/chrome/browser/resources/settings/settings.ts
++++ b/chrome/browser/resources/settings/settings.ts
+@@ -65,6 +65,9 @@
+ export {SettingsAutofillAiEntriesListElement} from './autofill_page/autofill_ai_entries_list.js';
+ export {SettingsAutofillPageElement} from './autofill_page/autofill_page.js';
+ export {SettingsAutofillPageIndexElement} from './autofill_page/autofill_page_index.js';
++export {MppWalletsBrowserProxyImpl} from './autofill_page/mpp_wallets_browser_proxy.js';
++export type {MppWallet, MppWalletsBrowserProxy} from './autofill_page/mpp_wallets_browser_proxy.js';
++export {SettingsMppWalletsPageElement} from './autofill_page/mpp_wallets_page.js';
+ export {PasswordCheckReferrer, PasswordManagerImpl, PasswordManagerPage} from './autofill_page/password_manager_proxy.js';
+ export type {PasswordManagerProxy} from './autofill_page/password_manager_proxy.js';
+ export {BaseMixin} from './base_mixin.js';
+--- a/chrome/browser/resources/settings/autofill_page/autofill_page.html
++++ b/chrome/browser/resources/settings/autofill_page/autofill_page.html
+@@ -18,6 +18,11 @@
+             start-icon="settings20:credit-card" label="$i18n{creditCards}"
+             on-click="onPaymentsClick_"
+             role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
++        <cr-link-row id="mppWalletsButton"
++            start-icon="settings20:wallet" label="$i18n{mppWalletsTitle}"
++            sub-label="$i18n{mppWalletsRowSubLabel}"
++            on-click="onMppWalletsClick_"
++            role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
+         <cr-link-row id="addressesManagerButton"
+             start-icon="settings:location-on" label="$i18n{addressesTitle}"
+             sub-label="[[addressesSublabel_()]]"
+--- a/chrome/browser/resources/settings/autofill_page/autofill_page.ts
++++ b/chrome/browser/resources/settings/autofill_page/autofill_page.ts
+@@ -90,6 +90,13 @@
+   }
+ 
+   /**
++   * Shows the Machine Payments wallets sub page.
++   */
++  private onMppWalletsClick_() {
++    Router.getInstance().navigateTo(routes.MPP_WALLETS);
++  }
++
++  /**
+    * Shows Password Manager page.
+    */
+   private onPasswordsClick_() {
+@@ -123,6 +130,9 @@
+     if (routes.PAYMENTS) {
+       map.set(routes.PAYMENTS.path, '#paymentManagerButton');
+     }
++    if (routes.MPP_WALLETS) {
++      map.set(routes.MPP_WALLETS.path, '#mppWalletsButton');
++    }
+     if (routes.ADDRESSES) {
+       map.set(routes.ADDRESSES.path, '#addressesManagerButton');
+     }
+@@ -135,6 +145,7 @@
+     const ids = [
+       'addresses',
+       'autofillAi',
++      'mppWallets',
+       // <if expr="is_win or is_macosx">
+       'passkeys',
+       // </if>
+@@ -150,6 +161,9 @@
+       case 'autofillAi':
+         assert(this.autofillAiAvailable_);
+         triggerId = 'autofillAiManagerButton';
++        break;
++      case 'mppWallets':
++        triggerId = 'mppWalletsButton';
+         break;
+       // <if expr="is_win or is_macosx">
+       case 'passkeys':
+--- a/chrome/browser/resources/settings/autofill_page/autofill_page_index.html
++++ b/chrome/browser/resources/settings/autofill_page/autofill_page_index.html
+@@ -13,6 +13,10 @@
+   <settings-payments-section slot="view" id="payments" prefs="{{prefs}}"
+       data-parent-view-id="parent">
+   </settings-payments-section>
++
++  <settings-mpp-wallets-page slot="view" id="mppWallets"
++      data-parent-view-id="parent">
++  </settings-mpp-wallets-page>
+ 
+   <settings-autofill-section slot="view" id="addresses" prefs="{{prefs}}"
+       data-parent-view-id="parent">
+--- a/chrome/browser/resources/settings/autofill_page/autofill_page_index.ts
++++ b/chrome/browser/resources/settings/autofill_page/autofill_page_index.ts
+@@ -75,6 +75,10 @@
+           this.$.viewManager.switchView(
+               'payments', 'no-animation', 'no-animation');
+           break;
++        case routes.MPP_WALLETS:
++          this.$.viewManager.switchView(
++              'mppWallets', 'no-animation', 'no-animation');
++          break;
+         case routes.ADDRESSES:
+           this.$.viewManager.switchView(
+               'addresses', 'no-animation', 'no-animation');
+--- /dev/null
++++ b/chrome/browser/resources/settings/autofill_page/mpp_wallets_browser_proxy.ts
+@@ -0,0 +1,42 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import {sendWithPromise} from 'chrome://resources/js/cr.js';
++
++export interface MppWallet {
++  address: string;
++  id: string;
++  label: string;
++  storageLabel: string;
++}
++
++export interface MppWalletsBrowserProxy {
++  getWallets(): Promise<MppWallet[]>;
++  createWallet(): Promise<boolean>;
++  removeWallet(walletId: string): Promise<boolean>;
++}
++
++export class MppWalletsBrowserProxyImpl implements MppWalletsBrowserProxy {
++  getWallets(): Promise<MppWallet[]> {
++    return sendWithPromise('getMppWallets');
++  }
++
++  createWallet(): Promise<boolean> {
++    return sendWithPromise('createMppWallet');
++  }
++
++  removeWallet(walletId: string): Promise<boolean> {
++    return sendWithPromise('removeMppWallet', walletId);
++  }
++
++  static getInstance(): MppWalletsBrowserProxy {
++    return instance || (instance = new MppWalletsBrowserProxyImpl());
++  }
++
++  static setInstance(obj: MppWalletsBrowserProxy) {
++    instance = obj;
++  }
++}
++
++let instance: MppWalletsBrowserProxy|null = null;
+--- /dev/null
++++ b/chrome/browser/resources/settings/autofill_page/mpp_wallets_page.html
+@@ -0,0 +1,95 @@
++<style include="settings-shared">
++  .header-row {
++    align-items: center;
++    display: flex;
++    min-height: var(--cr-section-min-height);
++    padding: 0 var(--cr-section-padding);
++  }
++
++  .header-text {
++    flex: 1;
++    padding-block: 12px;
++  }
++
++  .wallet-row {
++    align-items: center;
++    display: flex;
++    gap: 20px;
++    min-height: 64px;
++    padding: 0 var(--cr-section-padding);
++  }
++
++  .wallet-row:not(:first-child) {
++    border-top: var(--cr-separator-line);
++  }
++
++  .wallet-icon {
++    --iron-icon-fill-color: var(--cr-secondary-text-color);
++    flex-shrink: 0;
++  }
++
++  .wallet-copy {
++    flex: 1;
++    min-width: 0;
++  }
++
++  .wallet-label,
++  .wallet-storage,
++  .wallet-address {
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++  }
++
++  .wallet-address {
++    direction: ltr;
++    font-family: monospace;
++  }
++
++  .empty-row,
++  #error {
++    padding: 16px var(--cr-section-padding);
++  }
++
++  #error {
++    color: var(--settings-error-color);
++  }
++</style>
++
++<settings-subpage page-title="$i18n{mppWalletsTitle}">
++  <div class="card">
++    <div class="header-row">
++      <div class="header-text secondary">$i18n{mppWalletsDescription}</div>
++      <cr-button id="createWallet" on-click="onCreateWalletClick_"
++          disabled="[[creatingWallet_]]">
++        $i18n{mppCreateWallet}
++      </cr-button>
++    </div>
++  </div>
++
++  <div id="error" hidden$="[[!errorMessage_]]">[[errorMessage_]]</div>
++
++  <div class="card list-frame">
++    <template is="dom-if" if="[[!hasWallets_(wallets_)]]">
++      <div class="empty-row secondary">$i18n{mppNoWallets}</div>
++    </template>
++
++    <template is="dom-repeat" items="[[wallets_]]">
++      <div class="wallet-row">
++        <cr-icon class="wallet-icon" icon="settings20:wallet"></cr-icon>
++        <div class="wallet-copy">
++          <div class="wallet-label">[[item.label]]</div>
++          <div class="wallet-storage secondary">[[item.storageLabel]]</div>
++          <div class="wallet-address secondary" hidden$="[[!item.address]]">
++            $i18n{mppWalletAddressLabel}: [[item.address]]
++          </div>
++        </div>
++        <cr-icon-button class="icon-delete-gray"
++            title="$i18n{delete}"
++            aria-label$="[[getRemoveWalletLabel_(item.label)]]"
++            on-click="onRemoveWalletClick_">
++        </cr-icon-button>
++      </div>
++    </template>
++  </div>
++</settings-subpage>
+--- /dev/null
++++ b/chrome/browser/resources/settings/autofill_page/mpp_wallets_page.ts
+@@ -0,0 +1,111 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++/**
++ * @fileoverview 'settings-mpp-wallets-page' lets users create and manage local
++ * Machine Payments Protocol wallets.
++ */
++import 'chrome://resources/cr_elements/cr_button/cr_button.js';
++import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
++import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
++import 'chrome://resources/cr_elements/icons.html.js';
++import '../icons.html.js';
++import '../settings_page/settings_subpage.js';
++import '../settings_shared.css.js';
++
++import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
++import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
++
++import {SettingsViewMixin} from '../settings_page/settings_view_mixin.js';
++
++import type {MppWallet, MppWalletsBrowserProxy} from './mpp_wallets_browser_proxy.js';
++import {MppWalletsBrowserProxyImpl} from './mpp_wallets_browser_proxy.js';
++import {getTemplate} from './mpp_wallets_page.html.js';
++
++const SettingsMppWalletsPageElementBase =
++    SettingsViewMixin(I18nMixin(PolymerElement));
++
++export class SettingsMppWalletsPageElement extends
++    SettingsMppWalletsPageElementBase {
++  static get is() {
++    return 'settings-mpp-wallets-page';
++  }
++
++  static get template() {
++    return getTemplate();
++  }
++
++  static get properties() {
++    return {
++      wallets_: {
++        type: Array,
++        value: () => [],
++      },
++
++      creatingWallet_: {
++        type: Boolean,
++        value: false,
++      },
++
++      errorMessage_: String,
++    };
++  }
++
++  declare private wallets_: MppWallet[];
++  declare private creatingWallet_: boolean;
++  declare private errorMessage_: string;
++
++  private browserProxy_: MppWalletsBrowserProxy =
++      MppWalletsBrowserProxyImpl.getInstance();
++
++  override connectedCallback() {
++    super.connectedCallback();
++    this.loadWallets_();
++  }
++
++  private async loadWallets_() {
++    this.wallets_ = await this.browserProxy_.getWallets();
++  }
++
++  private async onCreateWalletClick_() {
++    this.creatingWallet_ = true;
++    this.errorMessage_ = '';
++    const created = await this.browserProxy_.createWallet();
++    this.creatingWallet_ = false;
++    if (!created) {
++      this.errorMessage_ = this.i18n('mppWalletCreateError');
++      return;
++    }
++    await this.loadWallets_();
++  }
++
++  private async onRemoveWalletClick_(event: PointerEvent&{
++    model: {item: MppWallet}
++  }) {
++    this.errorMessage_ = '';
++    await this.browserProxy_.removeWallet(event.model.item.id);
++    await this.loadWallets_();
++  }
++
++  private hasWallets_(wallets: MppWallet[]): boolean {
++    return wallets.length > 0;
++  }
++
++  private getRemoveWalletLabel_(walletLabel: string): string {
++    return this.i18n('mppRemoveWalletA11yLabel', walletLabel);
++  }
++
++  override focusBackButton() {
++    this.shadowRoot!.querySelector('settings-subpage')!.focusBackButton();
++  }
++}
++
++declare global {
++  interface HTMLElementTagNameMap {
++    'settings-mpp-wallets-page': SettingsMppWalletsPageElement;
++  }
++}
++
++customElements.define(
++    SettingsMppWalletsPageElement.is, SettingsMppWalletsPageElement);
+--- a/chrome/browser/resources/settings/your_saved_info_page/your_saved_info_page.html
++++ b/chrome/browser/resources/settings/your_saved_info_page/your_saved_info_page.html
+@@ -89,6 +89,11 @@
+         on-click="onGoogleWalletRelatedServiceClick_"
+         start-icon="settings20:wallet" external>
+     </cr-link-row>
++    <cr-link-row id="mppWalletsButton" label="$i18n{mppWalletsTitle}"
++        sub-label="$i18n{mppWalletsRowSubLabel}"
++        on-click="onMppWalletsClick_"
++        start-icon="settings20:wallet">
++    </cr-link-row>
+     <cr-link-row id="googleAccountButton" label="$i18n{googleAccount}"
+         on-click="onGoogleAccountRelatedServiceClick_"
+         start-icon="settings20:googleg" external>
+--- a/chrome/browser/resources/settings/your_saved_info_page/your_saved_info_page.ts
++++ b/chrome/browser/resources/settings/your_saved_info_page/your_saved_info_page.ts
+@@ -388,6 +388,9 @@
+     if (routes.PAYMENTS) {
+       map.set(routes.PAYMENTS.path, '#paymentManagerButton');
+     }
++    if (routes.MPP_WALLETS) {
++      map.set(routes.MPP_WALLETS.path, '#mppWalletsButton');
++    }
+     if (routes.YOUR_SAVED_INFO_CONTACT_INFO) {
+       map.set(
+           routes.YOUR_SAVED_INFO_CONTACT_INFO.path, '#addressesManagerButton');
+@@ -416,6 +419,9 @@
+       // </if>
+       case 'payments':
+         triggerId = 'paymentManagerButton';
++        break;
++      case 'mppWallets':
++        triggerId = 'mppWalletsButton';
+         break;
+       case 'identityDocs':
+         triggerId = 'identityManagerButton';
+@@ -515,6 +521,10 @@
+         loadTimeData.getString('googleWalletUrl'));
+   }
+ 
++  private onMppWalletsClick_() {
++    Router.getInstance().navigateTo(routes.MPP_WALLETS);
++  }
++
+   /**
+    * Opens Google Account page in a new tab.
+    */
+--- a/chrome/browser/resources/settings/your_saved_info_page/your_saved_info_page_index.html
++++ b/chrome/browser/resources/settings/your_saved_info_page/your_saved_info_page_index.html
+@@ -29,6 +29,10 @@
+       data-parent-view-id="parent">
+   </settings-payments-section>
+ 
++  <settings-mpp-wallets-page slot="view" id="mppWallets"
++      data-parent-view-id="parent">
++  </settings-mpp-wallets-page>
++
+   <settings-travel-page slot="view" id="travel" prefs="{{prefs}}"
+       data-parent-view-id="parent">
+   </settings-travel-page>
+--- a/chrome/browser/resources/settings/your_saved_info_page/your_saved_info_page_index.ts
++++ b/chrome/browser/resources/settings/your_saved_info_page/your_saved_info_page_index.ts
+@@ -96,6 +96,10 @@
+           SavedInfoHandlerImpl.getInstance().requestDataManagementSurvey(
+               DataManagementSurvey.PAYMENTS, isFromHomePage);
+           break;
++        case routes.MPP_WALLETS:
++          this.$.viewManager.switchView(
++              'mppWallets', 'no-animation', 'no-animation');
++          break;
+         case routes.YOUR_SAVED_INFO_TRAVEL:
+           this.$.viewManager.switchView(
+               'travel', 'no-animation', 'no-animation');
