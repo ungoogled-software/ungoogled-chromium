@@ -1,17 +1,6 @@
---- a/chrome/browser/BUILD.gn
-+++ b/chrome/browser/BUILD.gn
-@@ -3626,8 +3626,6 @@ static_library("browser") {
-       "download/download_auto_open_policy_handler.cc",
-       "download/download_auto_open_policy_handler.h",
-       "download/download_commands.cc",
--      "download/download_danger_prompt.cc",
--      "download/download_danger_prompt.h",
-       "download/download_dir_policy_handler.cc",
-       "download/download_dir_policy_handler.h",
-       "download/download_dir_util.cc",
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -418,10 +418,6 @@ void CreateAndAddChromeThrottlesForNavig
+@@ -421,10 +421,6 @@ void CreateAndAddChromeThrottlesForNavig
            Profile::FromBrowserContext(context)),
        SafeSearchFactory::GetForBrowserContext(context)));
  
@@ -48,7 +37,7 @@
  }  // namespace
 --- a/chrome/browser/download/download_item_model.cc
 +++ b/chrome/browser/download/download_item_model.cc
-@@ -127,7 +127,7 @@ class DownloadItemModelData : public bas
+@@ -129,7 +129,7 @@ class DownloadItemModelData : public bas
  
    // Danger level of the file determined based on the file type and whether
    // there was a user action associated with the download.
@@ -57,7 +46,7 @@
  
    // Whether the download is currently being revived.
    bool is_being_revived_ = false;
-@@ -466,13 +466,13 @@ void DownloadItemModel::SetShouldPreferO
+@@ -468,13 +468,13 @@ void DownloadItemModel::SetShouldPreferO
    data->should_prefer_opening_in_browser_ = preference;
  }
  
@@ -74,119 +63,9 @@
    DownloadItemModelData* data = DownloadItemModelData::GetOrCreate(download_);
    data->danger_level_ = danger_level;
  }
---- a/chrome/browser/extensions/api/downloads/downloads_api.cc
-+++ b/chrome/browser/extensions/api/downloads/downloads_api.cc
-@@ -87,7 +87,6 @@
- #endif
- 
- #if BUILDFLAG(ENABLE_EXTENSIONS)
--#include "chrome/browser/download/download_danger_prompt.h"
- #include "chrome/browser/ui/browser.h"
- #include "chrome/browser/ui/browser_window.h"
- #endif
-@@ -1393,9 +1392,6 @@ DownloadsAcceptDangerFunction::Downloads
- 
- DownloadsAcceptDangerFunction::~DownloadsAcceptDangerFunction() = default;
- 
--DownloadsAcceptDangerFunction::OnPromptCreatedCallback*
--    DownloadsAcceptDangerFunction::on_prompt_created_ = nullptr;
--
- ExtensionFunction::ResponseAction DownloadsAcceptDangerFunction::Run() {
-   std::optional<downloads::AcceptDanger::Params> params =
-       downloads::AcceptDanger::Params::Create(args());
-@@ -1443,50 +1439,13 @@ void DownloadsAcceptDangerFunction::Prom
-   }
-   RecordApiFunctions(DownloadsFunctionName::kDownloadsFunctionAcceptDanger);
- #if BUILDFLAG(ENABLE_EXTENSIONS)
--  // DownloadDangerPrompt displays a modal dialog using native widgets that the
--  // user must either accept or cancel. It cannot be scripted.
--  DownloadDangerPrompt* prompt = DownloadDangerPrompt::Create(
--      download_item, web_contents,
--      base::BindOnce(&DownloadsAcceptDangerFunction::DangerPromptCallback, this,
--                     download_id));
--  // DownloadDangerPrompt deletes itself
--  if (on_prompt_created_ && !on_prompt_created_->is_null()) {
--    std::move(*on_prompt_created_).Run(prompt);
--    on_prompt_created_ = nullptr;
--  }
--  // Function finishes in DangerPromptCallback().
-+  download_item->ValidateDangerousDownload();
- #else
-   NOTIMPLEMENTED();
-   Respond(Error("DownloadDangerPrompt not implemented"));
- #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
- }
- 
--void DownloadsAcceptDangerFunction::DangerPromptCallback(
--    int download_id,
--    DownloadDangerPrompt::Action action) {
--  DCHECK_CURRENTLY_ON(BrowserThread::UI);
--  DownloadItem* download_item = GetDownload(
--      browser_context(), include_incognito_information(), download_id);
--  std::string error;
--  if (InvalidId(download_item, &error) ||
--      Fault(download_item->GetState() != DownloadItem::IN_PROGRESS,
--            download_extension_errors::kNotInProgress, &error)) {
--    Respond(Error(std::move(error)));
--    return;
--  }
--  switch (action) {
--    case DownloadDangerPrompt::ACCEPT:
--      download_item->ValidateDangerousDownload();
--      break;
--    case DownloadDangerPrompt::CANCEL:
--      download_item->Remove();
--      break;
--    case DownloadDangerPrompt::DISMISS:
--      break;
--  }
--  Respond(NoArguments());
--}
--
- DownloadsShowFunction::DownloadsShowFunction() = default;
- 
- DownloadsShowFunction::~DownloadsShowFunction() = default;
---- a/chrome/browser/extensions/api/downloads/downloads_api.h
-+++ b/chrome/browser/extensions/api/downloads/downloads_api.h
-@@ -13,7 +13,6 @@
- #include "base/memory/raw_ptr.h"
- #include "base/scoped_observation.h"
- #include "base/time/time.h"
--#include "chrome/browser/download/download_danger_prompt.h"
- #include "chrome/common/extensions/api/downloads.h"
- #include "components/download/content/public/all_download_item_notifier.h"
- #include "components/download/public/common/download_path_reservation_tracker.h"
-@@ -169,13 +168,6 @@ class DownloadsRemoveFileFunction : publ
- 
- class DownloadsAcceptDangerFunction : public ExtensionFunction {
-  public:
--  using OnPromptCreatedCallback =
--      base::OnceCallback<void(DownloadDangerPrompt*)>;
--  static void OnPromptCreatedForTesting(
--      OnPromptCreatedCallback* callback) {
--    on_prompt_created_ = callback;
--  }
--
-   DECLARE_EXTENSION_FUNCTION("downloads.acceptDanger", DOWNLOADS_ACCEPTDANGER)
-   DownloadsAcceptDangerFunction();
- 
-@@ -187,13 +179,10 @@ class DownloadsAcceptDangerFunction : pu
- 
-  protected:
-   ~DownloadsAcceptDangerFunction() override;
--  void DangerPromptCallback(int download_id,
--                            DownloadDangerPrompt::Action action);
- 
-  private:
-   void PromptOrWait(int download_id, int retries);
- 
--  static OnPromptCreatedCallback* on_prompt_created_;
- };
- 
- class DownloadsShowFunction : public ExtensionFunction {
 --- a/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
 +++ b/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
-@@ -821,18 +821,6 @@ void WebstorePrivateBeginInstallWithMani
+@@ -833,18 +833,6 @@ void WebstorePrivateBeginInstallWithMani
  
  void WebstorePrivateBeginInstallWithManifest3Function::
      ReportFrictionAcceptedEvent() {
@@ -215,7 +94,7 @@
    sources = [
      "chrome_controller_client.cc",
      "chrome_controller_client.h",
-@@ -88,6 +89,7 @@ static_library("safe_browsing") {
+@@ -92,6 +93,7 @@ static_library("safe_browsing") {
      "//services/metrics/public/cpp:ukm_builders",
      "//services/preferences/public/cpp",
    ]
@@ -223,7 +102,7 @@
  
    if (enable_extensions) {
      deps += [ "//chrome/browser/ui/web_applications" ]
-@@ -633,6 +635,7 @@ static_library("advanced_protection") {
+@@ -641,6 +643,7 @@ static_library("advanced_protection") {
  }
  
  source_set("metrics_collector") {
@@ -231,7 +110,7 @@
    sources = [
      "safe_browsing_metrics_collector_factory.cc",
      "safe_browsing_metrics_collector_factory.h",
-@@ -652,6 +655,7 @@ source_set("metrics_collector") {
+@@ -660,6 +663,7 @@ source_set("metrics_collector") {
      "//components/safe_browsing/core/common:safe_browsing_prefs",
      "//content/public/browser",
    ]
@@ -239,16 +118,6 @@
  }
  
  source_set("unit_tests") {
---- a/chrome/browser/ui/views/download/BUILD.gn
-+++ b/chrome/browser/ui/views/download/BUILD.gn
-@@ -6,7 +6,6 @@ assert(is_win || is_mac || is_linux || i
- 
- source_set("download") {
-   sources = [
--    "download_danger_prompt_views.cc",
-     "download_in_progress_dialog_view.cc",
-     "download_in_progress_dialog_view.h",
-   ]
 --- a/chrome/browser/ui/webui/downloads/downloads_dom_handler.cc
 +++ b/chrome/browser/ui/webui/downloads/downloads_dom_handler.cc
 @@ -25,7 +25,6 @@
@@ -259,7 +128,7 @@
  #include "chrome/browser/download/download_history.h"
  #include "chrome/browser/download/download_item_model.h"
  #include "chrome/browser/download/download_item_warning_data.h"
-@@ -550,12 +549,6 @@ void DownloadsDOMHandler::RemoveDownload
+@@ -562,12 +561,6 @@ void DownloadsDOMHandler::RemoveDownload
    IdSet ids;
  
    for (download::DownloadItem* download : to_remove) {
