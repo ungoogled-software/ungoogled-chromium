@@ -1,0 +1,35 @@
+--- a/content/browser/renderer_host/render_process_host_impl.cc
++++ b/content/browser/renderer_host/render_process_host_impl.cc
+@@ -3524,7 +3524,10 @@ bool RenderProcessHostImpl::IsForTopChromeWebUI() const {
+ }
+
+ bool RenderProcessHostImpl::IsJitDisabled() {
+-  return !!(flags_ & RenderProcessFlags::kJitDisabled);
++  return !!(flags_ & RenderProcessFlags::kJitDisabled) ||
++         (base::CommandLine::ForCurrentProcess()->HasSwitch(
++              "disabling-javascript-optimization-disables-jit") &&
++          RenderProcessHostImpl::AreV8OptimizationsDisabled());
+ }
+
+ bool RenderProcessHostImpl::AreV8OptimizationsDisabled() {
+@@ -3652,6 +3655,9 @@ void RenderProcessHostImpl::AppendRendererCommandLine(
+   if (IsJitDisabled()) {
+     AppendToCommaSeparatedSwitch(
+         command_line, blink::switches::kJavaScriptFlags, "--jitless");
++
++    AppendToCommaSeparatedSwitch(
++        command_line, blink::switches::kJavaScriptFlags, "--wasm_jitless");
+   } else if (AreV8OptimizationsDisabled()) {
+     AppendToCommaSeparatedSwitch(command_line,
+                                  blink::switches::kJavaScriptFlags,
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -140,4 +140,8 @@
+      "Increases the storage quota for Incognito and Guest profiles",
+      "Makes Incognito and Guest profiles compute the storage quota with the same algorithm that regular profiles use. This makes it harder for websites to detect Incognito mode, but may allow sites to induce heavy memory pressure. ungoogled-chromium flag.",
+      kOsAll, FEATURE_VALUE_TYPE(storage::features::kIncreaseIncognitoStorageQuota)},
++    {"disabling-javascript-optimization-disables-jit",
++     "Disabling JavaScript optimization disables JIT",
++     "If enabled, disables JIT too if the \"JavaScript optimization\" setting is turned off. ungoogled-chromium flag.",
++     kOsAll, SINGLE_VALUE_TYPE("disabling-javascript-optimization-disables-jit")},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
