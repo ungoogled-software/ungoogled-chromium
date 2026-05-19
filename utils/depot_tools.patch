@@ -8,6 +8,7 @@
 #   ensure shallow fetches
 #   allow using newer httplib2 with pysocks
 #   utilize a newer version of gsutil to support later versions of python
+#   allow StrEnum-equivalent functionality on older python
 --- a/gclient.bat
 +++ b/gclient.bat
 @@ -20,4 +20,4 @@ IF %ERRORLEVEL% NEQ 0 (
@@ -18,7 +19,7 @@
 +call python3 "%~dp0gclient.py" %*
 --- a/gclient.py
 +++ b/gclient.py
-@@ -126,8 +126,8 @@ DEPOT_TOOLS_DIR = os.path.dirname(os.pat
+@@ -128,8 +128,8 @@ DEPOT_TOOLS_DIR = os.path.dirname(os.pat
  # one, e.g. if a spec explicitly says `cache_dir = None`.)
  UNSET_CACHE_DIR = object()
  
@@ -29,7 +30,7 @@
  
  PREVIOUS_SYNC_COMMITS = 'GCLIENT_PREVIOUS_SYNC_COMMITS'
  
-@@ -424,6 +424,7 @@ class Dependency(gclient_utils.WorkItem,
+@@ -426,6 +426,7 @@ class Dependency(gclient_utils.WorkItem,
                   protocol='https',
                   git_dependencies_state=gclient_eval.DEPS,
                   print_outbuf=False):
@@ -37,7 +38,7 @@
          gclient_utils.WorkItem.__init__(self, name)
          DependencySettings.__init__(self, parent, url, managed, custom_deps,
                                      custom_vars, custom_hooks, deps_file,
-@@ -769,6 +770,7 @@ class Dependency(gclient_utils.WorkItem,
+@@ -771,6 +772,7 @@ class Dependency(gclient_utils.WorkItem,
  
              condition = dep_value.get('condition')
              dep_type = dep_value.get('dep_type')
@@ -45,7 +46,7 @@
  
              if not self._get_option('process_all_deps', False):
                  should_process = should_process and _should_process(condition)
-@@ -820,6 +822,12 @@ class Dependency(gclient_utils.WorkItem,
+@@ -822,6 +824,12 @@ class Dependency(gclient_utils.WorkItem,
                      should_process_object = should_process and _should_process(
                          merged_condition)
  
@@ -58,7 +59,7 @@
                      gcs_deps.append(
                          GcsDependency(parent=self,
                                        name=name,
-@@ -930,6 +938,8 @@ class Dependency(gclient_utils.WorkItem,
+@@ -932,6 +940,8 @@ class Dependency(gclient_utils.WorkItem,
  
          self._gn_args_from = local_scope.get('gclient_gn_args_from')
          self._gn_args_file = local_scope.get('gclient_gn_args_file')
@@ -67,7 +68,7 @@
          self._gn_args = local_scope.get('gclient_gn_args', [])
          # It doesn't make sense to set all of these, since setting gn_args_from
          # to another DEPS will make gclient ignore any other local gn_args*
-@@ -3996,6 +4006,7 @@ def CMDsync(parser, args):
+@@ -4028,6 +4038,7 @@ def CMDsync(parser, args):
                        default=[],
                        help='Specify to skip processing of a certain type of '
                        'dep.')
@@ -77,7 +78,7 @@
  
 --- a/gclient_scm.py
 +++ b/gclient_scm.py
-@@ -979,8 +979,7 @@ class GitWrapper(SCMWrapper):
+@@ -995,8 +995,7 @@ class GitWrapper(SCMWrapper):
          self._SetFetchConfig(options)
  
          # Fetch upstream if we don't already have |revision|.
@@ -87,7 +88,7 @@
              self._Fetch(options, prune=options.force)
  
              if not scm.GIT.IsValidRevision(
-@@ -996,7 +995,7 @@ class GitWrapper(SCMWrapper):
+@@ -1012,7 +1011,7 @@ class GitWrapper(SCMWrapper):
  
          # This is a big hammer, debatable if it should even be here...
          if options.force or options.reset:
@@ -96,7 +97,7 @@
              if options.upstream and upstream_branch:
                  target = upstream_branch
              self._Scrub(target, options)
-@@ -1011,7 +1010,6 @@ class GitWrapper(SCMWrapper):
+@@ -1027,7 +1026,6 @@ class GitWrapper(SCMWrapper):
              # to the checkout step.
              if not (options.force or options.reset):
                  self._CheckClean(revision)
@@ -104,7 +105,7 @@
  
              if not current_revision:
                  current_revision = self._Capture(
-@@ -1708,8 +1706,7 @@ class GitWrapper(SCMWrapper):
+@@ -1724,8 +1722,7 @@ class GitWrapper(SCMWrapper):
              fetch_cmd.append('--no-tags')
          elif quiet:
              fetch_cmd.append('--quiet')
@@ -139,3 +140,28 @@
  
  # Google OAuth Context required by gsutil.
  LUCI_AUTH_SCOPES = [
+--- a/metrics_utils.py
++++ b/metrics_utils.py
+@@ -7,13 +7,20 @@ import os
+ import re
+ import sys
+ import urllib.parse
+-from enum import StrEnum
++try:
++    from enum import StrEnum
++    class StringEnum(StrEnum):
++        pass
++except ImportError:
++    from enum import Enum
++    class StringEnum(str, Enum):
++        pass
+ 
+ import scm
+ import subprocess2
+ 
+ 
+-class EditMonitorState(StrEnum):
++class EditMonitorState(StringEnum):
+     """The telemetry state for the Edit Monitor.
+ 
+     Attributes:
