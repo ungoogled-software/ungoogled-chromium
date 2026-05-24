@@ -1,0 +1,99 @@
+name: Code Validation
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  code-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up CI environment
+        uses: ./.github/actions/ci-setup
+
+      - name: Format utils
+        run: python -m yapf --style .style.yapf -e '*/third_party/*' -rpd utils
+
+      - name: Lint utils
+        run: ./devutils/run_utils_pylint.py --hide-fixme
+
+      - name: Test utils
+        run: ./devutils/run_utils_tests.sh
+
+      - name: Format devutils
+        run: python -m yapf --style .style.yapf -e '*/third_party/*' -rpd devutils
+
+      - name: Lint devutils
+        run: ./devutils/run_devutils_pylint.py --hide-fixme
+
+      - name: Test devutils
+        run: ./devutils/run_devutils_tests.sh
+
+  validate-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up CI environment
+        uses: ./.github/actions/ci-setup
+
+      - name: Validate repository configuration
+        run: ./devutils/validate_config.py
+
+  validate-with-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up CI environment
+        uses: ./.github/actions/ci-setup
+
+      - name: Restore Chromium download cache
+        uses: actions/cache@v5
+        with:
+          path: chromium_download_cache
+          key: ${{ runner.os }}-chromium-download-cache-${{ hashFiles('chromium_version.txt', 'downloads.ini') }}
+
+      - name: Retrieve Chromium source archive
+        run: |
+          rm -rf chromium_src
+          mkdir -p chromium_download_cache
+
+          if ! ./utils/downloads.py retrieve -i downloads.ini -c chromium_download_cache; then
+            ./utils/clone.py -o chromium_src
+            rm -rf chromium_src/uc_staging
+            find chromium_src -type d -name '.git' -exec rm -rf "{}" \; -prune
+            tar cf "chromium_download_cache/chromium-$(cat chromium_version.txt)-lite.tar.xz" \
+              --transform "s/chromium_src/chromium-$(cat chromium_version.txt)/" chromium_src
+          fi
+
+      - name: Unpack Chromium source archive
+        run: |
+          if [ ! -d chromium_src ]; then
+            ./utils/downloads.py unpack -i downloads.ini -c chromium_download_cache chromium_src
+          fi
+
+      - name: Validate patches
+        run: ./devutils/validate_patches.py -l chromium_src -v
+
+      - name: Validate source file lists
+        run: ./devutils/check_files_exist.py chromium_src pruning.list domain_substitution.list
