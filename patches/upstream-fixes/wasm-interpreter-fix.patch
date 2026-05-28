@@ -1,0 +1,105 @@
+From bb8cef8efb6663afca4509bdbf9c4ab5848e3f9f Mon Sep 17 00:00:00 2001
+From: Paolo Severini <paolosev@microsoft.com>
+Date: Mon, 04 May 2026 16:33:59 +0200
+Subject: [PATCH] [wasm interpreter] Fix build break after upstream refactoring
+
+Ensure that wasm-interpreter-runtime-inl.h includes wasm-objects-inl.h
+instead of wasm-objects.h so that the build does not break after the
+upstream refactoring of object headers.
+Also ensure that wasm-interpreter.cc includes object-macros.h after all
+other object headers.
+Finally, fix build break after type checker signature change.
+
+Change-Id: I4546dfddcc3d439cb59404acc546cf4a6d94ca11
+Reviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/7811907
+Reviewed-by: Daniel Lehmann <dlehmann@chromium.org>
+Commit-Queue: Paolo Severini <paolosev@microsoft.com>
+Cr-Commit-Position: refs/heads/main@{#107212}
+---
+
+--- a/v8/src/wasm/interpreter/wasm-interpreter-runtime-inl.h
++++ b/v8/src/wasm/interpreter/wasm-interpreter-runtime-inl.h
+@@ -15,7 +15,7 @@
+ #include "src/execution/arguments-inl.h"
+ #include "src/objects/objects-inl.h"
+ #include "src/wasm/interpreter/wasm-interpreter-inl.h"
+-#include "src/wasm/wasm-objects.h"
++#include "src/wasm/wasm-objects-inl.h"
+ 
+ namespace v8 {
+ namespace internal {
+@@ -168,14 +168,14 @@ inline bool WasmInterpreterRuntime::IsNu
+   if (obj_type == kWasmExternRef || obj_type == kWasmNullExternRef) {
+     return i::IsNull(*obj, isolate);
+   } else {
+-    return i::IsWasmNull(*obj, isolate);
++    return i::IsWasmNull(*obj);
+   }
+ }
+ 
+ inline bool WasmInterpreterRuntime::IsRefNull(
+     DirectHandle<Object> object) const {
+   // This function assumes that it is executed in a HandleScope.
+-  return i::IsNull(*object, isolate_) || IsWasmNull(*object, isolate_);
++  return i::IsNull(*object, isolate_) || IsWasmNull(*object);
+ }
+ 
+ inline DirectHandle<Object> WasmInterpreterRuntime::GetFunctionRef(
+--- a/v8/src/wasm/interpreter/wasm-interpreter-runtime.cc
++++ b/v8/src/wasm/interpreter/wasm-interpreter-runtime.cc
+@@ -739,7 +739,7 @@ WasmInterpreterRuntime::HandleException(
+               isolate_, catch_handler.catch_block_index, exception);
+           isolate_->clear_exception();
+           return WasmInterpreterThread::HANDLED;
+-        } else if (IsWasmExceptionPackage(*exception, isolate_)) {
++        } else if (IsWasmExceptionPackage(*exception)) {
+           // The exception was thrown by Wasm code and it's wrapped in a
+           // WasmExceptionPackage.
+           DirectHandle<Object> caught_tag =
+@@ -2140,7 +2140,7 @@ void WasmInterpreterRuntime::CallWasmToJ
+     } while (TryCast(*js_function, &js_proxy));
+   }
+ 
+-  if (!IsJSFunction(*js_function, isolate_)) {
++  if (!IsJSFunction(*js_function)) {
+     AllowHeapAllocation allow_gc;
+ 
+     isolate->set_exception(*isolate_->factory()->NewTypeError(
+@@ -2660,7 +2660,7 @@ bool WasmInterpreterRuntime::SubtypeChec
+     if (obj_type == kWasmExternRef || obj_type == kWasmNullExternRef) {
+       if (i::IsNull(*obj, isolate_)) return null_succeeds;
+     } else {
+-      if (i::IsWasmNull(*obj, isolate_)) return null_succeeds;
++      if (i::IsWasmNull(*obj)) return null_succeeds;
+     }
+   }
+ 
+--- a/v8/src/wasm/interpreter/wasm-interpreter.cc
++++ b/v8/src/wasm/interpreter/wasm-interpreter.cc
+@@ -14,7 +14,6 @@
+ #include "src/builtins/builtins.h"
+ #include "src/handles/global-handles-inl.h"
+ #include "src/heap/heap-write-barrier.h"
+-#include "src/objects/object-macros.h"
+ #include "src/snapshot/embedded/embedded-data-inl.h"
+ #include "src/wasm/canonical-types.h"
+ #include "src/wasm/decoder.h"
+@@ -25,6 +24,9 @@
+ #include "src/wasm/wasm-opcodes-inl.h"
+ #include "src/zone/zone.h"
+ 
++// Include this after all other object headers.
++#include "src/objects/object-macros.h"
++
+ namespace v8 {
+ namespace internal {
+ namespace wasm {
+@@ -5699,7 +5701,7 @@ class Handlers : public HandlersBase {
+           case kRef:
+           case kRefNull: {
+             DirectHandle<Object> ref = pop<WasmRef>(sp, code, wasm_runtime);
+-            if (IsWasmNull(*ref, isolate)) {
++            if (IsWasmNull(*ref)) {
+               ref = direct_handle(ReadOnlyRoots(isolate).null_value(), isolate);
+             }
+             encoded_values->set(encoded_index++, *ref);

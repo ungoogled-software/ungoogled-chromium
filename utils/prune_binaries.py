@@ -25,6 +25,7 @@ CONTINGENT_PATHS = (
     'testing/location_tags.json',
     # CIPD sources
     'buildtools/linux64/',
+    'buildtools/third_party/mold/cipd/',
     'components/variations/test_data/cipd/',
     'third_party/checkstyle/cipd/',
     'third_party/dawn/third_party/ninja/',
