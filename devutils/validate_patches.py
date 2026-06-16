@@ -39,7 +39,7 @@ try:
     import urllib3.util
 
     class _VerboseRetry(urllib3.util.Retry):
-        """A more verbose version of HTTP Adatper about retries"""
+        """A more verbose version of HTTP Adapter about retries"""
 
         def sleep_for_retry(self, response=None):
             """Sleeps for Retry-After, and logs the sleep time"""

@@ -20,7 +20,7 @@ def test_find_and_check_patch():
         patches.find_and_check_patch(patch_bin_path=Path('/this/should/not/exist'))
 
     with pytest.raises(RuntimeError):
-        # Use comamnd "false" to return non-zero exit code
+        # Use command "false" to return non-zero exit code
         patches.find_and_check_patch(patch_bin_path=Path('/bin/false'))
 
 
