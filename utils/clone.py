@@ -110,7 +110,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
         check=True,
         universal_newlines=True)
 
-    # Manualy set up the gsutil directory for newer versions of Python
+    # Manually set up the gsutil directory for newer versions of Python
     get_logger().info('Cloning gsutil')
     if not gsupath.exists():
         gsupath.mkdir(parents=True)
@@ -226,7 +226,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
     move(str(gnpath / 'out' / 'last_commit_position.h'),
          str(args.output / 'tools' / 'gn' / 'bootstrap'))
 
-    get_logger().info('Removing uneeded files')
+    get_logger().info('Removing unneeded files')
     for path in sorted(args.output.rglob('*'), key=lambda l: len(str(l)), reverse=True):
         if not path.is_symlink() and '.git' not in path.parts:
             if path.is_file() and (('out' in path.parts and 'node_modules' not in path.parts)

@@ -52,7 +52,7 @@ def check_patch_readability(patches_dir, series_path=Path('series')):
     Check if the patches from iterable patch_path_iter are readable.
         Patches that are not are logged to stdout.
 
-    Returns True if warnings occured, False otherwise.
+    Returns True if warnings occurred, False otherwise.
     """
     warnings = False
     for patch_path in _read_series_file(patches_dir, series_path, join_dir=True):

@@ -31,7 +31,7 @@ def check_downloads_ini(downloads_ini_iter):
 
     downloads_ini_iter must be an iterable of strings to downloads.ini files.
 
-    Returns True if errors occured, False otherwise.
+    Returns True if errors occurred, False otherwise.
     """
     try:
         DownloadInfo(downloads_ini_iter)

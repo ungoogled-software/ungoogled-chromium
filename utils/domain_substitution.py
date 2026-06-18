@@ -219,7 +219,7 @@ def apply_substitution(regex_path, files_path, source_tree, domainsub_cache):
                                  f'the file index hash delimiter "{_INDEX_HASH_DELIMITER}"')
             path = resolved_tree / relative_path
             if not path.exists():
-                get_logger().warning('Skipping non-existant path: %s', path)
+                get_logger().warning('Skipping non-existent path: %s', path)
                 continue
             if path.is_symlink():
                 get_logger().warning('Skipping path that has become a symlink: %s', path)
