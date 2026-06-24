@@ -1,6 +1,6 @@
 --- a/chrome/browser/extensions/api/developer_private/extension_info_generator.cc
 +++ b/chrome/browser/extensions/api/developer_private/extension_info_generator.cc
-@@ -865,19 +865,6 @@ void ExtensionInfoGenerator::FillExtensi
+@@ -865,17 +865,6 @@ void ExtensionInfoGenerator::FillExtensi
          toolbar_actions_model->IsActionPinned(extension.id());
    }
  
@@ -10,8 +10,6 @@
 -  CHECK(mv2_experiment_manager);
 -  info.is_affected_by_mv2_deprecation =
 -      mv2_experiment_manager->IsExtensionAffected(extension);
--  info.did_acknowledge_mv2_deprecation_notice =
--      mv2_experiment_manager->DidUserAcknowledgeNotice(extension.id());
 -  if (info.web_store_url.length() > 0) {
 -    info.recommendations_url =
 -        extension_urls::GetNewWebstoreItemRecommendationsUrl(extension.id())
@@ -22,7 +20,7 @@
        AccountExtensionTracker::Get(profile)->CanUploadAsAccountExtension(
 --- a/chrome/browser/extensions/extension_management.cc
 +++ b/chrome/browser/extensions/extension_management.cc
-@@ -370,31 +370,7 @@ bool ExtensionManagement::IsAllowedManif
+@@ -371,33 +371,7 @@ bool ExtensionManagement::IsAllowedManif
      int manifest_version,
      const std::string& extension_id,
      Manifest::Type manifest_type) {
@@ -31,10 +29,12 @@
 -          extensions_features::kExtensionsManifestV3Only) ||
 -      manifest_version >= 3;
 -
--  // Manifest version policy only supports normal extensions and Chrome OS login
--  // screen extension.
--  if (manifest_type != Manifest::Type::TYPE_EXTENSION &&
--      manifest_type != Manifest::Type::TYPE_LOGIN_SCREEN_EXTENSION) {
+-  // Manifest version policy only supports normal extensions, Chrome OS login
+-  // screen extensions, and user scripts (which are largely treated as
+-  // extensions).
+-  if (manifest_type != Manifest::Type::kExtension &&
+-      manifest_type != Manifest::Type::kLoginScreenExtension &&
+-      manifest_type != Manifest::Type::kUserScript) {
 -    return enabled_by_default;
 -  }
 -  switch (global_settings_->manifest_v2_setting) {
@@ -54,7 +54,7 @@
  }
  
  bool ExtensionManagement::IsAllowedManifestVersion(const Extension* extension) {
-@@ -415,26 +391,8 @@ bool ExtensionManagement::IsExemptFromMV
+@@ -419,26 +393,8 @@ bool ExtensionManagement::IsExemptFromMV
      return false;
    }
  
@@ -83,7 +83,7 @@
  bool ExtensionManagement::IsAllowedByUnpublishedAvailabilityPolicy(
 --- a/chrome/browser/ui/webui/extensions/extensions_ui.cc
 +++ b/chrome/browser/ui/webui/extensions/extensions_ui.cc
-@@ -488,7 +488,7 @@ content::WebUIDataSource* CreateAndAddEx
+@@ -486,7 +486,7 @@ content::WebUIDataSource* CreateAndAddEx
            extensions_features::kExtensionsMenuAccessControlWithPermittedSites));
    source->AddBoolean(
        "safetyHubThreeDotDetails",
@@ -94,40 +94,16 @@
    // MV2 deprecation.
 --- a/extensions/browser/manifest_v2_experiment_manager.cc
 +++ b/extensions/browser/manifest_v2_experiment_manager.cc
-@@ -151,17 +151,6 @@ bool ManifestV2ExperimentManagerFactory:
- 
- // Determines the current stage of the MV2 deprecation experiments.
- MV2ExperimentStage CalculateCurrentExperimentStage() {
--  // Return the "highest" stage that is currently active for the user.
--  if (base::FeatureList::IsEnabled(
--          extensions_features::kExtensionManifestV2Unsupported)) {
--    return MV2ExperimentStage::kUnsupported;
--  }
--
--  if (base::FeatureList::IsEnabled(
--          extensions_features::kExtensionManifestV2Disabled)) {
--    return MV2ExperimentStage::kDisableWithReEnable;
--  }
--
-   return MV2ExperimentStage::kWarning;
- }
- 
-@@ -195,18 +184,7 @@ PrefMap GetGlobalNoticeAcknowledgedPrefF
+@@ -180,12 +180,7 @@ PrefMap GetGlobalNoticeAcknowledgedPrefF
  // Returns true if legacy extensions should be disabled, looking at both
  // experiment stage and global state.
  bool ShouldDisableLegacyExtensions(MV2ExperimentStage stage) {
 -  if (g_allow_mv2_for_testing) {
 -    // We allow legacy MV2 extensions for testing purposes.
--    return false;
+     return false;
 -  }
 -
--  switch (stage) {
--    case MV2ExperimentStage::kWarning:
-       return false;
--    case MV2ExperimentStage::kDisableWithReEnable:
--    case MV2ExperimentStage::kUnsupported:
--      return true;
--  }
+-  return true;
  }
  
  // Returns true if the given `stage` is one in which extension enablement should

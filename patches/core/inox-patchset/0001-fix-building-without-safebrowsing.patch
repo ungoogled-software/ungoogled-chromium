@@ -1,6 +1,6 @@
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -433,10 +433,6 @@ void CreateAndAddChromeThrottlesForNavig
+@@ -443,10 +443,6 @@ void CreateAndAddChromeThrottlesForNavig
            Profile::FromBrowserContext(context)),
        SafeSearchFactory::GetForBrowserContext(context)));
  
@@ -65,16 +65,16 @@
  }
 --- a/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
 +++ b/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
-@@ -849,18 +849,6 @@ void WebstorePrivateBeginInstallWithMani
+@@ -913,18 +913,6 @@ void WebstorePrivateBeginInstallWithMani
  
  void WebstorePrivateBeginInstallWithManifest3Function::
      ReportFrictionAcceptedEvent() {
--  if (!profile_) {
+-  if (!browser_context_) {
 -    return;
 -  }
 -  auto* metrics_collector =
 -      safe_browsing::SafeBrowsingMetricsCollectorFactory::GetForProfile(
--          profile_);
+-          Profile::FromBrowserContext(browser_context_));
 -  // `metrics_collector` can be null in incognito.
 -  if (metrics_collector) {
 -    metrics_collector->AddSafeBrowsingEventToPref(
@@ -94,7 +94,7 @@
    public = [
      "chrome_controller_client.h",
      "metrics/bundled_settings_metrics_provider.h",
-@@ -104,6 +105,7 @@ static_library("safe_browsing") {
+@@ -105,6 +106,7 @@ static_library("safe_browsing") {
      "//services/metrics/public/cpp:ukm_builders",
      "//services/preferences/public/cpp",
    ]
@@ -102,7 +102,7 @@
  
    if (enable_extensions) {
      deps += [ "//chrome/browser/ui/web_applications" ]
-@@ -678,6 +680,7 @@ static_library("advanced_protection") {
+@@ -692,6 +694,7 @@ static_library("advanced_protection") {
  }
  
  source_set("metrics_collector") {
@@ -110,7 +110,7 @@
    sources = [
      "safe_browsing_metrics_collector_factory.cc",
      "safe_browsing_metrics_collector_factory.h",
-@@ -697,6 +700,7 @@ source_set("metrics_collector") {
+@@ -711,6 +714,7 @@ source_set("metrics_collector") {
      "//components/safe_browsing/core/common:safe_browsing_prefs",
      "//content/public/browser",
    ]
@@ -128,11 +128,19 @@
  #include "chrome/browser/download/download_history.h"
  #include "chrome/browser/download/download_item_model.h"
  #include "chrome/browser/download/download_item_warning_data.h"
-@@ -565,12 +564,6 @@ void DownloadsDOMHandler::RemoveDownload
+@@ -567,20 +566,6 @@ void DownloadsDOMHandler::RemoveDownload
    IdSet ids;
  
    for (download::DownloadItem* download : to_remove) {
--    if (download->IsDangerous() || download->IsInsecure()) {
+-    bool should_remove = download->IsDangerous() || download->IsInsecure();
+-    if (!should_remove) {
+-      download::DownloadDangerType danger_type = download->GetDangerType();
+-      should_remove =
+-          danger_type == download::DOWNLOAD_DANGER_TYPE_ASYNC_SCANNING ||
+-          danger_type ==
+-              download::DOWNLOAD_DANGER_TYPE_ASYNC_LOCAL_PASSWORD_SCANNING;
+-    }
+-    if (should_remove) {
 -      // Don't allow users to revive dangerous downloads; just nuke 'em.
 -      download->Remove();
 -      continue;
@@ -153,7 +161,7 @@
  #include "chrome/browser/ui/webui/downloads/downloads_list_tracker.h"
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -110,7 +110,6 @@
+@@ -111,7 +111,6 @@
  #include "components/pdf/common/pdf_util.h"
  #include "components/permissions/features.h"
  #include "components/safe_browsing/buildflags.h"
