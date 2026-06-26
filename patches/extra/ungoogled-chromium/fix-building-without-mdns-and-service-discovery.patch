@@ -52,3 +52,85 @@
  }
  
  void DnsSdDeviceLister::OnPermissionRejected() {
+--- a/chrome/browser/media/router/discovery/mdns/dns_sd_registry.cc
++++ b/chrome/browser/media/router/discovery/mdns/dns_sd_registry.cc
+@@ -97,11 +97,6 @@ DnsSdRegistry::DnsSdRegistry() {
+ #endif
+ }
+ 
+-DnsSdRegistry::DnsSdRegistry(
+-    local_discovery::ServiceDiscoverySharedClient* client) {
+-  service_discovery_client_ = client;
+-}
+-
+ DnsSdRegistry::~DnsSdRegistry() {
+   DCHECK(thread_checker_.CalledOnValidThread());
+ }
+@@ -124,9 +119,8 @@ void DnsSdRegistry::RemoveObserver(DnsSd
+ 
+ DnsSdDeviceLister* DnsSdRegistry::CreateDnsSdDeviceLister(
+     DnsSdDelegate* delegate,
+-    const std::string& service_type,
+-    local_discovery::ServiceDiscoverySharedClient* discovery_client) {
+-  return new DnsSdDeviceLister(discovery_client, delegate, service_type);
++    const std::string& service_type) {
++  return new DnsSdDeviceLister(nullptr, delegate, service_type);
+ }
+ 
+ void DnsSdRegistry::Publish(const std::string& service_type) {
+@@ -154,8 +148,7 @@ void DnsSdRegistry::RegisterDnsSdListene
+   }
+ 
+   std::unique_ptr<DnsSdDeviceLister> dns_sd_device_lister(
+-      CreateDnsSdDeviceLister(this, service_type,
+-                              service_discovery_client_.get()));
++      CreateDnsSdDeviceLister(this, service_type));
+   dns_sd_device_lister->Discover();
+   service_data_map_[service_type] =
+       std::make_unique<ServiceTypeData>(std::move(dns_sd_device_lister));
+@@ -176,7 +169,6 @@ void DnsSdRegistry::UnregisterDnsSdListe
+ 
+ void DnsSdRegistry::ResetForTest() {
+   service_data_map_.clear();
+-  service_discovery_client_.reset();
+ }
+ 
+ void DnsSdRegistry::ServiceChanged(const std::string& service_type,
+--- a/chrome/browser/media/router/discovery/mdns/dns_sd_registry.h
++++ b/chrome/browser/media/router/discovery/mdns/dns_sd_registry.h
+@@ -16,10 +16,6 @@
+ #include "base/threading/thread_checker.h"
+ #include "chrome/browser/media/router/discovery/mdns/dns_sd_delegate.h"
+ 
+-namespace local_discovery {
+-class ServiceDiscoverySharedClient;
+-}
+-
+ namespace media_router {
+ 
+ class DnsSdDeviceLister;
+@@ -103,8 +99,7 @@ class DnsSdRegistry : public DnsSdDelega
+ 
+   virtual DnsSdDeviceLister* CreateDnsSdDeviceLister(
+       DnsSdDelegate* delegate,
+-      const std::string& service_type,
+-      local_discovery::ServiceDiscoverySharedClient* discovery_client);
++      const std::string& service_type);
+ 
+   // DnsSdDelegate implementation:
+   void ServiceChanged(const std::string& service_type,
+@@ -123,14 +118,11 @@ class DnsSdRegistry : public DnsSdDelega
+   friend class TestDnsSdRegistry;
+ 
+   DnsSdRegistry();
+-  explicit DnsSdRegistry(local_discovery::ServiceDiscoverySharedClient* client);
+   virtual ~DnsSdRegistry();
+ 
+   void DispatchApiEvent(const std::string& service_type);
+   bool IsRegistered(const std::string& service_type);
+ 
+-  scoped_refptr<local_discovery::ServiceDiscoverySharedClient>
+-      service_discovery_client_;
+   base::ObserverList<DnsSdObserver>::Unchecked observers_;
+   base::ThreadChecker thread_checker_;
+ };
