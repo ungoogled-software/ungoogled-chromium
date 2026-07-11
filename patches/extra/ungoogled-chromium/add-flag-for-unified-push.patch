@@ -1,0 +1,176 @@
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -20,6 +20,9 @@
+ #include "components/gcm_driver/gcm_client_impl.h"
+ #include "components/gcm_driver/gcm_driver_feature_list.h"
+ #include "components/prefs/pref_service.h"
++#include "base/feature_list.h"
++
++BASE_FEATURE(kEnableUnifiedPush,
++             "EnableUnifiedPush",
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ namespace gcm {
+ 
+--- a/components/gcm_driver/gcm_profile_service.cc
++++ b/components/gcm_driver/gcm_profile_service.cc
+@@ -20,6 +20,9 @@
+ #include "components/gcm_driver/gcm_profile_service.h"
+ #include "components/gcm_driver/gcm_driver_feature_list.h"
+ #include "components/prefs/pref_service.h"
++#include "base/feature_list.h"
++
++extern const base::Feature kEnableUnifiedPush;
+ 
+ namespace gcm {
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -428,6 +428,12 @@ void GCMClientImpl::StartGCM() {
+ }
+ 
+ void GCMClientImpl::InitializeMCSClient() {
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    DCHECK(network_connection_tracker_);
++    std::vector<GURL> endpoints;
++    endpoints.push_back(gservices_settings_.GetMCSMainEndpoint());
++    GURL fallback_endpoint = gservices_settings_.GetMCSFallbackEndpoint();
++    endpoints.push_back(fallback_endpoint);
++    mcs_client_->Initialize(std::move(endpoints));
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -480,6 +493,10 @@ void GCMClientImpl::OnReady(const std::vector<RegistrationResult>& results) {
+ }
+ 
+ void GCMClientImpl::StartMCSLogin() {
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    DCHECK_EQ(READY, state_);
++    DCHECK(device_checkin_info_.IsValid());
++    mcs_client_->Login(device_checkin_info_.android_id,
++                       device_checkin_info_.secret);
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -551,6 +558,10 @@ void GCMClientImpl::SetLastTokenFetchTime(
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    base::Time now = base::Time::Now();
++    last_token_fetch_time_ = now;
++    record_histogram_->Add(last_token_fetch_time_.ToInternalValue());
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -595,6 +602,15 @@ void GCMClientImpl::GetInstanceIDData(
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    std::vector<std::string> authorized_entity;
++    authorized_entity.push_back(app_id);
++    std::vector<ScopeAndParam> scope_and_param;
++    for (const auto& scope : scopes) {
++      ScopeAndParam scope_and_param_item;
++      scope_and_param_item.scope = scope;
++      scope_and_param_item.param = param;
++      scope_and_param.push_back(scope_and_param_item);
++    }
++    instance_id_->GetToken(
++        authorized_entity, scope_and_param, options,
++        base::BindOnce(&GCMClientImpl::OnGetTokenDone,
++                       weak_ptr_factory_.GetWeakPtr()));
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -680,6 +692,10 @@ void GCMClientImpl::AddHeartbeatInterval(
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
++    DCHECK(mcs_client_);
++    mcs_client_->AddHeartbeatInterval(scope, interval_ms);
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -725,6 +738,10 @@ void GCMClientImpl::RemoveHeartbeatInterval(
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
++    DCHECK(mcs_client_);
++    mcs_client_->RemoveHeartbeatInterval(scope);
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -770,6 +784,15 @@ void GCMClientImpl::StartCheckin() {
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
++
++    // Make sure no checkin is in progress.
++    if (checkin_request_)
++      return;
++
++    checkin_proto::ChromeBuildProto chrome_build_proto;
++    ToCheckinProtoVersion(chrome_build_info_, &chrome_build_proto);
++
++    CheckinRequest::RequestInfo request_info(
++        device_checkin_info_.android_id, device_checkin_info_.secret,
++        gservices_settings_.digest(), chrome_build_proto);
++    checkin_request_ = std::make_unique<CheckinRequest>(
++        gservices_settings_.GetCheckinURL(), request_info, GetGCMBackoffPolicy(),
++        base::BindOnce(&GCMClientImpl::OnCheckinCompleted,
++                       weak_ptr_factory_.GetWeakPtr()),
++        url_loader_factory_, io_task_runner_, &recorder_);
++    checkin_request_->Start();
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -880,6 +898,10 @@ void GCMClientImpl::OnCheckinCompleted(
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
++    if (checkin_request_)
++      checkin_request_->Stop();
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_client_impl.cc
++++ b/components/gcm_driver/gcm_client_impl.cc
+@@ -925,6 +943,10 @@ void GCMClientImpl::SetGServicesSettings(
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
++    gservices_settings_ = std::move(settings);
++    maybe_start_gcm_;
++  }
+ }
+ 
+--- a/components/gcm_driver/gcm_profile_service.cc
++++ b/components/gcm_driver/gcm_profile_service.cc
+@@ -60,7 +60,12 @@ void GCMProfileService::Init(
+   gcm_driver_->AddObserver(this);
+ }
+ 
+ const char* GCMProfileService::GetGCMServerUrl() {
+-  return \"https://android.googleapis.com/gcm/send\";
++  if (base::FeatureList::IsEnabled(kEnableUnifiedPush)) {
++    return \"https://kunifiedpush.kde.org/gcm/send\";
++  } else {
++    return \"https://android.googleapis.com/gcm/send\";
++  }
+ }
+ 
+ }  // namespace gcm
+ 
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -12,4 +12,8 @@
+       \"Handling of extension MIME type requests\",\n      \"Used when deciding how to handle a request for a CRX or User Script MIME type. ungoogled-chromium flag.\",\n       kOsAll, MULTI_VALUE_TYPE(kExtensionHandlingChoices)},\
+   {\"enable-unified-push\",\
+     \"Enable Unified Push\",\n     \"Enables Unified Push for push notifications. Uses KUnifiedPush server when enabled. ungoogled-chromium flag.\",\
+     kOsAll, SINGLE_VALUE_TYPE(\"enable-unified-push\")},\
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
