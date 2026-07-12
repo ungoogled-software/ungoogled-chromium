@@ -12,11 +12,11 @@ the process has finished.
 """
 
 import argparse
+import multiprocessing
 import os
 import sys
 
 from itertools import repeat
-from multiprocessing import Pool
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
@@ -315,7 +315,7 @@ def compute_lists(source_tree, search_regex, processes): # pylint: disable=too-m
     unused_patterns = UnusedPatterns()
 
     # Launch multiple processes iterating over the source tree
-    with Pool(processes) as procpool:
+    with multiprocessing.Pool(processes) as procpool:
         returned_data = procpool.starmap(
             compute_lists_proc,
             zip(source_tree.rglob('*'), repeat(source_tree), repeat(search_regex)))
@@ -404,4 +404,5 @@ def main(args_list=None):
 
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method('fork')
     main()
