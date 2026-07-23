@@ -9,7 +9,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
 
 - ### Available on all platforms
 
-  <code>Switch&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code> | Description
+  <code>Switch&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code> | Description
   -- | --
   `--disable-beforeunload` | Disables JavaScript dialog boxes triggered by `beforeunload`
   `--disable-grease-tls` | Disables GREASE for TLS. Combined with `--http-accept-header` allows browser to look more like a tor-browser. See https://github.com/ungoogled-software/ungoogled-chromium/issues/783 for more details.
@@ -35,13 +35,11 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--close-confirmation` | Show a warning prompt when closing the browser window. Accepts `last` (prompt when closing the last window with several tabs) and `multiple` (prompt only if more than one window is open). 
   `--close-window-with-last-tab` | Determines whether a window should close once the last tab is closed. Only takes the value `never`.
   `--custom-ntp` | Allows setting a custom URL for the new tab page. Value can be internal (e.g. `about:blank` or `chrome://new-tab-page`), external (e.g. `example.com`), or local (e.g. `file:///tmp/startpage.html`). This applies for incognito windows as well when not set to a `chrome://` internal page.
-  `--disable-sharing-hub` | Disables the sharing hub button.
   `--enable-incognito-themes` | Allows themes to change the appearance of Incognito windows.
   `--hide-extensions-menu` | Hides the extensions container. This includes the puzzle piece icon as well as any pinned extensions.
   `--hide-fullscreen-exit-ui` | Hides the "X" that appears when the mouse cursor is moved towards the top of the window in fullscreen mode. Additionally, this hides the "Press F11 to exit full screen" popup.
   `--hide-tab-close-buttons` | Hides the close buttons on tabs.
   `--remove-grab-handle` | Removes the reserved empty space in the tabstrip for moving the window.
-  `--remove-tabsearch-button` | Removes the tabsearch button from the tabstrip.
   `--scroll-tabs` | Determines if scrolling will cause a switch to a neighboring tab if the cursor hovers over the tabs, or the empty space beside the tabs. The flag requires one the values: `always`, `never`, `incognito-and-guest`. When omitted, the default is to use platform-specific behavior, which is currently enabled only on desktop Linux.
   `--show-avatar-button` | Sets visibility of the avatar button. The flag requires one of the values: `always`, `incognito-and-guest` (only show Incognito or Guest modes), or `never`.
   `--tab-hover-cards` | Allows removing the tab hover cards or using a tooltip as a replacement. This can be set with the values `none` or `tooltip`.
@@ -78,7 +76,6 @@ These are also available on the `chrome://flags` page.
   -- | --
   `ClearDataOnExit` | Clears all browsing data on exit.
   `DisableLinkDrag` | Prevents dragging of links and selected text. Allows selecting text from a middle of a link. Also allows starting selection without first clearing the existing one. This behaviour is similar to the one from older Opera. See https://github.com/ungoogled-software/ungoogled-chromium/pull/2080 and https://github.com/ungoogled-software/ungoogled-chromium/discussions/2055 for more information.
-  `DisableQRGenerator` | Disables the QR generator for sharing page links.
 
 
 ## Flags for existing switches
