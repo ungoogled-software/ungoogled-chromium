@@ -109,6 +109,11 @@ PRUNING_EXCLUDE_PATTERNS = [
 # Paths to exclude by prefixes of the POSIX representation for domain substitution
 DOMAIN_EXCLUDE_PREFIXES = [
     'components/test/',
+    # Preserve local validation and test vectors for legacy Google WebAuthn AppIDs.
+    # The checker compares these AppID URLs locally and does not fetch them.
+    'content/browser/webauth/authenticator_impl_unittest.cc',
+    'content/browser/webauth/webauth_request_security_checker_impl.cc',
+    'content/browser/webauth/webauth_request_security_checker_impl.h',
     'net/http/transport_security_state_static.json',
     'net/http/transport_security_state_static_pins.json',
     # Exclusions for Visual Studio Project generation with GN (PR #445)
