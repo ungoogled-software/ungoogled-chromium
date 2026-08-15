@@ -7,28 +7,119 @@ Subject: [PATCH 63/76] safe_browsing: disable reporting of safebrowsing
 Disables reporting of the safebrowsing override, i.e. the report sent
 if a user decides to visit a page that was flagged as "insecure".
 This prevents trk:148 (phishing) and trk:149 (malware).
----
- components/safe_browsing/content/browser/client_side_detection_service.cc   | 5 +++++
- 1 file changed, 5 insertions(+)
-
---- a/components/safe_browsing/content/browser/client_side_detection_service.cc
-+++ b/components/safe_browsing/content/browser/client_side_detection_service.cc
-@@ -272,6 +272,10 @@ void ClientSideDetectionService::StartCl
-     return;
-   }
- 
-+#if 1
-+  if (!callback.is_null())
-+    std::move(callback).Run(GURL(request->url()), false, std::nullopt, std::nullopt);
-+#else
-   std::string request_data;
-   request->SerializeToString(&request_data);
- 
-@@ -362,6 +366,7 @@ void ClientSideDetectionService::StartCl
-           &WebUIContentInfoSingleton::AddToClientPhishingRequestsSent,
-           base::Unretained(WebUIContentInfoSingleton::GetInstance()),
-           std::move(request), access_token));
-+#endif
+--- a/components/safe_browsing/core/browser/client_side_detection_service_base.cc
++++ b/components/safe_browsing/core/browser/client_side_detection_service_base.cc
+@@ -461,113 +461,11 @@ void ClientSideDetectionServiceBase::Sen
+     ClientReportPhishingRequestCallback callback,
+     const std::string& access_token) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  if (!IsEnabled()) {
+     if (!callback.is_null()) {
+       base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+           FROM_HERE, base::BindOnce(std::move(callback), GURL(verdict->url()),
+                                     false, std::nullopt, std::nullopt));
+     }
+-    return;
+-  }
+-
+-  // If the report was not requested by the user, record that we made a request.
+-  // Logged before the request is made to ensure it gets recorded. If this
+-  // returns false due to being at ping cap or prefs are null, abandon the
+-  // request.
+-  if (verdict->client_side_detection_type() !=
+-          ClientSideDetectionType::USER_REPORT &&
+-      !AddPhishingReport(base::Time::Now())) {
+-    if (!callback.is_null()) {
+-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+-          FROM_HERE, base::BindOnce(std::move(callback), GURL(verdict->url()),
+-                                    false, std::nullopt, std::nullopt));
+-    }
+-    return;
+-  }
+-
+-  std::string request_data;
+-  verdict->SerializeToString(&request_data);
+-
+-  net::NetworkTrafficAnnotationTag traffic_annotation =
+-      net::DefineNetworkTrafficAnnotation(
+-          "safe_browsing_client_side_phishing_detector", R"(
+-          semantics {
+-            sender: "Safe Browsing Client-Side Phishing Detector"
+-            description:
+-              "If the client-side phishing detector determines that the "
+-              "current page contents are similar to phishing pages, it will "
+-              "send a request to Safe Browsing to ask for a final verdict. If "
+-              "Safe Browsing agrees the page is dangerous, Chrome will show a "
+-              "full-page interstitial warning."
+-            trigger:
+-              "Whenever the client-side detector machine learning model "
+-              "computes a phishy-ness score above a threshold, after page-load."
+-            internal {
+-              contacts {
+-                email: "chrome-counter-abuse-alerts@google.com"
+-              }
+-            }
+-            user_data {
+-              type: ACCESS_TOKEN
+-              type: SENSITIVE_URL
+-              type: WEB_CONTENT
+-            }
+-            data:
+-              "Top-level page URL without CGI parameters, boolean and double "
+-              "features extracted from DOM, such as the number of resources "
+-              "loaded in the page, if certain likely phishing and social "
+-              "engineering terms found on the page, etc."
+-            destination: GOOGLE_OWNED_SERVICE
+-            last_reviewed: "2026-06-17"
+-          }
+-          policy {
+-            cookies_allowed: YES
+-            cookies_store: "Safe browsing cookie store"
+-            setting:
+-              "Users can enable or disable this feature by toggling 'Protect "
+-              "you and your device from dangerous sites' in Chrome settings "
+-              "under Privacy. This feature is enabled by default."
+-            chrome_policy {
+-              SafeBrowsingProtectionLevel {
+-                policy_options {mode: MANDATORY}
+-                SafeBrowsingProtectionLevel: 0
+-              }
+-            }
+-            chrome_policy {
+-              SafeBrowsingEnabled {
+-                policy_options {mode: MANDATORY}
+-                SafeBrowsingEnabled: false
+-              }
+-            }
+-            deprecated_policies: "SafeBrowsingEnabled"
+-          })");
+-
+-  auto resource_request = std::make_unique<network::ResourceRequest>();
+-  if (!access_token.empty()) {
+-    SetAccessToken(resource_request.get(), access_token);
+-  }
+-
+-  resource_request->url = GetClientReportUrl(kClientReportPhishingUrl);
+-  resource_request->method = "POST";
+-  resource_request->load_flags = net::LOAD_DISABLE_CACHE;
+-
+-  auto loader = network::SimpleURLLoader::Create(std::move(resource_request),
+-                                                 traffic_annotation);
+-  loader->AttachStringForUpload(request_data, "application/octet-stream");
+-  loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
+-      url_loader_factory_.get(),
+-      base::BindOnce(&ClientSideDetectionServiceBase::OnURLLoaderComplete,
+-                     base::Unretained(this), loader.get(), base::Time::Now()));
+-
+-  // Remember which callback and URL correspond to the current fetcher object.
+-  auto info = std::make_unique<ClientPhishingReportInfo>();
+-  auto* loader_ptr = loader.get();
+-  info->loader = std::move(loader);
+-  info->callback = std::move(callback);
+-  info->phishing_url = GURL(verdict->url());
+-  client_phishing_reports_[loader_ptr] = std::move(info);
+-
+-  DidSendClientReportPhishingRequest(std::move(verdict), access_token);
  }
  
- void ClientSideDetectionService::HandlePhishingVerdict(
+ CSDModelType ClientSideDetectionServiceBase::GetModelType() const {

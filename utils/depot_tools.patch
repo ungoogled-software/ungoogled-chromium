@@ -19,36 +19,36 @@
 +call python3 "%~dp0gclient.py" %*
 --- a/gclient.py
 +++ b/gclient.py
-@@ -128,8 +128,8 @@ DEPOT_TOOLS_DIR = os.path.dirname(os.pat
+@@ -130,8 +130,8 @@ DEPOT_TOOLS_DIR = os.path.dirname(os.pat
  # one, e.g. if a spec explicitly says `cache_dir = None`.)
  UNSET_CACHE_DIR = object()
  
--PREVIOUS_CUSTOM_VARS_FILE = '.gclient_previous_custom_vars'
--PREVIOUS_SYNC_COMMITS_FILE = '.gclient_previous_sync_commits'
-+PREVIOUS_CUSTOM_VARS_FILE = r'UC_STAGING'+os.sep+'.gclient_previous_custom_vars'
-+PREVIOUS_SYNC_COMMITS_FILE = r'UC_STAGING'+os.sep+'.gclient_previous_sync_commits'
+-PREVIOUS_CUSTOM_VARS_FILE = ".gclient_previous_custom_vars"
+-PREVIOUS_SYNC_COMMITS_FILE = ".gclient_previous_sync_commits"
++PREVIOUS_CUSTOM_VARS_FILE = r"UC_STAGING"+os.sep+".gclient_previous_custom_vars"
++PREVIOUS_SYNC_COMMITS_FILE = r"UC_STAGING"+os.sep+".gclient_previous_sync_commits"
  
- PREVIOUS_SYNC_COMMITS = 'GCLIENT_PREVIOUS_SYNC_COMMITS'
+ PREVIOUS_SYNC_COMMITS = "GCLIENT_PREVIOUS_SYNC_COMMITS"
  
-@@ -426,6 +426,7 @@ class Dependency(gclient_utils.WorkItem,
-                  protocol='https',
-                  git_dependencies_state=gclient_eval.DEPS,
-                  print_outbuf=False):
+@@ -452,6 +452,7 @@ class Dependency(gclient_utils.WorkItem,
+         git_dependencies_state=gclient_eval.DEPS,
+         print_outbuf=False,
+     ):
 +        if name and name[0:3] == "src": name = r"UC_OUT"+name[3:]
          gclient_utils.WorkItem.__init__(self, name)
-         DependencySettings.__init__(self, parent, url, managed, custom_deps,
-                                     custom_vars, custom_hooks, deps_file,
-@@ -771,6 +772,7 @@ class Dependency(gclient_utils.WorkItem,
+         DependencySettings.__init__(
+             self,
+@@ -856,6 +857,7 @@ class Dependency(gclient_utils.WorkItem,
  
-             condition = dep_value.get('condition')
-             dep_type = dep_value.get('dep_type')
-+            if dep_type == 'cipd': continue
+             condition = dep_value.get("condition")
+             dep_type = dep_value.get("dep_type")
++            if dep_type == "cipd": continue
  
-             if not self._get_option('process_all_deps', False):
+             if not self._get_option("process_all_deps", False):
                  should_process = should_process and _should_process(condition)
-@@ -822,6 +824,12 @@ class Dependency(gclient_utils.WorkItem,
-                     should_process_object = should_process and _should_process(
-                         merged_condition)
+@@ -915,6 +917,12 @@ class Dependency(gclient_utils.WorkItem,
+                         merged_condition
+                     )
  
 +                    if name != "src/third_party/node/node_modules" and \
 +                    (not name.startswith("src/build/linux/") or \
@@ -57,47 +57,48 @@
 +                    should_process_object = True
 +                    merged_condition = 'True'
                      gcs_deps.append(
-                         GcsDependency(parent=self,
-                                       name=name,
-@@ -932,6 +940,8 @@ class Dependency(gclient_utils.WorkItem,
+                         GcsDependency(
+                             parent=self,
+@@ -1046,6 +1054,8 @@ class Dependency(gclient_utils.WorkItem,
  
-         self._gn_args_from = local_scope.get('gclient_gn_args_from')
-         self._gn_args_file = local_scope.get('gclient_gn_args_file')
+         self._gn_args_from = local_scope.get("gclient_gn_args_from")
+         self._gn_args_file = local_scope.get("gclient_gn_args_file")
 +        if self._gn_args_file and self._gn_args_file[0:3] == "src":
 +            self._gn_args_file = r"UC_OUT"+self._gn_args_file[3:]
-         self._gn_args = local_scope.get('gclient_gn_args', [])
+         self._gn_args = local_scope.get("gclient_gn_args", [])
          # It doesn't make sense to set all of these, since setting gn_args_from
          # to another DEPS will make gclient ignore any other local gn_args*
-@@ -4030,6 +4040,7 @@ def CMDsync(parser, args):
-                       default=[],
-                       help='Specify to skip processing of a certain type of '
-                       'dep.')
+@@ -4572,6 +4582,7 @@ def CMDsync(parser, args):
+         default=[],
+         help="Specify to skip processing of a certain type of dep.",
+     )
 +    parser.add_option('--sysroot')
      (options, args) = parser.parse_args(args)
      client = GClient.LoadCurrentConfig(options)
  
 --- a/gclient_scm.py
 +++ b/gclient_scm.py
-@@ -997,8 +997,7 @@ class GitWrapper(SCMWrapper):
+@@ -1161,9 +1161,7 @@ class GitWrapper(SCMWrapper):
          self._SetFetchConfig(options)
  
          # Fetch upstream if we don't already have |revision|.
 -        if not scm.GIT.IsValidRevision(
--                self.checkout_path, revision, sha_only=True):
+-            self.checkout_path, revision, sha_only=True
+-        ):
 +        if False:
              self._Fetch(options, prune=options.force)
  
              if not scm.GIT.IsValidRevision(
-@@ -1014,7 +1013,7 @@ class GitWrapper(SCMWrapper):
+@@ -1180,7 +1178,7 @@ class GitWrapper(SCMWrapper):
  
          # This is a big hammer, debatable if it should even be here...
          if options.force or options.reset:
--            target = 'HEAD'
-+            target = 'FETCH_HEAD'
+-            target = "HEAD"
++            target = "FETCH_HEAD"
              if options.upstream and upstream_branch:
                  target = upstream_branch
              self._Scrub(target, options)
-@@ -1029,7 +1028,6 @@ class GitWrapper(SCMWrapper):
+@@ -1195,7 +1193,6 @@ class GitWrapper(SCMWrapper):
              # to the checkout step.
              if not (options.force or options.reset):
                  self._CheckClean(revision)
@@ -105,13 +106,13 @@
  
              if not current_revision:
                  current_revision = self._Capture(
-@@ -1727,8 +1725,7 @@ class GitWrapper(SCMWrapper):
-             fetch_cmd.append('--no-tags')
+@@ -2004,8 +2001,7 @@ class GitWrapper(SCMWrapper):
+             fetch_cmd.append("--no-tags")
          elif quiet:
-             fetch_cmd.append('--quiet')
+             fetch_cmd.append("--quiet")
 -        if depth:
--            fetch_cmd.append('--depth=' + str(depth))
-+        fetch_cmd.append('--depth=1')
+-            fetch_cmd.append("--depth=" + str(depth))
++        fetch_cmd.append("--depth=1")
          self._Run(fetch_cmd, options, show_header=options.verbose, retry=True)
  
      def _SetFetchConfig(self, options):
@@ -133,10 +134,10 @@
 +++ b/gsutil.py
 @@ -26,7 +26,7 @@ DEFAULT_BIN_DIR = os.path.join(THIS_DIR,
  
- IS_WINDOWS = os.name == 'nt'
+ IS_WINDOWS = os.name == "nt"
  
--VERSION = '5.35'
-+VERSION = 'GSUVER'
+-VERSION = "5.35"
++VERSION = "GSUVER"
  
  # Google OAuth Context required by gsutil.
  LUCI_AUTH_SCOPES = [

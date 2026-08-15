@@ -1,22 +1,31 @@
---- a/chrome/browser/ui/browser.cc
-+++ b/chrome/browser/ui/browser.cc
-@@ -150,6 +150,7 @@
- #include "chrome/browser/ui/unload_controller.h"
- #include "chrome/browser/ui/views/frame/browser_view.h"
- #include "chrome/browser/ui/views/frame/contents_web_view.h"
+--- a/chrome/browser/ui/unload_controller.cc
++++ b/chrome/browser/ui/unload_controller.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ 
++#include "base/command_line.h"
+ #include "base/functional/bind.h"
+ #include "base/location.h"
+ #include "base/task/single_thread_task_runner.h"
+@@ -30,6 +31,7 @@
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 +#include "chrome/browser/ui/views/message_box_dialog.h"
- #include "chrome/browser/ui/views/status_bubble_views.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
- #include "chrome/browser/ui/web_modal/browser_window_modal_dialog_delegate.h"
-@@ -533,6 +534,7 @@ Browser::Browser(const CreateParams& par
-       should_trigger_session_restore_(params.should_trigger_session_restore),
-       cancel_download_confirmation_state_(
-           CancelDownloadConfirmationState::kNotPrompted),
-+      close_multitab_confirmation_state_(CancelDownloadConfirmationState::kNotPrompted),
-       override_bounds_(params.initial_bounds),
-       initial_show_state_(params.initial_show_state),
-       initial_workspace_(params.initial_workspace),
-@@ -712,10 +714,12 @@ Browser::WarnBeforeClosingResult Browser
+ #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
+ #include "chrome/browser/web_applications/policy/web_app_policy_manager.h"
+@@ -474,6 +476,8 @@ bool UnloadController::TryToCloseWindow(
+ void UnloadController::ResetTryToCloseWindow() {
+   cancel_download_confirmation_state_ =
+       CancelDownloadConfirmationState::kNotPrompted;
++  close_multitab_confirmation_state_ =
++      CancelDownloadConfirmationState::kNotPrompted;
+   if (!is_calling_before_unload_handlers()) {
+     return;
+   }
+@@ -792,10 +796,12 @@ UnloadController::MaybeWarnBeforeClosing
      return WarnBeforeClosingResult::kOkToClose;
    }
  
@@ -33,19 +42,11 @@
    }
  
    DCHECK(!warn_before_closing_callback_)
-@@ -769,6 +773,7 @@ bool Browser::TryToCloseWindow(
- void Browser::ResetTryToCloseWindow() {
-   cancel_download_confirmation_state_ =
-       CancelDownloadConfirmationState::kNotPrompted;
-+  close_multitab_confirmation_state_ = CancelDownloadConfirmationState::kNotPrompted;
-   UnloadController::From(this)->ResetTryToCloseWindow();
- }
- 
-@@ -2931,6 +2936,59 @@ bool Browser::CanCloseWithInProgressDown
+@@ -893,6 +899,59 @@ bool UnloadController::CanCloseWithInPro
    return false;
  }
  
-+bool Browser::CanCloseWithMultipleTabs() {
++bool UnloadController::CanCloseWithMultipleTabs() {
 +  if (!base::CommandLine::ForCurrentProcess()->HasSwitch("close-confirmation"))
 +    return true;
 +
@@ -65,7 +66,7 @@
 +    // Don't count this browser window or any other in the process of closing.
 +    // Window closing may be delayed, and windows that are in the process of
 +    // closing don't count against our totals.
-+    if (browser != this && !browser->capabilities()->IsAttemptingToCloseBrowser()) {
++    if (browser != browser_ && !browser->capabilities()->IsAttemptingToCloseBrowser()) {
 +      total_window_count++;
 +    }
 +    return true;
@@ -75,20 +76,20 @@
 +  bool show_confirmation_last_window = flag_value == "last";
 +
 +  if (show_confirmation_last_window) {
-+    if (total_window_count >= 1 || this->tab_strip_model()->count() <= 1)
++    if (total_window_count >= 1 || browser_->tab_strip_model()->count() <= 1)
 +      return true;
 +  } else {
 +    if (total_window_count == 0)
 +      return true;
-+    if (this->tab_strip_model()->count() == 0)
-+      tab_strip_model_delegate_->AddTabAt(GURL(), -1, true);
++    if (browser_->tab_strip_model()->count() == 0)
++      browser_->tab_strip_model()->delegate()->AddTabAt(GURL(), -1, true);
 +  }
 +
 +  close_multitab_confirmation_state_ = CancelDownloadConfirmationState::kWaitingForResponse;
 +
-+  auto callback = base::BindOnce(&Browser::MultitabResponse,
++  auto callback = base::BindOnce(&UnloadController::MultitabResponse,
 +                                 weak_factory_.GetWeakPtr());
-+  MessageBoxDialog::Show(window_->GetNativeWindow(),
++  MessageBoxDialog::Show(browser_->GetWindow()->GetNativeWindow(),
 +                         u"Do you want to close this window?", std::u16string(),
 +                         chrome::MESSAGE_BOX_TYPE_QUESTION, u"Close", u"Cancel",
 +                         std::u16string(), std::move(callback));
@@ -98,16 +99,16 @@
 +  return false;
 +}
 +
- void Browser::InProgressDownloadResponse(bool cancel_downloads) {
-   if (cancel_downloads) {
-     cancel_download_confirmation_state_ =
-@@ -2952,6 +3010,22 @@ void Browser::InProgressDownloadResponse
+ base::WeakPtr<UnloadController> UnloadController::GetWeakPtr() {
+   return weak_factory_.GetWeakPtr();
+ }
+@@ -918,6 +977,22 @@ void UnloadController::InProgressDownloa
  
    std::move(warn_before_closing_callback_)
        .Run(WarnBeforeClosingResult::kDoNotClose);
 +}
 +
-+void Browser::MultitabResponse(chrome::MessageBoxResult result) {
++void UnloadController::MultitabResponse(chrome::MessageBoxResult result) {
 +  if (result == chrome::MESSAGE_BOX_RESULT_YES) {
 +    close_multitab_confirmation_state_ = CancelDownloadConfirmationState::kResponseReceived;
 +    std::move(warn_before_closing_callback_)
@@ -123,44 +124,46 @@
 +      .Run(WarnBeforeClosingResult::kDoNotClose);
  }
  
- void Browser::FinishWarnBeforeClosing(WarnBeforeClosingResult result) {
---- a/chrome/browser/ui/browser.h
-+++ b/chrome/browser/ui/browser.h
-@@ -31,6 +31,7 @@
+ void UnloadController::FinishWarnBeforeClosing(WarnBeforeClosingResult result) {
+--- a/chrome/browser/ui/unload_controller.h
++++ b/chrome/browser/ui/unload_controller.h
+@@ -14,6 +14,7 @@
+ #include "base/memory/weak_ptr.h"
+ #include "chrome/browser/tab_contents/web_contents_collection.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
- #include "chrome/browser/ui/browser_window_deleter.h"
- #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 +#include "chrome/browser/ui/simple_message_box.h"
- #include "chrome/browser/ui/tabs/tab_change_type.h"
- #include "chrome/browser/ui/tabs/tab_strip_model.h"
  #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
-@@ -1000,12 +1001,17 @@ class Browser : public TabStripModelObse
+ #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+ 
+@@ -253,6 +254,9 @@ class UnloadController : public WebConte
    // Returns true if the window can close, false otherwise.
    bool CanCloseWithInProgressDownloads();
  
 +  // Called when the window is closing to check if more than one tabs are open
 +  bool CanCloseWithMultipleTabs();
 +
-   // Called when the user has decided whether to proceed or not with the browser
-   // closure.  |cancel_downloads| is true if the downloads should be canceled
-   // and the browser closed, false if the browser should stay open and the
+   base::WeakPtr<UnloadController> GetWeakPtr();
+ 
+  private:
+@@ -272,6 +276,8 @@ class UnloadController : public WebConte
    // downloads running.
    void InProgressDownloadResponse(bool cancel_downloads);
  
 +  void MultitabResponse(chrome::MessageBoxResult result);
 +
-   // Called when the user has decided whether to proceed or not with the browser
-   // closure, in case the cookie migration notice was shown. |proceed_closing|
-   // is true if the browser can  be closed.
-@@ -1142,6 +1148,8 @@ class Browser : public TabStripModelObse
-   // when the browser is closed with in-progress downloads.
-   CancelDownloadConfirmationState cancel_download_confirmation_state_;
+  private:
+   void RenderProcessGone(content::WebContents* web_contents,
+                          base::TerminationStatus status) override;
+@@ -361,6 +367,9 @@ class UnloadController : public WebConte
+   CancelDownloadConfirmationState cancel_download_confirmation_state_ =
+       CancelDownloadConfirmationState::kNotPrompted;
  
-+  CancelDownloadConfirmationState close_multitab_confirmation_state_;
++  CancelDownloadConfirmationState close_multitab_confirmation_state_ =
++      CancelDownloadConfirmationState::kNotPrompted;
 +
-   /////////////////////////////////////////////////////////////////////////////
+   WarnBeforeClosingCallback warn_before_closing_callback_;
  
-   // Override values for the bounds of the window and its maximized or minimized
+   base::WeakPtrFactory<UnloadController> weak_factory_{this};
 --- a/chrome/browser/ungoogled_flag_choices.h
 +++ b/chrome/browser/ungoogled_flag_choices.h
 @@ -61,4 +61,13 @@ const FeatureEntry::Choice kCloseWindowW
