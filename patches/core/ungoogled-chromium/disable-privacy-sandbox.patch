@@ -1,6 +1,6 @@
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -372,7 +372,6 @@ if (!is_android && !is_mac) {
+@@ -379,7 +379,6 @@ if (!is_android && !is_mac) {
  
      data_deps += [
        "//chrome/browser/web_applications/isolated_web_apps/key_distribution/preload:component",
@@ -8,14 +8,14 @@
        "//third_party/widevine/cdm",
      ]
  
-@@ -1212,7 +1211,6 @@ if (is_win) {
+@@ -1252,7 +1251,6 @@ if (is_win) {
        ":swiftshader_binaries",
        ":widevine_cdm_library",
        "//chrome/browser/web_applications/isolated_web_apps/key_distribution/preload:component_bundle",
 -      "//components/privacy_sandbox/privacy_sandbox_attestations/preload:component_bundle",
      ]
  
-     if (!use_static_angle) {
+     if (is_chrome_branded) {
 --- a/chrome/browser/resources/BUILD.gn
 +++ b/chrome/browser/resources/BUILD.gn
 @@ -132,7 +132,6 @@ group("resources") {
@@ -26,52 +26,9 @@
      ]
    }
  
---- a/components/browsing_data/content/browsing_data_model.cc
-+++ b/components/browsing_data/content/browsing_data_model.cc
-@@ -995,12 +995,6 @@ void BrowsingDataModel::PopulateFromDisk
-       base::FeatureList::IsEnabled(network::features::kSharedStorageAPI);
-   bool is_shared_dictionary_enabled = base::FeatureList::IsEnabled(
-       network::features::kCompressionDictionaryTransport);
--  bool is_interest_group_enabled =
--      base::FeatureList::IsEnabled(network::features::kInterestGroupStorage);
--  bool is_attribution_reporting_enabled = base::FeatureList::IsEnabled(
--      attribution_reporting::features::kConversionMeasurement);
--  bool is_private_aggregation_enabled =
--      base::FeatureList::IsEnabled(blink::features::kPrivateAggregationApi);
- 
-   base::RepeatingClosure completion =
-       base::BindRepeating([](const base::OnceClosure&) {},
-@@ -1037,27 +1031,7 @@ void BrowsingDataModel::PopulateFromDisk
-         base::BindOnce(&OnSharedDictionaryUsageLoaded, this, completion));
-   }
- 
--  // Interest Groups
--  if (is_interest_group_enabled) {
--    content::InterestGroupManager* manager =
--        storage_partition_->GetInterestGroupManager();
--    if (manager) {
--      manager->GetAllInterestGroupDataKeys(
--          base::BindOnce(&OnInterestGroupsLoaded, this, completion));
--    }
--  }
--
--  // Attribution Reporting
--  if (is_attribution_reporting_enabled) {
--    storage_partition_->GetAttributionDataModel()->GetAllDataKeys(
--        base::BindOnce(&OnAttributionReportingLoaded, this, completion));
--  }
- 
--  // Private Aggregation
--  if (is_private_aggregation_enabled) {
--    storage_partition_->GetPrivateAggregationDataModel()->GetAllDataKeys(
--        base::BindOnce(&OnPrivateAggregationLoaded, this, completion));
--  }
- 
- #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
-   storage_partition_->GetCdmStorageDataModel()->GetUsagePerAllStorageKeys(
 --- a/components/privacy_sandbox/privacy_sandbox_settings_impl.cc
 +++ b/components/privacy_sandbox/privacy_sandbox_settings_impl.cc
-@@ -129,7 +129,7 @@ std::set<browsing_topics::Topic> GetTopi
+@@ -123,7 +123,7 @@ std::set<browsing_topics::Topic> GetTopi
  
  // static
  bool PrivacySandboxSettingsImpl::IsAllowed(Status status) {
@@ -80,7 +37,7 @@
  }
  
  // static
-@@ -808,7 +808,7 @@ void PrivacySandboxSettingsImpl::SetTopi
+@@ -698,7 +698,7 @@ void PrivacySandboxSettingsImpl::SetTopi
  }
  
  bool PrivacySandboxSettingsImpl::IsPrivacySandboxRestricted() const {
@@ -89,7 +46,7 @@
  }
  
  bool PrivacySandboxSettingsImpl::IsPrivacySandboxCurrentlyUnrestricted() const {
-@@ -877,11 +877,7 @@ PrivacySandboxSettingsImpl::GetPrivacySa
+@@ -767,11 +767,7 @@ PrivacySandboxSettingsImpl::GetPrivacySa
      return Status::kIncognitoProfile;
    }
  
@@ -101,236 +58,3 @@
  }
  
  PrivacySandboxSettingsImpl::Status
---- a/content/browser/attribution_reporting/attribution_suitable_context.cc
-+++ b/content/browser/attribution_reporting/attribution_suitable_context.cc
-@@ -44,82 +44,13 @@ bool UkmSourceIdAllowed(RenderFrameHostI
- // static
- std::optional<AttributionSuitableContext> AttributionSuitableContext::Create(
-     NavigationHandle* navigation_handle) {
--  RenderFrameHostImpl* rfh = static_cast<RenderFrameHostImpl*>(
--      navigation_handle->GetRenderFrameHost());
--  std::optional<AttributionSuitableContext> context = Create(rfh);
--  // Override the UKM source ID from the associated ongoing navigation handle as
--  // `AttributionHost::GetPageUkmSourceId()` is not updated until the navigation
--  // finishes.
--  if (context && UkmSourceIdAllowed(rfh)) {
--    context->ukm_source_id_ = navigation_handle->GetNextPageUkmSourceId();
--  }
--  return context;
-+  return std::nullopt;
- }
- 
- // static
- std::optional<AttributionSuitableContext> AttributionSuitableContext::Create(
-     RenderFrameHostImpl* initiator_frame) {
--  if (!initiator_frame) {
-     return std::nullopt;
--  }
--
--  if (!base::FeatureList::IsEnabled(
--          attribution_reporting::features::kConversionMeasurement)) {
--    return std::nullopt;
--  }
--
--  if (!initiator_frame->IsFeatureEnabled(
--          network::mojom::PermissionsPolicyFeature::kAttributionReporting)) {
--    return std::nullopt;
--  }
--  RenderFrameHostImpl* initiator_root_frame =
--      initiator_frame->GetOutermostMainFrame();
--  CHECK(initiator_root_frame);
--
--  // We need a suitable origin here because we need to be able to eventually
--  // store it as either the source or destination origin. Using
--  // `is_web_secure_context` only would allow opaque origins to pass through,
--  // but they cannot be handled by the storage layer.
--  std::optional<attribution_reporting::SuitableOrigin>
--      initiator_root_frame_origin = SuitableOrigin::Create(
--          initiator_root_frame->GetLastCommittedOrigin());
--  if (!initiator_root_frame_origin.has_value()) {
--    return std::nullopt;
--  }
--  // If the `initiator_frame` is a subframe, it's origin's security isn't
--  // covered by the SuitableOrigin check above, we therefore validate that it's
--  // origin is secure using `is_web_secure_context`.
--  if (initiator_frame != initiator_root_frame &&
--      !initiator_frame->policy_container_host()
--           ->policies()
--           .is_web_secure_context) {
--    return std::nullopt;
--  }
--
--  auto* web_contents = WebContents::FromRenderFrameHost(initiator_frame);
--  if (!web_contents) {
--    return std::nullopt;
--  }
--  auto* manager = AttributionManager::FromWebContents(web_contents);
--  CHECK(manager);
--
--  auto* attribution_host = AttributionHost::FromWebContents(web_contents);
--  CHECK(attribution_host);
--
--  AttributionDataHostManager* data_host_manager = manager->GetDataHostManager();
--  CHECK(data_host_manager);
--
--  return AttributionSuitableContext(
--      /*context_origin=*/std::move(initiator_root_frame_origin.value()),
--      initiator_frame->IsNestedWithinFencedFrame(),
--      initiator_root_frame->GetGlobalId(), initiator_frame->navigation_id(),
--      attribution_host->GetMostRecentNavigationInputEvent(),
--      AttributionOsLevelManager::GetAttributionReportingOsRegistrars(
--          web_contents),
--      UkmSourceIdAllowed(initiator_root_frame)
--          ? attribution_host->GetPageUkmSourceId()
--          : ukm::kInvalidSourceId,
--      data_host_manager->AsWeakPtr());
- }
- 
- // static
---- a/content/browser/interest_group/ad_auction_service_impl.cc
-+++ b/content/browser/interest_group/ad_auction_service_impl.cc
-@@ -191,11 +191,6 @@ AdAuctionServiceImpl::BiddingAndAuctionD
- void AdAuctionServiceImpl::CreateMojoService(
-     RenderFrameHost* render_frame_host,
-     mojo::PendingReceiver<blink::mojom::AdAuctionService> receiver) {
--  CHECK(render_frame_host);
--
--  // The object is bound to the lifetime of `render_frame_host` and the mojo
--  // connection. See DocumentService for details.
--  new AdAuctionServiceImpl(*render_frame_host, std::move(receiver));
- }
- 
- void AdAuctionServiceImpl::JoinInterestGroup(
---- a/content/browser/storage_partition_impl.cc
-+++ b/content/browser/storage_partition_impl.cc
-@@ -1485,38 +1485,7 @@ void StoragePartitionImpl::Initialize(
- 
-   bucket_manager_ = std::make_unique<BucketManager>(this);
- 
--  if (base::FeatureList::IsEnabled(
--          attribution_reporting::features::kConversionMeasurement)) {
--    // The Conversion Measurement API is not available in Incognito mode, but
--    // this is enforced by the `AttributionManagerImpl` itself for better error
--    // reporting and metrics.
--    attribution_manager_ = std::make_unique<AttributionManagerImpl>(
--        this, path, special_storage_policy_);
--  }
--
--  if (base::FeatureList::IsEnabled(network::features::kInterestGroupStorage)) {
--    // Auction worklets on non-Android use dedicated processes; on Android due
--    // to high cost of process launch they try to reuse renderers.
--    interest_group_manager_ = std::make_unique<InterestGroupManagerImpl>(
--        path, is_in_memory(),
--#if BUILDFLAG(IS_ANDROID)
--        InterestGroupManagerImpl::ProcessMode::kInRenderer,
--#else
--        InterestGroupManagerImpl::ProcessMode::kDedicated,
--#endif
--        GetURLLoaderFactoryForBrowserProcess(),
--        base::BindRepeating(&BrowserContext::GetKAnonymityServiceDelegate,
--                            // This use of Unretained is safe since the browser
--                            // context owns this storage partition.
--                            base::Unretained(browser_context_)));
--  }
- 
--  // The Topics API is not available in Incognito mode.
--  if (!is_in_memory() &&
--      base::FeatureList::IsEnabled(network::features::kBrowsingTopics)) {
--    browsing_topics_site_data_manager_ =
--        std::make_unique<BrowsingTopicsSiteDataManagerImpl>(path);
--  }
- 
-   GeneratedCodeCacheSettings settings =
-       GetContentClient()->browser()->GetGeneratedCodeCacheSettings(
-@@ -1545,8 +1514,6 @@ void StoragePartitionImpl::Initialize(
- 
-   font_access_manager_ = FontAccessManager::Create();
- 
--  aggregation_service_ =
--      std::make_unique<AggregationServiceImpl>(is_in_memory(), path, this);
- 
- #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
-   if (is_in_memory()) {
-@@ -1570,11 +1537,6 @@ void StoragePartitionImpl::Initialize(
-         std::make_unique<SharedStorageHeaderObserver>(this);
-   }
- 
--  if (base::FeatureList::IsEnabled(blink::features::kPrivateAggregationApi)) {
--    private_aggregation_manager_ =
--        std::make_unique<PrivateAggregationManagerImpl>(is_in_memory(), path,
--                                                        this);
--  }
- 
-   if (base::FeatureList::IsEnabled(
-           blink::features::kDeclarativePerformanceObserver)) {
---- a/content/browser/web_contents/web_contents_impl.cc
-+++ b/content/browser/web_contents/web_contents_impl.cc
-@@ -4370,12 +4370,6 @@ void WebContentsImpl::Init(const WebCont
-   DateTimeChooser::CreateDateTimeChooser(this);
- #endif
- 
--  // AttributionHost must be created after `view_->CreateView()` is called as it
--  // may invoke `WebContentsAndroid::AddObserver()`.
--  if (base::FeatureList::IsEnabled(
--          attribution_reporting::features::kConversionMeasurement)) {
--    AttributionHost::CreateForWebContents(this);
--  }
- 
-   SchedulerLoopQuarantineWebContentsObserver::MaybeCreateForWebContents(this);
-   RedirectChainDetector::CreateForWebContents(this);
---- a/content/services/auction_worklet/private_aggregation_bindings.cc
-+++ b/content/services/auction_worklet/private_aggregation_bindings.cc
-@@ -407,53 +407,6 @@ PrivateAggregationBindings::~PrivateAggr
- 
- void PrivateAggregationBindings::AttachToContext(
-     v8::Local<v8::Context> context) {
--  if (!base::FeatureList::IsEnabled(blink::features::kPrivateAggregationApi) ||
--      !blink::features::kPrivateAggregationApiEnabledInProtectedAudience
--           .Get()) {
--    return;
--  }
--
--  v8::Local<v8::External> v8_this = v8::External::New(
--      v8_helper_->isolate(), this, gin::kPrivateAggregationBindingsTag);
--
--  v8::Local<v8::Object> private_aggregation =
--      v8::Object::New(v8_helper_->isolate());
--
--  v8::Local<v8::Function> send_histogram_report_function =
--      v8::Function::New(
--          context, &PrivateAggregationBindings::ContributeToHistogram, v8_this)
--          .ToLocalChecked();
--  private_aggregation
--      ->Set(context,
--            v8_helper_->CreateStringFromLiteral("contributeToHistogram"),
--            send_histogram_report_function)
--      .Check();
--
--    v8::Local<v8::Function> report_contribution_for_event_function =
--        v8::Function::New(
--            context, &PrivateAggregationBindings::ContributeToHistogramOnEvent,
--            v8_this)
--            .ToLocalChecked();
--    private_aggregation
--        ->Set(
--            context,
--            v8_helper_->CreateStringFromLiteral("contributeToHistogramOnEvent"),
--            report_contribution_for_event_function)
--        .Check();
--
--  v8::Local<v8::Function> enable_debug_mode_function =
--      v8::Function::New(context, &PrivateAggregationBindings::EnableDebugMode,
--                        v8_this)
--          .ToLocalChecked();
--  private_aggregation
--      ->Set(context, v8_helper_->CreateStringFromLiteral("enableDebugMode"),
--            enable_debug_mode_function)
--      .Check();
--
--  context->Global()
--      ->Set(context, v8_helper_->CreateStringFromLiteral("privateAggregation"),
--            private_aggregation)
--      .Check();
- }
- 
- void PrivateAggregationBindings::Reset() {
