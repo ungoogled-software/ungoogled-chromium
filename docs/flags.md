@@ -90,6 +90,7 @@ Chromium contains switches that do no have corresponding entries in `chrome://fl
   `--disable-webgl` | Disable all versions of WebGL.
   `--enable-low-end-device-mode` | Force low-end device mode when set.
   `--force-dark-mode` | Forces dark mode in UI for platforms that support it.
+  `--force-prefers-reduced-motion` / `--force-prefers-no-reduced-motion` |  The flag "Force reduced motion" sets one of these two switches. Forces whether the user desires reduced motion, regardless of system settings.
   `--no-default-browser-check` | Disables the default browser check.
   `--no-pings` | Don't send hyperlink auditing pings.
   `--webrtc-ip-handling-policy` | Restrict which IP addresses and interfaces WebRTC uses.
