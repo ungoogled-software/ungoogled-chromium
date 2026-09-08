@@ -44,7 +44,7 @@ def main():
     """CLI entrypoint"""
 
     root_dir = Path(__file__).resolve().parent.parent
-    default_downloads_ini = [str(root_dir / 'downloads.ini')]
+    default_downloads_ini = [root_dir / 'downloads.ini']
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-d',
