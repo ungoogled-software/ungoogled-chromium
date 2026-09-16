@@ -10,7 +10,7 @@
 #   allow StrEnum-equivalent functionality on older python
 --- a/gclient.bat
 +++ b/gclient.bat
-@@ -20,4 +20,4 @@ IF %ERRORLEVEL% NEQ 0 (
+@@ -36,4 +36,4 @@ call "%~dp0update_depot_tools.bat" %* &
  set PATH=%PATH%;%~dp0
  
  :: Defer control.
@@ -67,7 +67,7 @@
          self._gn_args = local_scope.get("gclient_gn_args", [])
          # It doesn't make sense to set all of these, since setting gn_args_from
          # to another DEPS will make gclient ignore any other local gn_args*
-@@ -4564,6 +4574,7 @@ def CMDsync(parser, args):
+@@ -4579,6 +4589,7 @@ def CMDsync(parser, args):
          default=[],
          help="Specify to skip processing of a certain type of dep.",
      )
@@ -77,7 +77,40 @@
  
 --- a/gclient_scm.py
 +++ b/gclient_scm.py
-@@ -1164,9 +1164,7 @@ class GitWrapper(SCMWrapper):
+@@ -5,7 +5,6 @@
+ 
+ import collections
+ import contextlib
+-import enum
+ import errno
+ import glob
+ import json
+@@ -27,6 +26,15 @@ import git_common
+ import scm
+ import subprocess2
+ 
++try:
++    from enum import StrEnum
++    class StringEnum(StrEnum):
++        pass
++except ImportError:
++    from enum import Enum
++    class StringEnum(str, Enum):
++        pass
++
+ 
+ class NoUsableRevError(gclient_utils.Error):
+     """Raised if requested revision isn't found in checkout."""
+@@ -270,7 +278,7 @@ def _canonical_git_repo(url):
+     )
+ 
+ 
+-class CacheMode(enum.StrEnum):
++class CacheMode(StringEnum):
+     """How checkouts relate to the git cache when cache_dir is set."""
+ 
+     # clone --shared, fetch URL stays on the mirror; the checkout only works
+@@ -1186,9 +1194,7 @@ class GitWrapper(SCMWrapper):
          self._SetFetchConfig(options)
  
          # Fetch upstream if we don't already have |revision|.
@@ -88,7 +121,7 @@
              self._Fetch(options, prune=options.force)
  
              if not scm.GIT.IsValidRevision(
-@@ -1183,7 +1181,7 @@ class GitWrapper(SCMWrapper):
+@@ -1205,7 +1211,7 @@ class GitWrapper(SCMWrapper):
  
          # This is a big hammer, debatable if it should even be here...
          if options.force or options.reset:
@@ -97,7 +130,7 @@
              if options.upstream and upstream_branch:
                  target = upstream_branch
              self._Scrub(target, options)
-@@ -1198,7 +1196,6 @@ class GitWrapper(SCMWrapper):
+@@ -1220,7 +1226,6 @@ class GitWrapper(SCMWrapper):
              # to the checkout step.
              if not (options.force or options.reset):
                  self._CheckClean(revision)
@@ -105,7 +138,7 @@
  
              if not current_revision:
                  current_revision = self._Capture(
-@@ -2016,8 +2013,7 @@ class GitWrapper(SCMWrapper):
+@@ -2051,8 +2056,7 @@ class GitWrapper(SCMWrapper):
              fetch_cmd.append("--no-tags")
          elif quiet:
              fetch_cmd.append("--quiet")

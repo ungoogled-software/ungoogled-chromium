@@ -3,19 +3,17 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2806,9 +2806,6 @@ source_set("browser") {
+@@ -2570,7 +2570,6 @@ source_set("browser") {
        "//chrome/browser/profile_resetter:impl",
        "//chrome/browser/record_replay",
        "//chrome/browser/record_replay:impl",
--      "//chrome/browser/screen_ai:screen_ai_install_state",
 -      "//chrome/browser/screen_ai:screen_ai_service_router_factory",
--      "//chrome/browser/screen_ai/public:optical_character_recognizer",
        "//chrome/browser/sharing_hub",
        "//chrome/browser/sharing_hub:impl",
        "//chrome/browser/smart_card",
-@@ -2868,7 +2865,6 @@ source_set("browser") {
+@@ -2619,7 +2618,6 @@ source_set("browser") {
+       "//chrome/browser/ui/waap:window_metrics_manager",
        "//chrome/browser/ui/web_applications:impl",
-       "//chrome/browser/ui/webui:webui_util",
        "//chrome/browser/ui/webui/app_service_internals",
 -      "//chrome/browser/ui/webui/autofill_ml_internals",
        "//chrome/browser/ui/webui/color_pipeline_internals",
@@ -85,7 +83,7 @@
  }
 --- a/chrome/browser/actor/actor_keyed_service.cc
 +++ b/chrome/browser/actor/actor_keyed_service.cc
-@@ -770,13 +770,6 @@ bool ActorKeyedService::IsActiveOnTab(co
+@@ -842,13 +842,6 @@ bool ActorKeyedService::IsActiveOnTab(co
  
  ActorTask* ActorKeyedService::GetTaskFromTab(
      const tabs::TabInterface& tab) const {
@@ -99,9 +97,28 @@
    return nullptr;
  }
  
+--- a/chrome/browser/browser_process.h
++++ b/chrome/browser/browser_process.h
+@@ -333,8 +333,6 @@ class BrowserProcess {
+   virtual void set_usb_system_tray_icon_for_test(
+       std::unique_ptr<UsbSystemTrayIcon> icon) = 0;
+ 
+-  virtual speech::SpeechRecognitionSmallExpertModelInstaller*
+-  speech_recognition_small_expert_model_installer() = 0;
+ #endif
+ 
+   // Obtain the browser instance of OSCryptAsync, which should be used for data
 --- a/chrome/browser/browser_process_impl.cc
 +++ b/chrome/browser/browser_process_impl.cc
-@@ -259,12 +259,10 @@ void OnLocalStatePrefsLoaded();
+@@ -84,7 +84,6 @@
+ #include "chrome/browser/serial/serial_policy_allowed_ports.h"
+ #include "chrome/browser/shell_integration.h"
+ #include "chrome/browser/site_isolation/prefs_observer.h"
+-#include "chrome/browser/speech/speech_recognition_small_expert_model_installer.h"
+ #include "chrome/browser/ssl/secure_origin_prefs_observer.h"
+ #include "chrome/browser/startup_data.h"
+ #include "chrome/browser/status_icons/status_tray.h"
+@@ -260,12 +259,10 @@ void OnLocalStatePrefsLoaded();
  #if BUILDFLAG(IS_CHROMEOS)
  #include "chrome/browser/chromeos/extensions/telemetry/chromeos_telemetry_extensions_browser_api_provider.h"
  #include "chrome/browser/hid/hid_pinned_notification.h"
@@ -114,19 +131,44 @@
  #include "chrome/browser/usb/usb_status_icon.h"
  #include "components/enterprise/browser/controller/chrome_browser_cloud_management_controller.h"
  #endif
-@@ -1667,9 +1665,6 @@ void BrowserProcessImpl::PreMainMessageL
+@@ -1381,12 +1378,6 @@ GlobalFeatures* BrowserProcessImpl::GetF
+   return features_.get();
+ }
+ 
+-#if !BUILDFLAG(IS_ANDROID)
+-speech::SpeechRecognitionSmallExpertModelInstaller*
+-BrowserProcessImpl::speech_recognition_small_expert_model_installer() {
+-  return speech_recognition_small_expert_model_installer_.get();
+-}
+-#endif
+ 
+ DownloadRequestLimiter* BrowserProcessImpl::download_request_limiter() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+@@ -1728,11 +1719,6 @@ void BrowserProcessImpl::PreMainMessageL
    soda_installer_impl_ = std::make_unique<speech::SodaInstallerImplChromeOS>();
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
 -#if !BUILDFLAG(IS_ANDROID)
 -  screen_ai_download_ = screen_ai::ScreenAIInstallState::Create();
+-  speech_recognition_small_expert_model_installer_ =
+-      std::make_unique<speech::SpeechRecognitionSmallExpertModelInstaller>();
 -#endif
  
    base::FilePath user_data_dir;
    bool result = base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
 --- a/chrome/browser/browser_process_impl.h
 +++ b/chrome/browser/browser_process_impl.h
-@@ -95,9 +95,6 @@ namespace speech {
+@@ -57,9 +57,6 @@ class SiteIsolationPrefsObserver;
+ class SystemNotificationHelper;
+ class StartupData;
+ 
+-namespace speech {
+-class SpeechRecognitionSmallExpertModelInstaller;
+-}  // namespace speech
+ 
+ namespace breadcrumbs {
+ class ApplicationBreadcrumbsLogger;
+@@ -99,9 +96,6 @@ namespace speech {
  class SodaInstaller;
  }  // namespace speech
  
@@ -136,13 +178,25 @@
  
  namespace supervised_user {
  class DeviceParentalControls;
-@@ -460,9 +457,6 @@ class BrowserProcessImpl : public Browse
+@@ -247,8 +241,6 @@ class BrowserProcessImpl : public Browse
+   UsbSystemTrayIcon* usb_system_tray_icon() override;
+   void set_usb_system_tray_icon_for_test(
+       std::unique_ptr<UsbSystemTrayIcon> icon) override;
+-  speech::SpeechRecognitionSmallExpertModelInstaller*
+-  speech_recognition_small_expert_model_installer() override;
+ #endif
+ 
+   os_crypt_async::OSCryptAsync* os_crypt_async() override;
+@@ -468,12 +460,6 @@ class BrowserProcessImpl : public Browse
    // to ensure that SodaInstallerImpl gets destructed first.
    std::unique_ptr<speech::SodaInstaller> soda_installer_impl_;
  
 -  // Used to download Screen AI on demand and keep track of the library
 -  // availability.
 -  std::unique_ptr<screen_ai::ScreenAIInstallState> screen_ai_download_;
+-
+-  std::unique_ptr<speech::SpeechRecognitionSmallExpertModelInstaller>
+-      speech_recognition_small_expert_model_installer_;
  #endif
  
    std::unique_ptr<BrowserProcessPlatformPart> platform_part_;
@@ -157,7 +211,7 @@
  #include "chrome/browser/web_applications/sub_apps/sub_apps_service_impl.h"
  #endif
  
-@@ -390,27 +388,6 @@ void BindMediaFoundationPreferences(
+@@ -392,27 +390,6 @@ void BindMediaFoundationPreferences(
  }
  #endif  // BUILDFLAG(IS_WIN)
  
@@ -185,7 +239,7 @@
  
  void BindModelBroker(
      content::RenderFrameHost* frame_host,
-@@ -583,10 +560,6 @@ void PopulateChromeFrameBinders(
+@@ -586,10 +563,6 @@ void PopulateChromeFrameBinders(
          &web_app::SubAppsServiceImpl::CreateIfAllowed);
    }
  
@@ -198,7 +252,7 @@
  #if BUILDFLAG(IS_WIN)
 --- a/chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc
 +++ b/chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc
-@@ -518,9 +518,6 @@ void PopulateChromeWebUIFrameBindersPart
+@@ -523,9 +523,6 @@ void PopulateChromeWebUIFrameBindersPart
        ::mojom::app_service_internals::AppServiceInternalsPageHandler,
        AppServiceInternalsUI>(map);
  
@@ -208,6 +262,18 @@
  
    RegisterWebUIControllerInterfaceBinder<
        access_code_cast::mojom::PageHandlerFactory,
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -5532,9 +5532,6 @@ ChromeContentBrowserClient::CreateCommit
+       &conditions);
+ #endif
+ 
+-  MaybeAddCondition(actor::ActorCommitDeferringCondition::MaybeCreate(
+-                        *navigation_handle, navigation_type),
+-                    &conditions);
+ 
+   return conditions;
+ }
 --- a/chrome/browser/component_updater/BUILD.gn
 +++ b/chrome/browser/component_updater/BUILD.gn
 @@ -214,13 +214,6 @@ source_set("impl") {
@@ -247,7 +313,7 @@
  
 --- a/chrome/browser/glic/glic_selection_observer.cc
 +++ b/chrome/browser/glic/glic_selection_observer.cc
-@@ -1095,20 +1095,6 @@ void GlicSelectionObserver::OnAskGeminiW
+@@ -1092,20 +1092,6 @@ void GlicSelectionObserver::OnAskGeminiW
    }
  
    std::string skill_prompt;
@@ -268,7 +334,7 @@
  
    if (skill_prompt.empty()) {
      Profile* profile =
-@@ -1131,28 +1117,6 @@ void GlicSelectionObserver::OnAskGeminiW
+@@ -1127,28 +1113,6 @@ void GlicSelectionObserver::OnAskGeminiW
  std::vector<GlicSelectionWidgetDelegate::SkillOption>
  GlicSelectionObserver::GetContextualSkills() {
    std::vector<GlicSelectionWidgetDelegate::SkillOption> result;
@@ -299,7 +365,7 @@
  
 --- a/chrome/browser/glic/host/glic_skills_manager_impl.cc
 +++ b/chrome/browser/glic/host/glic_skills_manager_impl.cc
-@@ -487,39 +487,6 @@ bool GlicSkillsClientSession::Require1PS
+@@ -497,39 +497,6 @@ bool GlicSkillsClientSession::Require1PS
  
  void GlicSkillsClientSession::UpdateSkillPreviews(
      std::optional<tabs::TabInterface*> updated_tab) {
@@ -444,14 +510,15 @@
  void NavigationPredictor::SetModelScoreCallbackForTesting(
 --- a/chrome/browser/page_content_annotations/page_content_annotations_service_factory.cc
 +++ b/chrome/browser/page_content_annotations/page_content_annotations_service_factory.cc
-@@ -118,62 +118,6 @@ PageContentAnnotationsServiceFactory::~P
+@@ -120,63 +120,6 @@ PageContentAnnotationsServiceFactory::~P
  std::unique_ptr<KeyedService>
  PageContentAnnotationsServiceFactory::BuildServiceInstanceForBrowserContext(
      content::BrowserContext* context) const {
 -  Profile* profile = Profile::FromBrowserContext(context);
 -
--  if (!ShouldEnablePageContentAnnotations(profile))
+-  if (!ShouldEnablePageContentAnnotations(profile)) {
 -    return nullptr;
+-  }
 -
 -  auto* proto_db_provider = profile->GetOriginalProfile()
 -                                ->GetDefaultStoragePartition()
@@ -549,7 +616,7 @@
      "prediction_service/prediction_service_request.cc",
 --- a/chrome/browser/permissions/chrome_permissions_client.cc
 +++ b/chrome/browser/permissions/chrome_permissions_client.cc
-@@ -31,7 +31,6 @@
+@@ -32,7 +32,6 @@
  #include "chrome/browser/permissions/permission_actions_history_factory.h"
  #include "chrome/browser/permissions/permission_decision_auto_blocker_factory.h"
  #include "chrome/browser/permissions/permission_revocation_request.h"
@@ -557,7 +624,7 @@
  #include "chrome/browser/permissions/pref_based_quiet_permission_ui_selector.h"
  #include "chrome/browser/permissions/quiet_notification_permission_ui_config.h"
  #include "chrome/browser/permissions/system/system_permission_settings.h"
-@@ -545,8 +544,6 @@ ChromePermissionsClient::CreatePermissio
+@@ -551,8 +550,6 @@ ChromePermissionsClient::CreatePermissio
  #endif
    selectors.emplace_back(std::make_unique<PrefBasedQuietPermissionUiSelector>(
        Profile::FromBrowserContext(browser_context)));
@@ -566,7 +633,7 @@
    return selectors;
  }
  
-@@ -568,8 +565,6 @@ void ChromePermissionsClient::OnPromptRe
+@@ -574,8 +571,6 @@ void ChromePermissionsClient::OnPromptRe
  
    Profile* profile =
        Profile::FromBrowserContext(web_contents->GetBrowserContext());
@@ -609,7 +676,7 @@
          model_data.request_metadata.request_type;
 --- a/chrome/browser/prefs/BUILD.gn
 +++ b/chrome/browser/prefs/BUILD.gn
-@@ -388,7 +388,6 @@ source_set("impl") {
+@@ -387,7 +387,6 @@ source_set("impl") {
        "//chrome/browser/desktop_to_mobile_promos:utils",
        "//chrome/browser/device_identity",
        "//chrome/browser/new_tab_page",
@@ -619,7 +686,7 @@
        "//chrome/browser/sharing_hub",
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -1687,9 +1687,6 @@ void RegisterLocalState(PrefRegistrySimp
+@@ -1727,9 +1727,6 @@ void RegisterLocalState(PrefRegistrySimp
    DeviceOAuth2TokenStoreDesktop::RegisterPrefs(registry);
  #endif
  
@@ -631,15 +698,15 @@
    PlatformAuthPolicyObserver::RegisterPrefs(registry);
 --- a/chrome/browser/profiles/BUILD.gn
 +++ b/chrome/browser/profiles/BUILD.gn
-@@ -908,7 +908,6 @@ source_set("profiles_extra_parts_impl")
+@@ -911,7 +911,6 @@ source_set("profiles_extra_parts_impl")
    } else {
      deps += [
        "//chrome/browser/accessibility/phrase_segmentation",
 -      "//chrome/browser/accessibility/tree_fixing:service",
-       "//chrome/browser/accessibility_annotator/content_annotator",
        "//chrome/browser/apps/app_service",
        "//chrome/browser/autofill",
-@@ -924,7 +923,6 @@ source_set("profiles_extra_parts_impl")
+       "//chrome/browser/badging",
+@@ -926,7 +925,6 @@ source_set("profiles_extra_parts_impl")
        "//chrome/browser/profile_resetter",
        "//chrome/browser/record_replay",
        "//chrome/browser/record_replay:impl",
@@ -649,7 +716,7 @@
        "//chrome/browser/sharing_hub",
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -135,7 +135,6 @@
+@@ -136,7 +136,6 @@
  #include "chrome/browser/metrics/profile_metrics_service_factory.h"
  #include "chrome/browser/metrics/variations/google_groups_manager_factory.h"
  #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
@@ -657,7 +724,7 @@
  #include "chrome/browser/navigation_predictor/search_engine_preconnector.h"
  #include "chrome/browser/navigation_predictor/search_engine_preconnector_keyed_service_factory.h"
  #include "chrome/browser/net/dns_probe_service_factory.h"
-@@ -396,7 +395,6 @@
+@@ -397,7 +396,6 @@
  #include "chrome/browser/record_replay/task_parameters_extractor_factory.h"
  #include "chrome/browser/record_replay/task_service_factory.h"
  #include "chrome/browser/record_replay/task_store_factory.h"
@@ -665,7 +732,7 @@
  #include "chrome/browser/search/instant_service_factory.h"
  #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service_factory.h"
  #include "chrome/browser/speech/speech_recognition_client_browser_interface_factory.h"
-@@ -1204,7 +1202,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1195,7 +1193,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #if BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
    net::ServerCertificateDatabaseServiceFactory::GetInstance();
  #endif
@@ -673,7 +740,7 @@
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
    HistorySyncOptinServiceFactory::GetInstance();
    ProfileManagementDisclaimerServiceFactory::GetInstance();
-@@ -1267,9 +1264,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1258,9 +1255,6 @@ void ChromeBrowserMainExtraPartsProfiles
    // TODO(b/502297163): Implement for Android.
    OneTimePermissionsTrackerFactory::GetInstance();
  #endif
@@ -683,7 +750,7 @@
    OptimizationGuideGlobalStateHolderKeyedServiceFactory::GetInstance();
    OptimizationGuideKeyedServiceFactory::GetInstance();
    OriginKeyedPermissionActionServiceFactory::GetInstance();
-@@ -1361,7 +1355,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1359,7 +1353,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
    policy::UserPolicyOidcSigninServiceFactory::GetInstance();
  #endif
@@ -691,7 +758,7 @@
    PredictionServiceFactory::GetInstance();
    predictors::AutocompleteActionPredictorFactory::GetInstance();
    predictors::LoadingPredictorFactory::GetInstance();
-@@ -1448,10 +1441,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1443,10 +1436,6 @@ void ChromeBrowserMainExtraPartsProfiles
    SafetyHubMenuNotificationServiceFactory::GetInstance();
  #if !BUILDFLAG(IS_ANDROID)
    SafetyHubHatsServiceFactory::GetInstance();
@@ -702,17 +769,17 @@
  #endif
  #if BUILDFLAG(IS_CHROMEOS)
    if (ash::features::IsScannerEnabled()) {
-@@ -1575,7 +1564,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1570,7 +1559,6 @@ void ChromeBrowserMainExtraPartsProfiles
    TopSitesFactory::GetInstance();
    translate::TranslateRankerFactory::GetInstance();
  #if !BUILDFLAG(IS_ANDROID)
 -  tree_fixing::AXTreeFixingServicesRouterFactory::GetInstance();
    TriggeredProfileResetterFactory::GetInstance();
  #endif
- #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
+   ttc::TtcKeyedServiceFactory::GetInstance();
 --- a/chrome/browser/profiles/off_the_record_profile_impl.cc
 +++ b/chrome/browser/profiles/off_the_record_profile_impl.cc
-@@ -220,11 +220,6 @@ void OffTheRecordProfileImpl::Init() {
+@@ -226,11 +226,6 @@ void OffTheRecordProfileImpl::Init() {
    // AccessibilityLabelsService has a default prefs behavior in incognito.
    AccessibilityLabelsService::InitOffTheRecordPrefs(this);
  
@@ -726,7 +793,7 @@
    // System Profile.
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -921,11 +921,6 @@ void ProfileImpl::DoFinalInit(CreateMode
+@@ -924,11 +924,6 @@ void ProfileImpl::DoFinalInit(CreateMode
    // The password settings service needs to start listening to settings
    // changes from Google Mobile Services, as early as possible.
    PasswordManagerSettingsServiceFactory::GetForProfile(this);
@@ -748,7 +815,7 @@
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
  #include "chrome/browser/profiles/delete_profile_helper.h"
  #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
-@@ -1618,9 +1617,6 @@ void ProfileManager::DoFinalInitForServi
+@@ -1614,9 +1613,6 @@ void ProfileManager::DoFinalInitForServi
    // Ensure NavigationPredictorKeyedService is started.
    NavigationPredictorKeyedServiceFactory::GetForProfile(profile);
  
@@ -787,24 +854,158 @@
        "skills_ui_window_controller.cc",
      ]
    }
+--- a/chrome/browser/speech/chrome_speech_recognition_service.cc
++++ b/chrome/browser/speech/chrome_speech_recognition_service.cc
+@@ -59,18 +59,6 @@ ChromeSpeechRecognitionService::ChromeSp
+     soda_installer_observer_.Observe(soda_installer);
+   }
+ 
+-  if (base::FeatureList::IsEnabled(
+-          media::kLiveCaptionSpeechRecognitionSmallExpertModel)) {
+-    auto* model_installer =
+-        g_browser_process
+-            ? g_browser_process
+-                  ->speech_recognition_small_expert_model_installer()
+-            : nullptr;
+-    if (model_installer) {
+-      speech_recognition_small_expert_model_installer_observer_.Observe(
+-          model_installer);
+-    }
+-  }
+ }
+ 
+ ChromeSpeechRecognitionService::~ChromeSpeechRecognitionService() = default;
+@@ -98,42 +86,6 @@ void ChromeSpeechRecognitionService::Bin
+     options->language = language_name;
+   }
+ 
+-  if (base::FeatureList::IsEnabled(
+-          media::kLiveCaptionSpeechRecognitionSmallExpertModel) &&
+-      options &&
+-      options->recognizer_client_type ==
+-          media::mojom::RecognizerClientType::kLiveCaption &&
+-      !options->is_server_based) {
+-    auto* installer =
+-        g_browser_process
+-            ? g_browser_process
+-                  ->speech_recognition_small_expert_model_installer()
+-            : nullptr;
+-    if (installer &&
+-        installer->IsSpeechRecognitionSmallExpertModelInstalled()) {
+-      Profile* profile = Profile::FromBrowserContext(context_);
+-      if (profile && !model_broker_client_) {
+-        auto* opt_guide_service =
+-            OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
+-        if (opt_guide_service) {
+-          model_broker_client_ = opt_guide_service->CreateModelBrokerClient();
+-        }
+-      }
+-      if (model_broker_client_) {
+-        auto feature = optimization_guide::mojom::OnDeviceFeature::
+-            kSpeechRecognitionSmallExpertModel;
+-        model_broker_client_->RequestAssetsFor(feature);
+-        model_broker_client_->GetSubscriber(feature).WaitForClient(
+-            base::BindOnce(
+-                &ChromeSpeechRecognitionService::OnModelClientAvailable,
+-                weak_factory_.GetWeakPtr(), std::move(receiver),
+-                std::move(client), std::move(options),
+-                mojo::WrapCallbackWithDefaultInvokeIfNotRun(std::move(callback),
+-                                                            false)));
+-        return;
+-      }
+-    }
+-  }
+ 
+   BindSodaRecognizer(std::move(receiver), std::move(client), std::move(options),
+                      std::move(callback));
+--- a/chrome/browser/speech/speech_recognition_client_browser_interface.cc
++++ b/chrome/browser/speech/speech_recognition_client_browser_interface.cc
+@@ -67,15 +67,6 @@ SpeechRecognitionClientBrowserInterface:
+   if (speech::SodaInstaller::GetInstance()) {
+     soda_installer_observation_.Observe(speech::SodaInstaller::GetInstance());
+   }
+-#if !BUILDFLAG(IS_CHROMEOS)
+-  if (base::FeatureList::IsEnabled(
+-          media::kLiveCaptionSpeechRecognitionSmallExpertModel) &&
+-      g_browser_process &&
+-      g_browser_process->speech_recognition_small_expert_model_installer()) {
+-    speech_recognition_small_expert_model_installer_observation_.Observe(
+-        g_browser_process->speech_recognition_small_expert_model_installer());
+-  }
+-#endif
+   MaybeTriggerModelInstall();
+ }
+ 
+@@ -162,24 +153,6 @@ void SpeechRecognitionClientBrowserInter
+ #if !BUILDFLAG(IS_CHROMEOS)
+   if (base::FeatureList::IsEnabled(
+           media::kLiveCaptionSpeechRecognitionSmallExpertModel)) {
+-    auto* installer =
+-        g_browser_process
+-            ? g_browser_process
+-                  ->speech_recognition_small_expert_model_installer()
+-            : nullptr;
+-    if (installer &&
+-        !installer->IsSpeechRecognitionSmallExpertModelInstalled() &&
+-        !installer->IsSpeechRecognitionSmallExpertModelDownloading() &&
+-        installer->GetSpeechRecognitionSmallExpertModelState() !=
+-            SpeechRecognitionSmallExpertModelInstaller::
+-                SpeechRecognitionSmallExpertModelState::kError &&
+-        installer->GetSpeechRecognitionSmallExpertModelState() !=
+-            SpeechRecognitionSmallExpertModelInstaller::
+-                SpeechRecognitionSmallExpertModelState::
+-                    kErrorCorruptPersistent) {
+-      Profile* profile = Profile::FromBrowserContext(context_);
+-      installer->InstallSpeechRecognitionSmallExpertModel(profile);
+-    }
+     return;
+   }
+ #endif
+@@ -207,10 +180,7 @@ void SpeechRecognitionClientBrowserInter
+ #if !BUILDFLAG(IS_CHROMEOS)
+   if (base::FeatureList::IsEnabled(
+           media::kLiveCaptionSpeechRecognitionSmallExpertModel)) {
+-    if (!g_browser_process ||
+-        !g_browser_process->speech_recognition_small_expert_model_installer()) {
+       return;
+-    }
+   } else if (!speech::SodaInstaller::GetInstance()) {
+     return;
+   }
+@@ -232,15 +202,6 @@ void SpeechRecognitionClientBrowserInter
+ #if !BUILDFLAG(IS_CHROMEOS)
+   if (base::FeatureList::IsEnabled(
+           media::kLiveCaptionSpeechRecognitionSmallExpertModel)) {
+-    auto* installer =
+-        g_browser_process
+-            ? g_browser_process
+-                  ->speech_recognition_small_expert_model_installer()
+-            : nullptr;
+-    if (installer &&
+-        installer->IsSpeechRecognitionSmallExpertModelInstalled()) {
+-      is_installed = true;
+-    }
+   } else {
+     if (speech::SodaInstaller::GetInstance()) {
+       is_installed = speech::SodaInstaller::GetInstance()->IsSodaInstalled(
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -1449,7 +1449,6 @@ static_library("ui") {
-       "//chrome/browser/regional_capabilities",
+@@ -1475,7 +1475,6 @@ static_library("ui") {
+       "//chrome/browser/lens/region_search",
+       "//chrome/browser/reading_list",
        "//chrome/browser/safe_browsing",
-       "//chrome/browser/safe_browsing:advanced_protection",
 -      "//chrome/browser/screen_ai:screen_ai_service_router_factory",
        "//chrome/browser/smart_card",
        "//chrome/browser/support_tool",
        "//chrome/browser/tab_group_sync:utils",
-@@ -3093,7 +3092,6 @@ static_library("ui") {
+@@ -2909,7 +2908,6 @@ static_library("ui") {
        "//chrome/browser/ui/views/zoom",
        "//chrome/browser/ui/webauthn:impl",
        "//chrome/browser/ui/webui/app_service_internals",
 -      "//chrome/browser/ui/webui/autofill_ml_internals",
-       "//chrome/browser/ui/webui/content_annotator_internals",
        "//chrome/browser/ui/webui/side_panel/customize_chrome",
        "//chrome/browser/ui/window_metadata",
+       "//chrome/browser/ui/window_name_prompt",
 --- a/chrome/browser/ui/pdf/BUILD.gn
 +++ b/chrome/browser/ui/pdf/BUILD.gn
 @@ -6,7 +6,6 @@ import("//pdf/features.gni")
@@ -860,9 +1061,9 @@
                            const std::u16string& text);
 --- a/chrome/browser/ui/tabs/public/tab_features.h
 +++ b/chrome/browser/ui/tabs/public/tab_features.h
-@@ -157,12 +157,6 @@ namespace permissions {
- class PermissionIndicatorsTabData;
- }  // namespace permissions
+@@ -165,12 +165,6 @@ namespace webapps {
+ class AppBannerManagerDesktop;
+ }  // namespace webapps
  
 -#if !BUILDFLAG(IS_ANDROID)
 -namespace skills {
@@ -873,7 +1074,7 @@
  namespace sync_sessions {
  class SyncSessionsRouterTabHelper;
  }  // namespace sync_sessions
-@@ -654,10 +648,6 @@ class TabFeatures {
+@@ -679,10 +673,6 @@ class TabFeatures {
    std::unique_ptr<contextual_tasks::ContextualTasksTabVisitTracker>
        contextual_tasks_tab_visit_tracker_;
  
@@ -886,7 +1087,7 @@
    std::unique_ptr<enterprise_reporting::SaasUsageNavigationObserver>
 --- a/chrome/browser/ui/tabs/tab_features.cc
 +++ b/chrome/browser/ui/tabs/tab_features.cc
-@@ -400,11 +400,6 @@ void TabFeatures::Init(TabInterface& tab
+@@ -428,11 +428,6 @@ void TabFeatures::Init(TabInterface& tab
            GetUserDataFactory().CreateInstance<actor::ui::ActorUiTabController>(
                tab, tab, actor::ActorKeyedService::Get(profile));
      }
@@ -895,10 +1096,10 @@
 -          GetUserDataFactory().CreateInstance<skills::SkillsUiTabController>(
 -              tab, tab);
 -    }
+   }  // IsInNormalWindow() end.
  
-     if (accessibility_annotator::
-             ContentAnnotatorService* content_annotator_service =
-@@ -664,10 +659,6 @@ void TabFeatures::Init(TabInterface& tab
+   if (base::FeatureList::IsEnabled(features::kGlicActor)) {
+@@ -700,10 +695,6 @@ void TabFeatures::Init(TabInterface& tab
    }
  #endif
  
@@ -911,7 +1112,7 @@
          std::make_unique<indigo::IndigoPageActionController>(
 --- a/chrome/browser/ui/views/user_education/browser_user_education_service.cc
 +++ b/chrome/browser/ui/views/user_education/browser_user_education_service.cc
-@@ -1008,40 +1008,6 @@ void MaybeRegisterChromeFeaturePromos(
+@@ -1109,40 +1109,6 @@ void MaybeRegisterChromeFeaturePromos(
                         "Triggered when the PDF Viewer opens.")));
  #endif  // BUILDFLAG(ENABLE_PDF_INK2)
  
@@ -954,17 +1155,17 @@
    registry.RegisterFeature(std::move(
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -125,7 +125,6 @@ source_set("configs") {
-       "//chrome/browser/glic/selection",
+@@ -113,7 +113,6 @@ source_set("configs") {
+       "//chrome/browser/actor/ui:actor_overlay_web_view",
        "//chrome/browser/ui/webui/access_code_cast",
        "//chrome/browser/ui/webui/app_service_internals",
 -      "//chrome/browser/ui/webui/autofill_ml_internals",
        "//chrome/browser/ui/webui/color_pipeline_internals",
-       "//chrome/browser/ui/webui/content_annotator_internals",
-       "//chrome/browser/ui/webui/data_sharing",
+       "//chrome/browser/ui/webui/history",
+       "//chrome/browser/ui/webui/infobar_internals",
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-@@ -343,7 +343,6 @@ void RegisterChromeWebUIConfigs() {
+@@ -338,7 +338,6 @@ void RegisterChromeWebUIConfigs() {
    map.AddWebUIConfig(std::make_unique<media_router::AccessCodeCastUIConfig>());
    map.AddWebUIConfig(std::make_unique<actor::ui::ActorOverlayUIConfig>());
    map.AddWebUIConfig(std::make_unique<AppServiceInternalsUIConfig>());
@@ -974,7 +1175,7 @@
    map.AddWebUIConfig(std::make_unique<ColorPipelineInternalsUIConfig>());
 --- a/chrome/browser/ui/webui/settings/BUILD.gn
 +++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -60,7 +60,6 @@ source_set("settings") {
+@@ -62,7 +62,6 @@ source_set("settings") {
      "//chrome/browser/permissions/system",
      "//chrome/browser/profile_resetter",
      "//chrome/browser/profiles:profile",
@@ -982,7 +1183,7 @@
      "//chrome/browser/themes",
      "//chrome/browser/ui/safety_hub",
      "//chrome/browser/ui/search_engines",
-@@ -661,7 +660,6 @@ if (!is_android) {
+@@ -669,7 +668,6 @@ if (!is_android) {
        ]
        deps += [
          "//chrome/browser/profiles",
@@ -1110,7 +1311,7 @@
  #include "chrome/browser/speech/extension_api/tts_engine_extension_api.h"
  #include "chrome/browser/translate/chrome_translate_client.h"
  #include "chrome/browser/ui/read_anything/read_anything_controller.h"
-@@ -420,14 +418,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
+@@ -404,14 +402,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
    prefs_lang = language::ExtractBaseLanguage(prefs_lang);
    SetDefaultLanguageCode(prefs_lang);
  
@@ -1188,9 +1389,9 @@
    guest_view::SlimWebViewBindings::MaybeInstall(*render_frame());
 --- a/chrome/test/BUILD.gn
 +++ b/chrome/test/BUILD.gn
-@@ -2159,9 +2159,6 @@ if (!is_android) {
-       "//chrome/browser/safe_browsing:advanced_protection",
+@@ -2160,9 +2160,6 @@ if (!is_android) {
        "//chrome/browser/safe_browsing:blocking_page_platform_test_support",
+       "//chrome/browser/safe_browsing:browser_tests",
        "//chrome/browser/safe_browsing:verdict_cache_manager_factory",
 -      "//chrome/browser/screen_ai:browser_tests",
 -      "//chrome/browser/screen_ai:screen_ai_install_state",
@@ -1198,7 +1399,7 @@
        "//chrome/browser/search",
        "//chrome/browser/search:browser_tests",
        "//chrome/browser/search:test_support",
-@@ -2752,8 +2749,6 @@ if (!is_android) {
+@@ -2779,8 +2776,6 @@ if (!is_android) {
        "//services/preferences/public/cpp",
        "//services/preferences/public/cpp/tracked",
        "//services/preferences/tracked:features",
@@ -1207,7 +1408,7 @@
        "//services/service_manager/public/cpp",
        "//services/strings",
        "//services/test/echo/public/mojom",
-@@ -6630,7 +6625,6 @@ test("unit_tests") {
+@@ -6713,7 +6708,6 @@ test("unit_tests") {
      # TODO(crbug.com/417513088): Maybe merge with the non-android `deps`
      # declaration above?
      deps += [
@@ -1215,7 +1416,7 @@
        "//chrome:packed_resources",
        "//chrome/browser/apps:icon_standardizer",
        "//chrome/browser/apps/app_service",
-@@ -6672,7 +6666,6 @@ test("unit_tests") {
+@@ -6754,7 +6748,6 @@ test("unit_tests") {
        "//chrome/browser/profile_resetter:fake_profile_resetter",
        "//chrome/browser/profile_resetter:unit_tests",
        "//chrome/browser/resources/new_tab_page_instant:resources_grit",
@@ -1265,7 +1466,7 @@
  #if BUILDFLAG(ENABLE_MEDIA_REMOTING_REDIRECTION)
 --- a/components/BUILD.gn
 +++ b/components/BUILD.gn
-@@ -647,7 +647,6 @@ test("components_unittests") {
+@@ -639,7 +639,6 @@ test("components_unittests") {
        "//components/one_time_tokens/core/browser:unit_tests",
        "//components/page_info:unit_tests",
        "//components/password_manager/core/browser/actor_login:unit_tests",

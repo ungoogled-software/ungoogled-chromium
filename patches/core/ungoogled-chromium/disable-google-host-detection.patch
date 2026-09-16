@@ -32,7 +32,7 @@
  #include "services/network/public/mojom/x_frame_options.mojom.h"
  #include "url/origin.h"
  
--#if BUILDFLAG(ENABLE_EXTENSIONS)
+-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 -#include "extensions/common/extension_urls.h"
 -#endif
 -
@@ -111,7 +111,7 @@
  }
  
  void GoogleURLLoaderThrottle::WillRedirectRequest(
-@@ -245,98 +176,12 @@ void GoogleURLLoaderThrottle::WillRedire
+@@ -245,102 +176,12 @@ void GoogleURLLoaderThrottle::WillRedire
      const network::mojom::URLResponseHead& response_head,
      bool* defer,
      network::HttpRequestHeadersUpdateParams* headers_update_params) {
@@ -134,11 +134,15 @@
 -            dynamic_params_->youtube_restrict));
 -  }
 -
--  if (!dynamic_params_->allowed_domains_for_apps.empty() &&
--      redirect_info->new_url.DomainIs("google.com")) {
--    headers_update_params->modified_cors_exempt_headers.SetHeader(
--        safe_search_api::kGoogleAppsAllowedDomains,
--        dynamic_params_->allowed_domains_for_apps);
+-  if (!dynamic_params_->allowed_domains_for_apps.empty()) {
+-    if (redirect_info->new_url.DomainIs("google.com")) {
+-      headers_update_params->modified_cors_exempt_headers.SetHeader(
+-          safe_search_api::kGoogleAppsAllowedDomains,
+-          dynamic_params_->allowed_domains_for_apps);
+-    } else {
+-      headers_update_params->removed_headers.push_back(
+-          safe_search_api::kGoogleAppsAllowedDomains);
+-    }
 -  }
 -
 -#if BUILDFLAG(IS_ANDROID)
@@ -188,7 +192,7 @@
 -  }
 -#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 -
--#if BUILDFLAG(ENABLE_EXTENSIONS)
+-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 -  // Built-in additional protection for the chrome web store origin by
 -  // ensuring that the X-Frame-Options protection mechanism is set to either
 -  // DENY or SAMEORIGIN.
@@ -206,13 +210,13 @@
 -          network::mojom::XFrameOptionsValue::kSameOrigin;
 -    }
 -  }
--#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+-#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
  }
  
  #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 --- a/components/google/core/common/google_util.cc
 +++ b/components/google/core/common/google_util.cc
-@@ -33,117 +33,6 @@ namespace google_util {
+@@ -34,116 +34,6 @@ namespace google_util {
  
  namespace {
  
@@ -241,22 +245,21 @@
 -    return false;
 -  }
 -
--  size_t tld_length =
--      net::registry_controlled_domains::GetCanonicalHostRegistryLength(
+-  std::optional<std::string_view> tld =
+-      net::registry_controlled_domains::GetCanonicalHostRegistry(
 -          host, net::registry_controlled_domains::EXCLUDE_UNKNOWN_REGISTRIES,
 -          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
--  if ((tld_length == 0) || (tld_length == std::string::npos)) {
+-  if (!tld.has_value() || tld->empty()) {
 -    return false;
 -  }
 -
 -  // Removes the tld and the preceding dot.
 -  std::string_view host_minus_tld =
--      host.substr(0, host.length() - tld_length - 1);
+-      host.substr(0, host.length() - tld->size() - 1);
 -
--  std::string_view tld = host.substr(host.length() - tld_length);
 -  // Remove the trailing dot from tld if present, as for Google domains it's the
 -  // same page.
--  StripTrailingDot(&tld);
+-  StripTrailingDot(&*tld);
 -  if (!allowed_tlds.contains(tld)) {
 -    return false;
 -  }
@@ -330,8 +333,8 @@
  }  // namespace
  
  BASE_FEATURE(kIsViewerGoogleSearchUrl, base::FEATURE_ENABLED_BY_DEFAULT);
-@@ -153,13 +42,6 @@ BASE_FEATURE(kIsViewerGoogleSearchUrl, b
- const char kGoogleHomepageURL[] = "https://www.google.com/";
+@@ -154,13 +44,6 @@ const char kGoogleHomepageURL[] = "https
+ const char kGoogleSearchPrewarmPath[] = "/search/warmup.html";
  
  bool HasGoogleSearchQueryParam(std::string_view str) {
 -  url::Component query(0, static_cast<int>(str.length())), key, value;
@@ -344,7 +347,7 @@
    return false;
  }
  
-@@ -170,175 +52,53 @@ std::string GetGoogleLocale(const std::s
+@@ -171,186 +54,57 @@ std::string GetGoogleLocale(const std::s
  
  GURL AppendGoogleLocaleParam(const GURL& url,
                               const std::string& application_locale) {
@@ -476,6 +479,17 @@
 +  return false;
  }
  
+ bool IsGoogleSearchPrewarmUrl(const GURL& url) {
+-  if (!IsGoogleDomainUrl(url, DISALLOW_SUBDOMAIN,
+-                         DISALLOW_NON_STANDARD_PORTS) &&
+-      !IsGoogleSearchSubdomainUrl(url)) {
+     return false;
+-  }
+-
+-  return base::EndsWith(url.path(), kGoogleSearchPrewarmPath,
+-                        base::CompareCase::INSENSITIVE_ASCII);
+ }
+ 
  bool IsYoutubeDomainUrl(const GURL& url,
                          SubdomainPermission subdomain_permission,
                          PortPermission port_permission) {
@@ -532,12 +546,12 @@
  
 --- a/components/page_load_metrics/google/browser/google_url_util.cc
 +++ b/components/page_load_metrics/google/browser/google_url_util.cc
-@@ -14,39 +14,7 @@
+@@ -16,40 +16,7 @@
  namespace page_load_metrics {
  
  std::optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
--  const size_t registry_length =
--      net::registry_controlled_domains::GetRegistryLength(
+-  const std::optional<size_t> registry_length =
+-      net::registry_controlled_domains::GetRegistry(
 -          url,
 -
 -          // Do not include unknown registries (registries that don't have any
@@ -546,17 +560,18 @@
 -
 -          // Do not include private registries, such as appspot.com. We don't
 -          // want to match URLs like www.google.appspot.com.
--          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
+-          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES)
+-          .transform(&std::string_view::size);
 -
 -  const std::string_view hostname = url.host();
--  if (registry_length == 0 || registry_length == std::string::npos ||
--      registry_length >= hostname.length()) {
+-  if (!registry_length.has_value() || *registry_length == 0 ||
+-      *registry_length >= hostname.length()) {
 -    return std::nullopt;
 -  }
 -
 -  // Removes the tld and the preceding dot.
 -  const std::string_view hostname_minus_registry =
--      hostname.substr(0, hostname.length() - (registry_length + 1));
+-      hostname.substr(0, hostname.length() - (*registry_length + 1));
 -
 -  if (hostname_minus_registry == "google") {
 -    return std::string("");
@@ -572,7 +587,7 @@
  }
  
  bool IsGoogleHostname(const GURL& url) {
-@@ -54,9 +22,7 @@ bool IsGoogleHostname(const GURL& url) {
+@@ -57,9 +24,7 @@ bool IsGoogleHostname(const GURL& url) {
  }
  
  bool IsGoogleSearchHostname(const GURL& url) {
