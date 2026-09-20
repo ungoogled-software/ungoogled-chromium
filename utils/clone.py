@@ -133,7 +133,7 @@ def clone(args): # pylint: disable=too-many-branches, too-many-locals, too-many-
         cwd=gsupath,
         check=True)
     # Apply changes to gsutil
-    run(['git', 'apply'],
+    run(['git', 'apply', '--ignore-whitespace'],
         input=Path(__file__).with_name('gsutil.patch').read_text(encoding=ENCODING),
         cwd=gsupath,
         check=True,
