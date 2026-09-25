@@ -77,13 +77,19 @@ jobs:
         run: |
           rm -rf chromium_src
           mkdir -p chromium_download_cache
-
           if ! ./utils/downloads.py retrieve -i downloads.ini -c chromium_download_cache; then
-            ./utils/clone.py -o chromium_src
-            rm -rf chromium_src/uc_staging
-            find chromium_src -type d -name '.git' -exec rm -rf "{}" \; -prune
-            tar cf "chromium_download_cache/chromium-$(cat chromium_version.txt)-lite.tar.xz" \
-              --transform "s/chromium_src/chromium-$(cat chromium_version.txt)/" chromium_src
+            TARBALL="chromium_download_cache/chromium-$(cat chromium_version.txt)-lite.tar.xz"
+            if [[ $(tar --test-label -f "$TARBALL" 2> /dev/null) == "clone" ]]; then
+              echo "INFO: Using cached clone tarball"
+            else
+              ./utils/clone.py -o chromium_src
+              echo "INFO: Pruning directories for clone tarball"
+              rm -rf chromium_src/uc_staging
+              find chromium_src -type d -name '.git' -exec rm -rf "{}" \; -prune
+              echo "INFO: Creating clone tarball"
+              tar --transform "s/chromium_src/chromium-$(cat chromium_version.txt)/" \
+                --label=clone -cf - chromium_src | zstd -T0 --fast - > "$TARBALL"
+            fi
           fi
 
       - name: Unpack Chromium source archive
