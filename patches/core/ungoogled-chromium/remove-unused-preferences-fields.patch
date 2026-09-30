@@ -4,7 +4,7 @@
 
 --- a/chrome/browser/ash/login/signin/device_id_browsertest.cc
 +++ b/chrome/browser/ash/login/signin/device_id_browsertest.cc
-@@ -32,7 +32,6 @@
+@@ -33,7 +33,6 @@
  #include "chrome/test/base/in_process_browser_test.h"
  #include "chromeos/dbus/constants/dbus_paths.h"
  #include "components/prefs/pref_service.h"
@@ -12,7 +12,7 @@
  #include "components/user_manager/known_user.h"
  #include "components/user_manager/user_manager.h"
  #include "content/public/test/browser_test.h"
-@@ -323,15 +322,6 @@ IN_PROC_BROWSER_TEST_F(DeviceIDTest, PRE
+@@ -324,15 +323,6 @@ IN_PROC_BROWSER_TEST_F(DeviceIDTest, PRE
    SignInOnline(FakeGaiaMixin::kFakeUserEmail, FakeGaiaMixin::kFakeUserPassword,
                 kRefreshToken1, FakeGaiaMixin::kFakeUserGaiaId);
  
@@ -28,7 +28,7 @@
    // Can't use SetKnownUserDeviceId here, because it forbids changing a device
    // ID.
    user_manager::KnownUser known_user(g_browser_process->local_state());
-@@ -360,13 +350,6 @@ IN_PROC_BROWSER_TEST_F(DeviceIDTest, PRE
+@@ -361,13 +351,6 @@ IN_PROC_BROWSER_TEST_F(DeviceIDTest, PRE
    SignInOnline(FakeGaiaMixin::kFakeUserEmail, FakeGaiaMixin::kFakeUserPassword,
                 kRefreshToken1, FakeGaiaMixin::kFakeUserGaiaId);
  
@@ -95,7 +95,7 @@
  }
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -329,7 +329,6 @@
+@@ -325,7 +325,6 @@
  #include "components/safe_browsing/core/browser/url_checker_delegate.h"
  #include "components/safe_browsing/core/common/features.h"
  #include "components/safe_browsing/core/common/hashprefix_realtime/hash_realtime_utils.h"
@@ -115,7 +115,7 @@
  using extensions::api::settings_private::PrefObject;
 --- a/chrome/browser/download/download_browsertest.cc
 +++ b/chrome/browser/download/download_browsertest.cc
-@@ -102,7 +102,6 @@
+@@ -103,7 +103,6 @@
  #include "components/safe_browsing/content/common/file_type_policies_test_util.h"
  #include "components/safe_browsing/content/common/proto/download_file_types.pb.h"
  #include "components/safe_browsing/core/common/proto/csd.pb.h"
@@ -132,7 +132,7 @@
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  #include "components/safe_browsing/core/common/safebrowsing_referral_methods.h"
  #include "components/strings/grit/components_strings.h"
- #include "net/base/mime_util.h"
+ #include "components/url_formatter/elide_url.h"
 --- a/chrome/browser/download/download_ui_safe_browsing_util.cc
 +++ b/chrome/browser/download/download_ui_safe_browsing_util.cc
 @@ -11,7 +11,6 @@
@@ -145,7 +145,7 @@
  #include "chrome/browser/browser_process.h"
 --- a/chrome/browser/enterprise/BUILD.gn
 +++ b/chrome/browser/enterprise/BUILD.gn
-@@ -785,7 +785,6 @@ source_set("impl") {
+@@ -793,7 +793,6 @@ source_set("impl") {
        "signin/enterprise_signin_prefs.cc",
        "signin/enterprise_signin_service.cc",
        "signin/enterprise_signin_service_factory.cc",
@@ -165,7 +165,7 @@
  #include "content/public/browser/web_contents.h"
 --- a/chrome/browser/enterprise/connectors/connectors_service.cc
 +++ b/chrome/browser/enterprise/connectors/connectors_service.cc
-@@ -215,7 +215,7 @@ std::string ConnectorsService::GetManage
+@@ -218,7 +218,7 @@ std::string ConnectorsService::GetManage
  
    std::optional<policy::PolicyScope> scope;
    for (const char* scope_pref :
@@ -174,7 +174,7 @@
  #if !BUILDFLAG(IS_ANDROID)
          AnalysisConnectorScopePref(AnalysisConnector::FILE_ATTACHED),
  #endif
-@@ -265,7 +265,7 @@ std::string ConnectorsService::GetManage
+@@ -268,7 +268,7 @@ std::string ConnectorsService::GetManage
  }
  
  bool ConnectorsService::IsProfileAffiliated() const {
@@ -222,80 +222,22 @@
    std::vector<std::string> system_dns_servers;
 --- a/chrome/browser/enterprise/signin/managed_profile_creation_controller.cc
 +++ b/chrome/browser/enterprise/signin/managed_profile_creation_controller.cc
-@@ -35,7 +35,6 @@
- #include "components/policy/core/browser/signin/user_cloud_signin_restriction_policy_fetcher.h"
- #include "components/policy/core/common/policy_utils.h"
+@@ -31,7 +31,6 @@
+ #include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
+ #include "components/policy/core/browser/signin/profile_separation_policies.h"
  #include "components/prefs/pref_service.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  #include "components/signin/public/identity_manager/accounts_mutator.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
- 
-@@ -142,55 +141,6 @@ void ManagedProfileCreationController::O
- }
- 
- void ManagedProfileCreationController::FetchProfileSeparationPolicies() {
--  // We should not fetch the policies twice.
--  CHECK(!policies_received_);
--  CHECK(!account_level_signin_restriction_policy_fetcher_);
--
--  auto policy_fetch_callback = base::BindOnce(
--      &ManagedProfileCreationController::OnProfileSeparationPoliciesReceived,
--      weak_ptr_factory_.GetWeakPtr());
--
--  if (profile_separation_policies_for_testing_.has_value()) {
--    CHECK_IS_TEST();
--    policy::ProfileSeparationPolicies profile_separation_policies =
--        std::exchange(profile_separation_policies_for_testing_, std::nullopt)
--            .value();
--    std::move(policy_fetch_callback)
--        .Run(std::move(profile_separation_policies));
--    return;
--  }
--
--  // If we cannot make network calls, we will not be able to fetch the
--  // account level policies.
--  if (!g_browser_process->system_network_context_manager()) {
--    std::move(policy_fetch_callback).Run(policy::ProfileSeparationPolicies());
--    return;
--  }
--
--  CHECK(source_profile_);
--  account_level_signin_restriction_policy_fetcher_ =
--      std::make_unique<policy::UserCloudSigninRestrictionPolicyFetcher>(
--          g_browser_process->browser_policy_connector(),
--          g_browser_process->system_network_context_manager()
--              ->GetSharedURLLoaderFactory());
--  account_level_signin_restriction_policy_fetcher_
--      ->GetManagedAccountsSigninRestriction(
--          GetIdentityManager(), account_info_.account_id,
--          std::move(policy_fetch_callback),
--          policy::utils::IsPolicyTestingEnabled(source_profile_->GetPrefs(),
--                                                chrome::GetChannel())
--              ? source_profile_->GetPrefs()
--                    ->GetDefaultPrefValue(
--                        prefs::kUserCloudSigninPolicyResponseFromPolicyTestPage)
--                    ->GetString()
--              : std::string());
--
--  policy_fetch_timeout_.Start(
--      FROM_HERE, base::Seconds(5),
--      base::BindOnce(&ManagedProfileCreationController::
--                         OnProfileSeparationPoliciesReceived,
--                     weak_ptr_factory_.GetWeakPtr(),
--                     policy::ProfileSeparationPolicies()));
- }
- 
- void ManagedProfileCreationController::OnProfileSeparationPoliciesReceived(
-@@ -227,9 +177,6 @@ void ManagedProfileCreationController::O
-       std::move(callback_).Run(base::ok(nullptr),
-                                profile_creation_required_by_policy_);
-     }
--    return;
--  }
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
+@@ -168,7 +167,6 @@ bool ManagedProfileCreationController::I
+     OnProfileCreationDone(base::ok(nullptr));
+     return false;
+   }
 -  ShowManagementDisclaimer();
+   return true;
  }
  
- void ManagedProfileCreationController::ShowManagementDisclaimer() {
 --- a/chrome/browser/enterprise/signin/oidc_authentication_signin_interceptor.cc
 +++ b/chrome/browser/enterprise/signin/oidc_authentication_signin_interceptor.cc
 @@ -49,7 +49,6 @@
@@ -306,7 +248,7 @@
  #include "components/signin/public/identity_manager/primary_account_mutator.h"
  #include "content/public/browser/storage_partition.h"
  #include "content/public/browser/web_contents.h"
-@@ -446,8 +445,7 @@ void OidcAuthenticationSigninInterceptor
+@@ -447,8 +446,7 @@ void OidcAuthenticationSigninInterceptor
  
    // TODO(b/355270189): The interaction between OIDC profiles and BrowserSignin
    // policy should be finalized, this check only prevents Chrome from crashing.
@@ -337,7 +279,7 @@
  void OidcManagedProfileCreationDelegate::OnManagedProfileInitialized(
 --- a/chrome/browser/enterprise/signin/profile_management_disclaimer_service.cc
 +++ b/chrome/browser/enterprise/signin/profile_management_disclaimer_service.cc
-@@ -54,7 +54,6 @@
+@@ -55,7 +55,6 @@
  #include "components/policy/core/common/features.h"
  #include "components/policy/core/common/policy_utils.h"
  #include "components/prefs/pref_service.h"
@@ -345,26 +287,25 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -511,30 +510,6 @@ void ProfileManagementDisclaimerService:
+@@ -540,13 +539,7 @@ void ProfileManagementDisclaimerService:
+           base::BindOnce(&ProfileManagementDisclaimerService::
+                              OnProfileSeparationPoliciesFetched,
+                          weak_ptr_factory_.GetWeakPtr()),
+-          policy::utils::IsPolicyTestingEnabled(profile_->GetPrefs(),
+-                                                chrome::GetChannel())
+-              ? profile_->GetPrefs()
+-                    ->GetDefaultPrefValue(
+-                        prefs::kUserCloudSigninPolicyResponseFromPolicyTestPage)
+-                    ->GetString()
+-              : std::string());
++                         std::string());
+ }
+ 
+ void ProfileManagementDisclaimerService::OnProfileSeparationPoliciesFetched(
+@@ -556,15 +549,6 @@ void ProfileManagementDisclaimerService:
      return;
    }
  
--  if (profile_separation_policies_for_testing_.has_value() ||
--      user_choice_for_testing_.has_value()) {
--    CHECK_IS_TEST();
--    state_->profile_creation_controller =
--        ManagedProfileCreationController::CreateManagedProfileForTesting(
--            &profile_.get(), GetExtendedAccountInfo(state_->account_id),
--            // The access point always has a value if the account_id is set.
--            *state_->access_point,
--            base::BindOnce(&ProfileManagementDisclaimerService::
--                               OnManagedProfileCreationResult,
--                           weak_ptr_factory_.GetWeakPtr()),
--            std::move(profile_separation_policies_for_testing_),
--            std::move(user_choice_for_testing_));
--    return;
--  }
--
 -  state_->profile_creation_controller =
 -      ManagedProfileCreationController::CreateManagedProfile(
 -          &profile_.get(), GetExtendedAccountInfo(state_->account_id),
@@ -372,7 +313,8 @@
 -          *state_->access_point,
 -          base::BindOnce(&ProfileManagementDisclaimerService::
 -                             OnManagedProfileCreationResult,
--                         weak_ptr_factory_.GetWeakPtr()));
+-                         weak_ptr_factory_.GetWeakPtr()),
+-          std::move(profile_separation_policies));
  }
  
  void ProfileManagementDisclaimerService::OnManagedProfileCreationResult(
@@ -396,7 +338,7 @@
  void TokenManagedProfileCreationDelegate::OnManagedProfileInitialized(
 --- a/chrome/browser/extensions/api/enterprise_reporting_private/enterprise_reporting_private_api.cc
 +++ b/chrome/browser/extensions/api/enterprise_reporting_private/enterprise_reporting_private_api.cc
-@@ -211,44 +211,10 @@ api::enterprise_reporting_private::Conte
+@@ -266,44 +266,10 @@ api::enterprise_reporting_private::Conte
    info.built_in_dns_client_enabled = signals.built_in_dns_client_enabled;
    info.enterprise_profile_id = signals.enterprise_profile_id;
  
@@ -453,7 +395,7 @@
  #include "components/signin/public/identity_manager/identity_manager.h"
 --- a/chrome/browser/extensions/api/identity/identity_get_auth_token_function.cc
 +++ b/chrome/browser/extensions/api/identity/identity_get_auth_token_function.cc
-@@ -37,7 +37,6 @@
+@@ -38,7 +38,6 @@
  #include "components/prefs/pref_service.h"
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/oauth_consumer_id.h"
@@ -461,7 +403,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/access_token_info.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -80,7 +79,7 @@ namespace extensions {
+@@ -82,7 +81,7 @@ namespace extensions {
  namespace {
  
  bool IsBrowserSigninAllowed(Profile* profile) {
@@ -533,7 +475,7 @@
      EXPECT_TRUE(prefs->GetBoolean(prefs::kSearchSuggestEnabled));
      VerifyPrefValueAndControlledState(prefs::kPrivacySandboxM1TopicsEnabled,
                                        base::Value(false),
-@@ -139,7 +137,6 @@ class ExtensionPreferenceApiTest : publi
+@@ -136,7 +134,6 @@ class ExtensionPreferenceApiTest : publi
                prefs->GetInteger(prefetch::prefs::kNetworkPredictionOptions));
      EXPECT_FALSE(
          prefs->GetBoolean(password_manager::prefs::kCredentialsEnableService));
@@ -541,7 +483,7 @@
      EXPECT_FALSE(prefs->GetBoolean(prefs::kSearchSuggestEnabled));
      VerifyPrefValueAndControlledState(prefs::kPrivacySandboxM1TopicsEnabled,
                                        base::Value(true),
-@@ -224,7 +221,6 @@ IN_PROC_BROWSER_TEST_F(ExtensionPreferen
+@@ -218,7 +215,6 @@ IN_PROC_BROWSER_TEST_F(ExtensionPreferen
        prefetch::prefs::kNetworkPredictionOptions,
        static_cast<int>(prefetch::NetworkPredictionOptions::kDisabled));
    prefs->SetBoolean(password_manager::prefs::kCredentialsEnableService, false);
@@ -582,7 +524,7 @@
  #include "components/skills/public/skills_prefs.h"
  #include "components/spellcheck/browser/pref_names.h"
  #include "components/supervised_user/core/common/pref_names.h"
-@@ -433,8 +431,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+@@ -437,8 +435,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
        settings_api::PrefType::kNumber;
  
    // Privacy page
@@ -591,7 +533,7 @@
    (*s_allowlist)[::prefs::kDnsOverHttpsMode] = settings_api::PrefType::kString;
    (*s_allowlist)[::prefs::kDnsOverHttpsTemplates] =
        settings_api::PrefType::kString;
-@@ -460,16 +456,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
+@@ -464,16 +460,6 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
        settings_api::PrefType::kBoolean;
  
    // Security page
@@ -677,7 +619,7 @@
      {"spellingServiceEnabled", spellcheck::prefs::kSpellCheckUseSpellingService,
 --- a/chrome/browser/net/profile_network_context_service.cc
 +++ b/chrome/browser/net/profile_network_context_service.cc
-@@ -1484,15 +1484,8 @@ void ProfileNetworkContextService::Confi
+@@ -1480,15 +1480,8 @@ void ProfileNetworkContextService::Confi
  
    network_context_params->enable_certificate_reporting = true;
  
@@ -860,7 +802,7 @@
    { key::kSavingBrowserHistoryDisabled,
      prefs::kSavingBrowserHistoryDisabled,
      base::Value::Type::BOOLEAN },
-@@ -591,9 +576,6 @@ const PolicyToPreferenceMapEntry kSimple
+@@ -594,9 +579,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kAccessibilityImageLabelsEnabled,
      prefs::kAccessibilityImageLabelsEnabled,
      base::Value::Type::BOOLEAN },
@@ -886,7 +828,7 @@
  #if BUILDFLAG(ENABLE_PDF)
    { key::kPdfLocalFileAccessAllowedForDomains,
      prefs::kPdfLocalFileAccessAllowedForDomains,
-@@ -967,9 +940,6 @@ const PolicyToPreferenceMapEntry kSimple
+@@ -964,9 +937,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kAdditionalDnsQueryTypesEnabled,
      prefs::kAdditionalDnsQueryTypesEnabled,
      base::Value::Type::BOOLEAN },
@@ -896,7 +838,7 @@
    { key::kForceGoogleSafeSearch,
      policy_prefs::kForceGoogleSafeSearch,
      base::Value::Type::BOOLEAN },
-@@ -1051,9 +1021,6 @@ const PolicyToPreferenceMapEntry kSimple
+@@ -1048,9 +1018,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kRequireOnlineRevocationChecksForLocalAnchors,
      prefs::kCertRevocationCheckingRequiredLocalAnchors,
      base::Value::Type::BOOLEAN },
@@ -926,7 +868,7 @@
    { key::kHardwareAccelerationModeEnabled,
      prefs::kHardwareAccelerationModeEnabled,
      base::Value::Type::BOOLEAN },
-@@ -2379,9 +2340,6 @@ const PolicyToPreferenceMapEntry kSimple
+@@ -2385,9 +2346,6 @@ const PolicyToPreferenceMapEntry kSimple
    { key::kGoogleSearchSidePanelEnabled,
      prefs::kGoogleSearchSidePanelEnabled,
      base::Value::Type::BOOLEAN },
@@ -936,7 +878,7 @@
  #endif  // BUILDFLAG(IS_ANDROID)
    { key::kAllowBackForwardCacheForCacheControlNoStorePageEnabled,
      policy_prefs::kAllowBackForwardCacheForCacheControlNoStorePageEnabled,
-@@ -3044,28 +3002,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -3050,28 +3008,6 @@ std::unique_ptr<ConfigurationPolicyHandl
    handlers->AddHandler(std::make_unique<GuestModePolicyHandler>());
    handlers->AddHandler(std::make_unique<LocalSyncPolicyHandler>());
    handlers->AddHandler(std::make_unique<ThemeColorPolicyHandler>());
@@ -965,7 +907,7 @@
    handlers->AddHandler(std::make_unique<IntRangePolicyHandler>(
        key::kProfileReauthPrompt, enterprise_signin::prefs::kProfileReauthPrompt,
        static_cast<int>(enterprise_signin::ProfileReauthPrompt::kDoNotPrompt),
-@@ -3140,9 +3076,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -3146,9 +3082,6 @@ std::unique_ptr<ConfigurationPolicyHandl
        signin_legacy_policies;
  #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || \
      BUILDFLAG(IS_LINUX)
@@ -975,7 +917,7 @@
  #endif
  
  #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-@@ -3152,17 +3085,6 @@ std::unique_ptr<ConfigurationPolicyHandl
+@@ -3158,17 +3091,6 @@ std::unique_ptr<ConfigurationPolicyHandl
            enterprise_reporting::kSecuritySignalsClientCertificatesSelectors,
            base::Value::Type::LIST)));
  #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
@@ -1011,7 +953,7 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/site_engagement/content/site_engagement_service.h"
-@@ -1520,7 +1518,6 @@ void RegisterLocalState(PrefRegistrySimp
+@@ -1473,7 +1471,6 @@ void RegisterLocalState(PrefRegistrySimp
    PushMessagingServiceImpl::RegisterPrefs(registry);
  #endif
    RegisterScreenshotPrefs(registry);
@@ -1019,7 +961,7 @@
    search_engines::SearchEngineChoiceService::RegisterLocalStatePrefs(registry);
    secure_origin_allowlist::RegisterPrefs(registry);
    segmentation_platform::SegmentationPlatformService::RegisterLocalStatePrefs(
-@@ -1903,7 +1900,6 @@ void RegisterProfilePrefs(user_prefs::Pr
+@@ -1857,7 +1854,6 @@ void RegisterProfilePrefs(user_prefs::Pr
  #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
    safe_browsing::file_type::RegisterProfilePrefs(registry);
  #endif
@@ -1037,7 +979,7 @@
  #include "components/safe_browsing/core/common/safebrowsing_switches.h"
  #include "components/sync/base/pref_names.h"
  #include "content/public/common/content_switches.h"
-@@ -82,8 +81,6 @@ const CommandLinePrefStore::BooleanSwitc
+@@ -83,8 +82,6 @@ const CommandLinePrefStore::BooleanSwitc
          {switches::kAllowCrossOriginAuthPrompt,
           prefs::kAllowCrossOriginAuthPrompt, true},
          {switches::kDisablePrintPreview, prefs::kPrintPreviewDisabled, true},
@@ -1187,7 +1129,7 @@
      info.Set(ProfileAttributesEntry::kAccountIdKey,
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -153,7 +153,6 @@
+@@ -154,7 +154,6 @@
  #include "components/profile_metrics/browser_profile_type.h"
  #include "components/safe_search_api/safe_search_util.h"
  #include "components/security_interstitials/content/stateful_ssl_host_state_delegate.h"
@@ -1195,7 +1137,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/site_isolation/site_isolation_policy.h"
-@@ -1172,17 +1171,8 @@ void ProfileImpl::OnLocaleReady(CreateMo
+@@ -1171,17 +1170,8 @@ void ProfileImpl::OnLocaleReady(CreateMo
  #if !BUILDFLAG(IS_ANDROID)
    CHECK(!ThemeServiceFactory::GetForProfileIfExists(this));
  
@@ -1223,7 +1165,7 @@
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/signin/public/identity_manager/primary_account_mutator.h"
  #include "components/signin/public/identity_manager/tribool.h"
-@@ -2062,8 +2061,7 @@ void ProfileManager::AddProfileToStorage
+@@ -2058,8 +2057,7 @@ void ProfileManager::AddProfileToStorage
        entry->SetAuthInfo(account_info.gaia, username,
                           is_consented_primary_account);
  
@@ -1233,7 +1175,7 @@
  
  #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
        // Sign out if force-sign-in policy is enabled and profile is not signed
-@@ -2112,14 +2110,13 @@ void ProfileManager::AddProfileToStorage
+@@ -2108,14 +2106,13 @@ void ProfileManager::AddProfileToStorage
  
    init_params.is_ephemeral = IsForceEphemeralProfilesEnabled(profile);
    init_params.is_signed_in_with_credential_provider =
@@ -1271,7 +1213,7 @@
  namespace profiles {
 --- a/chrome/browser/resources/settings/privacy_page/security/security_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/security/security_page.html
-@@ -73,126 +73,6 @@
+@@ -79,126 +79,6 @@
    <settings-subpage page-title="$i18n{securityPageTitle}"
        learn-more-url="$i18n{safeBrowsingHelpCenterURL}"
        route-path$="[[routePath]]">
@@ -1398,7 +1340,7 @@
      <template is="dom-if" if="[[enableHttpsFirstModeNewSettings_]]" restamp>
        <div id="secureConnectionsSection">
          <h2 class="cr-title-text">$i18n{secureConnectionsSectionTitle}</h2>
-@@ -298,12 +178,4 @@
+@@ -304,12 +184,4 @@
          on-click="onAdvancedProtectionProgramLinkClick_"
          external>
      </cr-link-row>
@@ -1563,7 +1505,7 @@
  #include "components/safe_browsing/core/common/safebrowsing_constants.h"
  #include "components/safe_browsing/core/common/utils.h"
  #include "components/security_interstitials/core/unsafe_resource.h"
-@@ -1507,14 +1506,6 @@ bool ChromePasswordProtectionService::Ha
+@@ -1512,14 +1511,6 @@ bool ChromePasswordProtectionService::Ha
  }
  
  void ChromePasswordProtectionService::OnWarningTriggerChanged() {
@@ -1578,7 +1520,7 @@
    // Clears captured enterprise password hashes or GSuite sync password hashes.
    password_manager::PasswordReuseManager* reuse_manager =
        GetPasswordReuseManager();
-@@ -1696,7 +1687,7 @@ TriggerManager* ChromePasswordProtection
+@@ -1701,7 +1692,7 @@ TriggerManager* ChromePasswordProtection
  }
  
  bool ChromePasswordProtectionService::IsSafeBrowsingEnabled() {
@@ -1587,7 +1529,7 @@
  }
  
  bool ChromePasswordProtectionService::IsExtendedReporting() {
-@@ -1716,54 +1707,7 @@ bool ChromePasswordProtectionService::Is
+@@ -1721,54 +1712,7 @@ bool ChromePasswordProtectionService::Is
  bool ChromePasswordProtectionService::IsPingingEnabled(
      LoginReputationClientRequest::TriggerType trigger_type,
      ReusedPasswordAccountType password_type) {
@@ -1642,7 +1584,7 @@
  }
  
  RequestOutcome ChromePasswordProtectionService::GetPingNotSentReason(
-@@ -2007,23 +1951,6 @@ MaybeCreateCommitDeferringCondition(
+@@ -2013,23 +1957,6 @@ MaybeCreateCommitDeferringCondition(
               : nullptr;
  }
  
@@ -1834,7 +1776,7 @@
    return nullptr;
  }
  
-@@ -565,9 +561,6 @@ void SafeBrowsingServiceImpl::OnProfileA
+@@ -546,9 +542,6 @@ void SafeBrowsingServiceImpl::OnProfileA
    std::unique_ptr<PrefChangeRegistrar> registrar =
        std::make_unique<PrefChangeRegistrar>();
    registrar->Init(pref_service);
@@ -1844,7 +1786,7 @@
    // ClientSideDetectionService will need to be refresh the models
    // renderers have if extended-reporting changes.
    registrar->Add(prefs::kSafeBrowsingScoutReportingEnabled,
-@@ -611,14 +604,6 @@ void SafeBrowsingServiceImpl::OnProfileA
+@@ -592,14 +585,6 @@ void SafeBrowsingServiceImpl::OnProfileA
                            NoCachedPopulationReason::kChangeMbbPref));
    user_population_prefs_[pref_service] = std::move(user_population_registrar);
  
@@ -1859,7 +1801,7 @@
  
    // Record the current enhanced protection pref state and JS Optimizer setting
    // for regular profiles only
-@@ -778,18 +763,6 @@ void SafeBrowsingServiceImpl::RefreshSta
+@@ -757,18 +742,6 @@ void SafeBrowsingServiceImpl::RefreshSta
  
    // Check if any profile requires the service to be active.
    enabled_by_prefs_ = false;
@@ -1904,7 +1846,7 @@
    // Get current enabled status. Must be called on IO thread.
    bool enabled() const {
      DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
-@@ -399,10 +389,6 @@ class SafeBrowsingServiceImpl : public S
+@@ -382,10 +372,6 @@ class SafeBrowsingServiceImpl : public S
  
    std::unique_ptr<ProxyConfigMonitor> proxy_config_monitor_;
  
@@ -2058,7 +2000,7 @@
  void AccountPreviewDataServiceFactory::RegisterProfilePrefs(
 --- a/chrome/browser/signin/accounts_policy_manager.cc
 +++ b/chrome/browser/signin/accounts_policy_manager.cc
-@@ -40,7 +40,6 @@
+@@ -39,7 +39,6 @@
  #include "components/profile_metrics/browser_profile_type.h"
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -2066,7 +2008,7 @@
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/accounts_mutator.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
-@@ -211,25 +210,11 @@ void AccountsPolicyManager::Initialize()
+@@ -210,25 +209,11 @@ void AccountsPolicyManager::Initialize()
    EnsurePrimaryAccountAllowedForProfile(
        profile_, signin_metrics::ProfileSignout::kSigninNotAllowedOnProfileInit);
  
@@ -2092,7 +2034,7 @@
    if (identity_manager->AreRefreshTokensLoaded()) {
      OnRefreshTokensLoaded();
    }
-@@ -238,7 +223,6 @@ void AccountsPolicyManager::Initialize()
+@@ -237,7 +222,6 @@ void AccountsPolicyManager::Initialize()
  void AccountsPolicyManager::Shutdown() {
    profile_pref_change_registrar_.RemoveAll();
    local_state_pref_registrar_.RemoveAll();
@@ -2100,7 +2042,7 @@
  }
  
  void AccountsPolicyManager::OnGoogleServicesUsernamePatternChanged() {
-@@ -318,9 +302,7 @@ void AccountsPolicyManager::EnsurePrimar
+@@ -317,9 +301,7 @@ void AccountsPolicyManager::EnsurePrimar
            << ", ProfileSignoutSource="
            << static_cast<int>(clear_primary_account_source)
            << ", signin.allowed preference="
@@ -2109,7 +2051,7 @@
 -          << profile->GetPrefs()->IsManagedPreference(prefs::kSigninAllowed)
            << "), SigninLevel=" << signin_level << ", ProfileType="
            << static_cast<int>(profile_metrics::GetBrowserProfileType(profile));
-       LOG(WARNING) << base::debug::StackTrace().ToString();
+     }
 --- a/chrome/browser/signin/accounts_policy_manager.h
 +++ b/chrome/browser/signin/accounts_policy_manager.h
 @@ -67,9 +67,6 @@ class AccountsPolicyManager : public Key
@@ -2188,7 +2130,7 @@
  #include "components/signin/public/identity_manager/identity_manager.h"
 --- a/chrome/browser/signin/chromeos_mirror_account_consistency_browsertest.cc
 +++ b/chrome/browser/signin/chromeos_mirror_account_consistency_browsertest.cc
-@@ -18,7 +18,6 @@
+@@ -19,7 +19,6 @@
  #include "components/policy/core/common/policy_pref_names.h"
  #include "components/prefs/pref_service.h"
  #include "components/signin/core/browser/signin_header_helper.h"
@@ -2198,7 +2140,7 @@
  #include "components/user_manager/user.h"
 --- a/chrome/browser/signin/dice_browsertest.cc
 +++ b/chrome/browser/signin/dice_browsertest.cc
-@@ -89,7 +89,6 @@
+@@ -90,7 +90,6 @@
  #include "components/signin/public/base/signin_buildflags.h"
  #include "components/signin/public/base/signin_client.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -2216,7 +2158,7 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_capabilities.h"
-@@ -428,12 +427,6 @@ void DiceWebSigninInterceptor::RegisterP
+@@ -434,12 +433,6 @@ void DiceWebSigninInterceptor::RegisterP
                                 std::string());
    registry->RegisterBooleanPref(
        prefs::kManagedAccountsSigninRestrictionScopeMachine, false);
@@ -2229,7 +2171,7 @@
  }
  
  std::optional<SigninInterceptionHeuristicOutcome>
-@@ -1783,16 +1776,6 @@ void DiceWebSigninInterceptor::
+@@ -1805,16 +1798,6 @@ void DiceWebSigninInterceptor::
            g_browser_process->browser_policy_connector(),
            g_browser_process->system_network_context_manager()
                ->GetSharedURLLoaderFactory());
@@ -2256,7 +2198,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
-@@ -239,7 +238,7 @@ void HeaderModificationDelegateImpl::Pro
+@@ -240,7 +239,7 @@ void HeaderModificationDelegateImpl::Pro
  #endif
        is_sync_feature_enabled,
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
@@ -2308,7 +2250,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/signin/public/identity_manager/primary_account_mutator.h"
-@@ -321,21 +320,7 @@ bool IsAllowedByPromoFrequency(Profile&
+@@ -322,21 +321,7 @@ bool IsAllowedByPromoFrequency(Profile&
  }
  
  bool WasPreviouslySyncingWithPrimaryAccount(Profile* profile) {
@@ -2330,7 +2272,7 @@
  }
  
  ProfileMenuAvatarButtonPromoInfo
-@@ -437,49 +422,19 @@ bool PromoTypeHasSyncableData(SignInProm
+@@ -464,49 +449,19 @@ bool PromoTypeHasSyncableData(SignInProm
  }
  
  int GetAddressPromoShownCount(Profile& profile, const GaiaId& gaia_id) {
@@ -2384,7 +2326,7 @@
  }
  
  int GetContextualPromoDismissCountPerSignedOutProfile(Profile& profile,
-@@ -646,62 +601,7 @@ bool CanShowPromoForSyncableDataType(Sig
+@@ -673,62 +628,7 @@ bool CanShowPromoForSyncableDataType(Sig
  // Needs additional checks depending on the type of the promo.
  // `profile` is the profile of the tab the promo would be shown on.
  bool ShouldShowSignInPromoCommon(Profile& profile, SignInPromoType type) {
@@ -2447,7 +2389,7 @@
  }
  
  #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
-@@ -711,32 +611,7 @@ bool ShouldShowSignInPromoCommon(Profile
+@@ -738,32 +638,7 @@ bool ShouldShowSignInPromoCommon(Profile
  #if BUILDFLAG(ENABLE_EXTENSIONS)
  bool ShouldShowExtensionSignInPromo(Profile& profile,
                                      const extensions::Extension& extension) {
@@ -2480,7 +2422,7 @@
  }
  #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
  
-@@ -775,30 +650,7 @@ bool ShouldShowSearchAIModeSignInPromo(P
+@@ -802,30 +677,7 @@ bool ShouldShowSearchAIModeSignInPromo(P
  }
  
  bool ShouldShowBookmarkSignInPromo(Profile& profile) {
@@ -2511,7 +2453,7 @@
  }
  
  bool ShouldShowComposeboxDriveContextMenuOptionSignInPromo(Profile& profile) {
-@@ -882,88 +734,6 @@ SignInPromoType GetSignInPromoTypeFromAc
+@@ -909,88 +761,6 @@ SignInPromoType GetSignInPromoTypeFromAc
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
  void RecordSignInPromoShown(signin_metrics::AccessPoint access_point,
                              Profile* profile) {
@@ -2637,7 +2579,7 @@
  }
  #endif  // !BUILDFLAG(IS_CHROMEOS)
  
-@@ -499,57 +489,7 @@ bool IsValidAccessPointForHistoryOptinSc
+@@ -501,57 +491,7 @@ bool IsValidAccessPointForHistoryOptinSc
  }
  
  bool ShouldShowAvatarSyncPromo(Profile* profile) {
@@ -2799,7 +2741,7 @@
  #include "components/security_interstitials/content/common_name_mismatch_handler.h"
 --- a/chrome/browser/ssl/ssl_error_controller_client.cc
 +++ b/chrome/browser/ssl/ssl_error_controller_client.cc
-@@ -20,7 +20,6 @@
+@@ -21,7 +21,6 @@
  #include "chrome/browser/ssl/stateful_ssl_host_state_delegate_factory.h"
  #include "chrome/common/pref_names.h"
  #include "chrome/common/url_constants.h"
@@ -2809,7 +2751,7 @@
  #include "components/security_interstitials/content/stateful_ssl_host_state_delegate.h"
 --- a/chrome/browser/sync/sync_service_factory.cc
 +++ b/chrome/browser/sync/sync_service_factory.cc
-@@ -300,8 +300,6 @@ syncer::DataTypeController::TypeVector C
+@@ -298,8 +298,6 @@ syncer::DataTypeController::TypeVector C
  
    builder.SetDataTypeStoreService(
        DataTypeStoreServiceFactory::GetForProfile(profile));
@@ -2818,7 +2760,7 @@
  
  #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
    builder.SetExtensionSyncService(ExtensionSyncService::Get(profile));
-@@ -398,114 +396,7 @@ std::unique_ptr<KeyedService> BuildSyncS
+@@ -392,114 +390,7 @@ std::unique_ptr<KeyedService> BuildSyncS
      std::optional<syncer::CreateHttpPostProviderFactory>
          create_http_post_provider_factory_for_test,
      content::BrowserContext* context) {
@@ -2933,7 +2875,7 @@
  }
  
  }  // namespace
-@@ -576,7 +467,6 @@ SyncServiceFactory::SyncServiceFactory()
+@@ -570,7 +461,6 @@ SyncServiceFactory::SyncServiceFactory()
    DependsOn(PasswordSenderServiceFactory::GetInstance());
    DependsOn(ProfilePasswordStoreFactory::GetInstance());
  
@@ -2959,11 +2901,11 @@
  #include "components/signin/public/base/signin_metrics.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "components/tab_groups/tab_group_id.h"
  #include "components/tabs/public/tab_interface.h"
- #include "components/translate/core/browser/translate_manager.h"
 --- a/chrome/browser/ui/chrome_pages.cc
 +++ b/chrome/browser/ui/chrome_pages.cc
-@@ -87,7 +87,6 @@
+@@ -88,7 +88,6 @@
  #include "base/metrics/histogram_functions.h"
  #include "chrome/browser/signin/identity_manager_factory.h"
  #include "chrome/browser/web_applications/web_app_utils.h"
@@ -3058,6 +3000,73 @@
    product_specific_data["Is mainpage UI"] = false;
    product_specific_data["Is downloads page UI"] = false;
    product_specific_data["Is download prompt UI"] = false;
+--- a/chrome/browser/ui/profiles/profile_picker.cc
++++ b/chrome/browser/ui/profiles/profile_picker.cc
+@@ -26,7 +26,6 @@
+ #include "chrome/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/signin/public/base/consent_level.h"
+-#include "components/signin/public/base/signin_pref_names.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ 
+ namespace {
+@@ -48,26 +47,6 @@ ProfilePicker::AvailabilityOnStartup Get
+   }
+ }
+ 
+-bool IsFirstRunDisabledByPolicy(Profile& profile) {
+-  const PrefService* const local_state = g_browser_process->local_state();
+-  if (!local_state->GetBoolean(prefs::kPromotionsEnabled)) {
+-    // Corresponding policy: PromotionsEnabled=false
+-    return true;
+-  }
+-
+-  if (!SyncServiceFactory::IsSyncAllowed(&profile)) {
+-    // Corresponding policy: SyncDisabled=true
+-    return true;
+-  }
+-
+-  if (!profile.GetPrefs()->GetBoolean(prefs::kSigninAllowed) ||
+-      !profile.GetPrefs()->GetBoolean(prefs::kSigninAllowedOnNextStartup)) {
+-    // Corresponding policy: BrowserSignin=0
+-    return true;
+-  }
+-
+-  return false;
+-}
+ 
+ }  // namespace
+ 
+@@ -240,28 +219,7 @@ StartupProfileMode ProfilePicker::GetSta
+ // static
+ std::optional<ProfilePicker::FirstRunFinishReason>
+ ProfilePicker::ComputeFirstRunSkipReason(Profile& profile) {
+-  // This check should be done prior to the profile already set up check below,
+-  // because the policy `BrowserSignin=2` can cause the profile to be signed in
+-  // already at this point.
+-  if (signin_util::IsForceSigninEnabled()) {
+-    // Corresponding policy: BrowserSignin=2
+-    // Debugging note: On Linux this policy is not supported and does not get
+-    // translated to the prefs (see crbug.com/41455343), but we still respond to
+-    // `prefs::kForceBrowserSignin` being set (e.g. if manually edited).
+-    return FirstRunFinishReason::kForceSignin;
+-  }
+-
+-  signin::IdentityManager& identity_manager =
+-      CHECK_DEREF(IdentityManagerFactory::GetForProfile(&profile));
+-  if (identity_manager.HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+-    return FirstRunFinishReason::kProfileAlreadySetUp;
+-  }
+-
+-  if (IsFirstRunDisabledByPolicy(profile)) {
+-    return FirstRunFinishReason::kSkippedByPolicies;
+-  }
+-
+-  return std::nullopt;
++  return ProfilePicker::FirstRunFinishReason::kFinishedFlow;
+ }
+ 
+ // static
 --- a/chrome/browser/ui/safety_hub/menu_notification_service.cc
 +++ b/chrome/browser/ui/safety_hub/menu_notification_service.cc
 @@ -21,7 +21,6 @@
@@ -3161,7 +3170,7 @@
  bool MaybeShowToast(BrowserWindowInterface* browser) {
 --- a/chrome/browser/ui/signin/signin_view_controller.cc
 +++ b/chrome/browser/ui/signin/signin_view_controller.cc
-@@ -38,7 +38,6 @@
+@@ -39,7 +39,6 @@
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_buildflags.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -3169,7 +3178,7 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -444,14 +443,6 @@ void SigninViewController::SignoutOrReau
+@@ -457,14 +456,6 @@ void SigninViewController::SignoutOrReau
            &SigninViewController::SignoutOrReauthWithPromptWithUnsyncedDataTypes,
            weak_ptr_factory_.GetWeakPtr(), reauth_access_point,
            profile_signout_source, token_signout_source);
@@ -3186,7 +3195,7 @@
        .Run(absl::flat_hash_map<syncer::DataType, size_t>());
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -132,7 +132,6 @@
+@@ -133,7 +133,6 @@
  #include "components/saved_tab_groups/public/features.h"
  #include "components/send_tab_to_self/features.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -3194,55 +3203,53 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/strings/grit/components_strings.h"
-@@ -691,132 +690,7 @@ int ProfileSubMenuModel::GetAndIncrement
- }
- 
- bool ProfileSubMenuModel::BuildSyncSection() {
--#if !BUILDFLAG(IS_CHROMEOS)
--  // TODO(crbug.com/440342282): Support personalized signin button.
--  if (!CanOfferSignin(profile_, GaiaId(), /*email=*/std::string(),
+@@ -303,123 +302,7 @@ struct SigninSectionInfo {
+ SigninSectionInfo ComputeSigninSectionInfo(Profile* profile) {
+   SigninSectionInfo info;
+   // TODO(crbug.com/440342282): Support personalized signin button.
+-  if (!CanOfferSignin(profile, GaiaId(), /*email=*/std::string(),
 -                      /*allow_account_from_other_profile=*/true)
 -           .IsOk()) {
-     return false;
--  }
--#endif  // BUILDFLAG(IS_CHROMEOS)
--
--  if (!SyncServiceFactory::IsSyncAllowed(profile_)) {
--    return false;
+     return info;
 -  }
 -
+-  if (!SyncServiceFactory::IsSyncAllowed(profile)) {
+-    return info;
+-  }
+-
+-  info.should_build_signin_section = true;
 -  signin::IdentityManager* identity_manager =
--      IdentityManagerFactory::GetForProfile(profile_);
--  AddTitle(GetSyncSectionTitle(profile_, identity_manager));
+-      IdentityManagerFactory::GetForProfile(profile);
+-  info.title = GetSyncSectionTitle(profile, identity_manager);
 -
 -  // First, check for sync errors. They may exist even if sync-the-feature is
 -  // disabled and only sync-the-transport is running.
--  syncer::SyncService* service = SyncServiceFactory::GetForProfile(profile_);
+-  syncer::SyncService* service = SyncServiceFactory::GetForProfile(profile);
 -  if (service) {
 -    const syncer::SyncService::UserActionableError error =
 -        service->GetUserActionableError();
 -    if (error != syncer::SyncService::UserActionableError::kNone) {
--      int command_id = 0;
--      const gfx::VectorIcon* icon = nullptr;
--      int button_string_id =
+-      info.button_string_id =
 -          GetSyncErrorButtonStringId(error, /*support_title_case=*/true);
 -      switch (error) {
 -        case syncer::SyncService::UserActionableError::kNone:
 -          NOTREACHED();
 -        case syncer::SyncService::UserActionableError::kSignInNeedsUpdate:
--          command_id = IDC_SHOW_SIGNIN_WHEN_PAUSED;
+-          info.command_id = IDC_SHOW_SIGNIN_WHEN_PAUSED;
+-          info.has_actionable_error = true;
 -          if (identity_manager->HasPrimaryAccount(
 -                  signin::ConsentLevel::kSync)) {
--            button_string_id = IDS_SYNC_RELOGIN_BUTTON_MAYBE_TITLE_CASE;
--            icon = &(features::IsRoundedIconsEnabled()
--                         ? vector_icons::kSyncDisabledIcon
--                         : vector_icons::kSyncOffChromeRefreshOldIcon);
+-            info.button_string_id = IDS_SYNC_RELOGIN_BUTTON_MAYBE_TITLE_CASE;
+-            info.icon = &(features::IsRoundedIconsEnabled()
+-                              ? vector_icons::kSyncDisabledIcon
+-                              : vector_icons::kSyncOffChromeRefreshOldIcon);
 -          } else {
 -            // Merge this case with the others below once ConsentLevel::kSync is
 -            // gone.
--            icon = &(features::IsRoundedIconsEnabled()
--                         ? vector_icons::kAccountCircleOffIcon
--                         : vector_icons::kAccountCircleOffChromeRefreshOldIcon);
+-            info.icon =
+-                &(features::IsRoundedIconsEnabled()
+-                      ? vector_icons::kAccountCircleOffIcon
+-                      : vector_icons::kAccountCircleOffChromeRefreshOldIcon);
 -          }
 -          break;
 -        case syncer::SyncService::UserActionableError::
@@ -3253,74 +3260,90 @@
 -            kTrustedVaultRecoverabilityDegradedForEverything:
 -        case syncer::SyncService::UserActionableError::
 -            kNeedsTrustedVaultKeyForEverything:
--          command_id = IDC_SHOW_SIGNIN_WHEN_PAUSED;
--          icon = &(features::IsRoundedIconsEnabled()
--                       ? vector_icons::kAccountCircleOffIcon
--                       : vector_icons::kAccountCircleOffChromeRefreshOldIcon);
+-          info.command_id = IDC_SHOW_SIGNIN_WHEN_PAUSED;
+-          info.has_actionable_error = true;
+-          info.icon =
+-              &(features::IsRoundedIconsEnabled()
+-                    ? vector_icons::kAccountCircleOffIcon
+-                    : vector_icons::kAccountCircleOffChromeRefreshOldIcon);
 -          break;
 -        case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
--          command_id = IDC_UPGRADE_DIALOG;
--          icon = &(features::IsRoundedIconsEnabled()
--                       ? vector_icons::kErrorIcon
--                       : vector_icons::kErrorOutlineOldIcon);
+-          info.command_id = IDC_UPGRADE_DIALOG;
+-          info.has_actionable_error = true;
+-          info.icon = &(features::IsRoundedIconsEnabled()
+-                            ? vector_icons::kErrorIcon
+-                            : vector_icons::kErrorOutlineOldIcon);
 -          break;
 -        case syncer::SyncService::UserActionableError::kNeedsPassphrase:
--          command_id = IDC_SHOW_SYNC_PASSPHRASE_DIALOG;
--          icon = &(features::IsRoundedIconsEnabled()
--                       ? vector_icons::kErrorIcon
--                       : vector_icons::kErrorOutlineOldIcon);
+-          info.command_id = IDC_SHOW_SYNC_PASSPHRASE_DIALOG;
+-          info.has_actionable_error = true;
+-          info.icon = &(features::IsRoundedIconsEnabled()
+-                            ? vector_icons::kErrorIcon
+-                            : vector_icons::kErrorOutlineOldIcon);
 -          break;
 -        case syncer::SyncService::UserActionableError::
 -            kNeedsSettingsConfirmation:
 -        case syncer::SyncService::UserActionableError::kUnrecoverableError:
 -          // Only shown for "Sync-the-feature".
--          command_id = IDC_SHOW_SYNC_SETTINGS;
--          icon = &(features::IsRoundedIconsEnabled()
--                       ? vector_icons::kErrorIcon
--                       : vector_icons::kErrorOutlineOldIcon);
+-          info.command_id = IDC_SHOW_SYNC_SETTINGS;
+-          info.has_actionable_error = true;
+-          info.icon = &(features::IsRoundedIconsEnabled()
+-                            ? vector_icons::kErrorIcon
+-                            : vector_icons::kErrorOutlineOldIcon);
 -          break;
 -        case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
 -          // For this specific error (as opposed to all others), there is no
 -          // error UI in the menu.
--          return true;
+-          return info;
 -      }
--      CHECK_NE(command_id, 0);
--      AddItemWithStringIdAndVectorIcon(this, command_id, button_string_id,
--                                       *icon);
--      return true;
+-      CHECK_NE(info.command_id, 0);
+-      return info;
 -    }
 -  }
 -
 -  if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
--    AddItemWithStringIdAndVectorIcon(
--        this, IDC_SHOW_SYNC_SETTINGS, IDS_PROFILE_ROW_SYNC_IS_ON,
--        features::IsRoundedIconsEnabled()
--            ? vector_icons::kSyncIcon
--            : vector_icons::kSyncChromeRefreshOldIcon);
--  } else {
--    if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
--      if (!identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
--        AddItemWithStringIdAndVectorIcon(
--            this, IDC_SHOW_SIGNIN, IDS_PROFILE_MENU_SIGNIN_PROMO_BUTTON,
--            features::IsRoundedIconsEnabled()
--                ? kAccountCircleFilledIcon
--                : vector_icons::kAccountCircleOldIcon);
--        signin_metrics::LogSignInOffered(
--            signin_metrics::AccessPoint::kMenu,
--            signin_ui_util::GetSingleAccountForPromos(
--                identity_manager,
--                AccountPreviewDataServiceFactory::GetForProfile(profile_))
--                    .IsEmpty()
--                ? signin_metrics::PromoAction::
--                      PROMO_ACTION_NEW_ACCOUNT_NO_EXISTING_ACCOUNT
--                : signin_metrics::PromoAction::PROMO_ACTION_WITH_DEFAULT);
--      }
--    } else {
--      AddItemWithStringIdAndVectorIcon(
--          this, IDC_TURN_ON_SYNC, IDS_PROFILE_ROW_TURN_ON_SYNC,
--          features::IsRoundedIconsEnabled()
--              ? vector_icons::kSyncDisabledIcon
--              : vector_icons::kSyncOffChromeRefreshOldIcon);
+-    info.command_id = IDC_SHOW_SYNC_SETTINGS;
+-    info.button_string_id = IDS_PROFILE_ROW_SYNC_IS_ON;
+-    info.icon = &(features::IsRoundedIconsEnabled()
+-                      ? vector_icons::kSyncIcon
+-                      : vector_icons::kSyncChromeRefreshOldIcon);
+-  } else if (!identity_manager->HasPrimaryAccount(
+-                 signin::ConsentLevel::kSignin)) {
+-    info.command_id = IDC_SHOW_SIGNIN;
+-    info.button_string_id = IDS_PROFILE_MENU_SIGNIN_PROMO_BUTTON;
+-    info.icon = &(features::IsRoundedIconsEnabled()
+-                      ? kAccountCircleFilledIcon
+-                      : vector_icons::kAccountCircleOldIcon);
+-    info.signin_promo_action =
+-        signin_ui_util::GetSingleAccountForPromos(
+-            identity_manager,
+-            AccountPreviewDataServiceFactory::GetForProfile(profile))
+-                .IsEmpty()
+-            ? signin_metrics::PromoAction::
+-                  PROMO_ACTION_NEW_ACCOUNT_NO_EXISTING_ACCOUNT
+-            : signin_metrics::PromoAction::PROMO_ACTION_WITH_DEFAULT;
+-  }
+-  return info;
+ }
+ 
+ class ProfileSubMenuModel : public ui::SimpleMenuModel,
+@@ -661,22 +544,7 @@ int ProfileSubMenuModel::GetAndIncrement
+ }
+ 
+ bool ProfileSubMenuModel::BuildSigninSection(const SigninSectionInfo& info) {
+-  if (!info.should_build_signin_section) {
+     return false;
+-  }
+-
+-  AddTitle(info.title);
+-
+-  if (info.command_id != 0) {
+-    CHECK(info.icon);
+-    AddItemWithStringIdAndVectorIcon(this, info.command_id,
+-                                     info.button_string_id, *info.icon);
+-    if (info.signin_promo_action.has_value()) {
+-      signin_metrics::LogSignInOffered(signin_metrics::AccessPoint::kMenu,
+-                                       *info.signin_promo_action);
 -    }
 -  }
 -  return true;
@@ -3339,7 +3362,7 @@
  #include "content/public/browser/browser_thread.h"
 --- a/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
 +++ b/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
-@@ -71,7 +71,6 @@
+@@ -72,7 +72,6 @@
  #include "components/prefs/pref_service.h"
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -3347,7 +3370,7 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -2772,12 +2771,6 @@ void AvatarToolbarButtonStateManager::Ma
+@@ -2768,12 +2767,6 @@ void AvatarToolbarButtonStateManager::Ma
    PrefService* prefs = profile->GetPrefs();
    CHECK(prefs);
  
@@ -3370,7 +3393,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
-@@ -1085,9 +1084,7 @@ void ProfileMenuView::MaybeBuildChromeAc
+@@ -1074,9 +1073,7 @@ void ProfileMenuView::MaybeBuildChromeAc
    // Show the settings button when signed in to Chrome or to the web, or if
    // signin is disallowed.
    const bool should_show_settings_button =
@@ -3381,7 +3404,7 @@
    if (!should_show_settings_button) {
      return;
    }
-@@ -1113,27 +1110,6 @@ void ProfileMenuView::MaybeBuildChromeAc
+@@ -1102,27 +1099,6 @@ void ProfileMenuView::MaybeBuildChromeAc
  }
  
  void ProfileMenuView::MaybeBuildGoogleServicesSettingsButton() {
@@ -3411,7 +3434,7 @@
  void ProfileMenuView::MaybeBuildManageGoogleAccountButton() {
 --- a/chrome/browser/ui/views/profiles/profile_menu_view_browsertest.cc
 +++ b/chrome/browser/ui/views/profiles/profile_menu_view_browsertest.cc
-@@ -111,7 +111,6 @@
+@@ -112,7 +112,6 @@
  #include "components/signin/core/browser/test_account_preview_data_service.h"
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -3419,71 +3442,6 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
  #include "components/signin/public/identity_manager/identity_test_utils.h"
---- a/chrome/browser/ui/views/profiles/profile_picker_utils.cc
-+++ b/chrome/browser/ui/views/profiles/profile_picker_utils.cc
-@@ -15,36 +15,11 @@
- #include "chrome/common/pref_names.h"
- #include "components/prefs/pref_service.h"
- #include "components/signin/public/base/consent_level.h"
--#include "components/signin/public/base/signin_pref_names.h"
- #include "components/signin/public/identity_manager/identity_manager.h"
- #include "content/public/browser/web_contents.h"
- #include "ui/base/page_transition_types.h"
- #include "ui/base/window_open_disposition.h"
- 
--namespace {
--
--bool IsFirstRunDisabledByPolicy(Profile& profile) {
--  const PrefService* const local_state = g_browser_process->local_state();
--  if (!local_state->GetBoolean(prefs::kPromotionsEnabled)) {
--    // Corresponding policy: PromotionsEnabled=false
--    return true;
--  }
--
--  if (!SyncServiceFactory::IsSyncAllowed(&profile)) {
--    // Corresponding policy: SyncDisabled=true
--    return true;
--  }
--
--  if (!profile.GetPrefs()->GetBoolean(prefs::kSigninAllowed) ||
--      !profile.GetPrefs()->GetBoolean(prefs::kSigninAllowedOnNextStartup)) {
--    // Corresponding policy: BrowserSignin=0
--    return true;
--  }
--
--  return false;
--}
--
--}  // namespace
- 
- void OpenLearnMorePopup(Profile* profile,
-                         std::unique_ptr<content::WebContents> contents,
-@@ -60,24 +35,5 @@ void OpenLearnMorePopup(Profile* profile
- std::optional<ProfilePicker::FirstRunFinishReason> ComputeFirstRunSkipReason(
-     Profile& profile,
-     signin::IdentityManager& identity_manager) {
--  // This check should be done prior to the profile already set up check below,
--  // because the policy `BrowserSignin=2` can cause the profile to be signed in
--  // already at this point.
--  if (signin_util::IsForceSigninEnabled()) {
--    // Corresponding policy: BrowserSignin=2
--    // Debugging note: On Linux this policy is not supported and does not get
--    // translated to the prefs (see crbug.com/41455343), but we still respond to
--    // `prefs::kForceBrowserSignin` being set (e.g. if manually edited).
--    return ProfilePicker::FirstRunFinishReason::kForceSignin;
--  }
--
--  if (identity_manager.HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
--    return ProfilePicker::FirstRunFinishReason::kProfileAlreadySetUp;
--  }
--
--  if (IsFirstRunDisabledByPolicy(profile)) {
--    return ProfilePicker::FirstRunFinishReason::kSkippedByPolicies;
--  }
--
--  return std::nullopt;
-+  return ProfilePicker::FirstRunFinishReason::kFinishedFlow;
- }
 --- a/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
 +++ b/chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.cc
 @@ -121,7 +121,6 @@ PasswordReuseModalWarningDialog::Passwor
@@ -3549,12 +3507,12 @@
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/zoom/page_zoom.h"
  #include "components/zoom/zoom_controller.h"
-@@ -444,77 +443,6 @@ void AddSignedInChipToProfileMenuItem(
+@@ -445,76 +444,6 @@ void AddSignedInChipToProfileMenuItem(
      const int horizontal_padding,
      std::vector<base::CallbackListSubscription>&
          profile_menu_subscription_list) {
 -  if (!profile->GetPrefs()->GetBoolean(prefs::kSigninAllowed) ||
--      profile->IsIncognitoProfile()) {
+-      profile->IsPrimaryOTRProfileWithRegularParent()) {
 -    return;
 -  }
 -  constexpr int profile_chip_corner_radii = 100;
@@ -3583,9 +3541,8 @@
 -                          : ui::kColorAppMenuProfileRowChipBackground,
 -                      profile_chip_corner_radii))
 -                  .SetBorder(views::CreateEmptyBorder(
--                      ChromeLayoutProvider::Get()
--                          ->GetInsetsMetric(
--                              INSETS_PROFILE_SIGNIN_STATUS_CHIP))))
+-                      ChromeLayoutProvider::Get()->GetInsetsMetric(
+-                          INSETS_APP_MENU_CHIP))))
 -          .Build();
 -
 -  // MenuItemView has specific layout logic for child views which does not work
@@ -3637,7 +3594,7 @@
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/user_education/common/ntp_promo/ntp_promo_registry.h"
  #include "components/user_education/common/ntp_promo/ntp_promo_specification.h"
-@@ -51,14 +50,7 @@ Profile* GetProfile(ContextPtr context)
+@@ -53,14 +52,7 @@ Profile* GetProfile(ContextPtr context)
  
  NtpPromoSpecification::Eligibility CheckExtensionsPromoEligibility(
      ContextPtr context) {
@@ -3686,7 +3643,7 @@
  #include "components/strings/grit/components_strings.h"
  #include "content/public/browser/web_ui_data_source.h"
  #include "ui/base/l10n/l10n_util.h"
-@@ -106,7 +105,7 @@ content::WebUIDataSource* HistoryUtil::P
+@@ -110,7 +109,7 @@ content::WebUIDataSource* HistoryUtil::P
  
    source->AddBoolean("isGuestSession", profile->IsGuestSession());
    source->AddBoolean("isSignInAllowed",
@@ -3707,7 +3664,7 @@
  #include "content/public/browser/browser_thread.h"
 --- a/chrome/browser/ui/webui/history/browsing_history_handler.cc
 +++ b/chrome/browser/ui/webui/history/browsing_history_handler.cc
-@@ -68,7 +68,6 @@
+@@ -70,7 +70,6 @@
  #include "components/keyed_service/core/service_access_type.h"
  #include "components/prefs/pref_service.h"
  #include "components/query_parser/snippet.h"
@@ -3824,7 +3781,7 @@
  #include "components/saved_tab_groups/public/features.h"
  #include "components/search/ntp_features.h"
  #include "components/signin/public/base/signin_buildflags.h"
-@@ -4269,11 +4268,6 @@ void AddSiteSettingsStrings(content::Web
+@@ -4295,11 +4294,6 @@ void AddSiteSettingsStrings(content::Web
    html_source->AddLocalizedStrings(kSensorsLocalizedStrings);
  
    html_source->AddBoolean(
@@ -3867,7 +3824,7 @@
  #include "content/public/browser/storage_partition.h"
  #include "content/public/browser/web_contents.h"
  #include "content/public/browser/web_ui.h"
-@@ -137,8 +136,6 @@ void InlineLoginHandler::ContinueHandleI
+@@ -138,8 +137,6 @@ void InlineLoginHandler::ContinueHandleI
    Profile* profile = Profile::FromWebUI(web_ui());
    std::string default_email;
    if (reason == signin_metrics::Reason::kSigninPrimaryAccount) {
@@ -4101,9 +4058,9 @@
  #include "components/prefs/pref_service.h"
 -#include "components/signin/public/base/signin_pref_names.h"
  #include "google_apis/gaia/gaia_auth_util.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
  #include "third_party/skia/include/core/SkColor.h"
- #include "ui/base/base_window.h"
-@@ -256,26 +255,6 @@ void TurnSyncOnHelperDelegateImpl::OnPro
+@@ -249,26 +248,6 @@ void TurnSyncOnHelperDelegateImpl::OnPro
      return;
    }
  
@@ -4128,11 +4085,11 @@
 -    return;
 -  }
  
-   browser_->GetFeatures()
-       .signin_view_controller()
+   SigninViewController::From(browser_)->ShowModalManagedUserNoticeDialog(
+       std::make_unique<signin::EnterpriseProfileCreationDialogParams>(
 --- a/chrome/browser/ui/webui/signin/turn_sync_on_helper_unittest.cc
 +++ b/chrome/browser/ui/webui/signin/turn_sync_on_helper_unittest.cc
-@@ -54,7 +54,6 @@
+@@ -55,7 +55,6 @@
  #include "components/search_engines/template_url_service.h"
  #include "components/signin/public/base/consent_level.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -4389,7 +4346,7 @@
  #include "components/unified_consent/url_keyed_data_collection_consent_helper.h"
 --- a/components/commerce/core/subscriptions/subscriptions_server_proxy.cc
 +++ b/components/commerce/core/subscriptions/subscriptions_server_proxy.cc
-@@ -22,7 +22,6 @@
+@@ -21,7 +21,6 @@
  #include "components/commerce/core/subscriptions/commerce_subscription.h"
  #include "components/endpoint_fetcher/endpoint_fetcher.h"
  #include "components/signin/public/base/consent_level.h"
@@ -4803,20 +4760,21 @@
  #include "components/security_interstitials/core/base_safe_browsing_error_ui.h"
 --- a/components/safe_browsing/core/browser/db/sb_local_database_manager.cc
 +++ b/components/safe_browsing/core/browser/db/sb_local_database_manager.cc
-@@ -337,10 +337,9 @@ const SBLocalDatabaseManager*
+@@ -358,11 +358,10 @@ const SBLocalDatabaseManager*
  scoped_refptr<SBLocalDatabaseManager> SBLocalDatabaseManager::Create(
      const base::FilePath& base_path,
      scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
 -    scoped_refptr<base::SequencedTaskRunner> io_task_runner,
 -    ExtendedReportingLevelCallback extended_reporting_level_callback) {
 +    scoped_refptr<base::SequencedTaskRunner> io_task_runner) {
-   return base::WrapRefCounted(new SBLocalDatabaseManager(
--      base_path, extended_reporting_level_callback, std::move(ui_task_runner),
-+      base_path, std::move(ui_task_runner),
-       std::move(io_task_runner), nullptr));
+   return base::MakeRefCounted<SBLocalDatabaseManager>(
+       base::PassKey<SBLocalDatabaseManager>(), base_path,
+-      extended_reporting_level_callback, std::move(ui_task_runner),
++      std::move(ui_task_runner),
+       std::move(io_task_runner), nullptr);
  }
  
-@@ -363,13 +362,11 @@ void SBLocalDatabaseManager::CollectData
+@@ -396,13 +395,11 @@ SBLocalDatabaseManager::SBLocalDatabaseM
  
  SBLocalDatabaseManager::SBLocalDatabaseManager(
      const base::FilePath& base_path,
@@ -4830,7 +4788,7 @@
        list_infos_(GetListInfos()),
        task_runner_(task_runner_for_tests
                         ? task_runner_for_tests
-@@ -1437,8 +1434,7 @@ void SBLocalDatabaseManager::SetupUpdate
+@@ -1505,8 +1502,7 @@ void SBLocalDatabaseManager::SetupUpdate
          base::BindRepeating(&SBLocalDatabaseManager::V4UpdateRequestCompleted,
                              weak_factory_.GetWeakPtr());
      update_protocol_manager_ = std::make_unique<V4UpdateProtocolManager>(
@@ -4842,7 +4800,7 @@
  
 --- a/components/safe_browsing/core/browser/db/sb_local_database_manager.h
 +++ b/components/safe_browsing/core/browser/db/sb_local_database_manager.h
-@@ -49,8 +49,7 @@ class SBLocalDatabaseManager : public Sa
+@@ -51,8 +51,7 @@ class SBLocalDatabaseManager : public Sa
    static scoped_refptr<SBLocalDatabaseManager> Create(
        const base::FilePath& base_path,
        scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
@@ -4850,9 +4808,9 @@
 -      ExtendedReportingLevelCallback extended_reporting_level_callback);
 +      scoped_refptr<base::SequencedTaskRunner> io_task_runner);
  
-   SBLocalDatabaseManager(const SBLocalDatabaseManager&) = delete;
-   SBLocalDatabaseManager& operator=(const SBLocalDatabaseManager&) = delete;
-@@ -119,7 +118,6 @@ class SBLocalDatabaseManager : public Sa
+   SBLocalDatabaseManager(
+       base::PassKey<SBLocalDatabaseManager, SBLocalDatabaseManagerTest>,
+@@ -154,7 +153,6 @@ class SBLocalDatabaseManager : public Sa
    // Must be initialized by calling StartOnUIThread() before using.
    SBLocalDatabaseManager(
        const base::FilePath& base_path,
@@ -4860,7 +4818,7 @@
        scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
        scoped_refptr<base::SequencedTaskRunner> io_task_runner,
        scoped_refptr<base::SequencedTaskRunner> task_runner_for_tests);
-@@ -484,10 +482,6 @@ class SBLocalDatabaseManager : public Sa
+@@ -493,10 +491,6 @@ class SBLocalDatabaseManager : public Sa
    // ready to process next update.
    DatabaseUpdatedCallback db_updated_callback_;
  
@@ -4875,13 +4833,13 @@
 +++ b/components/safe_browsing/core/browser/db/sb_protocol_manager_util.cc
 @@ -182,7 +182,6 @@ const char* GetSbV5UrlPrefix() {
  
- std::string GetReportUrl(const V4ProtocolConfig& config,
+ std::string GetReportUrl(const SBProtocolConfig& config,
                           const std::string& method,
 -                         const ExtendedReportingLevel* reporting_level,
                           const bool is_enhanced_protection) {
    std::string url = base::StringPrintf(
        "%s/%s?client=%s&appver=%s&pver=4.0", kSbReportsURLPrefix, method.c_str(),
-@@ -192,10 +191,6 @@ std::string GetReportUrl(const V4Protoco
+@@ -192,10 +191,6 @@ std::string GetReportUrl(const SBProtoco
      base::StringAppendF(&url, "&key=%s",
                          base::EscapeQueryParamValue(api_key, true).c_str());
    }
@@ -4894,7 +4852,7 @@
    }
 --- a/components/safe_browsing/core/browser/db/sb_protocol_manager_util.h
 +++ b/components/safe_browsing/core/browser/db/sb_protocol_manager_util.h
-@@ -20,9 +20,10 @@
+@@ -19,9 +19,10 @@
  #include <vector>
  
  #include "base/containers/flat_set.h"
@@ -4905,10 +4863,10 @@
 -#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
  #include "url/gurl.h"
  
- // TODO(crbug.com/362791941): replace all |comments| with `comments` for v5.
-@@ -68,7 +69,6 @@ const char* GetSbV5UrlPrefix();
+ namespace net {
+@@ -66,7 +67,6 @@ const char* GetSbV5UrlPrefix();
  std::string GetReportUrl(
-     const V4ProtocolConfig& config,
+     const SBProtocolConfig& config,
      const std::string& method,
 -    const ExtendedReportingLevel* reporting_level = nullptr,
      const bool is_enhanced_protection = false);
@@ -4950,7 +4908,7 @@
  
  V4UpdateProtocolManager::V4UpdateProtocolManager(
      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-     const V4ProtocolConfig& config,
+     const SBProtocolConfig& config,
 -    V4UpdateCallback update_callback,
 -    ExtendedReportingLevelCallback extended_reporting_level_callback)
 +    V4UpdateCallback update_callback)
@@ -4986,7 +4944,7 @@
   public:
    V4UpdateProtocolManager(
        scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-       const V4ProtocolConfig& config,
+       const SBProtocolConfig& config,
 -      V4UpdateCallback update_callback,
 -      ExtendedReportingLevelCallback extended_reporting_level_callback);
 +      V4UpdateCallback update_callback);
@@ -5792,7 +5750,7 @@
  #include "components/safe_browsing/core/common/safebrowsing_referral_methods.h"
  #include "components/security_interstitials/content/security_interstitial_page.h"
  #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
-@@ -173,11 +172,6 @@ PrefService* SecurityInterstitialControl
+@@ -174,11 +173,6 @@ PrefService* SecurityInterstitialControl
    return prefs_;
  }
  
@@ -5895,8 +5853,8 @@
 -#include "components/signin/public/base/signin_pref_names.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/sync/service/sync_service.h"
- #include "components/sync/service/sync_user_settings.h"
-@@ -23,18 +22,7 @@ namespace {
+ #include "url/gurl.h"
+@@ -22,18 +21,7 @@ namespace {
  
  bool IsSigninPossible(syncer::SyncService* sync_service,
                        PrefService* pref_service) {
@@ -6057,7 +6015,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
-@@ -740,9 +739,6 @@ void AccountPreviewDataServiceImpl::Writ
+@@ -739,9 +738,6 @@ void AccountPreviewDataServiceImpl::Writ
  }
  
  void AccountPreviewDataServiceImpl::ResetTimer() {
@@ -6067,7 +6025,7 @@
  }
  
  void AccountPreviewDataServiceImpl::OnSigninAllowedPrefChanged() {
-@@ -772,14 +768,6 @@ void AccountPreviewDataServiceImpl::OnSi
+@@ -771,14 +767,6 @@ void AccountPreviewDataServiceImpl::OnSi
  }
  
  void AccountPreviewDataServiceImpl::CreateAndStartRepeatingTimer() {
@@ -6216,7 +6174,7 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -506,37 +505,10 @@ void SigninMetricsService::MaybeRecordMe
+@@ -508,37 +507,10 @@ void SigninMetricsService::MaybeRecordMe
        GetTimeOfWebSignin(account_info.account_id).has_value();
    switch (access_point) {
      case signin_metrics::AccessPoint::kAddressBubble:
@@ -6276,7 +6234,7 @@
  }
  
  std::vector<AccountInfo> AccountTrackerService::GetAccounts() const {
-@@ -531,14 +525,12 @@ AccountTrackerService::ComputeNewMigrati
+@@ -545,14 +539,12 @@ AccountTrackerService::ComputeNewMigrati
  void AccountTrackerService::SetMigrationState(AccountIdMigrationState state) {
    DCHECK(state != MIGRATION_DONE || AreAllAccountsMigrated())
        << "state: " << state << ", accounts = " << AccountsToString(accounts_);
@@ -6292,7 +6250,7 @@
  }
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
-@@ -618,28 +610,6 @@ void AccountTrackerService::OnAccountIma
+@@ -632,28 +624,6 @@ void AccountTrackerService::OnAccountIma
      const CoreAccountId& account_id,
      const std::string& image_url_with_size,
      bool success) {
@@ -6321,7 +6279,7 @@
  }
  
  void AccountTrackerService::RemoveAccountImageFromDisk(
-@@ -652,156 +622,17 @@ void AccountTrackerService::RemoveAccoun
+@@ -666,157 +636,17 @@ void AccountTrackerService::RemoveAccoun
  }
  
  void AccountTrackerService::LoadFromPrefs() {
@@ -6384,8 +6342,9 @@
 -      if (deserialized_account_info) {
 -        account_info = std::move(*deserialized_account_info);
 -      }
--      account_info.account_id = account_id;
--      if (!account_info.gaia.empty()) {
+-      account_info =
+-          AccountInfo::Builder(account_info).SetAccountId(account_id).Build();
+-      if (!account_info.GetGaiaId().empty()) {
 -        MaybeNotifyAccountUpdated(account_info);
 -      }
 -    }
@@ -6472,13 +6431,13 @@
 -
 -  ScopedListPrefUpdate update(pref_service_, prefs::kAccountInfo);
 -  base::DictValue* dict =
--      FindOrCreateDictForAccount(update, account_info.account_id);
+-      FindOrCreateDictForAccount(update, account_info.GetAccountId());
 -  dict->Remove(signin::kAccountCapabilityOverridesKey);
 -  dict->Merge(signin::SerializeAccountInfo(account_info));
  }
  
  void AccountTrackerService::RemoveFromPrefs(
-@@ -810,15 +641,6 @@ void AccountTrackerService::RemoveFromPr
+@@ -825,15 +655,6 @@ void AccountTrackerService::RemoveFromPr
      return;
    }
  
@@ -6584,7 +6543,7 @@
  #include "components/signin/public/webdata/token_service_table.h"
 --- a/components/signin/internal/identity_manager/mutable_profile_oauth2_token_service_delegate_unittest.cc
 +++ b/components/signin/internal/identity_manager/mutable_profile_oauth2_token_service_delegate_unittest.cc
-@@ -42,7 +42,6 @@
+@@ -43,7 +43,6 @@
  #include "components/signin/public/base/device_id_helper.h"
  #include "components/signin/public/base/hybrid_encryption_key.h"
  #include "components/signin/public/base/signin_metrics.h"
@@ -6602,7 +6561,7 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -261,183 +260,25 @@ PrimaryAccountManager::PrimaryAccountMan
+@@ -261,184 +260,25 @@ PrimaryAccountManager::PrimaryAccountMan
    DCHECK(account_tracker_service_);
    ScopedPrefCommit scoped_pref_commit(client_->GetPrefs(),
                                        /*commit_on_destroy=*/false);
@@ -6773,11 +6732,12 @@
 -  if (!pref_account_id.empty()) {
 -    if (account_tracker_service_->GetMigrationState() ==
 -        AccountTrackerService::MIGRATION_IN_PROGRESS) {
--      CoreAccountInfo account_info =
+-      AccountInfo account_info =
 -          account_tracker_service_->FindAccountInfoByEmail(pref_account_id);
--      // |account_info.gaia| could be empty if |account_id| is already gaia id.
--      if (!account_info.gaia.empty()) {
--        pref_account_id = account_info.gaia.ToString();
+-      // |account_info.GetGaiaId()| could be empty if |account_id| is already
+-      // gaia id.
+-      if (!account_info.GetGaiaId().empty()) {
+-        pref_account_id = account_info.GetGaiaId().ToString();
 -        prefs->SetString(prefs::kGoogleServicesAccountId, pref_account_id);
 -      }
 -    }
@@ -6786,7 +6746,7 @@
  }
  
  std::pair<CoreAccountInfo, PrimaryAccountManager::InitializeAccountInfoState>
-@@ -468,36 +309,6 @@ PrimaryAccountManager::GetOrRestorePrima
+@@ -469,36 +309,6 @@ PrimaryAccountManager::GetOrRestorePrima
  #if BUILDFLAG(IS_IOS)
    NOTREACHED();
  #else
@@ -6820,10 +6780,10 @@
 -          last_syncing_gaia_id, last_syncing_email,
 -          signin_metrics::AccessPoint::kRestorePrimaryAccountOnProfileLoad));
 -
-   return std::make_pair(account_tracker_service_->GetAccountInfo(account_id),
-                         InitializeAccountInfoState::
-                             kEmptyAccountInfo_RestoreSuccessFromLastSyncInfo);
-@@ -592,10 +403,9 @@ void PrimaryAccountManager::SetSyncPrima
+   return std::make_pair(
+       account_tracker_service_->GetAccountInfo(account_id).GetCoreAccountInfo(),
+       InitializeAccountInfoState::
+@@ -594,10 +404,9 @@ void PrimaryAccountManager::SetSyncPrima
  
  #if DCHECK_IS_ON()
    {
@@ -6836,7 +6796,7 @@
  
      DCHECK(pref_account_id.empty() || !consented_to_sync ||
             pref_account_id == account_info.account_id.ToString())
-@@ -606,16 +416,6 @@ void PrimaryAccountManager::SetSyncPrima
+@@ -608,16 +417,6 @@ void PrimaryAccountManager::SetSyncPrima
  
    SetPrimaryAccountInternal(account_info, /*consented_to_sync=*/true,
                              scoped_pref_commit);
@@ -6853,7 +6813,7 @@
  }
  
  void PrimaryAccountManager::SetPrimaryAccountInternal(
-@@ -627,24 +427,6 @@ void PrimaryAccountManager::SetPrimaryAc
+@@ -629,24 +428,6 @@ void PrimaryAccountManager::SetPrimaryAc
    // 'account_info' might be a reference to the contents of `primary_account_`.
    // Create a PrimaryAccount object before calling emplace to avoid crashes.
    primary_account_.emplace(PrimaryAccount(account_info, consented_to_sync));
@@ -6878,7 +6838,7 @@
  }
  
  void PrimaryAccountManager::UpdatePrimaryAccountInfo() {
-@@ -775,103 +557,6 @@ PrimaryAccountChangeEvent::State Primary
+@@ -778,103 +559,6 @@ PrimaryAccountChangeEvent::State Primary
  void PrimaryAccountManager::SetExplicitBrowserSigninPrefs(
      const PrimaryAccountChangeEvent& event_details,
      ScopedPrefCommit& scoped_pref_commit) {
@@ -7003,7 +6963,7 @@
  #include "components/sync/base/features.h"
  #include "google_apis/gaia/core_account_id.h"
 @@ -58,7 +57,7 @@ PrimaryAccountMutatorImpl::SetPrimaryAcc
-   DCHECK(!account_info.gaia.empty());
+   DCHECK(!account_info.GetGaiaId().empty());
  
  #if !BUILDFLAG(IS_CHROMEOS)
 -  bool is_signin_allowed = pref_service_->GetBoolean(prefs::kSigninAllowed);
@@ -7144,7 +7104,7 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "google_apis/gaia/gaia_id.h"
  
-@@ -194,8 +193,6 @@ SigninPrefs::~SigninPrefs() = default;
+@@ -199,8 +198,6 @@ SigninPrefs::~SigninPrefs() = default;
  
  void SigninPrefs::RegisterProfilePrefs(PrefRegistrySimple* registry) {
    registry->RegisterDictionaryPref(kSigninAccountPrefs);
@@ -7153,7 +7113,7 @@
    registry->RegisterIntegerPref(kAccountMetricsNextUnassignedId, 0);
  }
  
-@@ -550,40 +547,31 @@ int SigninPrefs::GetSyncPromoIdentityPil
+@@ -555,40 +552,31 @@ int SigninPrefs::GetSyncPromoIdentityPil
  
  int SigninPrefs::GetHistoryPageHistorySyncPromoShownCount(
      const GaiaId& gaia_id) const {
@@ -7207,7 +7167,7 @@
  
  #if BUILDFLAG(IS_WIN)
  #include "base/win/windows_version.h"
-@@ -439,10 +438,6 @@ BASE_FEATURE(kEnableBoundSessionCredenti
+@@ -471,10 +470,6 @@ BASE_FEATURE(kEnableBoundSessionCredenti
  #endif
  );
  bool IsBoundSessionCredentialsEnabled(const PrefService* profile_prefs) {
@@ -7218,7 +7178,7 @@
    return base::FeatureList::IsEnabled(kEnableBoundSessionCredentials);
  }
  // Restricts the DBSC registration URL path to a single allowed string.
-@@ -463,10 +458,6 @@ BASE_FEATURE(kEnableChromeRefreshTokenBi
+@@ -495,10 +490,6 @@ BASE_FEATURE(kEnableChromeRefreshTokenBi
  #endif
  );
  bool IsChromeRefreshTokenBindingEnabled(const PrefService* profile_prefs) {
@@ -7388,7 +7348,7 @@
    // kSyncedDefaultSearchProviderGUID = 49, (deprecated)
    kPrefForceTriggerTranslateCount = 50,
    // kPrefNeverPromptSitesDeprecated = 51, (deprecated)
-@@ -301,10 +298,6 @@ constexpr auto kCommonSyncablePrefsAllow
+@@ -303,10 +300,6 @@ constexpr auto kCommonSyncablePrefsAllow
          {payments::kCanMakePaymentEnabled,
           {syncable_prefs_ids::kCanMakePaymentEnabled, syncer::PREFERENCES,
            PrefSensitivity::kNone, MergeBehavior::kNone}},
@@ -7399,7 +7359,7 @@
          {prefs::kCookieControlsMode,
           {syncable_prefs_ids::kCookieControlsMode, syncer::PREFERENCES,
            PrefSensitivity::kNone, MergeBehavior::kNone}},
-@@ -340,9 +333,6 @@ constexpr auto kCommonSyncablePrefsAllow
+@@ -342,9 +335,6 @@ constexpr auto kCommonSyncablePrefsAllow
           {syncable_prefs_ids::kCrossDeviceTipsHomeModuleEnabled,
            syncer::PREFERENCES, PrefSensitivity::kNone,
            MergeBehavior::kMergeableDict}},

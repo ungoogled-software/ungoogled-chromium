@@ -65,6 +65,8 @@ PRUNING_EXCLUDE_PATTERNS = [
     'third_party/node/node_modules/@rollup/wasm-node/dist/wasm-node/bindings_wasm_bg.wasm',
     # Exclusion for performance tracing
     'third_party/perfetto/src/trace_processor/importers/proto/atoms.descriptor',
+    # Exclusion for jxl blue noise dither table
+    'third_party/rust/chromium_crates_io/vendor/jxl-v0_7/src/util/dither_32x32.bin',
     # Exclusion for zoneinfo64
     'third_party/rust/chromium_crates_io/vendor/zoneinfo64-v0_3/src/data/zoneinfo64.res',
     # Exclusions for safe file extensions

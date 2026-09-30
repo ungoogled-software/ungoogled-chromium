@@ -56,6 +56,7 @@ CONTINGENT_PATHS = (
     # GCS sources
     'buildtools/linux64-format/',
     'third_party/blink/renderer/core/css/perftest_data/',
+    'third_party/chromium-bidi/node_modules/',
     'third_party/js_code_coverage/',
     'third_party/llvm-libclang/',
     'third_party/openscreen/src/buildtools/linux64-format/',
