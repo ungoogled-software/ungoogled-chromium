@@ -51,6 +51,12 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
     `--disable-encryption` | Disable encryption of cookies, passwords, and settings which uses a generated machine-specific encryption key. This is used to enable portable user data directories.
     `--disable-machine-id` | Disables use of a generated machine-specific ID to lock the user data directory to that machine. This is used to enable portable user data directories.
 
+  - #### Available only on macOS
+
+    Switch | Description
+    -- | --
+    `--hide-macos-window-buttons` | Hides the close, minimize, and maximize buttons and reclaims their space for tabs.
+
 
 ## Feature flags
 

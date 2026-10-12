@@ -1,0 +1,415 @@
+# Add an opt-in macOS window-buttons switch. Hide the native traffic lights
+# without changing window capabilities, and remove their Views layout exclusion.
+# Carry the preference through RemoteCocoa so app windows behave consistently.
+
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -2590,6 +2590,7 @@
+       "//components/remote_cocoa/app_shim",
+       "//components/remote_cocoa/app_shim:features",
+       "//components/remote_cocoa/browser",
++      "//components/ungoogled:ungoogled_switches",
+     ]
+     include_dirs = [ "$target_gen_dir" ]
+     frameworks = [
+--- a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+@@ -49,6 +49,7 @@
+ #include "chrome/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/remote_cocoa/common/native_widget_ns_window.mojom.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ #include "ui/base/hit_test.h"
+ #include "ui/base/theme_provider.h"
+ #include "ui/base/ui_base_features.h"
+@@ -458,6 +459,11 @@
+ BrowserFrameViewMac::BoundsAndMargins
+ BrowserFrameViewMac::GetCaptionButtonBounds() const {
+   BoundsAndMargins result;
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          switches::kHideMacosWindowButtons)) {
++    // Hiding the native buttons alone would leave their layout exclusion.
++    return result;
++  }
+ 
+   // In popups, the titlebar is system-drawn and the caption buttons aren't part
+   // of the client area.
+--- a/chrome/browser/ui/views/frame/browser_frame_view_mac_browsertest.mm
++++ b/chrome/browser/ui/views/frame/browser_frame_view_mac_browsertest.mm
+@@ -6,6 +6,7 @@
+ 
+ #include <AppKit/AppKit.h>
+ 
++#include "base/command_line.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/run_loop.h"
+ #include "base/strings/strcat.h"
+@@ -85,6 +86,70 @@
+ 
+ }  // anonymous namespace
+ 
++// Cover both the opt-in switch and unchanged default behavior.
++class HideMacosWindowButtonsBrowserTest
++    : public InProcessBrowserTest,
++      public testing::WithParamInterface<bool> {
++ protected:
++  void SetUpCommandLine(base::CommandLine* command_line) override {
++    InProcessBrowserTest::SetUpCommandLine(command_line);
++    if (GetParam()) {
++      command_line->AppendSwitch("hide-macos-window-buttons");
++    }
++  }
++
++  void CheckButtonsAndLayout(BrowserWindowInterface* browser) {
++    NSWindow* window =
++        browser->GetWindow()->GetNativeWindow().GetNativeNSWindow();
++    ASSERT_TRUE(window);
++    // Hiding must not disable window actions or change its native capabilities.
++    EXPECT_TRUE(window.styleMask & NSWindowStyleMaskClosable);
++    EXPECT_TRUE(window.styleMask & NSWindowStyleMaskMiniaturizable);
++    EXPECT_TRUE(window.styleMask & NSWindowStyleMaskResizable);
++    for (NSWindowButton type :
++         {NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton}) {
++      NSButton* button = [window standardWindowButton:type];
++      ASSERT_TRUE(button);
++      EXPECT_EQ(button.hidden, GetParam());
++    }
++
++    BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
++    auto* frame_view = static_cast<BrowserFrameView*>(
++        browser_view->GetWidget()->non_client_view()->frame_view());
++    const auto params = frame_view->GetBrowserLayoutParams();
++    if (GetParam()) {
++      EXPECT_TRUE(params.leading_exclusion.IsEmpty());
++      EXPECT_TRUE(params.trailing_exclusion.IsEmpty());
++    } else {
++      // Caption buttons can occupy either side in RTL configurations.
++      EXPECT_GT(params.leading_exclusion.content.width() +
++                    params.trailing_exclusion.content.width(),
++                0);
++    }
++  }
++};
++
++IN_PROC_BROWSER_TEST_P(HideMacosWindowButtonsBrowserTest,
++                       ButtonsAndCaptionExclusion) {
++  ASSERT_NO_FATAL_FAILURE(CheckButtonsAndLayout(browser()));
++  ASSERT_NO_FATAL_FAILURE(CheckButtonsAndLayout(CreateBrowser(GetProfile())));
++  ASSERT_NO_FATAL_FAILURE(CheckButtonsAndLayout(CreateIncognitoBrowser()));
++}
++
++IN_PROC_BROWSER_TEST_P(HideMacosWindowButtonsBrowserTest,
++                       ButtonsAndCaptionExclusionAfterResize) {
++  NSWindow* window =
++      browser()->GetWindow()->GetNativeWindow().GetNativeNSWindow();
++  NSRect frame = window.frame;
++  frame.size.width += 100;
++  [window setFrame:frame display:YES];
++  ASSERT_NO_FATAL_FAILURE(CheckButtonsAndLayout(browser()));
++}
++
++INSTANTIATE_TEST_SUITE_P(All,
++                         HideMacosWindowButtonsBrowserTest,
++                         testing::Bool());
++
+ enum class PrefixTitles { kEnabled, kDisabled };
+ 
+ using BrowserFrameViewMacBrowserTestTitlePrefixed =
+--- a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+@@ -7,6 +7,7 @@
+ #include <array>
+ 
+ #import "base/apple/foundation_util.h"
++#include "base/command_line.h"
+ #include "base/functional/bind.h"
+ #include "base/i18n/rtl.h"
+ #include "base/memory/raw_ptr.h"
+@@ -61,6 +62,7 @@
+ #include "components/remote_cocoa/common/application.mojom.h"
+ #include "components/remote_cocoa/common/native_widget_ns_window.mojom.h"
+ #include "components/remote_cocoa/common/native_widget_ns_window_host.mojom.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ #include "components/web_modal/web_contents_modal_dialog_host.h"
+ #include "ui/accessibility/platform/ax_platform_node.h"
+ #include "ui/actions/actions.h"
+@@ -739,6 +741,10 @@
+     params->window_class = remote_cocoa::mojom::WindowClass::kDefault;
+   }
+   params->animation_enabled = true;
++  // Pass this to remote app windows as well as in-process browser windows.
++  params->hide_window_buttons =
++      base::CommandLine::ForCurrentProcess()->HasSwitch(
++          switches::kHideMacosWindowButtons);
+ }
+ 
+ NativeWidgetMacNSWindow* BrowserNativeWidgetMac::CreateNSWindow(
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -144,4 +144,12 @@
+      "Disabling JavaScript optimization disables JIT",
+      "If enabled, disables JIT too if the \"JavaScript optimization\" setting is turned off. ungoogled-chromium flag.",
+      kOsAll, SINGLE_VALUE_TYPE("disabling-javascript-optimization-disables-jit")},
++#if BUILDFLAG(IS_MAC)
++    {"hide-macos-window-buttons",
++     "Hide macOS window buttons",
++     "Hides the close, minimize and maximize buttons and reclaims their space "
++     "for tabs. Keyboard shortcuts and menu actions remain available. "
++     "ungoogled-chromium flag.",
++     kOsMac, SINGLE_VALUE_TYPE("hide-macos-window-buttons")},
++#endif
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm
++++ b/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm
+@@ -107,6 +107,11 @@
+   // adjusting the visibility of the traffic lights. The layout changes are
+   // desired and should be left intact.
+   [super setButtonRevealAmount:amount];
++  auto* window = base::apple::ObjCCast<NativeWidgetMacNSWindow>(self.window);
++  if (window.hideWindowButtons) {
++    [window setHideWindowButtons:YES];
++    return;
++  }
+   if (amount == 1.0) {
+     return;
+   }
+@@ -120,6 +125,13 @@
+ }
+ 
+ - (void)maybeShowTrafficLights {
++  auto* native_window =
++      base::apple::ObjCCast<NativeWidgetMacNSWindow>(self.window);
++  if (native_window.hideWindowButtons) {
++    // Explicit hiding takes precedence over immersive fullscreen reveal.
++    [native_window setHideWindowButtons:YES];
++    return;
++  }
+   if (!_alwaysShowTrafficLights) {
+     return;
+   }
+--- a/components/remote_cocoa/app_shim/browser_native_widget_window_mac_unittests.mm
++++ b/components/remote_cocoa/app_shim/browser_native_widget_window_mac_unittests.mm
+@@ -17,6 +17,7 @@
+ #import "components/remote_cocoa/app_shim/native_widget_ns_window_bridge.h"
+ #import "components/remote_cocoa/app_shim/native_widget_ns_window_host_helper.h"
+ #import "components/remote_cocoa/app_shim/window_move_loop.h"
++#include "components/remote_cocoa/common/native_widget_ns_window.mojom.h"
+ #include "components/remote_cocoa/common/native_widget_ns_window_host.mojom.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ #include "testing/platform_test.h"
+@@ -96,6 +97,100 @@
+   EXPECT_EQ(theme_frame.closeButton.alphaValue, 0.0);
+   EXPECT_EQ(theme_frame.minimizeButton.alphaValue, 0.0);
+   EXPECT_EQ(theme_frame.zoomButton.alphaValue, 0.0);
++}
++
++// The creation parameter also works for remote app windows: the display process
++// need not inherit the browser's command line.
++TEST(BrowserNativeWidgetWindowTest, HideWindowButtons) {
++  for (auto window_class : {remote_cocoa::mojom::WindowClass::kBrowser,
++                            remote_cocoa::mojom::WindowClass::kDefault}) {
++    auto params = remote_cocoa::mojom::CreateWindowParams::New();
++    params->window_class = window_class;
++    params->style_mask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
++                         NSWindowStyleMaskMiniaturizable |
++                         NSWindowStyleMaskResizable;
++    params->hide_window_buttons = true;
++    NativeWidgetMacNSWindow* window =
++        remote_cocoa::NativeWidgetNSWindowBridge::CreateNSWindow(params.get());
++    ASSERT_TRUE(window.hideWindowButtons);
++    EXPECT_EQ(window.styleMask, params->style_mask);
++
++    const NSWindowButton kButtons[] = {
++        NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton};
++    for (NSWindowButton type : kButtons) {
++      NSButton* button = [window standardWindowButton:type];
++      ASSERT_TRUE(button);
++      EXPECT_TRUE(button.hidden);
++
++      // Simulate AppKit revealing an existing control during frame layout.
++      button.hidden = NO;
++      NSView* frame_view = window.contentView.superview;
++      [frame_view setNeedsLayout:YES];
++      [frame_view layoutSubtreeIfNeeded];
++      EXPECT_TRUE(button.hidden);
++    }
++
++    // Changing the style mask may replace the native frame and its buttons.
++    window.styleMask |= NSWindowStyleMaskFullSizeContentView;
++    for (NSWindowButton type : kButtons) {
++      EXPECT_TRUE([window standardWindowButton:type].hidden);
++    }
++
++    window.hideWindowButtons = NO;
++    for (NSWindowButton type : kButtons) {
++      EXPECT_FALSE([window standardWindowButton:type].hidden);
++    }
++    [window close];
++  }
++}
++
++TEST(BrowserNativeWidgetWindowTest, WindowButtonsVisibleByDefault) {
++  auto params = remote_cocoa::mojom::CreateWindowParams::New();
++  params->window_class = remote_cocoa::mojom::WindowClass::kBrowser;
++  params->style_mask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
++                       NSWindowStyleMaskMiniaturizable |
++                       NSWindowStyleMaskResizable;
++  NativeWidgetMacNSWindow* window =
++      remote_cocoa::NativeWidgetNSWindowBridge::CreateNSWindow(params.get());
++  EXPECT_FALSE(window.hideWindowButtons);
++  for (NSWindowButton type :
++       {NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton}) {
++    NSButton* button = [window standardWindowButton:type];
++    ASSERT_TRUE(button);
++    EXPECT_FALSE(button.hidden);
++  }
++  [window close];
++}
++
++TEST(BrowserNativeWidgetWindowTest, HideOverridesAlwaysShowTrafficLights) {
++  auto params = remote_cocoa::mojom::CreateWindowParams::New();
++  params->window_class = remote_cocoa::mojom::WindowClass::kBrowser;
++  params->style_mask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
++                       NSWindowStyleMaskMiniaturizable |
++                       NSWindowStyleMaskResizable;
++  params->hide_window_buttons = true;
++  BrowserNativeWidgetWindow* window =
++      base::apple::ObjCCastStrict<BrowserNativeWidgetWindow>(
++          remote_cocoa::NativeWidgetNSWindowBridge::CreateNSWindow(
++              params.get()));
++  NSThemeFrame* frame =
++      base::apple::ObjCCastStrict<NSThemeFrame>(window.contentView.superview);
++  NSButton* close_button = [window standardWindowButton:NSWindowCloseButton];
++  NSButton* minimize_button =
++      [window standardWindowButton:NSWindowMiniaturizeButton];
++  NSButton* zoom_button = [window standardWindowButton:NSWindowZoomButton];
++  ASSERT_TRUE(close_button);
++  ASSERT_TRUE(minimize_button);
++  ASSERT_TRUE(zoom_button);
++
++  [window setAlwaysShowTrafficLights:YES];
++  [frame setButtonRevealAmount:0.0];
++  [frame setButtonRevealAmount:1.0];
++  // Check the retained buttons, not the getter that also enforces hiding.
++  EXPECT_TRUE(close_button.hidden);
++  EXPECT_TRUE(minimize_button.hidden);
++  EXPECT_TRUE(zoom_button.hidden);
++  [window close];
+ }
+ 
+ // Test that a window with enforceNeverMadeVisible cannot be ordered in.
+--- a/components/remote_cocoa/app_shim/native_widget_mac_nswindow.h
++++ b/components/remote_cocoa/app_shim/native_widget_mac_nswindow.h
+@@ -108,6 +108,10 @@
+ // Whether this window functions as a tooltip.
+ @property(assign, nonatomic) BOOL isTooltip;
+ 
++// Hide close, minimize and zoom buttons, preserving keyboard/menu window
++// actions.
++@property(assign, nonatomic) BOOL hideWindowButtons;
++
+ // Whether this window is headless.
+ @property(assign, nonatomic) BOOL isHeadless;
+ 
+--- a/components/remote_cocoa/app_shim/native_widget_mac_nswindow.mm
++++ b/components/remote_cocoa/app_shim/native_widget_mac_nswindow.mm
+@@ -31,6 +31,9 @@
+ 
+ namespace {
+ 
++constexpr NSWindowButton kWindowButtons[] = {
++    NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton};
++
+ bool AreWindowShadowsDisabled() {
+   // When:
+   // 1) Shadows are being generated by the window server
+@@ -182,6 +185,14 @@
+ @end
+ 
+ @implementation NativeWidgetMacNSWindowTitledFrame
++- (void)layout {
++  [super layout];
++  // AppKit can recreate or reveal controls during resize/fullscreen layout.
++  auto* window = base::apple::ObjCCast<NativeWidgetMacNSWindow>(self.window);
++  if (window.hideWindowButtons) {
++    [window setHideWindowButtons:YES];
++  }
++}
+ - (void)mouseDown:(NSEvent*)event {
+   if (self.window.movable) {
+     [self cr_mouseDownOnFrameView:event];
+@@ -224,6 +235,7 @@
+   BOOL _isEnforcingNeverMadeVisible;
+   BOOL _activationIndependence;
+   BOOL _isTooltip;
++  BOOL _hideWindowButtons;
+   BOOL _isShufflingForOrdering;
+   BOOL _miniaturizationInProgress;
+   BOOL _inSetFrameFromAdjustment;
+@@ -232,6 +244,7 @@
+ @synthesize bridgedNativeWidgetId = _bridgedNativeWidgetId;
+ @synthesize bridge = _bridge;
+ @synthesize isTooltip = _isTooltip;
++@synthesize hideWindowButtons = _hideWindowButtons;
+ @synthesize isShufflingForOrdering = _isShufflingForOrdering;
+ @synthesize preventKeyWindow = _preventKeyWindow;
+ @synthesize childWindowAddedHandler = _childWindowAddedHandler;
+@@ -364,6 +377,19 @@
+ 
+ // Public methods.
+ 
++- (void)setHideWindowButtons:(BOOL)hide {
++  if (!_hideWindowButtons && !hide) {
++    return;
++  }
++  _hideWindowButtons = hide;
++  for (NSWindowButton type : kWindowButtons) {
++    NSButton* button = [super standardWindowButton:type];
++    if (button.hidden != hide) {
++      button.hidden = hide;
++    }
++  }
++}
++
+ - (void)setHasShadow:(BOOL)flag {
+   [super setHasShadow:flag && !AreWindowShadowsDisabled()];
+ }
+@@ -427,6 +453,16 @@
+ }
+ 
+ // NSWindow overrides.
++
++- (NSButton*)standardWindowButton:(NSWindowButton)type {
++  NSButton* button = [super standardWindowButton:type];
++  if (_hideWindowButtons && !button.hidden &&
++      (type == NSWindowCloseButton || type == NSWindowMiniaturizeButton ||
++       type == NSWindowZoomButton)) {
++    button.hidden = YES;
++  }
++  return button;
++}
+ 
+ + (Class)frameViewClassForStyleMask:(NSWindowStyleMask)windowStyle {
+   if (windowStyle & NSWindowStyleMaskTitled) {
+--- a/components/remote_cocoa/app_shim/native_widget_ns_window_bridge.mm
++++ b/components/remote_cocoa/app_shim/native_widget_ns_window_bridge.mm
+@@ -424,6 +424,7 @@
+   if (params->animation_enabled) {
+     ns_window.animationBehavior = NSWindowAnimationBehaviorDocumentWindow;
+   }
++  ns_window.hideWindowButtons = params->hide_window_buttons;
+ 
+   return ns_window;
+ }
+--- a/components/remote_cocoa/common/native_widget_ns_window.mojom
++++ b/components/remote_cocoa/common/native_widget_ns_window.mojom
+@@ -49,6 +49,9 @@
+ 
+   // Whether or not window animations should be initially enabled.
+   bool animation_enabled;
++
++  // Hide close, minimize and zoom buttons without changing window capabilities.
++  bool hide_window_buttons = false;
+ };
+ 
+ // Ways of changing the visibility of the bridged NSWindow.
