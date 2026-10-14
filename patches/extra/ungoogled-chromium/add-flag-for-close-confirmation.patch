@@ -16,16 +16,16 @@
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
  #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
  #include "chrome/browser/web_applications/policy/web_app_policy_manager.h"
-@@ -478,6 +480,8 @@ bool UnloadController::TryToCloseWindow(
- void UnloadController::ResetTryToCloseWindow() {
+@@ -524,6 +526,8 @@ bool UnloadController::RunBeforeUnloadFo
+ void UnloadController::ResetBeforeUnloadForShutdown() {
    cancel_download_confirmation_state_ =
        CancelDownloadConfirmationState::kNotPrompted;
 +  close_multitab_confirmation_state_ =
 +      CancelDownloadConfirmationState::kNotPrompted;
-   if (!is_calling_before_unload_handlers()) {
+   if (state_ != State::kRunningBeforeUnloadForShutdown &&
+       state_ != State::kBeforeUnloadConfirmed) {
      return;
-   }
-@@ -794,10 +798,12 @@ UnloadController::MaybeWarnBeforeClosing
+@@ -963,10 +967,12 @@ UnloadController::MaybeWarnBeforeClosing
      return WarnBeforeClosingResult::kOkToClose;
    }
  
@@ -42,7 +42,7 @@
    }
  
    DCHECK(!warn_before_closing_callback_)
-@@ -895,6 +901,60 @@ bool UnloadController::CanCloseWithInPro
+@@ -1064,6 +1070,60 @@ bool UnloadController::CanCloseWithInPro
    return false;
  }
  
@@ -103,12 +103,10 @@
  base::WeakPtr<UnloadController> UnloadController::GetWeakPtr() {
    return weak_factory_.GetWeakPtr();
  }
-@@ -920,6 +980,22 @@ void UnloadController::InProgressDownloa
+@@ -1095,6 +1155,22 @@ void UnloadController::InProgressDownloa
+   chrome::ShowDownloads(browser_);
+ }
  
-   std::move(warn_before_closing_callback_)
-       .Run(WarnBeforeClosingResult::kDoNotClose);
-+}
-+
 +void UnloadController::MultitabResponse(chrome::MessageBoxResult result) {
 +  if (result == chrome::MESSAGE_BOX_RESULT_YES) {
 +    close_multitab_confirmation_state_ = CancelDownloadConfirmationState::kResponseReceived;
@@ -123,9 +121,11 @@
 +
 +  std::move(warn_before_closing_callback_)
 +      .Run(WarnBeforeClosingResult::kDoNotClose);
- }
- 
++}
++
  void UnloadController::FinishWarnBeforeClosing(WarnBeforeClosingResult result) {
+   switch (result) {
+     case WarnBeforeClosingResult::kOkToClose:
 --- a/chrome/browser/ui/unload_controller.h
 +++ b/chrome/browser/ui/unload_controller.h
 @@ -16,6 +16,7 @@
@@ -136,7 +136,7 @@
  #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
  #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
  
-@@ -255,6 +256,9 @@ class UnloadController : public WebConte
+@@ -260,6 +261,9 @@ class UnloadController : public WebConte
    // Returns true if the window can close, false otherwise.
    bool CanCloseWithInProgressDownloads();
  
@@ -146,7 +146,7 @@
    base::WeakPtr<UnloadController> GetWeakPtr();
  
   private:
-@@ -274,6 +278,8 @@ class UnloadController : public WebConte
+@@ -279,6 +283,8 @@ class UnloadController : public WebConte
    // downloads running.
    void InProgressDownloadResponse(bool cancel_downloads);
  
@@ -155,7 +155,7 @@
   private:
    void RenderProcessGone(content::WebContents* web_contents,
                           base::TerminationStatus status) override;
-@@ -363,6 +369,9 @@ class UnloadController : public WebConte
+@@ -433,6 +439,9 @@ class UnloadController : public WebConte
    CancelDownloadConfirmationState cancel_download_confirmation_state_ =
        CancelDownloadConfirmationState::kNotPrompted;
  
