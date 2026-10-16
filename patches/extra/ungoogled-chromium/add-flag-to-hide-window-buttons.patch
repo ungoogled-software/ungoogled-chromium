@@ -1,0 +1,138 @@
+# Hide window buttons and reclaim their tab-strip space on desktop.
+# Applies to browser-drawn title bars; system title bars are unchanged.
+
+--- a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+@@ -458,6 +458,10 @@
+ BrowserFrameViewMac::BoundsAndMargins
+ BrowserFrameViewMac::GetCaptionButtonBounds() const {
+   BoundsAndMargins result;
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "hide-window-buttons")) {
++    return result;
++  }
+ 
+   // In popups, the titlebar is system-drawn and the caption buttons aren't part
+   // of the client area.
+--- a/chrome/browser/ui/views/frame/browser_frame_view_win.cc
++++ b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
+@@ -10,6 +10,7 @@
+ #include <memory>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "base/memory/raw_ref.h"
+ #include "base/scoped_observation.h"
+ #include "base/trace_event/common/trace_event_common.h"
+@@ -727,12 +728,16 @@
+ void BrowserFrameViewWin::LayoutCaptionButtons() {
+   TRACE_EVENT0("views.frame", "BrowserFrameViewWin::LayoutCaptionButtons");
+ 
++  const bool hide_window_buttons =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("hide-window-buttons");
+   caption_button_container_->SetVisible(
+-      !browser_widget()->IsFullscreen() ||
+-      GetBrowserView()->IsWindowControlsOverlayEnabled());
++      !hide_window_buttons &&
++      (!browser_widget()->IsFullscreen() ||
++       GetBrowserView()->IsWindowControlsOverlayEnabled()));
+ 
+   const gfx::Size preferred_size =
+-      caption_button_container_->GetPreferredSize();
++      hide_window_buttons ? gfx::Size()
++                          : caption_button_container_->GetPreferredSize();
+ 
+   const int height =
+       !GetBrowserView()->GetWebAppFrameToolbarPreferredSize().IsEmpty()
+--- a/chrome/browser/ui/views/frame/opaque_browser_frame_view_layout.cc
++++ b/chrome/browser/ui/views/frame/opaque_browser_frame_view_layout.cc
+@@ -8,6 +8,7 @@
+ #include <ranges>
+ #include <vector>
+ 
++#include "base/command_line.h"
+ #include "base/i18n/rtl.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
+@@ -275,7 +276,9 @@
+   buttons_not_shown.push_back(views::FrameButton::kMinimize);
+   buttons_not_shown.push_back(views::FrameButton::kClose);
+ 
+-  if (delegate_->ShouldShowCaptionButtons()) {
++  if (delegate_->ShouldShowCaptionButtons() &&
++      !base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "hide-window-buttons")) {
+     for (const auto& button : leading_buttons_) {
+       ConfigureButton(button, ButtonAlignment::kAlignLeading);
+       std::erase(buttons_not_shown, button);
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -144,4 +144,9 @@
+      "Disabling JavaScript optimization disables JIT",
+      "If enabled, disables JIT too if the \"JavaScript optimization\" setting is turned off. ungoogled-chromium flag.",
+      kOsAll, SINGLE_VALUE_TYPE("disabling-javascript-optimization-disables-jit")},
++    {"hide-window-buttons",
++     "Hide window buttons",
++     "Hides the close, minimize, and maximize buttons on browser-drawn title "
++     "bars and reclaims their space for tabs. ungoogled-chromium flag.",
++     kOsDesktop, SINGLE_VALUE_TYPE("hide-window-buttons")},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+--- a/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm
++++ b/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm
+@@ -6,6 +6,7 @@
+ 
+ #import <AppKit/AppKit.h>
+ 
++#include "base/command_line.h"
+ #include "base/mac/mac_util.h"
+ #include "components/remote_cocoa/app_shim/native_widget_ns_window_bridge.h"
+ #include "components/remote_cocoa/common/native_widget_ns_window_host.mojom.h"
+@@ -41,6 +42,14 @@
+ }
+ 
+ // NSThemeFrame overrides.
++
++- (void)layout {
++  [super layout];
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "hide-window-buttons")) {
++    [self maybeShowTrafficLights];
++  }
++}
+ 
+ // Note that while this has an effect on the location of the window control
+ // widgets, this is also an important part of the functioning of immersive
+@@ -107,7 +116,8 @@
+   // adjusting the visibility of the traffic lights. The layout changes are
+   // desired and should be left intact.
+   [super setButtonRevealAmount:amount];
+-  if (amount == 1.0) {
++  if (amount == 1.0 && !base::CommandLine::ForCurrentProcess()->HasSwitch(
++                           "hide-window-buttons")) {
+     return;
+   }
+ 
+@@ -120,7 +130,9 @@
+ }
+ 
+ - (void)maybeShowTrafficLights {
+-  if (!_alwaysShowTrafficLights) {
++  const bool hide_window_buttons =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("hide-window-buttons");
++  if (!_alwaysShowTrafficLights && !hide_window_buttons) {
+     return;
+   }
+   NSWindow* window = [self window];
+@@ -131,6 +143,12 @@
+   };
+   for (NSWindowButton type : kButtons) {
+     NSButton* button = [window standardWindowButton:type];
++    if (hide_window_buttons) {
++      if (!button.hidden) {
++        button.hidden = YES;
++      }
++      continue;
++    }
+     CHECK(button);
+     CHECK([button isKindOfClass:[_NSThemeWidget class]]);
+     [button setAlphaValue:1.0];

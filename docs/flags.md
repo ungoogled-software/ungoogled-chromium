@@ -39,6 +39,7 @@ If a switch requires a value, you must specify it with an `=` sign; e.g. flag `-
   `--hide-extensions-menu` | Hides the extensions container. This includes the puzzle piece icon as well as any pinned extensions.
   `--hide-fullscreen-exit-ui` | Hides the "X" that appears when the mouse cursor is moved towards the top of the window in fullscreen mode. Additionally, this hides the "Press F11 to exit full screen" popup.
   `--hide-tab-close-buttons` | Hides the close buttons on tabs.
+  `--hide-window-buttons` | Hides the close, minimize, and maximize buttons on browser-drawn title bars and reclaims their space for tabs.
   `--remove-grab-handle` | Removes the reserved empty space in the tabstrip for moving the window.
   `--scroll-tabs` | Determines if scrolling will cause a switch to a neighboring tab if the cursor hovers over the tabs, or the empty space beside the tabs. The flag requires one the values: `always`, `never`, `incognito-and-guest`. When omitted, the default is to use platform-specific behavior, which is currently enabled only on desktop Linux.
   `--show-avatar-button` | Sets visibility of the avatar button. The flag requires one of the values: `always`, `incognito-and-guest` (only show Incognito or Guest modes), or `never`.
