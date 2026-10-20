@@ -263,7 +263,15 @@
        access_code_cast::mojom::PageHandlerFactory,
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -5687,9 +5687,6 @@ ChromeContentBrowserClient::CreateCommit
+@@ -1394,6 +1394,7 @@ base::FilePath GetModulePath(std::wstrin
+ #endif  // BUILDFLAG(IS_WIN) && !defined(COMPONENT_BUILD) &&
+         // !defined(ADDRESS_SANITIZER)
+ 
++[[maybe_unused]]
+ void MaybeAddCondition(
+     std::unique_ptr<content::CommitDeferringCondition> maybe_condition,
+     std::vector<std::unique_ptr<content::CommitDeferringCondition>>*
+@@ -5687,9 +5688,6 @@ ChromeContentBrowserClient::CreateCommit
        &conditions);
  #endif
  
@@ -415,7 +423,7 @@
  #include "chrome/browser/preloading/preloading_prefs.h"
  #include "chrome/browser/profiles/profile.h"
  #include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
-@@ -105,10 +103,6 @@ base::TimeDelta MLModelExecutionTimerSta
+@@ -105,15 +103,8 @@ base::TimeDelta MLModelExecutionTimerSta
        blink::features::kPreloadingModelTimerStartDelay.Get());
  }
  
@@ -423,10 +431,16 @@
 -  return base::Milliseconds(
 -      blink::features::kPreloadingModelTimerInterval.Get());
 -}
+-
+-base::TimeDelta MLModelMaxHoverTime() {
+-  return blink::features::kPreloadingModelMaxHoverTime.Get();
+-}
  
- base::TimeDelta MLModelMaxHoverTime() {
-   return blink::features::kPreloadingModelMaxHoverTime.Get();
-@@ -415,80 +409,6 @@ void NavigationPredictor::ProcessPointer
++[[maybe_unused]]
+ void RecordMetricsForModelTraining(
+     const PreloadingModelKeyedService::Inputs& inputs,
+     ukm::SourceId ukm_source,
+@@ -415,80 +406,6 @@ void NavigationPredictor::ProcessPointer
  }
  
  void NavigationPredictor::OnMLModelExecutionTimerFired() {
@@ -509,7 +523,15 @@
  void NavigationPredictor::SetModelScoreCallbackForTesting(
 --- a/chrome/browser/page_content_annotations/page_content_annotations_service_factory.cc
 +++ b/chrome/browser/page_content_annotations/page_content_annotations_service_factory.cc
-@@ -120,62 +120,6 @@ PageContentAnnotationsServiceFactory::~P
+@@ -62,6 +62,7 @@ bool IsEphemeralProfile(Profile* profile
+   return entry && entry->IsEphemeral();
+ }
+ 
++[[maybe_unused]]
+ bool ShouldEnablePageContentAnnotations(Profile* profile) {
+   if (IsRunningInAppMode()) {
+     // The annotations we provide cannot provide any benefit to users in kiosk
+@@ -120,62 +121,6 @@ PageContentAnnotationsServiceFactory::~P
  std::unique_ptr<KeyedService>
  PageContentAnnotationsServiceFactory::BuildServiceInstanceForBrowserContext(
      content::BrowserContext* context) const {
@@ -1037,7 +1059,15 @@
      "//chrome/common",
 --- a/chrome/browser/ui/pdf/chrome_pdf_document_helper_client.cc
 +++ b/chrome/browser/ui/pdf/chrome_pdf_document_helper_client.cc
-@@ -229,22 +229,3 @@ void ChromePDFDocumentHelperClient::SetP
+@@ -88,6 +88,7 @@ bool MaybeShowFeaturePromo(const base::F
+   return true;
+ }
+ 
++[[maybe_unused]]
+ void MaybeHideSearchifyFeaturePromo(tabs::TabInterface* tab_interface) {
+   auto* user_education_interface = BrowserUserEducationInterface::From(
+       tab_interface->GetBrowserWindowInterface());
+@@ -229,22 +230,3 @@ void ChromePDFDocumentHelperClient::SetP
    }
  }
  
@@ -1322,7 +1352,17 @@
  #include "chrome/browser/speech/extension_api/tts_engine_extension_api.h"
  #include "chrome/browser/translate/chrome_translate_client.h"
  #include "chrome/browser/ui/read_anything/read_anything_controller.h"
-@@ -478,14 +476,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
+@@ -434,8 +432,7 @@ ReadAnythingUntrustedPageHandler::ReadAn
+     : profile_(Profile::FromWebUI(web_ui)),
+       web_ui_(web_ui),
+       receiver_(this, std::move(receiver)),
+-      page_(std::move(page)),
+-      use_screen_ai_service_(use_screen_ai_service)
++      page_(std::move(page))
+ #if BUILDFLAG(IS_CHROMEOS)
+       ,
+       extension_wrapper_(std::move(extension_wrapper))
+@@ -478,14 +475,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
    prefs_lang = language::ExtractBaseLanguage(prefs_lang);
    SetDefaultLanguageCode(prefs_lang);
  
@@ -1337,6 +1377,16 @@
  
    if (features::IsReadAnythingWithReadabilityEnabled() &&
        !features::IsReadAnythingReadAloudPhraseHighlightingEnabled()) {
+--- a/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.h
++++ b/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.h
+@@ -491,7 +491,6 @@ class ReadAnythingUntrustedPageHandler :
+ 
+   // The current language being used in the app.
+   std::string current_language_code_ = "en-US";
+-  const bool use_screen_ai_service_;
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+   // The ChromeOS language pack manager can't handle more than one language
 --- a/chrome/renderer/BUILD.gn
 +++ b/chrome/renderer/BUILD.gn
 @@ -346,8 +346,6 @@ static_library("renderer") {

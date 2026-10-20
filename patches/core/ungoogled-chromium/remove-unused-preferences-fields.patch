@@ -185,7 +185,23 @@
  std::string ConnectorsService::GetProfileEmail() const {
 --- a/chrome/browser/enterprise/signals/context_info_fetcher.cc
 +++ b/chrome/browser/enterprise/signals/context_info_fetcher.cc
-@@ -126,12 +126,6 @@ void ContextInfoFetcher::Fetch(ContextIn
+@@ -40,15 +40,6 @@ using SettingValue = device_signals::Set
+ 
+ namespace {
+ 
+-std::optional<std::string> GetEnterpriseProfileId(Profile* profile) {
+-  auto* profile_id_service =
+-      enterprise::ProfileIdServiceFactory::GetForProfile(profile);
+-  if (profile_id_service) {
+-    return profile_id_service->GetProfileId();
+-  }
+-  return std::nullopt;
+-}
+-
+ #if BUILDFLAG(IS_CHROMEOS)
+ SettingValue GetChromeosFirewall() {
+   // The firewall is always enabled and can only be disabled in dev mode on
+@@ -126,12 +117,6 @@ void ContextInfoFetcher::Fetch(ContextIn
            ChromePolicyBlocklistServiceFactory::GetForProfile(
                Profile::FromBrowserContext(browser_context_)));
  
@@ -302,9 +318,25 @@
  }
  
  void ProfileManagementDisclaimerService::OnProfileSeparationPoliciesFetched(
-@@ -677,15 +670,6 @@ void ProfileManagementDisclaimerService:
-     return;
+@@ -661,31 +654,7 @@ void ProfileManagementDisclaimerService:
    }
+   CHECK(state_->access_point.has_value());
+ 
+-  if (profile_separation_policies_for_testing_.has_value() ||
+-      user_choice_for_testing_.has_value()) {
+-    CHECK_IS_TEST();
+-    state_->profile_creation_controller =
+-        ManagedProfileCreationController::CreateManagedProfileForTesting(
+-            &profile_.get(), GetExtendedAccountInfo(state_->account_id),
+-            *state_->access_point,
+-            base::BindOnce(&ProfileManagementDisclaimerService::
+-                               OnManagedProfileCreationResult,
+-                           weak_ptr_factory_.GetWeakPtr()),
+-            profile_separation_policies_for_testing_.value_or(
+-                std::move(profile_separation_policies)),
+-            user_choice_for_testing_);
+-    return;
+-  }
  
 -  state_->profile_creation_controller =
 -      ManagedProfileCreationController::CreateManagedProfile(
@@ -1443,7 +1475,7 @@
 -  if (pref_service_->HasPrefPath(prefs::kAdvancedProtectionLastRefreshInUs)) {
 -    last_refreshed_ = base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(
 -        pref_service_->GetInt64(prefs::kAdvancedProtectionLastRefreshInUs)));
-+  if (false) {
++  if ((false)) {
      if (is_under_advanced_protection_) {
        ScheduleNextRefresh();
      }
@@ -1926,10 +1958,16 @@
  #else
    NOTREACHED();
  #endif
-@@ -119,21 +114,6 @@ AccountConsistencyModeManager::AccountCo
-                           ->GetProfileAttributesStorage()
-                           .GetProfileAttributesWithPath(profile_->GetPath())
-                     : nullptr;
+@@ -113,28 +108,6 @@ AccountConsistencyModeManager::AccountCo
+     : profile_(profile) {
+   DCHECK(profile_);
+   DCHECK(ShouldBuildServiceForProfile(profile));
+-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-  auto* entry = g_browser_process->profile_manager()
+-                    ? g_browser_process->profile_manager()
+-                          ->GetProfileAttributesStorage()
+-                          .GetProfileAttributesWithPath(profile_->GetPath())
+-                    : nullptr;
 -  PrefService* prefs = profile_->GetPrefs();
 -  // Propagate settings changes from the previous launch to the signin-allowed
 -  // pref.
@@ -1945,10 +1983,11 @@
 -  prefs->SetBoolean(prefs::kSigninAllowed, signin_allowed);
 -
 -  UMA_HISTOGRAM_BOOLEAN("Signin.SigninAllowed", signin_allowed);
- #endif
+-#endif
  
    account_consistency_ = ComputeAccountConsistencyMethod(profile_);
-@@ -146,7 +126,6 @@ AccountConsistencyModeManager::~AccountC
+   DCHECK_EQ(account_consistency_, ComputeAccountConsistencyMethod(profile_));
+@@ -146,7 +119,6 @@ AccountConsistencyModeManager::~AccountC
  // static
  void AccountConsistencyModeManager::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
@@ -2273,7 +2312,15 @@
  }
  
  ProfileMenuAvatarButtonPromoInfo
-@@ -450,49 +435,19 @@ bool PromoTypeHasSyncableData(SignInProm
+@@ -430,6 +415,7 @@ syncer::DataType GetDataTypeFromSignInPr
+   }
+ }
+ 
++[[maybe_unused]]
+ bool PromoTypeHasSyncableData(SignInPromoType type) {
+   switch (type) {
+     case SignInPromoType::kPassword:
+@@ -450,49 +436,19 @@ bool PromoTypeHasSyncableData(SignInProm
  }
  
  int GetAddressPromoShownCount(Profile& profile, const GaiaId& gaia_id) {
@@ -2327,7 +2374,23 @@
  }
  
  int GetContextualPromoDismissCountPerSignedOutProfile(Profile& profile,
-@@ -659,53 +614,7 @@ bool CanShowPromoForSyncableDataType(Sig
+@@ -551,6 +507,7 @@ int GetContextualPromoDismissCountPerAcc
+   }
+ }
+ 
++[[maybe_unused]]
+ bool ShouldShowPromoBasedOnImpressionOrDismissalCount(Profile& profile,
+                                                       SignInPromoType type) {
+   // Footer sign in promos are always shown.
+@@ -628,6 +585,7 @@ bool IsDataTypeManagedByPolicy(const syn
+ 
+ // Common eligibility checks for signin promos relating to the syncing of an
+ // underlying syncable data type.
++[[maybe_unused]]
+ bool CanShowPromoForSyncableDataType(SignInPromoType type, Profile& profile) {
+   syncer::SyncPrefs prefs(profile.GetPrefs());
+   // Don't show if sync is not allowed to start or is running in local mode.
+@@ -659,53 +617,7 @@ bool CanShowPromoForSyncableDataType(Sig
  // Needs additional checks depending on the type of the promo.
  // `profile` is the profile of the tab the promo would be shown on.
  bool ShouldShowSignInPromoCommon(Profile& profile, SignInPromoType type) {
@@ -2381,7 +2444,7 @@
  }
  
  #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
-@@ -715,32 +624,7 @@ bool ShouldShowSignInPromoCommon(Profile
+@@ -715,32 +627,7 @@ bool ShouldShowSignInPromoCommon(Profile
  #if BUILDFLAG(ENABLE_EXTENSIONS)
  bool ShouldShowExtensionSignInPromo(Profile& profile,
                                      const extensions::Extension& extension) {
@@ -2414,7 +2477,7 @@
  }
  #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
  
-@@ -779,30 +663,7 @@ bool ShouldShowSearchAIModeSignInPromo(P
+@@ -779,30 +666,7 @@ bool ShouldShowSearchAIModeSignInPromo(P
  }
  
  bool ShouldShowBookmarkSignInPromo(Profile& profile) {
@@ -2445,7 +2508,7 @@
  }
  
  bool ShouldShowComposeboxDriveContextMenuOptionSignInPromo(Profile& profile) {
-@@ -886,88 +747,6 @@ SignInPromoType GetSignInPromoTypeFromAc
+@@ -886,88 +750,6 @@ SignInPromoType GetSignInPromoTypeFromAc
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
  void RecordSignInPromoShown(signin_metrics::AccessPoint access_point,
                              Profile* profile) {
@@ -2694,7 +2757,23 @@
  
  #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
    builder.SetExtensionSyncService(ExtensionSyncService::Get(profile));
-@@ -408,114 +406,7 @@ std::unique_ptr<KeyedService> BuildSyncS
+@@ -380,6 +378,7 @@ syncer::DataTypeController::TypeVector C
+   return builder.Build(sync_service);
+ }
+ 
++[[maybe_unused]]
+ syncer::DataTypeController::TypeVector CreateControllers(
+     Profile* profile,
+     syncer::SyncService* sync_service) {
+@@ -389,6 +388,7 @@ syncer::DataTypeController::TypeVector C
+   return controllers;
+ }
+ 
++[[maybe_unused]]
+ std::unique_ptr<syncer::SyncClient> BuildSyncClient(Profile* profile) {
+   CHECK(profile);
+ 
+@@ -408,114 +408,7 @@ std::unique_ptr<KeyedService> BuildSyncS
      std::optional<syncer::CreateHttpPostProviderFactory>
          create_http_post_provider_factory_for_test,
      content::BrowserContext* context) {
@@ -2809,7 +2888,7 @@
  }
  
  }  // namespace
-@@ -584,7 +475,6 @@ SyncServiceFactory::SyncServiceFactory()
+@@ -584,7 +477,6 @@ SyncServiceFactory::SyncServiceFactory()
    DependsOn(PasswordSenderServiceFactory::GetInstance());
    DependsOn(ProfilePasswordStoreFactory::GetInstance());
  
@@ -2893,7 +2972,15 @@
  
    // Check the default value for each user facing content setting. Note that
    // this will not include content setting exceptions set via permission
-@@ -176,8 +167,6 @@ std::map<std::string, bool> BuildProduct
+@@ -156,6 +147,7 @@ std::map<std::string, bool> GetPrivacySe
+ 
+ // Returns true if the threat_type is not in the phishing, malware, unwanted
+ // software, or billing threat categories.
++[[maybe_unused]]
+ bool IsOtherSBInterstitialCategory(safe_browsing::SBThreatType threat_type) {
+   switch (threat_type) {
+     case safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_PHISHING:
+@@ -176,8 +168,6 @@ std::map<std::string, bool> BuildProduct
      PasswordProtectionUIType ui_type,
      PasswordProtectionUIAction action) {
    std::map<std::string, bool> product_specific_data;
@@ -2902,7 +2989,7 @@
    product_specific_data["Is page info UI"] = false;
    product_specific_data["Is modal dialog UI"] = false;
    product_specific_data["Is interstitial UI"] = false;
-@@ -439,31 +428,12 @@ void TrustSafetySentimentService::Finish
+@@ -439,31 +429,12 @@ void TrustSafetySentimentService::Finish
  void TrustSafetySentimentService::InteractedWithSafeBrowsingInterstitial(
      bool did_proceed,
      safe_browsing::SBThreatType threat_type) {
@@ -3112,7 +3199,14 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -458,14 +457,6 @@ void SigninViewController::SignoutOrReau
+@@ -451,21 +450,11 @@ void SigninViewController::SignoutOrReau
+     signin_metrics::ProfileSignout profile_signout_source,
+     signin_metrics::SourceForRefreshTokenOperation token_signout_source) {
+   CHECK(profile_->IsRegularProfile());
+-  syncer::SyncService* sync_service =
+-      SyncServiceFactory::GetForProfile(GetProfile());
+   base::OnceCallback<void(absl::flat_hash_map<syncer::DataType, size_t>)>
+       signout_prompt_with_datatypes = base::BindOnce(
            &SigninViewController::SignoutOrReauthWithPromptWithUnsyncedDataTypes,
            weak_ptr_factory_.GetWeakPtr(), reauth_access_point,
            profile_signout_source, token_signout_source);
@@ -3137,7 +3231,15 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "components/skills/features.h"
-@@ -291,123 +290,7 @@ struct SigninSectionInfo {
+@@ -261,6 +260,7 @@ const gfx::VectorIcon& GetSendTabToSelfI
+ 
+ 
+ #if !BUILDFLAG(IS_CHROMEOS)
++[[maybe_unused]]
+ std::u16string GetSyncSectionTitle(Profile* profile,
+                                    signin::IdentityManager* identity_manager) {
+   const AccountInfo account = GetAccountInfoFromProfile(profile);
+@@ -291,123 +291,7 @@ struct SigninSectionInfo {
  SigninSectionInfo ComputeSigninSectionInfo(Profile* profile) {
    SigninSectionInfo info;
    // TODO(crbug.com/440342282): Support personalized signin button.
@@ -3261,7 +3363,7 @@
  }
  
  class ProfileSubMenuModel : public ui::SimpleMenuModel,
-@@ -649,22 +532,7 @@ int ProfileSubMenuModel::GetAndIncrement
+@@ -649,22 +533,7 @@ int ProfileSubMenuModel::GetAndIncrement
  }
  
  bool ProfileSubMenuModel::BuildSigninSection(const SigninSectionInfo& info) {
@@ -3575,7 +3677,16 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -196,67 +195,7 @@ AccountAwareSignInPromoDelegate::Account
+@@ -39,8 +38,6 @@ constexpr base::TimeDelta
+     kBatchUploadBookmarkPromoMinimumDelayToShowAfterDismiss = base::Days(7);
+ 
+ #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-constexpr int kBookmarkManagerSigninPromoMaxImpressionCount = 5;
+-constexpr int kBookmarkManagerSigninPromoMaxDismissCount = 2;
+ #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+ 
+ GaiaId GetPrimaryAccountGaiaId(signin::IdentityManager* identity_manager) {
+@@ -196,67 +193,7 @@ AccountAwareSignInPromoDelegate::Account
  AccountAwareSignInPromoDelegate::~AccountAwareSignInPromoDelegate() = default;
  
  bool AccountAwareSignInPromoDelegate::CanShowPromo() const {
@@ -3674,7 +3785,14 @@
  #include "components/safe_browsing/core/common/safebrowsing_referral_methods.h"
  #include "components/saved_tab_groups/public/features.h"
  #include "components/split_tabs/split_tab_visual_data.h"
-@@ -103,13 +102,6 @@ void BrowserCommandHandler::CanExecuteCo
+@@ -97,19 +96,13 @@ void BrowserCommandHandler::CanExecuteCo
+ 
+   bool can_execute = false;
+   switch (static_cast<Command>(command_id)) {
++    case Command::kOpenSafeBrowsingEnhancedProtectionSettings:
+     case Command::kUnknownCommand:
+       // Nothing to do.
+       break;
      case Command::kOpenSafetyCheck:
        can_execute = !enterprise_util::IsBrowserManaged(profile_);
        break;
@@ -5071,7 +5189,17 @@
  #include "components/safe_browsing/core/common/utils.h"
  #include "components/unified_consent/pref_names.h"
  #include "net/base/ip_address.h"
-@@ -104,8 +103,7 @@ bool RealTimeUrlLookupService::CanSendPa
+@@ -36,9 +35,6 @@ namespace {
+ 
+ constexpr int kDefaultRealTimeUrlLookupReferrerLength = 2;
+ 
+-// Probability for sending protego requests for urls on the allowlist
+-const float kProbabilityForSendingSampledRequests = 0.01;
+-
+ GURL* GetRealTimeLookupUrlTestOverride() {
+   static base::NoDestructor<GURL> test_override;
+   return test_override.get();
+@@ -104,8 +100,7 @@ bool RealTimeUrlLookupService::CanSendPa
  }
  
  bool RealTimeUrlLookupService::CanIncludeSubframeUrlInReferrerChain() const {
@@ -5081,7 +5209,7 @@
  }
  
  bool RealTimeUrlLookupService::CanCheckSafeBrowsingDb() const {
-@@ -122,9 +120,7 @@ bool RealTimeUrlLookupService::CanCheckS
+@@ -122,9 +117,7 @@ bool RealTimeUrlLookupService::CanCheckS
  }
  
  bool RealTimeUrlLookupService::CanSendRTSampleRequest() const {
@@ -5092,7 +5220,7 @@
  }
  
  std::string RealTimeUrlLookupService::GetUserEmail() const {
-@@ -241,14 +237,6 @@ RealTimeUrlLookupService::GetMinAllowedT
+@@ -241,14 +234,6 @@ RealTimeUrlLookupService::GetMinAllowedT
  
  void RealTimeUrlLookupService::MaybeLogLastProtegoPingTimeToPrefs(
      bool sent_with_token) {
@@ -5119,7 +5247,7 @@
  #include "net/base/ip_address.h"
 --- a/components/safe_browsing/core/browser/safe_browsing_metrics_collector.cc
 +++ b/components/safe_browsing/core/browser/safe_browsing_metrics_collector.cc
-@@ -15,13 +15,11 @@
+@@ -15,23 +15,18 @@
  #include "components/password_manager/core/common/password_manager_pref_names.h"
  #include "components/prefs/pref_service.h"
  #include "components/prefs/scoped_user_pref_update.h"
@@ -5133,7 +5261,32 @@
  
  const int kMetricsLoggingIntervalDay = 1;
  
-@@ -62,11 +60,6 @@ SafeBrowsingMetricsCollector::SafeBrowsi
+-// The max length of event timestamps stored in pref.
+-const int kTimestampsMaxLength = 30;
+ // The quota for ESB disabled metrics. ESB disabled metrics should not be logged
+ // more than the quota in a week.
+ const int kEsbDisabledMetricsQuota = 3;
+ // Events that are older than 30 days are removed from pref.
+-const int kEventMaxDurationDay = 30;
+ // The ESB enabled duration is considered short if it's under 1 hour, long if
+ // it's at least 24 hours, and medium if it's in between.
+ const int kEsbShortEnabledUpperBoundHours = 1;
+@@ -41,14 +36,6 @@ std::string EventTypeToPrefKey(const Eve
+   return base::NumberToString(static_cast<int>(type));
+ }
+ 
+-std::string UserStateToPrefKey(const UserState& user_state) {
+-  return base::NumberToString(static_cast<int>(user_state));
+-}
+-
+-base::Value TimeToPrefValue(const base::Time& time) {
+-  return base::Int64ToValue(time.ToDeltaSinceWindowsEpoch().InSeconds());
+-}
+-
+ base::Time PrefValueToTime(const base::Value& value) {
+   return base::Time::FromDeltaSinceWindowsEpoch(
+       base::Seconds(base::ValueToInt64(value).value_or(0)));
+@@ -62,11 +49,6 @@ SafeBrowsingMetricsCollector::SafeBrowsi
      PrefService* pref_service)
      : pref_service_(pref_service) {
    pref_change_registrar_.Init(pref_service_);
@@ -5145,7 +5298,7 @@
  }
  
  void SafeBrowsingMetricsCollector::Shutdown() {
-@@ -82,16 +75,6 @@ void SafeBrowsingMetricsCollector::
+@@ -82,16 +64,6 @@ void SafeBrowsingMetricsCollector::
  }
  
  void SafeBrowsingMetricsCollector::StartLogging() {
@@ -5162,7 +5315,7 @@
  }
  
  void SafeBrowsingMetricsCollector::LogMetricsAndScheduleNextLogging() {
-@@ -100,77 +83,10 @@ void SafeBrowsingMetricsCollector::LogMe
+@@ -100,77 +72,10 @@ void SafeBrowsingMetricsCollector::LogMe
    MaybeLogDailyEsbProtegoPingSent();
    RemoveOldEventsFromPref();
  
@@ -5240,7 +5393,7 @@
  }
  
  void SafeBrowsingMetricsCollector::ScheduleNextLoggingAfterInterval(
-@@ -182,75 +98,16 @@ void SafeBrowsingMetricsCollector::Sched
+@@ -182,75 +87,16 @@ void SafeBrowsingMetricsCollector::Sched
  }
  
  void SafeBrowsingMetricsCollector::LogDailyOptInMetrics() {
@@ -5316,7 +5469,7 @@
  }
  
  void SafeBrowsingMetricsCollector::AddBypassEventToPref(
-@@ -297,15 +154,7 @@ std::optional<base::Time> SafeBrowsingMe
+@@ -297,15 +143,7 @@ std::optional<base::Time> SafeBrowsingMe
  std::optional<base::Time> SafeBrowsingMetricsCollector::GetLatestEventTimestamp(
      EventTypeFilter event_type_filter) {
    // Events are not logged when Safe Browsing is disabled.
@@ -5332,7 +5485,7 @@
  }
  
  std::optional<base::Time>
-@@ -317,45 +166,15 @@ SafeBrowsingMetricsCollector::GetLatestS
+@@ -317,45 +155,15 @@ SafeBrowsingMetricsCollector::GetLatestS
  void SafeBrowsingMetricsCollector::AddSafeBrowsingEventAndUserStateToPref(
      UserState user_state,
      EventType event_type) {
@@ -5379,7 +5532,7 @@
  }
  
  std::optional<SafeBrowsingMetricsCollector::Event>
-@@ -482,22 +301,6 @@ int SafeBrowsingMetricsCollector::GetEve
+@@ -482,22 +290,6 @@ int SafeBrowsingMetricsCollector::GetEve
    });
  }
  
@@ -6238,8 +6391,12 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/identity_manager/account_info.h"
  #include "components/signin/public/identity_manager/tribool.h"
-@@ -491,37 +490,10 @@ void SigninMetricsService::MaybeRecordMe
-       GetTimeOfWebSignin(account_info.account_id).has_value();
+@@ -487,41 +486,12 @@ void SigninMetricsService::OnRefreshToke
+ void SigninMetricsService::MaybeRecordMetricsForPromoShowCountAtSignin(
+     const CoreAccountInfo& account_info,
+     signin_metrics::AccessPoint access_point) {
+-  bool is_from_web_signin =
+-      GetTimeOfWebSignin(account_info.account_id).has_value();
    switch (access_point) {
      case signin_metrics::AccessPoint::kAddressBubble:
 -      base::UmaHistogramCustomCounts(
@@ -6286,7 +6443,15 @@
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_capabilities.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -143,11 +142,6 @@ AccountTrackerService::~AccountTrackerSe
+@@ -108,6 +107,7 @@ void RemoveImage(const base::FilePath& i
+   }
+ }
+ 
++[[maybe_unused]]
+ std::string AccountsToString(
+     const std::map<CoreAccountId, AccountInfo>& accounts) {
+   std::stringstream result;
+@@ -143,11 +143,6 @@ AccountTrackerService::~AccountTrackerSe
  
  // static
  void AccountTrackerService::RegisterPrefs(PrefRegistrySimple* registry) {
@@ -6298,7 +6463,7 @@
  }
  
  std::vector<AccountInfo> AccountTrackerService::GetAccounts() const {
-@@ -545,14 +539,12 @@ AccountTrackerService::ComputeNewMigrati
+@@ -545,14 +540,12 @@ AccountTrackerService::ComputeNewMigrati
  void AccountTrackerService::SetMigrationState(AccountIdMigrationState state) {
    DCHECK(state != MIGRATION_DONE || AreAllAccountsMigrated())
        << "state: " << state << ", accounts = " << AccountsToString(accounts_);
@@ -6314,7 +6479,7 @@
  }
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
-@@ -632,28 +624,6 @@ void AccountTrackerService::OnAccountIma
+@@ -632,28 +625,6 @@ void AccountTrackerService::OnAccountIma
      const CoreAccountId& account_id,
      const std::string& image_url_with_size,
      bool success) {
@@ -6343,7 +6508,7 @@
  }
  
  void AccountTrackerService::RemoveAccountImageFromDisk(
-@@ -666,157 +636,17 @@ void AccountTrackerService::RemoveAccoun
+@@ -666,157 +637,17 @@ void AccountTrackerService::RemoveAccoun
  }
  
  void AccountTrackerService::LoadFromPrefs() {
@@ -6501,7 +6666,7 @@
  }
  
  void AccountTrackerService::RemoveFromPrefs(
-@@ -825,15 +655,6 @@ void AccountTrackerService::RemoveFromPr
+@@ -825,15 +656,6 @@ void AccountTrackerService::RemoveFromPr
      return;
    }
  
@@ -6625,7 +6790,80 @@
  #include "components/signin/public/base/signin_prefs.h"
  #include "components/signin/public/base/signin_switches.h"
  #include "components/signin/public/identity_manager/account_info.h"
-@@ -261,184 +260,25 @@ PrimaryAccountManager::PrimaryAccountMan
+@@ -43,8 +42,6 @@ using signin::PrimaryAccountChangeEvent;
+ namespace {
+ 
+ #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-constexpr std::string_view kExplicitSigninDatatypeMigrationHistogram =
+-    "Signin.ExplicitSigninDatatypeMigration";
+ #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+ 
+ enum class InitializePrefState {
+@@ -104,6 +101,7 @@ void LogPrimaryAccountChangeMetrics(
+   }
+ }
+ 
++[[maybe_unused]]
+ void LogPrimaryAccountPrefsOnInitialize(const std::string& pref_account_id,
+                                         bool pref_consented_to_sync) {
+   if (pref_account_id.empty()) {
+@@ -121,55 +119,6 @@ void LogPrimaryAccountPrefsOnInitialize(
+   }
+ }
+ 
+-// Enabling bookmarks, reading lists and extensions of non-desktop platforms are
+-// gated behind `syncer::kReplaceSyncPromosWithSignInPromos` and require no
+-// changes to bookmarks/extensions explicit signin pref.
+-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-bool ShouldEnableExtensionsExplicitBrowserSigninPrefForSignedInUser() {
+-  // Returns true if extensions should be enabled for existing signed-in users
+-  // with `syncer::kReplaceSyncPromosWithSignInPromos` enabled.
+-  //
+-  // Background: Originally (when syncer::kExplicitSigninForExtensions is OFF),
+-  // all data types were enabled in transport mode for existing sessions during
+-  // sync-to-signin migration. In the new behavior (when
+-  // syncer::kExplicitSigninForExtensions is ON), extensions are disabled for
+-  // existing sessions (requiring a new sign-in to be enabled). This function
+-  // identifies users from the original migration group to ensure they maintain
+-  // their existing behavior.
+-  return base::FeatureList::IsEnabled(
+-      syncer::kReplaceSyncPromosWithSignInPromos);
+-}
+-
+-bool ShouldEnableBookmarksExplicitBrowserSigninPrefForSignedInUser() {
+-  // Returns true if bookmarks should be enabled for existing signed-in users
+-  // with `syncer::kReplaceSyncPromosWithSignInPromos` enabled.
+-  //
+-  // Background: Originally (when syncer::kExplicitSigninForBookmarks is OFF),
+-  // all data types were enabled in transport mode for existing sessions during
+-  // sync-to-signin migration. In the new behavior (when
+-  // syncer::kExplicitSigninForBookmarks is ON), bookmarks are disabled for
+-  // existing sessions (requiring a new sign-in to be enabled). This function
+-  // identifies users from the original migration group to ensure they maintain
+-  // their existing behavior.
+-  return base::FeatureList::IsEnabled(
+-      syncer::kReplaceSyncPromosWithSignInPromos);
+-}
+-
+-bool ShouldEnableExtensionExplicitBrowserSigninPrefOnSignIn(
+-    signin_metrics::AccessPoint access_point) {
+-  // For all user groups, for new sign-in enable extensions.
+-  return access_point == signin_metrics::AccessPoint::kExtensionInstallBubble ||
+-         syncer::IsReplaceSyncPromosWithSignInPromosEnabled();
+-}
+-
+-bool ShouldEnableBookmarksExplicitBrowserSigninPrefOnSignIn(
+-    signin_metrics::AccessPoint access_point) {
+-  // For all user groups, for new sign-in enable bookmarks.
+-  return access_point == signin_metrics::AccessPoint::kBookmarkBubble ||
+-         syncer::IsReplaceSyncPromosWithSignInPromosEnabled();
+-}
+-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+-
+ }  // namespace
+ 
+ // A wrapper around PrefService that sets prefs only when updated. It can be
+@@ -261,184 +210,25 @@ PrimaryAccountManager::PrimaryAccountMan
    DCHECK(account_tracker_service_);
    ScopedPrefCommit scoped_pref_commit(client_->GetPrefs(),
                                        /*commit_on_destroy=*/false);
@@ -6810,7 +7048,7 @@
  }
  
  std::pair<CoreAccountInfo, PrimaryAccountManager::InitializeAccountInfoState>
-@@ -469,36 +309,6 @@ PrimaryAccountManager::GetOrRestorePrima
+@@ -469,36 +259,6 @@ PrimaryAccountManager::GetOrRestorePrima
  #if BUILDFLAG(IS_IOS)
    NOTREACHED();
  #else
@@ -6847,7 +7085,7 @@
    return std::make_pair(
        account_tracker_service_->GetAccountInfo(account_id).GetCoreAccountInfo(),
        InitializeAccountInfoState::
-@@ -594,10 +404,9 @@ void PrimaryAccountManager::SetSyncPrima
+@@ -594,10 +354,9 @@ void PrimaryAccountManager::SetSyncPrima
  
  #if DCHECK_IS_ON()
    {
@@ -6860,7 +7098,7 @@
  
      DCHECK(pref_account_id.empty() || !consented_to_sync ||
             pref_account_id == account_info.account_id.ToString())
-@@ -608,16 +417,6 @@ void PrimaryAccountManager::SetSyncPrima
+@@ -608,16 +367,6 @@ void PrimaryAccountManager::SetSyncPrima
  
    SetPrimaryAccountInternal(account_info, /*consented_to_sync=*/true,
                              scoped_pref_commit);
@@ -6877,7 +7115,7 @@
  }
  
  void PrimaryAccountManager::SetPrimaryAccountInternal(
-@@ -629,24 +428,6 @@ void PrimaryAccountManager::SetPrimaryAc
+@@ -629,24 +378,6 @@ void PrimaryAccountManager::SetPrimaryAc
    // 'account_info' might be a reference to the contents of `primary_account_`.
    // Create a PrimaryAccount object before calling emplace to avoid crashes.
    primary_account_.emplace(PrimaryAccount(account_info, consented_to_sync));
@@ -6902,7 +7140,7 @@
  }
  
  void PrimaryAccountManager::UpdatePrimaryAccountInfo() {
-@@ -778,103 +559,6 @@ PrimaryAccountChangeEvent::State Primary
+@@ -778,103 +509,6 @@ PrimaryAccountChangeEvent::State Primary
  void PrimaryAccountManager::SetExplicitBrowserSigninPrefs(
      const PrimaryAccountChangeEvent& event_details,
      ScopedPrefCommit& scoped_pref_commit) {

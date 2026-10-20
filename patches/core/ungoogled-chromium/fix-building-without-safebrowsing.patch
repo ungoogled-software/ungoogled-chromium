@@ -160,7 +160,15 @@
  using ConnectionType = net::NetworkChangeNotifier::ConnectionType;
  
  #if BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
-@@ -2263,7 +2262,6 @@ void ChromeDownloadManagerDelegate::OnDo
+@@ -334,6 +333,7 @@ void CheckDownloadUrlDone(
+ 
+ // Returns true if the danger type is either FORCE_SAVE_TO_ONEDRIVE or
+ // FORCE_SAVE_TO_GDrive.
++[[maybe_unused]]
+ bool IsForceSaveToCloud(download::DownloadDangerType danger_type) {
+   return danger_type == download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_ONEDRIVE ||
+          danger_type == download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE;
+@@ -2263,7 +2263,6 @@ void ChromeDownloadManagerDelegate::OnDo
      DownloadItemModel model(item);
      model.DetermineAndSetShouldPreferOpeningInBrowser(
          target_info.target_path, target_info.is_filetype_handled_safely);
@@ -168,7 +176,7 @@
    }
    if (ShouldBlockFile(item, target_info.danger_type)) {
      MaybeReportDangerousDownloadBlocked(
-@@ -2344,50 +2342,20 @@ bool ChromeDownloadManagerDelegate::IsOp
+@@ -2344,50 +2343,20 @@ bool ChromeDownloadManagerDelegate::IsOp
  bool ChromeDownloadManagerDelegate::ShouldBlockFile(
      download::DownloadItem* item,
      download::DownloadDangerType danger_type) const {
@@ -251,7 +259,7 @@
  #include "content/public/browser/download_item_utils.h"
  
  namespace {
-@@ -106,17 +105,6 @@ std::string ElapsedTimeToSecondsString(b
+@@ -106,22 +105,12 @@ std::string ElapsedTimeToSecondsString(b
    return base::NumberToString(elapsed_time.InSeconds());
  }
  
@@ -269,7 +277,13 @@
  
  // Produces a string consisting of comma-separated action events, each of which
  // consists of the surface, action, and relative timestamp (ms) separated by
-@@ -243,49 +231,21 @@ DownloadWarningHatsProductSpecificData::
+ // colons. The first SHOWN event is included, and is the basis of all
+ // timestamps, however subsequent SHOWN events are not included.
++[[maybe_unused]]
+ std::string SerializeWarningActionEvents(
+     DownloadItemWarningData::WarningSurface warning_first_shown_surface,
+     const std::vector<DownloadItemWarningData::WarningActionEvent>& events) {
+@@ -243,49 +232,17 @@ DownloadWarningHatsProductSpecificData::
      return psd;
    }
  
@@ -299,10 +313,10 @@
      psd.string_data_.insert({Fields::kFilename, kNotLoggedNoSafeBrowsing});
 -  }
  
-   // Interaction details logged only for ESB users.
-   std::optional<DownloadItemWarningData::WarningSurface>
-       warning_first_shown_surface =
-           DownloadItemWarningData::WarningFirstShownSurface(download_item);
+-  // Interaction details logged only for ESB users.
+-  std::optional<DownloadItemWarningData::WarningSurface>
+-      warning_first_shown_surface =
+-          DownloadItemWarningData::WarningFirstShownSurface(download_item);
 -  if (warning_first_shown_surface &&
 -      safe_browsing::IsEnhancedProtectionEnabled(*profile->GetPrefs())) {
 -    std::vector<DownloadItemWarningData::WarningActionEvent>
@@ -319,7 +333,7 @@
  
    return psd;
  }
-@@ -477,40 +437,7 @@ bool CanShowDownloadWarningHatsSurvey(do
+@@ -477,40 +434,7 @@ bool CanShowDownloadWarningHatsSurvey(do
  
  std::optional<std::string> MaybeGetDownloadWarningHatsTrigger(
      DownloadWarningHatsType survey_type) {
@@ -827,7 +841,15 @@
  }  // namespace extensions
 --- a/chrome/browser/extensions/extension_safety_check_utils.cc
 +++ b/chrome/browser/extensions/extension_safety_check_utils.cc
-@@ -266,9 +266,6 @@ developer::SafetyCheckWarningReason GetS
+@@ -109,6 +109,7 @@ bool SafetyCheckShouldShowNoPrivacyPract
+ 
+ // Returns true if the Safety Check should display a no off-store extension
+ // warning.
++[[maybe_unused]]
+ bool SafetyCheckShouldShowOffstoreExtension(
+     const Extension& extension,
+     Profile* profile,
+@@ -266,9 +267,6 @@ developer::SafetyCheckWarningReason GetS
        top_warning_reason =
            developer::SafetyCheckWarningReason::kNoPrivacyPractice;
  
@@ -2111,10 +2133,15 @@
  #include "components/security_interstitials/content/stateful_ssl_host_state_delegate.h"
  #include "components/security_interstitials/core/https_only_mode_metrics.h"
  #include "content/public/browser/web_contents.h"
-@@ -99,12 +98,6 @@ ComputeInterstitialState(content::WebCon
-     bool user_has_modified_settings =
-         prefs->HasPrefPath(prefs::kHttpsOnlyModeEnabled) ||
-         prefs->HasPrefPath(prefs::kHttpsFirstBalancedMode);
+@@ -94,17 +93,6 @@ ComputeInterstitialState(content::WebCon
+   if (IsBalancedModeEnabled(prefs) && state &&
+       !state->HttpsFirstBalancedModeSuppressedForTesting()) {
+     interstitial_state.enabled_in_balanced_mode = true;
+-
+-    // Determine if Balanced Mode was enabled specifically due to ESB pairing.
+-    bool user_has_modified_settings =
+-        prefs->HasPrefPath(prefs::kHttpsOnlyModeEnabled) ||
+-        prefs->HasPrefPath(prefs::kHttpsFirstBalancedMode);
 -    if (!user_has_modified_settings &&
 -        base::FeatureList::IsEnabled(
 -            features::kHttpsFirstModeDefaultSettingPairsWithEsb) &&
@@ -2124,7 +2151,7 @@
    }
  
    auto* storage_partition =
-@@ -148,11 +141,6 @@ bool IsBalancedModeEnabled(PrefService*
+@@ -148,11 +136,6 @@ bool IsBalancedModeEnabled(PrefService*
        prefs->HasPrefPath(prefs::kHttpsOnlyModeEnabled) ||
        prefs->HasPrefPath(prefs::kHttpsFirstBalancedMode);
    if (!user_has_modified_settings) {
@@ -2205,7 +2232,16 @@
  #include "components/safety_check/safety_check.h"
  #include "content/public/browser/browser_context.h"
  #include "content/public/browser/browser_thread.h"
-@@ -174,33 +173,6 @@ RevokedPermissionsService::RevokedPermis
+@@ -165,42 +164,11 @@ RevokedPermissionsService::RevokedPermis
+           base::Unretained(this)));
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
+-    RevokedPermissionsOSNotificationDisplayManager*
+-        notification_display_manager =
+-            RevokedPermissionsOSNotificationDisplayManagerFactory::
+-                GetForProfile(Profile::FromBrowserContext(browser_context_));
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+     auto* v5_manager =
          safe_browsing::V5GetHashProtocolManagerFactory::GetForBrowserContext(
              browser_context_);
  #endif
@@ -2239,7 +2275,7 @@
  
    unused_site_permissions_manager_ =
        std::make_unique<UnusedSitePermissionsManager>(browser_context, prefs);
-@@ -614,5 +586,5 @@ bool RevokedPermissionsService::IsUnused
+@@ -614,5 +582,5 @@ bool RevokedPermissionsService::IsUnused
  }
  
  bool RevokedPermissionsService::IsAbusiveNotificationAutoRevocationEnabled() {
@@ -3615,7 +3651,17 @@
  #include "components/security_interstitials/content/security_interstitial_controller_client.h"
  #include "components/security_interstitials/core/controller_client.h"
  #include "components/security_interstitials/core/metrics_helper.h"
-@@ -42,33 +41,7 @@ SSLBlockingPageBase::~SSLBlockingPageBas
+@@ -15,9 +14,6 @@
+ #include "ui/base/l10n/l10n_util.h"
+ 
+ namespace {
+-PrefService* GetPrefs(content::WebContents* web_contents) {
+-  return user_prefs::UserPrefs::Get(web_contents->GetBrowserContext());
+-}
+ }  // namespace
+ 
+ SSLBlockingPageBase::SSLBlockingPageBase(
+@@ -42,33 +38,7 @@ SSLBlockingPageBase::~SSLBlockingPageBas
  void SSLBlockingPageBase::OnInterstitialClosing() {}
  
  bool SSLBlockingPageBase::ShouldShowEnhancedProtectionMessage() {
@@ -3625,7 +3671,7 @@
 -  // Safe Browsing is not managed by policy AND
 -  // the user is not already in enhanced protection mode.
 -  if (!can_show_enhanced_protection_message_) {
-     return false;
+-    return false;
 -  }
 -
 -  const bool in_incognito =
@@ -3643,7 +3689,7 @@
 -    return false;
 -  }
 -  if (is_safe_browsing_managed) {
--    return false;
+     return false;
 -  }
 -  return true;
  }
@@ -3664,7 +3710,17 @@
           {syncable_prefs_ids::kFacilitatedPaymentsPix, syncer::PREFERENCES,
 --- a/content/browser/file_system_access/file_system_access_safe_move_helper.cc
 +++ b/content/browser/file_system_access/file_system_access_safe_move_helper.cc
-@@ -175,15 +175,8 @@ void FileSystemAccessSafeMoveHelper::Sta
+@@ -159,8 +159,7 @@ FileSystemAccessSafeMoveHelper::FileSyst
+       dest_url_(dest_url),
+       options_(options),
+       quarantine_connection_callback_(
+-          std::move(quarantine_connection_callback)),
+-      has_transient_user_activation_(has_transient_user_activation) {}
++          std::move(quarantine_connection_callback)) {}
+ 
+ FileSystemAccessSafeMoveHelper::~FileSystemAccessSafeMoveHelper() = default;
+ 
+@@ -175,15 +174,8 @@ void FileSystemAccessSafeMoveHelper::Sta
      return;
    }
  
@@ -3680,7 +3736,7 @@
  }
  
  void FileSystemAccessSafeMoveHelper::ComputeHashForSourceFile(
-@@ -222,46 +215,6 @@ bool FileSystemAccessSafeMoveHelper::Req
+@@ -222,46 +214,6 @@ bool FileSystemAccessSafeMoveHelper::Req
    return dest_url().type() != storage::kFileSystemTypeTemporary;
  }
  
@@ -3739,6 +3795,16 @@
    void DidAfterWriteCheck(
        FileSystemAccessPermissionContext::AfterWriteCheckResult result);
    void DidFileSkipQuarantine(base::File::Error result);
+@@ -98,9 +95,6 @@ class CONTENT_EXPORT FileSystemAccessSaf
+   download::QuarantineConnectionCallback quarantine_connection_callback_
+       GUARDED_BY_CONTEXT(sequence_checker_);
+ 
+-  bool has_transient_user_activation_ GUARDED_BY_CONTEXT(sequence_checker_) =
+-      false;
+-
+   FileSystemAccessSafeMoveHelperCallback callback_
+       GUARDED_BY_CONTEXT(sequence_checker_);
+ 
 --- a/extensions/browser/api/declarative_net_request/declarative_net_request_api.cc
 +++ b/extensions/browser/api/declarative_net_request/declarative_net_request_api.cc
 @@ -135,13 +135,6 @@ DeclarativeNetRequestUpdateDynamicRulesF
@@ -3973,7 +4039,23 @@
  void ExtensionRegistrar::OnUnpackedExtensionReloadFailed(
 --- a/extensions/browser/updater/update_service.cc
 +++ b/extensions/browser/updater/update_service.cc
-@@ -131,13 +131,6 @@ void UpdateService::OnCrxStateChange(Upd
+@@ -106,15 +106,10 @@ void UpdateService::OnCrxStateChange(Upd
+                                      const update_client::CrxUpdateItem& item) {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+ 
+-  // Custom attributes can only be sent for NOT_UPDATED/UPDATE_FOUND events.
+-  bool should_perform_action_on_omaha_attributes = false;
+-
+   switch (item.state) {
+     case update_client::ComponentState::kUpToDate:
+-      should_perform_action_on_omaha_attributes = true;
+       break;
+     case update_client::ComponentState::kCanUpdate:
+-      should_perform_action_on_omaha_attributes = true;
+       if (update_found_callback) {
+         update_found_callback.Run(item.id, item.next_version);
+       }
+@@ -131,13 +126,6 @@ void UpdateService::OnCrxStateChange(Upd
        break;
    }
  
