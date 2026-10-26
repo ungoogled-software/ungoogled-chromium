@@ -1,0 +1,40 @@
+Return a ContextInfo from enterprise.reportingPrivate.getContextInfo() when
+enterprise_cloud_content_analysis is disabled.
+
+Upstream responds with NoArguments() in that configuration, so the extension
+callback receives undefined and callers that read fields of the result throw.
+ContextInfoFetcher is compiled on every desktop platform and only touches the
+connectors service behind the same build flag, so it can run with a null
+service and still report the browser, profile and OS signals.
+
+--- a/chrome/browser/extensions/api/enterprise_reporting_private/enterprise_reporting_private_api.cc
++++ b/chrome/browser/extensions/api/enterprise_reporting_private/enterprise_reporting_private_api.cc
+@@ -619,12 +619,17 @@
+ 
+ ExtensionFunction::ResponseAction
+ EnterpriseReportingPrivateGetContextInfoFunction::Run() {
++  enterprise_connectors::ConnectorsService* connectors_service = nullptr;
+ #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+-  auto* connectors_service =
++  connectors_service =
+       enterprise_connectors::ConnectorsServiceFactory::GetInstance()
+           ->GetForBrowserContext(browser_context());
+   DCHECK(connectors_service);
++#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+ 
++  // Without cloud content analysis the fetcher still reports the browser,
++  // profile and OS signals. The connector fields stay empty instead of the
++  // whole result being undefined, which breaks callers of getContextInfo().
+   context_info_fetcher_ =
+       enterprise_signals::ContextInfoFetcher::CreateInstance(
+           browser_context(), connectors_service);
+@@ -633,9 +638,6 @@
+       this));
+ 
+   return RespondLater();
+-#else
+-  return RespondNow(NoArguments());
+-#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+ }
+ 
+ void EnterpriseReportingPrivateGetContextInfoFunction::OnContextInfoRetrieved(
