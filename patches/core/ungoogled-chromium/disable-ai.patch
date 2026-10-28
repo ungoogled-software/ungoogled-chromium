@@ -3,7 +3,7 @@
 
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -2608,7 +2608,6 @@ source_set("browser") {
+@@ -2916,7 +2916,6 @@ source_set("browser") {
        "//chrome/browser/profile_resetter:impl",
        "//chrome/browser/record_replay",
        "//chrome/browser/record_replay:impl",
@@ -11,7 +11,7 @@
        "//chrome/browser/sharing_hub",
        "//chrome/browser/sharing_hub:impl",
        "//chrome/browser/smart_card",
-@@ -2657,7 +2656,6 @@ source_set("browser") {
+@@ -2965,7 +2964,6 @@ source_set("browser") {
        "//chrome/browser/ui/waap:window_metrics_manager",
        "//chrome/browser/ui/web_applications:impl",
        "//chrome/browser/ui/webui/app_service_internals",
@@ -19,9 +19,17 @@
        "//chrome/browser/ui/webui/color_pipeline_internals",
        "//chrome/browser/ui/webui/commerce",
        "//chrome/browser/ui/webui/commerce:impl",
+@@ -3976,7 +3974,6 @@ source_set("browser") {
+       "//chrome/browser/lens/region_search",
+       "//chrome/browser/reading_list",
+       "//chrome/browser/safe_browsing",
+-      "//chrome/browser/screen_ai:screen_ai_service_router_factory",
+       "//chrome/browser/smart_card",
+       "//chrome/browser/support_tool",
+       "//chrome/browser/tab_group_sync:utils",
 --- a/chrome/browser/accessibility/BUILD.gn
 +++ b/chrome/browser/accessibility/BUILD.gn
-@@ -59,7 +59,6 @@ source_set("accessibility") {
+@@ -60,7 +60,6 @@ source_set("accessibility") {
      public_deps += [
        "//chrome/browser/accessibility/live_caption",
        "//chrome/browser/profiles:profile_manager",
@@ -29,7 +37,7 @@
        "//components/live_caption",
        "//components/pref_registry",
        "//ui/accessibility/platform",
-@@ -88,8 +87,6 @@ source_set("impl") {
+@@ -89,8 +88,6 @@ source_set("impl") {
  
    if (!is_android) {
      sources += [
@@ -37,16 +45,16 @@
 -      "ax_main_node_annotator_controller_factory.cc",
        "embedded_a11y_extension_loader.cc",
        "invert_bubble_prefs.cc",
-       "page_colors_controller.cc",
+       "page_colors_controller_factory.cc",
 @@ -99,7 +96,6 @@ source_set("impl") {
        "//chrome/browser/accessibility/live_caption:impl",
        "//chrome/browser/extensions",
        "//chrome/browser/on_device_translation",
 -      "//chrome/browser/screen_ai:screen_ai_service_router_factory",
-       "//chrome/browser/ui",
        "//chrome/browser/ui/browser_window",
        "//chrome/browser/ui/views/frame:browser_view_header",
-@@ -246,9 +242,7 @@ if (!is_android) {
+       "//components/live_caption:live_translate",
+@@ -247,9 +243,7 @@ if (!is_android) {
      }
  
      deps += [
@@ -63,9 +71,9 @@
      "//chrome/browser/extensions",
      "//chrome/browser/on_device_translation",
 -    "//chrome/browser/screen_ai:screen_ai_service_router_factory",
-     "//chrome/browser/ui",
      "//chrome/browser/ui/browser_window",
      "//components/live_caption",
+     "//components/live_caption:constants",
 --- a/chrome/browser/accessibility/tree_fixing/BUILD.gn
 +++ b/chrome/browser/accessibility/tree_fixing/BUILD.gn
 @@ -63,11 +63,9 @@ source_set("internal") {
@@ -82,17 +90,14 @@
  }
 --- a/chrome/browser/actor/actor_keyed_service.cc
 +++ b/chrome/browser/actor/actor_keyed_service.cc
-@@ -870,13 +870,6 @@ bool ActorKeyedService::IsActiveOnTab(co
+@@ -869,10 +869,6 @@ void ActorKeyedService::StopTask(TaskId
+ }
  
- ActorTask* ActorKeyedService::GetTaskFromTab(
-     const tabs::TabInterface& tab) const {
--  tabs::TabHandle handle = tab.GetHandle();
--  for (const auto& [task_id, task] : active_tasks_) {
--    if (task->HasTab(handle)) {
--      return task.get();
--    }
+ ActorTask* ActorKeyedService::GetTask(TaskId task_id) {
+-  auto task = active_tasks_.find(task_id);
+-  if (task != active_tasks_.end()) {
+-    return task->second.get();
 -  }
--
    return nullptr;
  }
  
@@ -117,7 +122,7 @@
  #include "chrome/browser/ssl/secure_origin_prefs_observer.h"
  #include "chrome/browser/startup_data.h"
  #include "chrome/browser/status_icons/status_tray.h"
-@@ -261,12 +260,10 @@ void OnLocalStatePrefsLoaded();
+@@ -264,12 +263,10 @@ void OnLocalStatePrefsLoaded();
  #if BUILDFLAG(IS_CHROMEOS)
  #include "chrome/browser/chromeos/extensions/telemetry/chromeos_telemetry_extensions_browser_api_provider.h"
  #include "chrome/browser/hid/hid_pinned_notification.h"
@@ -130,7 +135,7 @@
  #include "chrome/browser/usb/usb_status_icon.h"
  #include "components/enterprise/browser/controller/chrome_browser_cloud_management_controller.h"
  #endif
-@@ -1368,12 +1365,6 @@ GlobalFeatures* BrowserProcessImpl::GetF
+@@ -1373,12 +1370,6 @@ GlobalFeatures* BrowserProcessImpl::GetF
    return features_.get();
  }
  
@@ -143,7 +148,7 @@
  
  DownloadRequestLimiter* BrowserProcessImpl::download_request_limiter() {
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-@@ -1715,11 +1706,6 @@ void BrowserProcessImpl::PreMainMessageL
+@@ -1723,11 +1714,6 @@ void BrowserProcessImpl::PreMainMessageL
    soda_installer_impl_ = std::make_unique<speech::SodaInstallerImplChromeOS>();
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
@@ -251,7 +256,7 @@
  #if BUILDFLAG(IS_WIN)
 --- a/chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc
 +++ b/chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc
-@@ -456,9 +456,6 @@ void PopulateChromeWebUIFrameBindersPart
+@@ -446,9 +446,6 @@ void PopulateChromeWebUIFrameBindersPart
        ::mojom::app_service_internals::AppServiceInternalsPageHandler,
        AppServiceInternalsUI>(map);
  
@@ -263,7 +268,7 @@
        access_code_cast::mojom::PageHandlerFactory,
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -1395,6 +1395,7 @@ base::FilePath GetModulePath(std::wstrin
+@@ -1418,6 +1418,7 @@ base::FilePath GetModulePath(
  #endif  // BUILDFLAG(IS_WIN) && !defined(COMPONENT_BUILD) &&
          // !defined(ADDRESS_SANITIZER)
  
@@ -271,7 +276,7 @@
  void MaybeAddCondition(
      std::unique_ptr<content::CommitDeferringCondition> maybe_condition,
      std::vector<std::unique_ptr<content::CommitDeferringCondition>>*
-@@ -5692,9 +5693,6 @@ ChromeContentBrowserClient::CreateCommit
+@@ -5749,9 +5750,6 @@ ChromeContentBrowserClient::CreateCommit
        &conditions);
  #endif
  
@@ -283,7 +288,7 @@
  }
 --- a/chrome/browser/component_updater/BUILD.gn
 +++ b/chrome/browser/component_updater/BUILD.gn
-@@ -227,13 +227,6 @@ source_set("impl") {
+@@ -234,13 +234,6 @@ source_set("impl") {
      ]
    }
  
@@ -317,58 +322,6 @@
 -#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
  
    RegisterCommerceHeuristicsComponent(cus);
- 
---- a/chrome/browser/glic/glic_selection_observer.cc
-+++ b/chrome/browser/glic/glic_selection_observer.cc
-@@ -1269,20 +1269,6 @@ void GlicSelectionObserver::OnAskGeminiW
-   }
- 
-   std::string skill_prompt;
--  auto* tab_interface =
--      tabs::TabInterface::MaybeGetFromContents(web_contents());
--  if (tab_interface) {
--    if (auto* observer = skills::SkillsUpdateObserver::From(tab_interface)) {
--      if (const auto* list = observer->contextual_skills()) {
--        for (const auto& s : list->skills()) {
--          if (s.id() == skill.id) {
--            skill_prompt = s.prompt();
--            break;
--          }
--        }
--      }
--    }
--  }
- 
-   if (skill_prompt.empty()) {
-     Profile* profile =
-@@ -1303,28 +1289,6 @@ void GlicSelectionObserver::OnAskGeminiW
- std::vector<GlicSelectionWidgetDelegate::SkillOption>
- GlicSelectionObserver::GetContextualSkills() {
-   std::vector<GlicSelectionWidgetDelegate::SkillOption> result;
--  if (!features::kGlicSelectionPromptSkills.Get()) {
--    return result;
--  }
--  auto* tab_interface =
--      tabs::TabInterface::MaybeGetFromContents(web_contents());
--  if (!tab_interface) {
--    return result;
--  }
--  auto* observer = skills::SkillsUpdateObserver::From(tab_interface);
--  if (!observer) {
--    return result;
--  }
--  const auto* list = observer->contextual_skills();
--  if (!list) {
--    return result;
--  }
--  for (const auto& skill : list->skills()) {
--    if (!skill.id().empty() && !skill.name().empty()) {
--      result.emplace_back(
--          skills::Skill(skill.id(), skill.name(), skill.icon(), ""));
--    }
--  }
-   return result;
- }
  
 --- a/chrome/browser/glic/host/glic_skills_manager_impl.cc
 +++ b/chrome/browser/glic/host/glic_skills_manager_impl.cc
@@ -414,113 +367,37 @@
  void GlicSkillsClientSession::NotifyContextualSkillsChanged(
 --- a/chrome/browser/navigation_predictor/navigation_predictor.cc
 +++ b/chrome/browser/navigation_predictor/navigation_predictor.cc
-@@ -18,8 +18,6 @@
- #include "base/time/default_tick_clock.h"
- #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service.h"
- #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
--#include "chrome/browser/navigation_predictor/preloading_model_keyed_service.h"
--#include "chrome/browser/navigation_predictor/preloading_model_keyed_service_factory.h"
- #include "chrome/browser/preloading/preloading_prefs.h"
+@@ -15,8 +15,6 @@
+ #include "base/metrics/field_trial_params.h"
+ #include "base/rand_util.h"
+ #include "base/system/sys_info.h"
+-#include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service.h"
+-#include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
  #include "chrome/browser/profiles/profile.h"
  #include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
-@@ -105,15 +103,8 @@ base::TimeDelta MLModelExecutionTimerSta
-       blink::features::kPreloadingModelTimerStartDelay.Get());
- }
+ #include "content/public/browser/navigation_handle.h"
+@@ -276,21 +274,6 @@ void NavigationPredictor::ReportNewAncho
+     anchors_.erase(anchor_id);
+   }
  
--base::TimeDelta MLModelExecutionTimerInterval() {
--  return base::Milliseconds(
--      blink::features::kPreloadingModelTimerInterval.Get());
--}
+-  if (!new_predictions.empty() && MaySendTraffic()) {
+-    NavigationPredictorKeyedService* service =
+-        NavigationPredictorKeyedServiceFactory::GetForProfile(
+-            Profile::FromBrowserContext(
+-                render_frame_host().GetBrowserContext()));
+-    CHECK(service, base::NotFatalUntil::M161);
+-    content::WebContents* web_contents =
+-        content::WebContents::FromRenderFrameHost(&render_frame_host());
 -
--base::TimeDelta MLModelMaxHoverTime() {
--  return blink::features::kPreloadingModelMaxHoverTime.Get();
--}
- 
-+[[maybe_unused]]
- void RecordMetricsForModelTraining(
-     const PreloadingModelKeyedService::Inputs& inputs,
-     ukm::SourceId ukm_source,
-@@ -415,80 +406,6 @@ void NavigationPredictor::ProcessPointer
- }
- 
- void NavigationPredictor::OnMLModelExecutionTimerFired() {
--  // Check whether preloading is enabled or not.
--  Profile* profile =
--      Profile::FromBrowserContext(render_frame_host().GetBrowserContext());
--  if (prefetch::IsSomePreloadingEnabled(*profile->GetPrefs()) !=
--      content::PreloadingEligibility::kEligible) {
--    return;
--  }
--
--  // Execute the model.
--  PreloadingModelKeyedService* model_service =
--      PreloadingModelKeyedServiceFactory::GetForProfile(profile);
--  if (!model_service) {
--    return;
--  }
--
--  if (!ml_model_candidate_.has_value()) {
--    return;
--  }
--  auto it = anchors_.find(ml_model_candidate_.value());
--  if (it == anchors_.end()) {
--    return;
--  }
--
--  AnchorElementData& anchor = it->second;
--
--  PreloadingModelKeyedService::Inputs inputs;
--  inputs.contains_image = anchor.contains_image;
--  inputs.font_size = anchor.font_size;
--  inputs.has_text_sibling = anchor.has_text_sibling;
--  inputs.is_bold = anchor.is_bold_font;
--  inputs.is_in_iframe = anchor.is_in_iframe;
--  inputs.is_url_incremented_by_one = anchor.is_url_incremented_by_one;
--  inputs.navigation_start_to_link_logged =
--      anchor.first_report_timestamp - navigation_start_;
--  auto path_info = GetUrlPathLengthDepthAndHash(anchor.target_url);
--  inputs.path_length = path_info.path_length;
--  inputs.path_depth = path_info.path_depth;
--  inputs.percent_clickable_area = anchor.ratio_area;
--  inputs.percent_vertical_distance =
--      static_cast<int>(anchor.ratio_distance_root_top * 100);
--
--  inputs.is_same_host = anchor.is_same_host;
--  auto to_timedelta = [this](std::optional<base::TimeTicks> ts) {
--    return ts.has_value() ? NowTicks() - ts.value() : base::TimeDelta();
--  };
--  // TODO(329691634): Using the real viewport entry time for
--  // `entered_viewport_to_left_viewport` produces low quality results.
--  // We could remove it from the model, if we can't get this to be useful.
--  inputs.entered_viewport_to_left_viewport = base::TimeDelta();
--  inputs.hover_dwell_time = to_timedelta(anchor.pointer_over_timestamp);
--  inputs.pointer_hovering_over_count = anchor.pointer_hovering_over_count;
--  if (model_score_callback_) {
--    std::move(model_score_callback_).Run(inputs);
--  }
--
--  content::PreloadingData* preloading_data =
--      content::PreloadingData::GetOrCreateForWebContents(
--          content::WebContents::FromRenderFrameHost(&render_frame_host()));
--  preloading_data->OnPreloadingHeuristicsModelInput(
--      anchor.target_url,
--      base::BindOnce(&RecordMetricsForModelTraining, inputs,
--                     render_frame_host().GetPageUkmSourceId()));
--  model_service->Score(
--      &scoring_model_task_tracker_, inputs,
--      base::BindOnce(&NavigationPredictor::OnPreloadingHeuristicsModelDone,
--                     weak_ptr_factory_.GetWeakPtr(), anchor.target_url));
--
--  if (inputs.hover_dwell_time < MLModelMaxHoverTime() &&
--      !ml_model_execution_timer_.IsRunning()) {
--    ml_model_execution_timer_.Start(
--        FROM_HERE, MLModelExecutionTimerInterval(),
--        base::BindOnce(&NavigationPredictor::OnMLModelExecutionTimerFired,
--                       base::Unretained(this)));
+-    service->OnPredictionUpdated(
+-        web_contents, document_url,
+-        NavigationPredictorKeyedService::PredictionSource::
+-            kAnchorElementsParsedFromWebPage,
+-        new_predictions);
 -  }
  }
  
- void NavigationPredictor::SetModelScoreCallbackForTesting(
+ // static
 --- a/chrome/browser/page_content_annotations/page_content_annotations_service_factory.cc
 +++ b/chrome/browser/page_content_annotations/page_content_annotations_service_factory.cc
 @@ -62,6 +62,7 @@ bool IsEphemeralProfile(Profile* profile
@@ -611,13 +488,15 @@
  void PasswordChangeDelegateImpl::OnLoginStateCheckedWithoutPIResult(
 --- a/chrome/browser/pdf/BUILD.gn
 +++ b/chrome/browser/pdf/BUILD.gn
-@@ -251,10 +251,7 @@ if (!is_android) {
+@@ -250,12 +250,9 @@ if (!is_android) {
        deps += [
          "//chrome/browser/download:test_support",
          "//chrome/browser/permissions",
 -        "//chrome/browser/screen_ai:screen_ai_install_state",
 -        "//chrome/browser/screen_ai:screen_ai_service_router_factory",
          "//chrome/browser/ui:browser_manager_service",
+         "//chrome/common/extensions/api",
+         "//extensions/browser:test_support",
 -        "//services/screen_ai/public/cpp:utilities",
          "//ui/accessibility:test_support",
        ]
@@ -657,7 +536,7 @@
  #include "chrome/browser/permissions/pref_based_quiet_permission_ui_selector.h"
  #include "chrome/browser/permissions/quiet_notification_permission_ui_config.h"
  #include "chrome/browser/permissions/system/system_permission_settings.h"
-@@ -554,8 +553,6 @@ ChromePermissionsClient::CreatePermissio
+@@ -556,8 +555,6 @@ ChromePermissionsClient::CreatePermissio
  #endif
    selectors.emplace_back(std::make_unique<PrefBasedQuietPermissionUiSelector>(
        Profile::FromBrowserContext(browser_context)));
@@ -666,7 +545,7 @@
    return selectors;
  }
  
-@@ -577,8 +574,6 @@ void ChromePermissionsClient::OnPromptRe
+@@ -579,8 +576,6 @@ void ChromePermissionsClient::OnPromptRe
  
    Profile* profile =
        Profile::FromBrowserContext(web_contents->GetBrowserContext());
@@ -709,7 +588,7 @@
          model_data.request_metadata.request_type;
 --- a/chrome/browser/prefs/BUILD.gn
 +++ b/chrome/browser/prefs/BUILD.gn
-@@ -389,7 +389,6 @@ source_set("impl") {
+@@ -396,7 +396,6 @@ source_set("impl") {
        "//chrome/browser/desktop_to_mobile_promos:utils",
        "//chrome/browser/device_identity",
        "//chrome/browser/new_tab_page",
@@ -719,7 +598,7 @@
        "//chrome/browser/sharing_hub",
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -1788,9 +1788,6 @@ void RegisterLocalState(PrefRegistrySimp
+@@ -1927,9 +1927,6 @@ void RegisterLocalState(PrefRegistrySimp
    DeviceOAuth2TokenStoreDesktop::RegisterPrefs(registry);
  #endif
  
@@ -731,7 +610,7 @@
    PlatformAuthPolicyObserver::RegisterPrefs(registry);
 --- a/chrome/browser/profiles/BUILD.gn
 +++ b/chrome/browser/profiles/BUILD.gn
-@@ -916,7 +916,6 @@ source_set("profiles_extra_parts_impl")
+@@ -933,7 +933,6 @@ source_set("profiles_extra_parts_impl")
    } else {
      deps += [
        "//chrome/browser/accessibility/phrase_segmentation",
@@ -739,7 +618,7 @@
        "//chrome/browser/apps/app_service",
        "//chrome/browser/autofill",
        "//chrome/browser/badging",
-@@ -931,7 +930,6 @@ source_set("profiles_extra_parts_impl")
+@@ -947,7 +946,6 @@ source_set("profiles_extra_parts_impl")
        "//chrome/browser/profile_resetter",
        "//chrome/browser/record_replay",
        "//chrome/browser/record_replay:impl",
@@ -749,31 +628,15 @@
        "//chrome/browser/sharing_hub",
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -134,7 +134,6 @@
- #include "chrome/browser/metrics/profile_metrics_service_factory.h"
- #include "chrome/browser/metrics/variations/google_groups_manager_factory.h"
- #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
--#include "chrome/browser/navigation_predictor/preloading_model_keyed_service_factory.h"
- #include "chrome/browser/navigation_predictor/search_engine_preconnector.h"
- #include "chrome/browser/navigation_predictor/search_engine_preconnector_keyed_service_factory.h"
- #include "chrome/browser/net/dns_probe_service_factory.h"
-@@ -395,7 +394,6 @@
+@@ -396,7 +396,6 @@
  #include "chrome/browser/record_replay/task_parameters_extractor_factory.h"
  #include "chrome/browser/record_replay/task_service_factory.h"
  #include "chrome/browser/record_replay/task_store_factory.h"
 -#include "chrome/browser/screen_ai/screen_ai_service_router_factory.h"
- #include "chrome/browser/search/instant_service_factory.h"
  #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service_factory.h"
  #include "chrome/browser/speech/speech_recognition_client_browser_interface_factory.h"
-@@ -1185,7 +1183,6 @@ void ChromeBrowserMainExtraPartsProfiles
- #if BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
-   net::ServerCertificateDatabaseServiceFactory::GetInstance();
- #endif
--  PreloadingModelKeyedServiceFactory::GetInstance();
- #if BUILDFLAG(ENABLE_DICE_SUPPORT)
-   HistorySyncOptinServiceFactory::GetInstance();
-   ProfileManagementDisclaimerServiceFactory::GetInstance();
-@@ -1248,9 +1245,6 @@ void ChromeBrowserMainExtraPartsProfiles
+ #include "chrome/browser/speech/speech_recognition_service_factory.h"
+@@ -1230,9 +1229,6 @@ void ChromeBrowserMainExtraPartsProfiles
    // TODO(b/502297163): Implement for Android.
    OneTimePermissionsTrackerFactory::GetInstance();
  #endif
@@ -783,7 +646,7 @@
    OptimizationGuideGlobalStateHolderKeyedServiceFactory::GetInstance();
    OptimizationGuideKeyedServiceFactory::GetInstance();
    origin_gating::OriginGatingServiceFactory::GetInstance();
-@@ -1348,7 +1342,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1328,7 +1324,6 @@ void ChromeBrowserMainExtraPartsProfiles
  #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
    policy::UserPolicyOidcSigninServiceFactory::GetInstance();
  #endif
@@ -791,7 +654,7 @@
    PredictionServiceFactory::GetInstance();
    predictors::AutocompleteActionPredictorFactory::GetInstance();
    predictors::LoadingPredictorFactory::GetInstance();
-@@ -1432,10 +1425,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1412,10 +1407,6 @@ void ChromeBrowserMainExtraPartsProfiles
    SafetyHubMenuNotificationServiceFactory::GetInstance();
  #if !BUILDFLAG(IS_ANDROID)
    SafetyHubHatsServiceFactory::GetInstance();
@@ -802,7 +665,7 @@
  #endif
  #if BUILDFLAG(IS_CHROMEOS)
    if (ash::features::IsScannerEnabled()) {
-@@ -1559,7 +1548,6 @@ void ChromeBrowserMainExtraPartsProfiles
+@@ -1539,7 +1530,6 @@ void ChromeBrowserMainExtraPartsProfiles
    TopSitesFactory::GetInstance();
    translate::TranslateRankerFactory::GetInstance();
  #if !BUILDFLAG(IS_ANDROID)
@@ -812,7 +675,7 @@
    ttc::TtcKeyedServiceFactory::GetInstance();
 --- a/chrome/browser/profiles/off_the_record_profile_impl.cc
 +++ b/chrome/browser/profiles/off_the_record_profile_impl.cc
-@@ -229,11 +229,6 @@ void OffTheRecordProfileImpl::Init() {
+@@ -240,11 +240,6 @@ void OffTheRecordProfileImpl::Init() {
    // AccessibilityLabelsService has a default prefs behavior in incognito.
    AccessibilityLabelsService::InitOffTheRecordPrefs(this);
  
@@ -826,7 +689,7 @@
    // System Profile.
 --- a/chrome/browser/profiles/profile_impl.cc
 +++ b/chrome/browser/profiles/profile_impl.cc
-@@ -923,11 +923,6 @@ void ProfileImpl::DoFinalInit(CreateMode
+@@ -928,33 +928,8 @@ void ProfileImpl::DoFinalInit(CreateMode
    // The password settings service needs to start listening to settings
    // changes from Google Mobile Services, as early as possible.
    PasswordManagerSettingsServiceFactory::GetForProfile(this);
@@ -837,30 +700,32 @@
 -  }
  #endif  // BUILDFLAG(IS_ANDROID)
  
-   // The announcement notification  service might not be available for some
---- a/chrome/browser/profiles/profile_manager.cc
-+++ b/chrome/browser/profiles/profile_manager.cc
-@@ -51,7 +51,6 @@
- #include "chrome/browser/buildflags.h"
- #include "chrome/browser/lifetime/application_lifetime.h"
- #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
--#include "chrome/browser/navigation_predictor/preloading_model_keyed_service_factory.h"
- #include "chrome/browser/prefs/incognito_mode_prefs.h"
- #include "chrome/browser/profiles/delete_profile_helper.h"
- #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
-@@ -1603,9 +1602,6 @@ void ProfileManager::DoFinalInitForServi
-   // Ensure NavigationPredictorKeyedService is started.
-   NavigationPredictorKeyedServiceFactory::GetForProfile(profile);
+-  if (features::IsLazyOptimizationGuideModelsEnabled() && IsRegularProfile()) {
+-    // Warm up Optimization Guide model services after startup so that model
+-    // observers register and downloads start soon after startup, without
+-    // blocking profile creation. Guest and OTR profiles skip this warmup on
+-    // purpose so these services are created on first use there.
+-    AfterStartupTaskUtils::PostTask(
+-        FROM_HERE, content::GetUIThreadTaskRunner({}),
+-        base::BindOnce(
+-            [](base::WeakPtr<Profile> profile) {
+-              if (!profile || profile->ShutdownStarted()) {
+-                return;
+-              }
+-              AutocompleteScoringModelServiceFactory::GetForProfile(
+-                  profile.get());
+-              OnDeviceTailModelServiceFactory::GetForProfile(profile.get());
+-              PredictionModelHandlerProviderFactory::GetForBrowserContext(
+-                  profile.get());
+-            },
+-            GetWeakPtr()));
+-  }
  
--  // Ensure PreloadingModelKeyedService is started.
--  PreloadingModelKeyedServiceFactory::GetForProfile(profile);
--
-   IdentityManagerFactory::GetForProfile(profile)->OnNetworkInitialized();
-   AccountReconcilorFactory::GetForProfile(profile);
- #if BUILDFLAG(IS_ANDROID)
+   // The announcement notification  service might not be available for some
+   // irregular profiles, like the System Profile.
 --- a/chrome/browser/resources/pdf/pdf_viewer.html
 +++ b/chrome/browser/resources/pdf/pdf_viewer.html
-@@ -102,10 +102,6 @@ import {AnnotationMode} from './constant
+@@ -103,10 +103,6 @@ import {AnnotationMode} from './constant
        </cr-page-selector>
      ` : ''}
    </if>
@@ -1021,24 +886,6 @@
    } else {
      if (speech::SodaInstaller::GetInstance()) {
        is_installed = speech::SodaInstaller::GetInstance()->IsSodaInstalled(
---- a/chrome/browser/ui/BUILD.gn
-+++ b/chrome/browser/ui/BUILD.gn
-@@ -2438,7 +2438,6 @@ static_library("ui") {
-       "//chrome/browser/lens/region_search",
-       "//chrome/browser/reading_list",
-       "//chrome/browser/safe_browsing",
--      "//chrome/browser/screen_ai:screen_ai_service_router_factory",
-       "//chrome/browser/smart_card",
-       "//chrome/browser/support_tool",
-       "//chrome/browser/tab_group_sync:utils",
-@@ -3934,7 +3933,6 @@ static_library("ui") {
-       "//chrome/browser/ui/views/zoom",
-       "//chrome/browser/ui/webauthn:impl",
-       "//chrome/browser/ui/webui/app_service_internals",
--      "//chrome/browser/ui/webui/autofill_ml_internals",
-       "//chrome/browser/ui/webui/side_panel/customize_chrome",
-       "//chrome/browser/ui/window_metadata",
-       "//chrome/browser/ui/window_name_prompt",
 --- a/chrome/browser/ui/pdf/BUILD.gn
 +++ b/chrome/browser/ui/pdf/BUILD.gn
 @@ -6,7 +6,6 @@ import("//pdf/features.gni")
@@ -1102,7 +949,7 @@
                            const std::u16string& text);
 --- a/chrome/browser/ui/tabs/public/tab_features.h
 +++ b/chrome/browser/ui/tabs/public/tab_features.h
-@@ -220,12 +220,6 @@ namespace web_app {
+@@ -274,12 +274,6 @@ namespace web_app {
  class WindowManagementContentSettingObserver;
  }  // namespace web_app
  
@@ -1115,9 +962,9 @@
  namespace sync_sessions {
  class SyncSessionsRouterTabHelper;
  }  // namespace sync_sessions
-@@ -779,10 +773,6 @@ class TabFeatures {
-   std::unique_ptr<contextual_tasks::ContextualTasksTabVisitTracker>
-       contextual_tasks_tab_visit_tracker_;
+@@ -870,10 +864,6 @@ class TabFeatures {
+   std::unique_ptr<contextual_tasks::SearchJourneyTabFeature>
+       search_journey_tab_feature_;
  
 -#if !BUILDFLAG(IS_ANDROID)
 -  std::unique_ptr<skills::SkillsUpdateObserver> skills_update_observer_;
@@ -1128,7 +975,7 @@
        desktop_session_duration_observer_;
 --- a/chrome/browser/ui/tabs/tab_features.cc
 +++ b/chrome/browser/ui/tabs/tab_features.cc
-@@ -506,11 +506,6 @@ void TabFeatures::Init(TabInterface& tab
+@@ -715,11 +715,6 @@ void TabFeatures::Init(TabInterface& tab
            GetUserDataFactory().CreateInstance<actor::ui::ActorUiTabController>(
                tab, tab, actor::ActorKeyedService::Get(profile));
      }
@@ -1140,7 +987,7 @@
    }  // IsInNormalWindow() end.
  
    if (base::FeatureList::IsEnabled(features::kGlicActor)) {
-@@ -814,10 +809,6 @@ void TabFeatures::Init(TabInterface& tab
+@@ -1056,10 +1051,6 @@ void TabFeatures::Init(TabInterface& tab
    }
  #endif
  
@@ -1153,7 +1000,7 @@
          std::make_unique<indigo::IndigoPageActionController>(
 --- a/chrome/browser/ui/views/user_education/browser_user_education_service.cc
 +++ b/chrome/browser/ui/views/user_education/browser_user_education_service.cc
-@@ -1082,40 +1082,6 @@ void MaybeRegisterChromeFeaturePromos(
+@@ -1149,40 +1149,6 @@ void MaybeRegisterChromeFeaturePromos(
                         "Triggered when the PDF Viewer opens.")));
  #endif  // BUILDFLAG(ENABLE_PDF_INK2)
  
@@ -1196,17 +1043,17 @@
    registry.RegisterFeature(std::move(
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -114,7 +114,6 @@ source_set("configs") {
-       "//chrome/browser/actor/ui:actor_overlay_web_view",
+@@ -116,7 +116,6 @@ source_set("configs") {
+       "//chrome/browser/ui/tabs/tab_group_home",
        "//chrome/browser/ui/webui/access_code_cast",
        "//chrome/browser/ui/webui/app_service_internals",
 -      "//chrome/browser/ui/webui/autofill_ml_internals",
        "//chrome/browser/ui/webui/color_pipeline_internals",
+       "//chrome/browser/ui/webui/commerce",
        "//chrome/browser/ui/webui/critical_actions",
-       "//chrome/browser/ui/webui/infobar_internals",
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-@@ -354,7 +354,6 @@ void RegisterChromeWebUIConfigs() {
+@@ -365,7 +365,6 @@ void RegisterChromeWebUIConfigs() {
    map.AddWebUIConfig(std::make_unique<media_router::AccessCodeCastUIConfig>());
    map.AddWebUIConfig(std::make_unique<actor::ui::ActorOverlayUIConfig>());
    map.AddWebUIConfig(std::make_unique<AppServiceInternalsUIConfig>());
@@ -1216,15 +1063,15 @@
    map.AddWebUIConfig(std::make_unique<ColorPipelineInternalsUIConfig>());
 --- a/chrome/browser/ui/webui/settings/BUILD.gn
 +++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -62,7 +62,6 @@ source_set("settings") {
-     "//chrome/browser/permissions/system",
+@@ -66,7 +66,6 @@ source_set("settings") {
      "//chrome/browser/profile_resetter",
+     "//chrome/browser/profile_resetter:profile_reset_report_proto",
      "//chrome/browser/profiles:profile",
 -    "//chrome/browser/screen_ai:screen_ai_install_state",
      "//chrome/browser/themes",
      "//chrome/browser/ui/safety_hub",
      "//chrome/browser/ui/search_engines",
-@@ -680,7 +679,6 @@ if (!is_android) {
+@@ -704,7 +703,6 @@ if (!is_android) {
        ]
        deps += [
          "//chrome/browser/profiles",
@@ -1333,7 +1180,7 @@
  }  // namespace settings
 --- a/chrome/browser/ui/webui/side_panel/read_anything/BUILD.gn
 +++ b/chrome/browser/ui/webui/side_panel/read_anything/BUILD.gn
-@@ -36,7 +36,6 @@ source_set("read_anything") {
+@@ -39,7 +39,6 @@ source_set("read_anything") {
      "//chrome/browser/profiles:profile",
      "//chrome/browser/resources/side_panel/read_anything:resources",
      "//chrome/browser/resources/side_panel/shared:resources_grit",
@@ -1343,7 +1190,7 @@
      "//chrome/browser/ui:accelerator_table",
 --- a/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.cc
 +++ b/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.cc
-@@ -19,8 +19,6 @@
+@@ -21,8 +21,6 @@
  #include "chrome/browser/dom_distiller/dom_distiller_service_factory.h"
  #include "chrome/browser/language/language_model_manager_factory.h"
  #include "chrome/browser/profiles/profile.h"
@@ -1352,17 +1199,15 @@
  #include "chrome/browser/speech/extension_api/tts_engine_extension_api.h"
  #include "chrome/browser/translate/chrome_translate_client.h"
  #include "chrome/browser/ui/read_anything/read_anything_controller.h"
-@@ -434,8 +432,7 @@ ReadAnythingUntrustedPageHandler::ReadAn
-     : profile_(Profile::FromWebUI(web_ui)),
+@@ -436,7 +434,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
        web_ui_(web_ui),
        receiver_(this, std::move(receiver)),
--      page_(std::move(page)),
--      use_screen_ai_service_(use_screen_ai_service)
-+      page_(std::move(page))
+       page_(std::move(page)),
+-      use_screen_ai_service_(use_screen_ai_service),
  #if BUILDFLAG(IS_CHROMEOS)
-       ,
-       extension_wrapper_(std::move(extension_wrapper))
-@@ -478,14 +475,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
+       extension_wrapper_(std::move(extension_wrapper)),
+ #endif
+@@ -485,14 +482,6 @@ ReadAnythingUntrustedPageHandler::ReadAn
    prefs_lang = language::ExtractBaseLanguage(prefs_lang);
    SetDefaultLanguageCode(prefs_lang);
  
@@ -1379,17 +1224,17 @@
        !features::IsReadAnythingReadAloudPhraseHighlightingEnabled()) {
 --- a/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.h
 +++ b/chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.h
-@@ -491,7 +491,6 @@ class ReadAnythingUntrustedPageHandler :
- 
-   // The current language being used in the app.
-   std::string current_language_code_ = "en-US";
+@@ -490,7 +490,6 @@ class ReadAnythingUntrustedPageHandler :
+   // The translation state last sent to the page, or nullopt if none has been
+   // sent yet.
+   std::optional<bool> last_sent_is_translated_;
 -  const bool use_screen_ai_service_;
  
  #if BUILDFLAG(IS_CHROMEOS)
    // The ChromeOS language pack manager can't handle more than one language
 --- a/chrome/renderer/BUILD.gn
 +++ b/chrome/renderer/BUILD.gn
-@@ -346,8 +346,6 @@ static_library("renderer") {
+@@ -347,8 +347,6 @@ static_library("renderer") {
      deps += [ "//chrome/common/wallet:mojo_bindings" ]
    } else {
      sources += [
@@ -1398,7 +1243,7 @@
        "accessibility/phrase_segmentation/base_phrase_segmenter.cc",
        "accessibility/phrase_segmentation/base_phrase_segmenter.h",
        "accessibility/phrase_segmentation/dependency_parser_model.cc",
-@@ -364,23 +362,6 @@ static_library("renderer") {
+@@ -365,23 +363,6 @@ static_library("renderer") {
        "accessibility/phrase_segmentation/tokenized_sentence.h",
        "accessibility/phrase_segmentation/tokenizer.cc",
        "accessibility/phrase_segmentation/tokenizer.h",
@@ -1422,7 +1267,7 @@
        "media/chrome_speech_recognition_client.cc",
        "media/chrome_speech_recognition_client.h",
        "password_manager/remote_actor_credential_sharing_extension.cc",
-@@ -398,7 +379,6 @@ static_library("renderer") {
+@@ -394,7 +375,6 @@ static_library("renderer") {
        "//components/record_replay/content/renderer",
        "//components/trusted_vault",
        "//services/screen_ai/buildflags",
@@ -1432,18 +1277,18 @@
        "//third_party/tensorflow-text",
 --- a/chrome/renderer/chrome_render_frame_observer.cc
 +++ b/chrome/renderer/chrome_render_frame_observer.cc
-@@ -88,7 +88,6 @@
+@@ -89,7 +89,6 @@
  #include "url/url_constants.h"
  
  #if !BUILDFLAG(IS_ANDROID)
 -#include "chrome/renderer/accessibility/read_anything/read_anything_app_controller.h"
- #include "chrome/renderer/searchbox/searchbox_extension.h"
  #endif  // !BUILDFLAG(IS_ANDROID)
  
-@@ -385,14 +384,6 @@ void ChromeRenderFrameObserver::DidClear
-     SearchBoxExtension::Install(render_frame()->GetWebFrame());
-   }
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+@@ -396,14 +395,6 @@ void ChromeRenderFrameObserver::DidClear
+ #endif
  
+ #if !BUILDFLAG(IS_ANDROID)
 -  // Install ReadAnythingAppController on render frames with the Read Anything
 -  // url, which is chrome-untrusted. ReadAnythingAppController installs v8
 -  // bindings in the chrome.readingMode namespace which are consumed by
@@ -1457,44 +1302,33 @@
    guest_view::SlimWebViewBindings::MaybeInstall(*render_frame());
 --- a/chrome/test/BUILD.gn
 +++ b/chrome/test/BUILD.gn
-@@ -1893,9 +1893,6 @@ if (!is_android) {
-       "//chrome/browser/safe_browsing:blocking_page_platform_test_support",
+@@ -1463,7 +1463,6 @@ if (!is_android) {
+       "//chrome/browser/renderer_context_menu:browser_tests",
+       "//chrome/browser/renderer_host:browser_tests",
        "//chrome/browser/safe_browsing:browser_tests",
-       "//chrome/browser/safe_browsing:verdict_cache_manager_factory",
 -      "//chrome/browser/screen_ai:browser_tests",
--      "//chrome/browser/screen_ai:screen_ai_install_state",
--      "//chrome/browser/screen_ai:screen_ai_service_router_factory",
-       "//chrome/browser/search",
        "//chrome/browser/search:browser_tests",
-       "//chrome/browser/search:test_support",
-@@ -2539,8 +2536,6 @@ if (!is_android) {
-       "//services/preferences/public/cpp",
-       "//services/preferences/public/cpp/tracked",
-       "//services/preferences/tracked:features",
--      "//services/screen_ai/public/cpp:utilities",
--      "//services/screen_ai/public/mojom",
-       "//services/service_manager/public/cpp",
-       "//services/strings",
-       "//services/test/echo/public/mojom",
-@@ -6312,7 +6307,6 @@ test("unit_tests") {
+       "//chrome/browser/search_engines:browser_tests",
+       "//chrome/browser/send_tab_to_self:browser_tests",
+@@ -3390,7 +3389,6 @@ test("unit_tests") {
      # TODO(crbug.com/417513088): Maybe merge with the non-android `deps`
      # declaration above?
      deps += [
 -      "../browser/screen_ai:screen_ai_install_state",
        "//chrome:packed_resources",
-       "//chrome/browser/apps/app_service",
-       "//chrome/browser/apps/app_service:app_registry_cache_waiter",
-@@ -6351,7 +6345,6 @@ test("unit_tests") {
-       "//chrome/browser/profile_resetter:fake_profile_resetter",
+       "//chrome/browser/apps/app_service:unit_tests",
+       "//chrome/browser/apps/app_service/app_icon:unit_tests",
+@@ -3405,7 +3403,6 @@ test("unit_tests") {
+       "//chrome/browser/omnibox:unit_tests",
        "//chrome/browser/profile_resetter:unit_tests",
        "//chrome/browser/resources/new_tab_page_instant:resources_grit",
 -      "//chrome/browser/screen_ai:unit_tests",
-       "//chrome/browser/search/background",
        "//chrome/browser/search_engine_choice:unit_tests",
        "//chrome/browser/sensor:unit_tests",
+       "//chrome/browser/support_tool:unit_tests",
 --- a/chrome/utility/BUILD.gn
 +++ b/chrome/utility/BUILD.gn
-@@ -153,7 +153,6 @@ static_library("utility") {
+@@ -150,7 +150,6 @@ static_library("utility") {
        "//components/user_data_importer/content",
        "//components/user_data_importer/utility:bookmarks",
        "//services/proxy_resolver:lib",
@@ -1534,7 +1368,7 @@
  #if BUILDFLAG(ENABLE_MEDIA_REMOTING_REDIRECTION)
 --- a/components/BUILD.gn
 +++ b/components/BUILD.gn
-@@ -640,7 +640,6 @@ test("components_unittests") {
+@@ -645,7 +645,6 @@ test("components_unittests") {
        "//components/one_time_tokens/core/browser:unit_tests",
        "//components/page_info:unit_tests",
        "//components/password_manager/core/browser/actor_login:unit_tests",
@@ -1606,7 +1440,7 @@
  }  // namespace autofill
 --- a/components/page_content_annotations/content/BUILD.gn
 +++ b/components/page_content_annotations/content/BUILD.gn
-@@ -75,8 +75,6 @@ source_set("page_embeddings") {
+@@ -81,8 +81,6 @@ source_set("page_embeddings") {
    sources = [
      "embeddings_candidate_generator.cc",
      "embeddings_candidate_generator.h",

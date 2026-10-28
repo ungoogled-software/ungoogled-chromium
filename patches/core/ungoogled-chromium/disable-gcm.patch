@@ -2,7 +2,7 @@
 
 --- a/components/gcm_driver/gcm_client_impl.cc
 +++ b/components/gcm_driver/gcm_client_impl.cc
-@@ -78,7 +78,6 @@ const char kMessageTypeDeletedMessagesKe
+@@ -77,7 +77,6 @@ const char kMessageTypeDeletedMessagesKe
  const char kMessageTypeKey[] = "message_type";
  const char kMessageTypeSendErrorKey[] = "send_error";
  const char kSubtypeKey[] = "subtype";
@@ -10,15 +10,7 @@
  const int64_t kDefaultUserSerialNumber = 0LL;
  const int kDestroyGCMStoreDelayMS = 5 * 60 * 1000;  // 5 minutes.
  constexpr base::TimeDelta kTokenInvalidationInterval = base::Days(7);
-@@ -101,6 +100,7 @@ GCMClient::Result ToGCMClientResult(MCSC
-   return GCMClientImpl::UNKNOWN_ERROR;
- }
- 
-+[[maybe_unused]]
- void ToCheckinProtoVersion(
-     const GCMClient::ChromeBuildInfo& chrome_build_info,
-     checkin_proto::ChromeBuildProto* android_build_info) {
-@@ -296,38 +296,6 @@ void GCMClientImpl::Initialize(
+@@ -197,38 +196,6 @@ void GCMClientImpl::Initialize(
  }
  
  void GCMClientImpl::Start(StartMode start_mode) {
@@ -57,7 +49,7 @@
  }
  
  void GCMClientImpl::OnLoadCompleted(
-@@ -431,6 +399,7 @@ void GCMClientImpl::StartGCM() {
+@@ -332,6 +299,7 @@ void GCMClientImpl::StartGCM() {
  
  void GCMClientImpl::InitializeMCSClient() {
    DCHECK(network_connection_tracker_);
@@ -65,16 +57,16 @@
    std::vector<GURL> endpoints;
    endpoints.push_back(gservices_settings_.GetMCSMainEndpoint());
    GURL fallback_endpoint = gservices_settings_.GetMCSFallbackEndpoint();
-@@ -482,8 +451,6 @@ void GCMClientImpl::OnReady(const std::v
+@@ -383,8 +351,6 @@ void GCMClientImpl::OnReady(const std::v
  void GCMClientImpl::StartMCSLogin() {
    DCHECK_EQ(READY, state_);
    DCHECK(device_checkin_info_.IsValid());
--  mcs_client_->Login(device_checkin_info_.android_id,
--                     device_checkin_info_.secret);
+-  mcs_client_->Login(device_checkin_info_.android_id(),
+-                     device_checkin_info_.secret());
  }
  
  void GCMClientImpl::DestroyStoreWhenNotNeeded() {
-@@ -554,8 +521,6 @@ void GCMClientImpl::SetLastTokenFetchTim
+@@ -455,8 +421,6 @@ void GCMClientImpl::SetLastTokenFetchTim
  void GCMClientImpl::UpdateHeartbeatTimer(
      std::unique_ptr<base::RetainingOneShotTimer> timer) {
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -83,7 +75,7 @@
  }
  
  void GCMClientImpl::AddInstanceIDData(const std::string& app_id,
-@@ -598,35 +563,14 @@ void GCMClientImpl::GetInstanceIDData(co
+@@ -499,36 +463,14 @@ void GCMClientImpl::GetInstanceIDData(co
  void GCMClientImpl::AddHeartbeatInterval(const std::string& scope,
                                           int interval_ms) {
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -105,13 +97,14 @@
 -    return;
 -
 -  checkin_proto::ChromeBuildProto chrome_build_proto;
--  ToCheckinProtoVersion(chrome_build_info_, &chrome_build_proto);
+-  fcm::ToCheckinProtoVersion(chrome_build_info_, &chrome_build_proto);
 -
 -  CheckinRequest::RequestInfo request_info(
--      device_checkin_info_.android_id, device_checkin_info_.secret,
+-      device_checkin_info_.android_id(), device_checkin_info_.secret(),
 -      gservices_settings_.digest(), chrome_build_proto);
 -  checkin_request_ = std::make_unique<CheckinRequest>(
--      gservices_settings_.GetCheckinURL(), request_info, GetGCMBackoffPolicy(),
+-      gservices_settings_.GetCheckinURL(), request_info,
+-      fcm::GetBackoffPolicy(),
 -      base::BindOnce(&GCMClientImpl::OnCheckinCompleted,
 -                     weak_ptr_factory_.GetWeakPtr()),
 -      url_loader_factory_, io_task_runner_, &recorder_);
@@ -119,14 +112,15 @@
  }
  
  void GCMClientImpl::OnCheckinCompleted(
-@@ -683,24 +627,6 @@ void GCMClientImpl::SetGServicesSettings
+@@ -585,25 +527,6 @@ void GCMClientImpl::SetGServicesSettings
  
  void GCMClientImpl::SchedulePeriodicCheckin() {
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
 -
 -  // Make sure no checkin is in progress.
--  if (checkin_request_.get() || !device_checkin_info_.accounts_set)
+-  if (checkin_request_.get() || !device_checkin_info_.accounts_set()) {
 -    return;
+-  }
 -
 -  // There should be only one periodic checkin pending at a time. Removing
 -  // pending periodic checkin to schedule a new one.
@@ -144,7 +138,7 @@
  }
  
  base::TimeDelta GCMClientImpl::GetTimeToNextCheckin() const {
-@@ -1120,25 +1046,6 @@ void GCMClientImpl::Send(const std::stri
+@@ -1023,25 +946,6 @@ void GCMClientImpl::Send(const std::stri
                           const OutgoingMessage& message) {
    DCHECK_EQ(state_, READY);
    DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
@@ -172,7 +166,7 @@
  std::string GCMClientImpl::GetStateString() const {
 --- a/components/gcm_driver/gcm_driver_desktop.cc
 +++ b/components/gcm_driver/gcm_driver_desktop.cc
-@@ -1189,25 +1189,7 @@ GCMClient::Result GCMDriverDesktop::Ensu
+@@ -1184,25 +1184,7 @@ GCMClient::Result GCMDriverDesktop::Ensu
      GCMClient::StartMode start_mode) {
    DCHECK(ui_thread_->RunsTasksInCurrentSequence());
  
