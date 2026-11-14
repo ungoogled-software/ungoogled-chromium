@@ -1,0 +1,62 @@
+# From d1204af11b954751db6279725b5db526cd3ccb04 Mon Sep 17 00:00:00 2001
+# From: Gyuyoung Kim <gyuyoung@igalia.com>
+# Date: Tue, 27 Oct 2026 16:56:55 +0900
+# Subject: [PATCH] [wasm-interpreter] Fix build break after SharedFunctionInfo flags move
+# 
+# https://crrev.com/c/8559141 moved SharedFunctionInfo's flag bit aliases
+# into SharedFunctionInfo::Flags, but did not update the Wasm interpreter
+# builtins, which are only compiled with V8_ENABLE_DRUMBRAKE. This breaks
+# builds with DrumBrake enabled (e.g. tvOS):
+# 
+#   error: no member named 'IsNativeBit' in
+#   'v8::internal::SharedFunctionInfo'
+# 
+# Use SharedFunctionInfo::Flags::IsNativeBit and IsStrictBit in the
+# arm64, x64 and riscv interpreter builtins, as the regular builtins do.
+# 
+# Bug: 531344950
+# Change-Id: I5719eac48036c861c060c6c2840708221811d57e
+# Reviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/8667480
+# Reviewed-by: Paolo Severini <paolosev@microsoft.com>
+# Commit-Queue: Gyuyoung Kim <gyuyoung@igalia.com>
+# Reviewed-by: Daniel Lehmann <dlehmann@chromium.org>
+# Cr-Commit-Position: refs/heads/main@{#111223}
+--- a/v8/src/wasm/interpreter/arm64/interpreter-builtins-arm64.cc
++++ b/v8/src/wasm/interpreter/arm64/interpreter-builtins-arm64.cc
+@@ -586,8 +586,8 @@ void Builtins::Generate_GenericWasmToJSI
+   DEFINE_REG(flags);
+   __ Ldr(flags, FieldMemOperand(shared_function_info,
+                                 offsetof(SharedFunctionInfo, flags_)));
+-  __ Tst(flags, Immediate(SharedFunctionInfo::IsNativeBit::kMask |
+-                          SharedFunctionInfo::IsStrictBit::kMask));
++  __ Tst(flags, Immediate(SharedFunctionInfo::Flags::IsNativeBit::kMask |
++                          SharedFunctionInfo::Flags::IsStrictBit::kMask));
+   FREE_REG(flags);
+   __ B(&receiver_undefined, ne);
+   __ LoadGlobalProxy(receiver);
+--- a/v8/src/wasm/interpreter/riscv/interpreter-builtins-riscv.cc
++++ b/v8/src/wasm/interpreter/riscv/interpreter-builtins-riscv.cc
+@@ -607,8 +607,8 @@ void Builtins::Generate_GenericWasmToJSI
+   __ LoadWord(flags, FieldMemOperand(shared_function_info,
+                                      offsetof(SharedFunctionInfo, flags_)));
+   __ Branch(&receiver_undefined, ne, flags,
+-            Operand(SharedFunctionInfo::IsNativeBit::kMask |
+-                    SharedFunctionInfo::IsStrictBit::kMask));
++            Operand(SharedFunctionInfo::Flags::IsNativeBit::kMask |
++                    SharedFunctionInfo::Flags::IsStrictBit::kMask));
+   FREE_REG(flags);
+   __ LoadGlobalProxy(receiver);
+   __ Branch(&calculate_js_function_arity);
+--- a/v8/src/wasm/interpreter/x64/interpreter-builtins-x64.cc
++++ b/v8/src/wasm/interpreter/x64/interpreter-builtins-x64.cc
+@@ -498,8 +498,8 @@ void Builtins::Generate_GenericWasmToJSI
+   Register flags = rbx;
+   __ movl(flags, FieldOperand(shared_function_info,
+                               offsetof(SharedFunctionInfo, flags_)));
+-  __ testq(flags, Immediate(SharedFunctionInfo::IsNativeBit::kMask |
+-                            SharedFunctionInfo::IsStrictBit::kMask));
++  __ testq(flags, Immediate(SharedFunctionInfo::Flags::IsNativeBit::kMask |
++                            SharedFunctionInfo::Flags::IsStrictBit::kMask));
+   flags = no_reg;
+   __ j(not_equal, &receiver_undefined);
+   __ LoadGlobalProxy(receiver);
