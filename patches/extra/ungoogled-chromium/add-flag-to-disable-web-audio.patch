@@ -1,0 +1,87 @@
+# Add a flag to disable the Web Audio API, a fingerprinting vector.
+
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -149,4 +149,9 @@
+      "Hides the close, minimize, and maximize buttons on browser-drawn title "
+      "bars and reclaims their space for tabs. ungoogled-chromium flag.",
+      kOsDesktop, SINGLE_VALUE_TYPE("hide-window-buttons")},
++    {"disable-web-audio",
++     "Disable Web Audio",
++     "Disables the Web Audio API, a fingerprinting vector. "
++     "ungoogled-chromium flag.",
++     kOsAll, FEATURE_VALUE_TYPE(blink::features::kDisableWebAudio)},
+ #endif  // CHROME_BROWSER_UNGOOGLED_FLAG_ENTRIES_H_
+
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -27,6 +27,7 @@
+ const char kSpoofWebGLVendor[] = "vendor";
+ const base::FeatureParam<std::string> kSpoofWebGLRendererParam{&kSpoofWebGLInfo, kSpoofWebGLRenderer, " "};
+ const base::FeatureParam<std::string> kSpoofWebGLVendorParam{&kSpoofWebGLInfo, kSpoofWebGLVendor, " "};
++BASE_FEATURE(kDisableWebAudio, "DisableWebAudio", base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // -----------------------------------------------------------------------------
+ // Feature definitions and associated constants (feature params, et cetera)
+
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@ -28,6 +28,7 @@
+ BLINK_COMMON_EXPORT extern const char kSpoofWebGLVendor[];
+ BLINK_COMMON_EXPORT extern const base::FeatureParam<std::string> kSpoofWebGLRendererParam;
+ BLINK_COMMON_EXPORT extern const base::FeatureParam<std::string> kSpoofWebGLVendorParam;
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDisableWebAudio);
+ 
+ // -----------------------------------------------------------------------------
+ // Feature declarations and associated constants (feature params, et cetera)
+
+--- a/third_party/blink/renderer/modules/webaudio/audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_context.cc
+@@ -7,6 +7,7 @@
+ #include <algorithm>
+ #include <atomic>
+ 
++#include "base/feature_list.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+@@ -421,6 +422,11 @@
+                                    const AudioContextOptions* context_options,
+                                    ExceptionState& exception_state) {
+   DCHECK(IsMainThread());
++  if (base::FeatureList::IsEnabled(blink::features::kDisableWebAudio)) {
++    exception_state.ThrowDOMException(
++        DOMExceptionCode::kNotSupportedError, "Web Audio is disabled.");
++    return nullptr;
++  }
+ 
+   LocalDOMWindow& window = *To<LocalDOMWindow>(context);
+   if (!window.GetFrame()) {
+
+--- a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+@@ -27,10 +27,12 @@
+ 
+ #include <optional>
+ 
++#include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "media/base/audio_glitch_info.h"
++#include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/platform/platform.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_offline_audio_context_options.h"
+@@ -64,6 +66,11 @@
+     float sample_rate,
+     uint32_t render_quantum_frames,
+     ExceptionState& exception_state) {
++  if (base::FeatureList::IsEnabled(blink::features::kDisableWebAudio)) {
++    exception_state.ThrowDOMException(
++        DOMExceptionCode::kNotSupportedError, "Web Audio is disabled.");
++    return nullptr;
++  }
+   // FIXME: add support for workers.
+   auto* window = DynamicTo<LocalDOMWindow>(context);
+   if (!window) {
