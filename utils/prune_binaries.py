@@ -227,7 +227,8 @@ def prune_dirs(unpack_root, keep_contingent_paths, sysroot):
             if sysroot and f'{sysroot}-sysroot' in cpath:
                 get_logger().info('%s: %s', 'Exempt', cpath)
                 continue
-            get_logger().info('%s: %s', 'Exists' if Path(cpath).exists() else 'Absent', cpath)
+            get_logger().info('%s: %s', 'Exists' if (unpack_root / cpath).exists() else 'Absent',
+                              cpath)
             _prune_path(unpack_root / cpath, unpack_root)
 
 
